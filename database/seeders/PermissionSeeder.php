@@ -42,6 +42,10 @@ class PermissionSeeder extends Seeder
         'currency' => ['Master data', []],
         'tax' => ['Master data', []],
         'employee' => ['Master data', []],
+        // The shared gate for the Setup lists that had no permission of their own. Lookups
+        // that already had one — uom, currency, tax, warehouse, machine, item — keep it, so
+        // no role's rights widen because a screen appeared.
+        'reference_data' => ['Master data', []],
 
         // Engineering
         'product' => ['Engineering', []],
@@ -55,6 +59,7 @@ class PermissionSeeder extends Seeder
         'inquiry' => ['Commercial', ['submit', 'close']],
         'quotation' => ['Commercial', ['send', 'revise', 'accept', 'reject']],
         'cost_sheet' => ['Commercial', ['override_margin']],
+        'price_list' => ['Commercial', []],
         'sales_order' => ['Commercial', ['confirm', 'cancel', 'close', 'short_close', 'release_credit_hold', 'override_tolerance', 'amend']],
         'sample_request' => ['Commercial', ['dispatch']],
 

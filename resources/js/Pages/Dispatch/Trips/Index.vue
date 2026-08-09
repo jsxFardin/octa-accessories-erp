@@ -1,9 +1,10 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -12,9 +13,9 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 const props = defineProps({ trips: Object, filters: Object });
 
 const columns = [
-    { key: 'number', label: 'Number' },
-    { key: 'trip_date', label: 'Date' },
-    { key: 'status', label: 'Status' },
+    { key: 'number', label: 'Number', sort: true },
+    { key: 'trip_date', label: 'Date', sort: true },
+    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -41,6 +42,15 @@ const columns = [
                 <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
                 <template #cell:trip_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="trip"
+                        title="No trips yet"
+                        description="A trip sequences drops for one vehicle and collects proof of delivery."
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

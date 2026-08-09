@@ -35,6 +35,33 @@ class AuditLogger
     }
 
     /**
+     * The same row, for records that have no Eloquent model.
+     *
+     * The reference lists are edited through the query builder — there is no model class per
+     * lookup table and inventing twenty would buy nothing — but an edit to a tax rate or a
+     * defect code still has to leave a trace.
+     *
+     * @param  array<string, mixed>|null  $old
+     * @param  array<string, mixed>|null  $new
+     */
+    public function recordTable(string $table, int $id, string $event, ?array $old = null, ?array $new = null): void
+    {
+        $request = request();
+
+        DB::table('audit_logs')->insert([
+            'user_id' => auth()->id(),
+            'auditable_type' => $table,
+            'auditable_id' => $id,
+            'event' => $event,
+            'old_values' => $old === null ? null : json_encode($old, JSON_THROW_ON_ERROR),
+            'new_values' => $new === null ? null : json_encode($new, JSON_THROW_ON_ERROR),
+            'ip_address' => $request->ip(),
+            'user_agent' => substr((string) $request->userAgent(), 0, 255),
+            'created_at' => now(),
+        ]);
+    }
+
+    /**
      * Status transitions are the audit rows anyone actually reads (05-workflows §13).
      *
      * @param  array<string, mixed>  $context

@@ -33,14 +33,18 @@ use App\Modules\Product\Http\Controllers\ToolController;
 use App\Modules\Quality\Http\Controllers\LabController;
 use App\Modules\Quality\Http\Controllers\QcInspectionController;
 use App\Modules\Sales\Http\Controllers\InquiryController;
+use App\Modules\Sales\Http\Controllers\PriceListController;
 use App\Modules\Sales\Http\Controllers\QuotationController;
 use App\Modules\Sales\Http\Controllers\SalesOrderController;
 use App\Support\Http\LandingPage;
 use App\Support\Platform\Http\Controllers\AuditLogController;
 use App\Support\Platform\Http\Controllers\NumberSequenceController;
+use App\Support\Platform\Http\Controllers\OrganisationController;
 use App\Support\Platform\Http\Controllers\RoleController;
+use App\Support\Platform\Http\Controllers\SearchController;
 use App\Support\Platform\Http\Controllers\SettingController;
 use App\Support\Platform\Http\Controllers\UserController;
+use App\Support\Reference\Http\Controllers\ReferenceController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -154,6 +158,14 @@ Route::middleware('auth')->group(function (): void {
 
     Route::post('quotations/{quotation}/transition', [QuotationController::class, 'transition'])
         ->middleware('can:quotation.view')->name('quotations.transition');
+
+    // Contract pricing: a header with quantity-break lines, so not a generic reference list.
+    Route::resource('price-lists', PriceListController::class)
+        ->parameters(['price-lists' => 'priceList'])
+        ->middlewareFor(['index', 'show'], 'can:price_list.view_any')
+        ->middlewareFor(['create', 'store'], 'can:price_list.create')
+        ->middlewareFor(['edit', 'update'], 'can:price_list.update')
+        ->middlewareFor('destroy', 'can:price_list.delete');
     Route::post('quotations/{quotation}/convert', [QuotationController::class, 'convert'])
         ->middleware('can:sales_order.create')->name('quotations.convert');
 
@@ -266,6 +278,27 @@ Route::middleware('auth')->group(function (): void {
     Route::get('receipts', [ReceiptController::class, 'index'])
         ->middleware('can:receipt.view_any')->name('receipts.index');
 
+    // The ⌘K palette. Every source inside is permission-checked individually.
+    Route::get('search', SearchController::class)->name('search');
+
+    /*
+     * ---- Setup ---------------------------------------------------------------------
+     * The lookup lists behind every dropdown. One controller drives all of them from
+     * ReferenceRegistry; authorisation is per list, resolved inside the controller, because
+     * a single `can:` on the route cannot express "uom.update for one list, tax.update for
+     * the next". Route-level `can:reference_data.view_any` is the floor, not the whole check.
+     */
+    Route::get('setup', [ReferenceController::class, 'hub'])
+        ->middleware('can:reference_data.view_any')->name('setup.index');
+    Route::get('setup/{reference}', [ReferenceController::class, 'index'])
+        ->middleware('can:reference_data.view_any')->name('setup.reference');
+    Route::post('setup/{reference}', [ReferenceController::class, 'store'])
+        ->middleware('can:reference_data.view_any')->name('setup.reference.store');
+    Route::put('setup/{reference}/{id}', [ReferenceController::class, 'update'])
+        ->middleware('can:reference_data.view_any')->name('setup.reference.update');
+    Route::delete('setup/{reference}/{id}', [ReferenceController::class, 'destroy'])
+        ->middleware('can:reference_data.view_any')->name('setup.reference.destroy');
+
     // ---- Administration ------------------------------------------------------------
     Route::prefix('admin')->name('admin.')->group(function (): void {
         Route::get('users', [UserController::class, 'index'])
@@ -287,6 +320,15 @@ Route::middleware('auth')->group(function (): void {
             ->middleware('can:role.update')->name('roles.update');
         Route::delete('roles/{role}', [RoleController::class, 'destroy'])
             ->middleware('can:role.delete')->name('roles.destroy');
+
+        Route::get('organisation', [OrganisationController::class, 'index'])
+            ->middleware('can:setting.view_any')->name('organisation.index');
+        Route::put('organisation', [OrganisationController::class, 'update'])
+            ->middleware('can:setting.update')->name('organisation.update');
+        Route::post('organisation/branding', [OrganisationController::class, 'updateBranding'])
+            ->middleware('can:setting.update')->name('organisation.branding');
+        Route::delete('organisation/branding', [OrganisationController::class, 'destroyBranding'])
+            ->middleware('can:setting.update')->name('organisation.branding.destroy');
 
         Route::get('settings', [SettingController::class, 'index'])
             ->middleware('can:setting.view_any')->name('settings.index');

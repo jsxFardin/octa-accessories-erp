@@ -1,9 +1,10 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -12,14 +13,14 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 const props = defineProps({ lots: Object, filters: Object, warehouses: Array });
 
 const columns = [
-    { key: 'lot_no', label: 'Lot' },
+    { key: 'lot_no', label: 'Lot', sort: true },
     { key: 'item', label: 'Item' },
     { key: 'warehouse', label: 'WH' },
     { key: 'shade_code', label: 'Shade' },
-    { key: 'balance_qty', label: 'Balance', align: 'right' },
+    { key: 'balance_qty', label: 'Balance', align: 'right', sort: true },
     { key: 'unit_cost', label: 'Unit cost', align: 'right' },
     { key: 'cert', label: 'Claim' },
-    { key: 'received_on', label: 'Received' },
+    { key: 'received_on', label: 'Received', sort: true },
     { key: 'status', label: 'Status' },
 ];
 </script>
@@ -51,6 +52,15 @@ const columns = [
                 <template #cell:cert="{ row, value }"><Badge v-if="row.cert_scheme" tone="success" :label="`${row.cert_scheme} ${row.cert_claim_pct}%`" /><span v-else class="text-ink-400">—</span></template>
                 <template #cell:received_on="{ row, value }">{{ date(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="lot"
+                        title="No lots yet"
+                        description="Every lot traces back to the goods receipt that created it, and forward to the cartons it left in."
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

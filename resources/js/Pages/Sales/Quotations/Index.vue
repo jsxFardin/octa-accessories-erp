@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -20,13 +21,13 @@ function rowActions(row) {
 }
 
 const columns = [
-    { key: 'number', label: 'Number' },
+    { key: 'number', label: 'Number', sort: true },
     { key: 'customer', label: 'Customer' },
-    { key: 'quotation_date', label: 'Date' },
-    { key: 'valid_until', label: 'Valid until' },
+    { key: 'quotation_date', label: 'Date', sort: true },
+    { key: 'valid_until', label: 'Valid until', sort: true },
     { key: 'lines_count', label: 'Lines', align: 'center' },
-    { key: 'total', label: 'Value', align: 'right' },
-    { key: 'status', label: 'Status' },
+    { key: 'total', label: 'Value', align: 'right', sort: true },
+    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -55,6 +56,17 @@ const columns = [
                 <template #cell:valid_until="{ row, value }">{{ date(value) }}</template>
                 <template #cell:total="{ row, value }">{{ money(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="quote"
+                        title="No quotations yet"
+                        description="A quotation prices an inquiry from a cost sheet, and snapshots that cost when it is sent."
+                        :action-label="can('quotation.create') ? 'New quotation' : null"
+                        action-href="/quotations/create"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

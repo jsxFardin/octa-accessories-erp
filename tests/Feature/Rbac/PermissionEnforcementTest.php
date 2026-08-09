@@ -43,9 +43,12 @@ it('guards every application route with a permission', function (): void {
     // Login, logout, the health check and the device API authenticate differently; everything
     // a desk user can reach goes through `can:`.
     // `profile*` is deliberately ungated: changing your own password is not a permission.
+    // `search` is the ⌘K palette. A single `can:` would be wrong either way — too strict and
+    // nobody can search, too loose and it says nothing — so it authorises each source
+    // separately inside SearchController and queries only what the caller may already read.
     $exempt = [
         'login', 'logout', 'up', '/', 'floor', 'portal', 'api/v1/device/session',
-        'profile', 'profile/password', 'profile/locale',
+        'profile', 'profile/password', 'profile/locale', 'search',
     ];
     $unguarded = [];
 

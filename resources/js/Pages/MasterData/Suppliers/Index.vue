@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -32,11 +33,11 @@ function rowActions(row) {
 }
 
 const columns = [
-    { key: 'code', label: 'Code' },
-    { key: 'name', label: 'Name' },
-    { key: 'country', label: 'Country' },
+    { key: 'code', label: 'Code', sort: true },
+    { key: 'name', label: 'Name', sort: true },
+    { key: 'country', label: 'Country', sort: true },
     { key: 'lead_time_days', label: 'Lead days', align: 'right' },
-    { key: 'rating', label: 'Rating', align: 'right' },
+    { key: 'rating', label: 'Rating', align: 'right', sort: true },
     { key: 'is_approved', label: 'Approved' },
     { key: 'is_active', label: 'Active' },
 ];
@@ -65,6 +66,17 @@ const columns = [
                 <template #cell:code="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:is_approved="{ row, value }"><Badge :tone="value ? 'success' : 'warning'" :label="value ? 'Approved' : 'Pending'" /></template>
                 <template #cell:is_active="{ row, value }"><Badge :tone="value ? 'success' : 'neutral'" :label="value ? 'Active' : 'Inactive'" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="supplier"
+                        title="No suppliers yet"
+                        description="Only an approved supplier can be sent a purchase order, and only their lots can carry a certification claim."
+                        :action-label="can('supplier.create') ? 'New supplier' : null"
+                        action-href="/suppliers/create"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

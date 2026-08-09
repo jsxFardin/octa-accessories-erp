@@ -8,6 +8,7 @@ import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
+import UnsavedBar from '@/Components/Ui/UnsavedBar.vue';
 import { pcs, titleCase } from '@/plugins/formatting';
 
 const props = defineProps({
@@ -301,5 +302,7 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
                 </Card>
             </div>
         </div>
+        <UnsavedBar :form="form" @save="submit" />
+
     </AppLayout>
 </template>

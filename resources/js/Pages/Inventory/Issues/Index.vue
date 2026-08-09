@@ -1,9 +1,10 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -12,10 +13,10 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 const props = defineProps({ issues: Object, filters: Object });
 
 const columns = [
-    { key: 'number', label: 'Number' },
-    { key: 'issued_on', label: 'Date' },
+    { key: 'number', label: 'Number', sort: true },
+    { key: 'issued_on', label: 'Date', sort: true },
     { key: 'issue_type', label: 'Type' },
-    { key: 'status', label: 'Status' },
+    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -43,6 +44,17 @@ const columns = [
                 <template #cell:issued_on="{ row, value }">{{ date(value) }}</template>
                 <template #cell:issue_type="{ row, value }">{{ titleCase(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="issue"
+                        title="Nothing issued yet"
+                        description="Material is issued against a job card, shade-first with a FIFO fallback."
+                        :action-label="can('stock_issue.create') ? 'New issue' : null"
+                        action-href="/material-issues/create"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

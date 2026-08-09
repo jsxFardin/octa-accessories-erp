@@ -9,6 +9,7 @@ import DateInput from '@/Components/Ui/DateInput.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
+import UnsavedBar from '@/Components/Ui/UnsavedBar.vue';
 import { date, pcs } from '@/plugins/formatting';
 
 const props = defineProps({
@@ -185,5 +186,7 @@ function submit() {
                 </Card>
             </div>
         </div>
+        <UnsavedBar :form="form" @save="submit" />
+
     </AppLayout>
 </template>

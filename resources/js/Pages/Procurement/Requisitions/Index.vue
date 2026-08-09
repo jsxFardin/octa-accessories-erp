@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -20,11 +21,11 @@ function rowActions(row) {
 }
 
 const columns = [
-    { key: 'number', label: 'Number' },
+    { key: 'number', label: 'Number', sort: true },
     { key: 'origin', label: 'Origin' },
-    { key: 'requested_on', label: 'Raised' },
-    { key: 'required_by', label: 'Required' },
-    { key: 'status', label: 'Status' },
+    { key: 'requested_on', label: 'Raised', sort: true },
+    { key: 'required_by', label: 'Required', sort: true },
+    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -55,6 +56,17 @@ const columns = [
                 <template #cell:requested_on="{ row, value }">{{ date(value) }}</template>
                 <template #cell:required_by="{ row, value }">{{ value ? date(value) : "—" }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="requisition"
+                        title="No requisitions yet"
+                        description="A requisition is what the factory asks for, before anyone agrees to buy it. MRP shortages land here too."
+                        :action-label="can('purchase_requisition.create') ? 'New requisition' : null"
+                        action-href="/purchase-requisitions/create"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

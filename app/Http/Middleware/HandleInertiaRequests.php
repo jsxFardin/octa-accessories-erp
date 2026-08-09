@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Support\Settings\Organisation;
 use App\Support\Settings\Settings;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -46,9 +47,13 @@ class HandleInertiaRequests extends Middleware
                 'permissions' => $user?->permissionNames() ?? [],
             ],
 
-            'app' => [
-                'name' => config('app.name'),
-                'display_timezone' => config('app.display_timezone'),
+            /*
+             * Branding and formatting come from the organisation profile, not from config —
+             * an administrator changes the company name and the timezone without a deploy,
+             * and every date on every screen has to follow.
+             */
+            'app' => fn (): array => [
+                ...app(Organisation::class)->forFrontend(),
                 'base_currency' => app(Settings::class)->get('base_currency', 'BDT'),
                 'locale' => app()->getLocale(),
             ],

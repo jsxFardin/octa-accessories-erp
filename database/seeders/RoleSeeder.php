@@ -48,7 +48,7 @@ class RoleSeeder extends Seeder
             'grants' => [
                 'user.*', 'role.*', 'setting.*', 'number_sequence.*', 'audit_log.*', 'employee.*',
                 'item.*', 'machine.*', 'customer.*', 'supplier.*', 'warehouse.*', 'uom.*',
-                'currency.*', 'tax.*', 'report:read',
+                'currency.*', 'tax.*', 'reference_data.*', 'report:read',
             ],
         ],
 
@@ -56,6 +56,7 @@ class RoleSeeder extends Seeder
             'label' => 'Merchandiser',
             'grants' => [
                 'inquiry.*', 'quotation.*', 'cost_sheet.*', 'sales_order.*', 'sample_request.*',
+                'price_list.*',
                 'customer.*', 'artwork.*', 'export_document.*',
                 'product:read', 'product_spec:read', 'bom:read', 'item:read', 'job_card:read',
                 'stock_lot:read', 'sales_invoice:read', 'report.*',
@@ -66,6 +67,7 @@ class RoleSeeder extends Seeder
             'label' => 'Sales manager',
             'grants' => [
                 'inquiry.*', 'quotation.*', 'cost_sheet.*', 'sales_order.*', 'sample_request.*',
+                'price_list.*',
                 'customer.*', 'artwork.*', 'export_document.*',
                 'cost_sheet.override_margin', 'sales_order.short_close',
                 'product:read', 'product_spec:read', 'bom:read', 'item:read', 'job_card:read',
@@ -93,6 +95,7 @@ class RoleSeeder extends Seeder
         'planner' => [
             'label' => 'Production planner',
             'grants' => [
+                'reference_data:read',
                 'production_plan.*', 'mrp.*', 'job_card.*',
                 'purchase_requisition.view_any', 'purchase_requisition.view',
                 'purchase_requisition.create', 'purchase_requisition.update',
@@ -141,6 +144,7 @@ class RoleSeeder extends Seeder
         'store_manager' => [
             'label' => 'Store manager',
             'grants' => [
+                'reference_data:read',
                 'stock_lot.*', 'stock_issue.*', 'stock_transfer.*', 'stock_adjustment.*',
                 'physical_count.*', 'grn.*', 'item.*', 'purchase_requisition.*',
                 'stock_adjustment.approve', 'physical_count.approve',
@@ -160,6 +164,7 @@ class RoleSeeder extends Seeder
         'quality_manager' => [
             'label' => 'Quality manager',
             'grants' => [
+                'reference_data:read',
                 'qc_inspection.*', 'qc_inspection.concession', 'ncr.*', 'lab_test.*',
                 'test_report.*', 'coc.*', 'certification:read',
                 'grn.*', 'packing_list.*', 'sample_request.*', 'credit_note:read',
@@ -204,6 +209,7 @@ class RoleSeeder extends Seeder
         'purchase_manager' => [
             'label' => 'Purchase manager',
             'grants' => [
+                'reference_data:read',
                 'purchase_requisition.*', 'rfq.*', 'purchase_order.*', 'grn.*',
                 'supplier.*', 'supplier.approve', 'item.*', 'supplier_bill.*',
                 'purchase_order.approve', 'stock_lot:read', 'report.*',

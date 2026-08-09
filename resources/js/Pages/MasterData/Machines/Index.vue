@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -32,14 +33,14 @@ function rowActions(row) {
 }
 
 const columns = [
-    { key: 'code', label: 'Code' },
-    { key: 'name', label: 'Name' },
+    { key: 'code', label: 'Code', sort: true },
+    { key: 'name', label: 'Name', sort: true },
     { key: 'group', label: 'Group' },
     { key: 'web_width_mm', label: 'Web mm', align: 'right' },
     { key: 'std_rate_per_hour', label: 'Std rate/h', align: 'right' },
     { key: 'hourly_rate', label: 'Cost/h', align: 'right' },
-    { key: 'efficiency_pct', label: 'Eff %', align: 'right' },
-    { key: 'status', label: 'Status' },
+    { key: 'efficiency_pct', label: 'Eff %', align: 'right', sort: true },
+    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -67,6 +68,17 @@ const columns = [
                 <template #cell:std_rate_per_hour="{ row, value }">{{ value ? qty(value, 0) : "—" }}</template>
                 <template #cell:hourly_rate="{ row, value }">{{ money(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="machine"
+                        title="No machines yet"
+                        description="Machine rates and efficiency drive both the cost sheet and the capacity calendar."
+                        :action-label="can('machine.create') ? 'New machine' : null"
+                        action-href="/machines/create"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

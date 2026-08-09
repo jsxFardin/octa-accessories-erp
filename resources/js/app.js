@@ -7,9 +7,12 @@ import { createPinia } from 'pinia';
 import { ZiggyVue } from 'ziggy';
 
 import permissions from '@/plugins/permissions';
-import formatting from '@/plugins/formatting';
+import formatting, { configureFormatting } from '@/plugins/formatting';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Octa ERP';
+const fallbackName = import.meta.env.VITE_APP_NAME || 'Octa ERP';
+
+/** The tab title follows the organisation profile, so a rebrand needs no deploy. */
+let appName = fallbackName;
 
 createInertiaApp({
     title: (title) => (title ? `${title} · ${appName}` : appName),
@@ -21,6 +24,11 @@ createInertiaApp({
         import.meta.glob('./Pages/**/*.vue'),
     ),
     setup({ el, App, props, plugin }) {
+        const organisation = props.initialPage.props.app ?? {};
+
+        appName = organisation.short_name || fallbackName;
+        configureFormatting(organisation);
+
         createApp({ render: () => h(App, props) })
             .use(plugin)
             .use(createPinia())
@@ -30,7 +38,10 @@ createInertiaApp({
             .mount(el);
     },
     progress: {
-        color: '#4f46e5',
-        showSpinner: true,
+        // The brand azure, not Tailwind's default indigo — the bar is the first thing that
+        // moves on every navigation and it should be the product's colour.
+        color: '#0071be',
+        showSpinner: false,
+        delay: 120,
     },
 });

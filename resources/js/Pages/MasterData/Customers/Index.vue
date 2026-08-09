@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -32,10 +33,10 @@ function rowActions(row) {
 }
 
 const columns = [
-    { key: 'code', label: 'Code' },
-    { key: 'name', label: 'Name' },
+    { key: 'code', label: 'Code', sort: true },
+    { key: 'name', label: 'Name', sort: true },
     { key: 'kind', label: 'Kind' },
-    { key: 'credit_limit', label: 'Credit limit', align: 'right' },
+    { key: 'credit_limit', label: 'Credit limit', align: 'right', sort: true },
     { key: 'min_order_value', label: 'Min order', align: 'right' },
     { key: 'under_tolerance_pct', label: 'Under %', align: 'right' },
     { key: 'over_tolerance_pct', label: 'Over %', align: 'right' },
@@ -67,6 +68,17 @@ const columns = [
                 <template #cell:credit_limit="{ row, value }">{{ money(value) }}</template>
                 <template #cell:min_order_value="{ row, value }">{{ money(value) }}</template>
                 <template #cell:is_active="{ row, value }"><Badge :tone="value ? 'success' : 'neutral'" :label="value ? 'Active' : 'Inactive'" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="customers"
+                        title="No customers yet"
+                        description="A customer carries the credit limit, the delivery tolerances and the price list every order inherits."
+                        :action-label="can('customer.create') ? 'New customer' : null"
+                        action-href="/customers/create"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

@@ -25,7 +25,9 @@ class SettingController extends Controller
     public function index(): Response
     {
         return Inertia::render('Admin/Settings', [
-            'groups' => $this->settings->grouped(),
+            // `organisation` is excluded on purpose: it has a dedicated screen, and two places
+            // editing the same key is how a timezone ends up half-changed.
+            'groups' => collect($this->settings->grouped())->except('organisation')->all(),
         ]);
     }
 

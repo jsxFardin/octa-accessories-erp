@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -20,12 +21,12 @@ function rowActions(row) {
 }
 
 const columns = [
-    { key: 'number', label: 'Number' },
+    { key: 'number', label: 'Number', sort: true },
     { key: 'supplier_name', label: 'Supplier' },
-    { key: 'order_date', label: 'Ordered' },
-    { key: 'expected_date', label: 'Expected' },
-    { key: 'total', label: 'Value', align: 'right' },
-    { key: 'status', label: 'Status' },
+    { key: 'order_date', label: 'Ordered', sort: true },
+    { key: 'expected_date', label: 'Expected', sort: true },
+    { key: 'total', label: 'Value', align: 'right', sort: true },
+    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -55,6 +56,17 @@ const columns = [
                 <template #cell:expected_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:total="{ row, value }">{{ money(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="purchase-order"
+                        title="No purchase orders yet"
+                        description="Approval routes by value band; the band is a setting, not code."
+                        :action-label="can('purchase_order.create') ? 'New order' : null"
+                        action-href="/purchase-orders/create"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

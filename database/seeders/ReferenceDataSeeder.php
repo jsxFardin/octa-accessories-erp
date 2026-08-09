@@ -499,6 +499,25 @@ class ReferenceDataSeeder extends Seeder
             ['credit_note_approval_band_accounts', 50000, 'approval', 'Credit note value accounts may approve'],
             ['merchandiser_sees_own_only', false, 'scoping', 'When on, a merchandiser sees only their own records (06-rbac §4)'],
             ['expiry_alert_days', 30, 'inventory', 'Days before expiry at which ink and chemicals flag (BR-39)'],
+
+            // The organisation profile. Edited on its own screen (/admin/organisation) rather
+            // than in the raw settings list, but seeded here so a fresh install has an identity.
+            ['org_name', 'Maheen Label', 'organisation', 'Trading name, shown in the sidebar and on documents'],
+            ['org_legal_name', 'Maheen Label Industries Ltd.', 'organisation', 'Legal entity name for printed documents'],
+            ['org_short_name', 'Octa ERP', 'organisation', 'Product name shown in the browser tab'],
+            ['org_logo_path', null, 'organisation', 'Wordmark, shown in the sidebar header'],
+            ['org_icon_path', null, 'organisation', 'Square mark, used as the favicon and the collapsed sidebar badge'],
+            ['org_address', 'Plot 42, Sector 3, Savar EPZ, Dhaka', 'organisation', 'Printed on documents'],
+            ['org_phone', '', 'organisation', 'Printed on documents'],
+            ['org_email', '', 'organisation', 'Printed on documents'],
+            ['org_website', '', 'organisation', 'Printed on documents'],
+            ['org_tax_id', '', 'organisation', 'BIN / VAT registration, printed on invoices'],
+            ['timezone', 'Asia/Dhaka', 'organisation', 'Timestamps are stored UTC and displayed here (NFR-49)'],
+            ['date_format', 'd M Y', 'organisation', 'How dates render across the application'],
+            ['time_format', 'HH:mm', 'organisation', '24-hour or 12-hour clock'],
+            ['week_start', 'saturday', 'organisation', 'First day of the week in calendars and planning boards'],
+            ['number_locale', 'en-GB', 'organisation', 'Thousands and decimal separators'],
+            ['default_locale', 'en', 'organisation', 'Language for users who have not chosen one'],
         ];
 
         foreach ($settings as [$key, $value, $group, $description]) {

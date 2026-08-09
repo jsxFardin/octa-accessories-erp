@@ -1,8 +1,9 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, qty } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -79,6 +80,15 @@ const columns = [
                 />
 
                 <DataTable :columns="columns" :rows="rows" row-key="lot_id" empty="No stock matches these filters." dense>
+                    <template #empty>
+                        <EmptyState
+                            icon="stock"
+                            title="No stock on hand"
+                            description="Balances are derived from the append-only ledger — they are never edited directly."
+                            :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                            @clear-filters="router.get(window.location.pathname)"
+                        />
+                    </template>
                     <template #cell:lot_no="{ row }">
                         <Link :href="`/lots/${row.lot_id}`" class="font-mono text-xs font-medium text-brand-700">
                             {{ row.lot_no }}

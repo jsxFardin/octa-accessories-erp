@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -32,9 +33,9 @@ function rowActions(row) {
 }
 
 const columns = [
-    { key: 'code', label: 'Code' },
-    { key: 'name', label: 'Name' },
-    { key: 'product_type', label: 'Product type' },
+    { key: 'code', label: 'Code', sort: true },
+    { key: 'name', label: 'Name', sort: true },
+    { key: 'product_type', label: 'Product type', sort: true },
     { key: 'operations_count', label: 'Operations', align: 'center' },
     { key: 'wastage', label: 'Total wastage', align: 'right' },
     { key: 'max_lot_size', label: 'Max lot', align: 'right' },
@@ -66,6 +67,17 @@ const columns = [
                 <template #cell:operations_count="{ row, value }">{{ row.operations?.length ?? 0 }}</template>
                 <template #cell:wastage="{ row, value }"><span class="tnum">{{ (row.operations ?? []).filter((o) => o.consumes_web).reduce((sum, o) => sum + Number(o.wastage_pct), 0).toFixed(2) }}%</span></template>
                 <template #cell:max_lot_size="{ row, value }">{{ value ? pcs(value) : "—" }}</template>
+                <template #empty>
+                    <EmptyState
+                        icon="routing"
+                        title="No routings yet"
+                        description="A routing is the ordered operations a product type passes through, carrying the wastage defaults."
+                        :action-label="can('routing.create') ? 'New routing' : null"
+                        action-href="/routings/create"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -32,12 +33,12 @@ function rowActions(row) {
 }
 
 const columns = [
-    { key: 'code', label: 'Code' },
-    { key: 'name', label: 'Name' },
+    { key: 'code', label: 'Code', sort: true },
+    { key: 'name', label: 'Name', sort: true },
     { key: 'category', label: 'Category' },
     { key: 'base_uom', label: 'UoM' },
-    { key: 'avg_rate', label: 'Avg rate', align: 'right' },
-    { key: 'reorder_level', label: 'Reorder', align: 'right' },
+    { key: 'avg_rate', label: 'Avg rate', align: 'right', sort: true },
+    { key: 'reorder_level', label: 'Reorder', align: 'right', sort: true },
     { key: 'flags', label: 'Flags' },
     { key: 'is_active', label: 'Active' },
 ];
@@ -71,6 +72,17 @@ const columns = [
                         <Badge v-if="row.has_expiry" tone="info" label="Expiry" />
                     </span></template>
                 <template #cell:is_active="{ row, value }"><Badge :tone="value ? 'success' : 'neutral'" :label="value ? 'Active' : 'Inactive'" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="item"
+                        title="No items yet"
+                        description="Items are what stock is held in and what a bill of materials consumes — yarn, ink, ribbon, cartons."
+                        :action-label="can('item.create') ? 'New item' : null"
+                        action-href="/items/create"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

@@ -1,9 +1,10 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -12,11 +13,11 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 const props = defineProps({ delivery_challans: Object, filters: Object });
 
 const columns = [
-    { key: 'number', label: 'Number' },
+    { key: 'number', label: 'Number', sort: true },
     { key: 'customer_name', label: 'Customer' },
-    { key: 'challan_date', label: 'Date' },
+    { key: 'challan_date', label: 'Date', sort: true },
     { key: 'mode', label: 'Mode' },
-    { key: 'status', label: 'Status' },
+    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -45,6 +46,15 @@ const columns = [
                 <template #cell:challan_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:mode="{ row, value }">{{ titleCase(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="challan"
+                        title="No challans yet"
+                        description="A delivery challan is what physically leaves the gate, and what an invoice is raised from."
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

@@ -1,9 +1,10 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -12,13 +13,13 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 const props = defineProps({ sales_invoices: Object, filters: Object });
 
 const columns = [
-    { key: 'number', label: 'Number' },
+    { key: 'number', label: 'Number', sort: true },
     { key: 'customer_name', label: 'Customer' },
-    { key: 'invoice_date', label: 'Date' },
-    { key: 'due_date', label: 'Due' },
-    { key: 'total', label: 'Value', align: 'right' },
+    { key: 'invoice_date', label: 'Date', sort: true },
+    { key: 'due_date', label: 'Due', sort: true },
+    { key: 'total', label: 'Value', align: 'right', sort: true },
     { key: 'received_amount', label: 'Received', align: 'right' },
-    { key: 'status', label: 'Status' },
+    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -61,6 +62,15 @@ const columns = [
                 <template #cell:total="{ row, value }">{{ money(value) }}</template>
                 <template #cell:received_amount="{ row, value }">{{ money(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="invoice"
+                        title="No invoices yet"
+                        description="Invoices are raised from a delivery challan — the quantities have to be the ones that left the gate."
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

@@ -69,37 +69,83 @@ class Settings
         return $this->loaded = $values;
     }
 
-    public function set(string $key, mixed $value, string $group = 'general', ?string $description = null): void
+    /**
+     * Writing a value must not disturb what the row says about itself.
+     *
+     * `updateOrInsert` writes every column it is given, so passing the defaults through on an
+     * ordinary save flattened every setting into the `general` group and erased every
+     * description — which is exactly what happened the first time the settings screen was
+     * saved. Group and description are now only written when the caller actually supplies them.
+     */
+    public function set(string $key, mixed $value, ?string $group = null, ?string $description = null): void
     {
-        DB::table('settings')->updateOrInsert(
-            ['key' => $key],
-            [
-                'value' => json_encode($value, JSON_THROW_ON_ERROR),
-                'group_name' => $group,
+        $attributes = [
+            'value' => json_encode($value, JSON_THROW_ON_ERROR),
+            'updated_at' => now(),
+        ];
+
+        if ($group !== null) {
+            $attributes['group_name'] = $group;
+        }
+
+        if ($description !== null) {
+            $attributes['description'] = $description;
+        }
+
+        $updated = DB::table('settings')->where('key', $key)->update($attributes);
+
+        if ($updated === 0) {
+            DB::table('settings')->insert([
+                'key' => $key,
+                'value' => $attributes['value'],
+                'group_name' => $group ?? 'general',
                 'description' => $description,
+                'created_at' => now(),
                 'updated_at' => now(),
-            ],
-        );
+            ]);
+        }
 
         $this->flush();
     }
 
-    /** @return array<string, list<array<string, mixed>>> */
+    /**
+     * Settings grouped and labelled for the screen.
+     *
+     * Grouping and wording come from the catalogue rather than the table: they are code, they
+     * are reviewed, and they survive a row whose metadata was lost.
+     *
+     * @return array<string, array{label: string, settings: list<array<string, mixed>>}>
+     */
     public function grouped(): array
     {
-        $rows = DB::table('settings')->orderBy('group_name')->orderBy('key')->get();
+        $catalogue = new SettingCatalogue;
+        $rows = DB::table('settings')->orderBy('key')->get();
         $grouped = [];
 
         foreach ($rows as $row) {
-            /** @var object{key: string, value: string, group_name: string, description: ?string} $row */
-            $grouped[$row->group_name][] = [
+            /** @var object{key: string, value: string, group_name: ?string, description: ?string} $row */
+            $described = $catalogue->describe($row->key);
+
+            $grouped[$described['group']]['label'] ??= $catalogue->groupLabel($described['group']);
+            $grouped[$described['group']]['settings'][] = [
                 'key' => $row->key,
                 'value' => json_decode($row->value, true),
-                'description' => $row->description,
+                'label' => $described['label'],
+                'unit' => $described['unit'],
+                'hint' => $described['hint'] !== '' ? $described['hint'] : $row->description,
             ];
         }
 
-        return $grouped;
+        // Catalogue order, so Costing is not filed after Visibility because of the alphabet.
+        $ordered = [];
+
+        foreach ($catalogue->groupOrder() as $group) {
+            if (isset($grouped[$group])) {
+                $ordered[$group] = $grouped[$group];
+            }
+        }
+
+        return $ordered + $grouped;
     }
 
     public function flush(): void

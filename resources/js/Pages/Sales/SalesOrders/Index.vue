@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -15,19 +16,19 @@ const props = defineProps({ orders: Object, filters: Object, customers: Array })
 function rowActions(row) {
     return [
         { label: 'Open', onSelect: () => router.visit(`/sales-orders/${row.id}`) },
-        { label: 'Edit', hidden: !can('sales_order.update') || !(!['closed', 'cancelled'].includes(row.status)), onSelect: () => router.visit(`/sales-orders/${row.id}/edit`) },
+        { label: 'Edit', hidden: !can('sales_order.update') || ['closed', 'cancelled'].includes(row.status), onSelect: () => router.visit(`/sales-orders/${row.id}/edit`) },
     ];
 }
 
 const columns = [
-    { key: 'number', label: 'Number' },
+    { key: 'number', label: 'Number', sort: true },
     { key: 'customer', label: 'Customer' },
     { key: 'customer_po_no', label: 'Customer PO' },
-    { key: 'order_date', label: 'Ordered' },
-    { key: 'delivery_date', label: 'Due' },
+    { key: 'order_date', label: 'Ordered', sort: true },
+    { key: 'delivery_date', label: 'Due', sort: true },
     { key: 'lines_count', label: 'Lines', align: 'center' },
-    { key: 'total', label: 'Value', align: 'right' },
-    { key: 'status', label: 'Status' },
+    { key: 'total', label: 'Value', align: 'right', sort: true },
+    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -56,6 +57,17 @@ const columns = [
                 <template #cell:delivery_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:total="{ row, value }">{{ money(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="order"
+                        title="No sales orders yet"
+                        description="An order cannot be confirmed without a current spec and an approved artwork on every line."
+                        :action-label="can('sales_order.create') ? 'New order' : null"
+                        action-href="/sales-orders/create"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

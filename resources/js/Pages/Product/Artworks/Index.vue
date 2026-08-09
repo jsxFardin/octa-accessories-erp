@@ -1,10 +1,11 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
@@ -52,8 +53,8 @@ function create() {
 }
 
 const columns = [
-    { key: 'code', label: 'Code' },
-    { key: 'title', label: 'Title' },
+    { key: 'code', label: 'Code', sort: true },
+    { key: 'title', label: 'Title', sort: true },
     { key: 'product', label: 'Product' },
     { key: 'customer', label: 'Customer' },
     { key: 'version_count', label: 'Versions', align: 'center' },
@@ -85,6 +86,17 @@ const columns = [
 
             <DataTable :columns="columns" :rows="artworks" row-key="id" :row-href="(row) => `/artworks/${row.id}`"
                        empty="No artwork matches these filters.">
+                <template #empty>
+                    <EmptyState
+                        icon="artwork"
+                        title="No artwork yet"
+                        description="Production cannot be released without an approved artwork version — this is Gate 1."
+                        :action-label="can('artwork.create') ? 'New artwork' : null"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @action="createOpen = true"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
                 <template #cell:code="{ value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:product="{ row }">
                     <span v-if="row.product"><span class="font-medium">{{ row.product.code }}</span> {{ row.product.name }}</span>

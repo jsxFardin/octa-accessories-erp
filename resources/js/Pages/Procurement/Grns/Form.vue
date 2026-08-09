@@ -10,6 +10,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import LineItemsTable from '@/Components/Ui/LineItemsTable.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
+import UnsavedBar from '@/Components/Ui/UnsavedBar.vue';
 import { money, qty } from '@/plugins/formatting';
 
 const props = defineProps({
@@ -302,5 +303,7 @@ const columns = [
                 </div>
             </Card>
         </form>
+        <UnsavedBar :form="form" @save="submit" />
+
     </AppLayout>
 </template>

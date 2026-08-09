@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -32,13 +33,13 @@ function rowActions(row) {
 }
 
 const columns = [
-    { key: 'code', label: 'Code' },
-    { key: 'name', label: 'Name' },
+    { key: 'code', label: 'Code', sort: true },
+    { key: 'name', label: 'Name', sort: true },
     { key: 'customer', label: 'Customer' },
-    { key: 'product_type', label: 'Type' },
+    { key: 'product_type', label: 'Type', sort: true },
     { key: 'customer_style_ref', label: 'Style ref' },
     { key: 'spec_version', label: 'Spec', align: 'center' },
-    { key: 'status', label: 'Status' },
+    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -66,6 +67,17 @@ const columns = [
                 <template #cell:product_type="{ row, value }">{{ titleCase(value) }}</template>
                 <template #cell:spec_version="{ row, value }"><Badge v-if="value" tone="success" :label="`v${value}`" /><Badge v-else tone="danger" label="none" /></template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
+                <template #empty>
+                    <EmptyState
+                        icon="product"
+                        title="No products yet"
+                        description="A product belongs to one customer and carries the spec every job card is built from."
+                        :action-label="can('product.create') ? 'New product' : null"
+                        action-href="/products/create"
+                        :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
+                        @clear-filters="router.get(window.location.pathname)"
+                    />
+                </template>
             </DataTable>
         </Card>
     </AppLayout>

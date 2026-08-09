@@ -128,3 +128,48 @@
 .floor-scope .floor-btn {
     @apply min-h-24 cursor-pointer rounded-2xl text-2xl font-bold tracking-wide uppercase;
 }
+
+/*
+ * Print. Until the PDF documents exist (Phase 3), people print the screen — and a printed
+ * screen with a navigation sidebar down the left and a sticky header across the top wastes
+ * half the page and looks like a mistake.
+ */
+@media print {
+    @page {
+        margin: 12mm;
+    }
+
+    body {
+        background: #fff;
+    }
+
+    /* Cards become plain sections; borders and shadows cost toner and add nothing on paper. */
+    section {
+        border: 0 !important;
+        box-shadow: none !important;
+        break-inside: avoid;
+    }
+
+    /* A table split across pages needs its header repeated, or column two is anyone's guess. */
+    thead {
+        display: table-header-group;
+    }
+
+    tr {
+        break-inside: avoid;
+    }
+
+    table {
+        width: 100% !important;
+        font-size: 10pt;
+    }
+
+    th,
+    td {
+        border-bottom: 1px solid #d4d4d8;
+    }
+
+    a[href]::after {
+        content: '';
+    }
+}
