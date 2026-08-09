@@ -49,7 +49,7 @@ const txColumns = [
             <Card title="Certificate registry" rule="BR-43" subtitle="A shipment cannot claim a scheme whose certificate has lapsed" :padded="false">
                 <DataTable :columns="certColumns" :rows="certifications" row-key="id" empty="No certificates registered." dense>
                     <template #cell:scheme="{ value }">
-                        <span class="font-medium text-slate-900">{{ value.replace('_', ' ') }}</span>
+                        <span class="font-medium text-ink-900">{{ value.replace('_', ' ') }}</span>
                     </template>
                     <template #cell:expires_on="{ value }">{{ date(value) }}</template>
                     <template #cell:days_to_expiry="{ value }">
@@ -67,13 +67,13 @@ const txColumns = [
                 <Card title="Certified stock on hand" rule="I5" class="lg:col-span-1">
                     <ul class="divide-y divide-slate-100 text-sm">
                         <li v-for="row in certifiedStock" :key="row.cert_scheme" class="flex items-center justify-between py-2">
-                            <span class="font-medium text-slate-800">{{ row.cert_scheme.replace('_', ' ') }}</span>
+                            <span class="font-medium text-ink-800">{{ row.cert_scheme.replace('_', ' ') }}</span>
                             <span class="text-right">
                                 <span class="block tnum font-medium">{{ qty(row.qty) }}</span>
-                                <span class="block text-[10px] text-slate-500">{{ row.lots }} lot(s)</span>
+                                <span class="block text-[10px] text-ink-500">{{ row.lots }} lot(s)</span>
                             </span>
                         </li>
-                        <li v-if="certifiedStock.length === 0" class="py-6 text-center text-slate-500">
+                        <li v-if="certifiedStock.length === 0" class="py-6 text-center text-ink-500">
                             No certified stock on hand.
                         </li>
                     </ul>
@@ -92,7 +92,7 @@ const txColumns = [
                         <template #cell:period="{ row }">{{ row.period_year }}-{{ String(row.period_month).padStart(2, '0') }}</template>
                         <template #cell:is_locked="{ value }">
                             <Badge v-if="value" tone="neutral" label="Period closed" />
-                            <span v-else class="text-slate-400">open</span>
+                            <span v-else class="text-ink-400">open</span>
                         </template>
                     </DataTable>
                 </Card>

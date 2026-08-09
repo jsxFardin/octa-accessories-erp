@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Procurement\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -54,5 +55,11 @@ class PurchaseRequisition extends Model
             'created_at' => 'datetime',
             'created_by' => 'integer',
         ];
+    }
+
+    /** @return HasMany<PurchaseRequisitionLine, $this> */
+    public function lines(): HasMany
+    {
+        return $this->hasMany(PurchaseRequisitionLine::class, 'pr_id')->orderBy('line_no');
     }
 }

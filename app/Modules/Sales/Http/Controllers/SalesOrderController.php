@@ -328,7 +328,13 @@ class SalesOrderController extends Controller
         $rows = [];
 
         foreach ($tracked as $field) {
-            if ((string) $order->{$field} !== (string) ($data[$field] ?? '')) {
+            // A field the request did not send is a field nobody edited. Comparing it against
+            // '' would record an amendment for a header the form simply left out.
+            if (! array_key_exists($field, $data)) {
+                continue;
+            }
+
+            if ((string) $order->{$field} !== (string) $data[$field]) {
                 $rows[] = [
                     'sales_order_id' => $order->id,
                     'revision_no' => $revision,

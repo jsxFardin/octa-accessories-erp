@@ -7,6 +7,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
+/**
+ * @property int $id
+ * @property string $name
+ * @property string $module
+ * @property string $label
+ */
 class Permission extends Model
 {
     public $timestamps = false;

@@ -156,9 +156,9 @@ const bomColumns = [
                 </ul>
 
                 <div v-if="releaseGate.shortages.length" class="mt-3">
-                    <p class="mb-1 text-xs font-medium text-slate-600">Shortages (BR-24)</p>
+                    <p class="mb-1 text-xs font-medium text-ink-700">Shortages (BR-24)</p>
                     <table class="min-w-full text-xs">
-                        <thead class="text-slate-500">
+                        <thead class="text-ink-500">
                             <tr>
                                 <th class="py-1 text-left">Item</th>
                                 <th class="py-1 text-right">Required</th>
@@ -189,28 +189,28 @@ const bomColumns = [
                 >
                     <dl class="grid grid-cols-2 gap-3 text-sm">
                         <div>
-                            <dt class="text-xs text-slate-500">Planned quantity</dt>
-                            <dd class="font-medium tnum text-slate-900">{{ pcs(jobCard.planned_qty) }} pcs</dd>
+                            <dt class="text-xs text-ink-500">Planned quantity</dt>
+                            <dd class="font-medium tnum text-ink-900">{{ pcs(jobCard.planned_qty) }} pcs</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-slate-500">Gross metres</dt>
-                            <dd class="font-medium tnum text-slate-900">{{ qty(jobCard.gross_metres) }} m</dd>
+                            <dt class="text-xs text-ink-500">Gross metres</dt>
+                            <dd class="font-medium tnum text-ink-900">{{ qty(jobCard.gross_metres) }} m</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-slate-500">Ends</dt>
-                            <dd class="font-medium tnum text-slate-900">{{ jobCard.ends ?? '—' }}</dd>
+                            <dt class="text-xs text-ink-500">Ends</dt>
+                            <dd class="font-medium tnum text-ink-900">{{ jobCard.ends ?? '—' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-slate-500">Labels / metre</dt>
-                            <dd class="font-medium tnum text-slate-900">{{ qty(jobCard.labels_per_metre, 4) }}</dd>
+                            <dt class="text-xs text-ink-500">Labels / metre</dt>
+                            <dd class="font-medium tnum text-ink-900">{{ qty(jobCard.labels_per_metre, 4) }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-slate-500">Spec version</dt>
-                            <dd class="font-medium text-slate-900">v{{ jobCard.spec_version }}</dd>
+                            <dt class="text-xs text-ink-500">Spec version</dt>
+                            <dd class="font-medium text-ink-900">v{{ jobCard.spec_version }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-slate-500">Due</dt>
-                            <dd class="font-medium text-slate-900">{{ date(jobCard.due_date) }}</dd>
+                            <dt class="text-xs text-ink-500">Due</dt>
+                            <dd class="font-medium text-ink-900">{{ date(jobCard.due_date) }}</dd>
                         </div>
                     </dl>
                 </Card>
@@ -224,10 +224,10 @@ const bomColumns = [
                             </Link>
                             <Badge :status="jobCard.artwork.status" />
                         </div>
-                        <p class="font-mono text-[10px] break-all text-slate-400">
+                        <p class="font-mono text-[10px] break-all text-ink-400">
                             sha256 {{ jobCard.artwork.checksum }}
                         </p>
-                        <p class="text-xs text-slate-500">
+                        <p class="text-xs text-ink-500">
                             This job card is welded to this version. Superseding it upstream does not
                             change what this run prints.
                         </p>
@@ -237,7 +237,7 @@ const bomColumns = [
                 <!-- Output -->
                 <Card title="Output" rule="J3 · J5">
                     <div class="mb-3">
-                        <div class="mb-1 flex items-center justify-between text-xs text-slate-500">
+                        <div class="mb-1 flex items-center justify-between text-xs text-ink-500">
                             <span>Good against planned</span>
                             <span class="tnum">{{ pcs(jobCard.good_qty) }} / {{ pcs(jobCard.planned_qty) }}</span>
                         </div>
@@ -248,22 +248,22 @@ const bomColumns = [
 
                     <dl class="grid grid-cols-3 gap-2 text-sm">
                         <div>
-                            <dt class="text-xs text-slate-500">Produced</dt>
+                            <dt class="text-xs text-ink-500">Produced</dt>
                             <dd class="font-medium tnum">{{ pcs(jobCard.produced_qty) }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-slate-500">Good</dt>
+                            <dt class="text-xs text-ink-500">Good</dt>
                             <dd class="font-medium tnum text-emerald-700">{{ pcs(jobCard.good_qty) }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-slate-500">Waste</dt>
+                            <dt class="text-xs text-ink-500">Waste</dt>
                             <dd class="font-medium tnum text-rose-600">{{ pcs(jobCard.waste_qty) }}</dd>
                         </div>
                     </dl>
 
                     <p
                         class="mt-3 rounded px-2 py-1 text-xs"
-                        :class="overrunBreached ? 'bg-rose-50 text-rose-800' : 'bg-slate-50 text-slate-600'"
+                        :class="overrunBreached ? 'bg-rose-50 text-rose-800' : 'bg-slate-50 text-ink-700'"
                     >
                         J5 ceiling: {{ pcs(jobCard.overrun_ceiling) }} pcs
                         ({{ jobCard.overrun_tolerance_pct }}% overrun tolerance)
@@ -275,7 +275,7 @@ const bomColumns = [
             <Card title="Operations" rule="J2" subtitle="Execute in sequence; a step cannot start before its predecessor closes" :padded="false">
                 <DataTable :columns="operationColumns" :rows="operations" empty="No operations scheduled." dense>
                     <template #cell:name="{ row }">
-                        <span class="font-medium text-slate-800">{{ row.name }}</span>
+                        <span class="font-medium text-ink-800">{{ row.name }}</span>
                         <Badge v-if="row.requires_qc" tone="info" label="QC" class="ml-1" />
                         <Badge v-if="!row.predecessors_complete" tone="neutral" label="blocked" class="ml-1" />
                     </template>
@@ -293,13 +293,13 @@ const bomColumns = [
                     <DataTable :columns="bomColumns" :rows="bomRequirement" empty="No BOM bound." dense>
                         <template #cell:item="{ row }">
                             <span class="font-medium">{{ row.item?.code }}</span>
-                            <span class="text-slate-500"> {{ row.item?.name }}</span>
+                            <span class="text-ink-500"> {{ row.item?.name }}</span>
                         </template>
                         <template #cell:qty_per_base="{ value }">{{ qty(value) }}</template>
                         <template #cell:required="{ value }">{{ qty(value) }}</template>
                         <template #cell:formula_ref="{ value }">
                             <span v-if="value" class="rounded bg-slate-100 px-1 font-mono text-[10px]">{{ value }}</span>
-                            <span v-else class="text-slate-400">fixed</span>
+                            <span v-else class="text-ink-400">fixed</span>
                         </template>
                     </DataTable>
                 </Card>
@@ -307,11 +307,11 @@ const bomColumns = [
                 <Card title="Material issued" :padded="false">
                     <ul class="divide-y divide-slate-100 text-sm">
                         <li v-for="issue in issues" :key="issue.id" class="flex items-center justify-between px-3 py-2">
-                            <span class="font-medium text-slate-800">{{ issue.number }}</span>
-                            <span class="text-xs text-slate-500">{{ date(issue.issued_on) }}</span>
+                            <span class="font-medium text-ink-800">{{ issue.number }}</span>
+                            <span class="text-xs text-ink-500">{{ date(issue.issued_on) }}</span>
                             <Badge :status="issue.status" />
                         </li>
-                        <li v-if="issues.length === 0" class="px-3 py-6 text-center text-sm text-slate-500">
+                        <li v-if="issues.length === 0" class="px-3 py-6 text-center text-sm text-ink-500">
                             Nothing issued yet.
                         </li>
                     </ul>

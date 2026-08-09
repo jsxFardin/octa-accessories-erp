@@ -60,10 +60,10 @@ function logout() {
                 <span class="rounded-md bg-slate-900 px-2.5 py-1 font-mono text-sm font-bold text-white">
                     {{ status }}
                 </span>
-                <h1 class="text-lg font-semibold text-slate-900">{{ message.title }}</h1>
+                <h1 class="text-lg font-semibold text-ink-900">{{ message.title }}</h1>
             </div>
 
-            <p class="text-sm text-slate-600">{{ message.body }}</p>
+            <p class="text-sm text-ink-700">{{ message.body }}</p>
 
             <div class="mt-6 flex flex-wrap items-center gap-2">
                 <Button v-if="status === 419 || !signedIn" variant="primary" href="/login">Sign in</Button>
@@ -73,7 +73,7 @@ function logout() {
                 <Button v-if="signedIn" @click="logout">Sign out</Button>
             </div>
 
-            <p v-if="status === 403 && signedIn" class="mt-4 text-xs text-slate-500">
+            <p v-if="status === 403 && signedIn" class="mt-4 text-xs text-ink-500">
                 Signed in as <span class="font-medium">{{ page.props.auth.user.name }}</span>
                 ({{ page.props.auth.user.roles.map((r) => r.replace(/_/g, ' ')).join(', ') }}).
                 If you need this screen, ask an administrator to review your role.

@@ -37,7 +37,7 @@ defineProps({
                     empty="No tests seeded."
                     dense
                 >
-                    <template #cell:code="{ value }"><span class="font-medium text-slate-900">{{ value }}</span></template>
+                    <template #cell:code="{ value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                     <template #cell:scale="{ value }">{{ titleCase(value) }}</template>
                 </DataTable>
             </Card>

@@ -36,8 +36,8 @@ function valueOf(key) {
                 <div class="space-y-3">
                     <div v-for="setting in settings" :key="setting.key" class="grid grid-cols-3 items-start gap-3">
                         <div class="col-span-2">
-                            <p class="font-mono text-xs text-slate-700">{{ setting.key }}</p>
-                            <p class="text-xs text-slate-500">{{ setting.description }}</p>
+                            <p class="font-mono text-xs text-ink-700">{{ setting.key }}</p>
+                            <p class="text-xs text-ink-500">{{ setting.description }}</p>
                         </div>
 
                         <input

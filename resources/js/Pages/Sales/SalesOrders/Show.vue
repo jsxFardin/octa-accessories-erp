@@ -8,6 +8,7 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import { date, money, pcs, ratePerM } from '@/plugins/formatting';
+import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -47,7 +48,7 @@ const lineColumns = [
     <AppLayout>
         <Head :title="order.number ?? 'Sales order'" />
 
-        <template #title>{{ order.number ?? '(unnumbered)' }}<span v-if="order.revision_no" class="text-slate-400">/R{{ order.revision_no }}</span></template>
+        <template #title>{{ order.number ?? '(unnumbered)' }}<span v-if="order.revision_no" class="text-ink-400">/R{{ order.revision_no }}</span></template>
         <template #subtitle>
             <Link :href="`/customers/${order.customer?.id}`" class="hover:underline">{{ order.customer?.name }}</Link>
             <span v-if="order.customer_po_no"> · PO {{ order.customer_po_no }}</span>
@@ -55,6 +56,7 @@ const lineColumns = [
         </template>
 
         <template #actions>
+            <Button v-if="can('sales_order.update') && !['closed', 'cancelled'].includes(order.status)" size="sm" :href="`/sales-orders/${order.id}/edit`">Edit</Button>
             <Badge :status="order.status" />
             <Button v-if="availableTransitions.includes('confirmed')" size="sm" variant="primary"
                     @click="order.status === 'credit_hold' ? (releaseOpen = true) : transition('confirmed')">
@@ -97,13 +99,13 @@ const lineColumns = [
                         <Link v-if="row.product" :href="`/products/${row.product.id}`" class="font-medium text-brand-700">
                             {{ row.product.code }}
                         </Link>
-                        <span class="text-slate-500"> {{ row.description ?? row.product?.name }}</span>
+                        <span class="text-ink-500"> {{ row.description ?? row.product?.name }}</span>
                     </template>
                     <template #cell:ordered_qty="{ value }">{{ pcs(value) }}</template>
                     <template #cell:produced_qty="{ value }">{{ pcs(value) }}</template>
                     <template #cell:delivered_qty="{ value }">{{ pcs(value) }}</template>
                     <template #cell:band="{ row }">
-                        <span class="text-xs text-slate-500">{{ pcs(row.delivery_band.min) }}–{{ pcs(row.delivery_band.max) }}</span>
+                        <span class="text-xs text-ink-500">{{ pcs(row.delivery_band.min) }}–{{ pcs(row.delivery_band.max) }}</span>
                     </template>
                     <template #cell:rate_per_m="{ value }">{{ ratePerM(value) }}</template>
                     <template #cell:line_total="{ value }">{{ money(value) }}</template>
@@ -118,7 +120,7 @@ const lineColumns = [
 
                 <template #footer>
                     <tr>
-                        <td colspan="7" class="px-3 py-2 text-right text-slate-600">Order total</td>
+                        <td colspan="7" class="px-3 py-2 text-right text-ink-700">Order total</td>
                         <td class="px-3 py-2 text-right tnum font-semibold">{{ money(order.total) }}</td>
                         <td colspan="2" />
                     </tr>
@@ -152,15 +154,15 @@ const lineColumns = [
                 <Card title="Amendments" rule="S2" subtitle="Every post-confirmation change, with its reason and author" :padded="false">
                     <ul class="divide-y divide-slate-100 text-sm">
                         <li v-for="amendment in amendments" :key="amendment.id" class="px-3 py-2">
-                            <p class="font-medium text-slate-800">
+                            <p class="font-medium text-ink-800">
                                 R{{ amendment.revision_no }} · {{ amendment.changed_field }}
                             </p>
-                            <p class="text-xs text-slate-500">
+                            <p class="text-xs text-ink-500">
                                 {{ amendment.old_value || '—' }} → {{ amendment.new_value || '—' }}
                             </p>
-                            <p class="mt-0.5 text-xs text-slate-600">{{ amendment.reason }}</p>
+                            <p class="mt-0.5 text-xs text-ink-700">{{ amendment.reason }}</p>
                         </li>
-                        <li v-if="amendments.length === 0" class="px-3 py-6 text-center text-slate-500">
+                        <li v-if="amendments.length === 0" class="px-3 py-6 text-center text-ink-500">
                             No amendments.
                         </li>
                     </ul>

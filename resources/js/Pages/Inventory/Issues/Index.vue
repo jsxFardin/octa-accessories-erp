@@ -39,7 +39,7 @@ const columns = [
                 row-key="id"
                 empty="No issues posted."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-slate-900">{{ value }}</span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:issued_on="{ row, value }">{{ date(value) }}</template>
                 <template #cell:issue_type="{ row, value }">{{ titleCase(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>

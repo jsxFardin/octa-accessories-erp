@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -10,6 +10,26 @@ import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ customers: Object, filters: Object });
+
+function remove(row) {
+    if (!confirm(`Archive ${row.code ?? row.name}? History is kept; it simply stops being offered.`)) return;
+
+    router.delete(`/customers/${row.id}`, { preserveScroll: true });
+}
+
+/** Built per row so the menu never offers what this user may not do, or the record will not allow. */
+function rowActions(row) {
+    return [
+        { label: 'Open', onSelect: () => router.visit(`/customers/${row.id}`) },
+        { label: 'Edit', hidden: !can('customer.update'), onSelect: () => router.visit(`/customers/${row.id}/edit`) },
+        {
+            label: 'Archive',
+            tone: 'danger',
+            hidden: !can('customer.delete'),
+            onSelect: () => remove(row),
+        },
+    ];
+}
 
 const columns = [
     { key: 'code', label: 'Code' },
@@ -40,10 +60,10 @@ const columns = [
             <DataTable
                 :columns="columns"
                 :rows="customers"
-                row-key="id" :row-href="(row) => `/customers/${row.id}`"
+                row-key="id" :actions="rowActions" :row-href="(row) => `/customers/${row.id}`"
                 empty="No customers match these filters."
             >
-                <template #cell:code="{ row, value }"><span class="font-medium text-slate-900">{{ value }}</span></template>
+                <template #cell:code="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:credit_limit="{ row, value }">{{ money(value) }}</template>
                 <template #cell:min_order_value="{ row, value }">{{ money(value) }}</template>
                 <template #cell:is_active="{ row, value }"><Badge :tone="value ? 'success' : 'neutral'" :label="value ? 'Active' : 'Inactive'" /></template>

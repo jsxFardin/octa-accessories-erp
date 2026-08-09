@@ -11,6 +11,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * Roles are bundles of permissions, editable by an admin without a deploy (06-rbac §2).
  * Code never checks a role name — the only legitimate reference is SUPER_ADMIN, which is
  * the escape hatch that keeps the implementer out of a lockout.
+ *
+ * @property int $id
+ * @property string $name
+ * @property string $label
+ * @property bool $is_system
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Permission> $permissions
+ * @property-read int|null $users_count
  */
 class Role extends Model
 {

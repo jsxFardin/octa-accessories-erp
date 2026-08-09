@@ -44,11 +44,11 @@ const columns = [
                 row-key="id" :row-href="(row) => `/lots/${row.id}`"
                 empty="No lots match these filters."
             >
-                <template #cell:lot_no="{ row, value }"><span class="font-mono text-xs font-medium text-slate-900">{{ value }}</span></template>
-                <template #cell:item="{ row, value }"><span v-if="row.item"><span class="font-medium">{{ row.item.code }}</span> <span class="text-slate-500">{{ row.item.name }}</span></span></template>
+                <template #cell:lot_no="{ row, value }"><span class="font-mono text-xs font-medium text-ink-900">{{ value }}</span></template>
+                <template #cell:item="{ row, value }"><span v-if="row.item"><span class="font-medium">{{ row.item.code }}</span> <span class="text-ink-500">{{ row.item.name }}</span></span></template>
                 <template #cell:balance_qty="{ row, value }">{{ qty(value) }}</template>
                 <template #cell:unit_cost="{ row, value }">{{ money(value) }}</template>
-                <template #cell:cert="{ row, value }"><Badge v-if="row.cert_scheme" tone="success" :label="`${row.cert_scheme} ${row.cert_claim_pct}%`" /><span v-else class="text-slate-400">—</span></template>
+                <template #cell:cert="{ row, value }"><Badge v-if="row.cert_scheme" tone="success" :label="`${row.cert_scheme} ${row.cert_claim_pct}%`" /><span v-else class="text-ink-400">—</span></template>
                 <template #cell:received_on="{ row, value }">{{ date(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
             </DataTable>

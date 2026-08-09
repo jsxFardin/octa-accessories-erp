@@ -16,12 +16,12 @@ defineProps({
                 {{ label }}
                 <span v-if="required" class="text-rose-500">*</span>
             </span>
-            <span v-if="rule" class="font-mono text-[10px] font-normal text-slate-400">{{ rule }}</span>
+            <span v-if="rule" class="font-mono text-[10px] font-normal text-ink-400">{{ rule }}</span>
         </label>
 
         <slot />
 
         <p v-if="error" class="mt-1 text-xs text-rose-600">{{ error }}</p>
-        <p v-else-if="hint" class="mt-1 text-xs text-slate-500">{{ hint }}</p>
+        <p v-else-if="hint" class="mt-1 text-xs text-ink-500">{{ hint }}</p>
     </div>
 </template>

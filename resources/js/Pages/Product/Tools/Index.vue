@@ -42,7 +42,7 @@ const columns = [
                 row-key="id"
                 empty="No tools registered."
             >
-                <template #cell:code="{ row, value }"><span class="font-medium text-slate-900">{{ value }}</span></template>
+                <template #cell:code="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:kind="{ row, value }">{{ titleCase(value) }}</template>
                 <template #cell:life_impressions="{ row, value }">{{ pcs(value) }}</template>
                 <template #cell:used_impressions="{ row, value }">{{ pcs(value) }}</template>

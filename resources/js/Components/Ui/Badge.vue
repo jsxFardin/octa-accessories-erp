@@ -13,7 +13,7 @@ const props = defineProps({
  * `released` is the same green on the planning board and the job card list.
  */
 const TONES = {
-    neutral: 'bg-slate-100 text-slate-700 ring-slate-500/20',
+    neutral: 'bg-slate-100 text-ink-700 ring-slate-500/20',
     info: 'bg-sky-50 text-sky-800 ring-sky-600/20',
     progress: 'bg-indigo-50 text-indigo-800 ring-indigo-600/20',
     success: 'bg-emerald-50 text-emerald-800 ring-emerald-600/20',

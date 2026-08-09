@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Modules\Product\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\MasterData\Models\Employee;
 use App\Modules\Product\Models\Artwork;
 use App\Modules\Product\Models\ArtworkVersion;
 use App\Modules\Product\States\ArtworkVersionStateMachine;
 use App\Support\Http\ListsResources;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -62,6 +65,14 @@ class ArtworkController extends Controller
                 ],
             ),
             'filters' => $this->listingFilters($request, ['product', 'state']),
+            // The create dialog lives on this screen; artwork has no page of its own until a
+            // product owns it.
+            'products' => DB::table('products as p')
+                ->leftJoin('customers as c', 'c.id', '=', 'p.customer_id')
+                ->where('p.status', '!=', 'obsolete')
+                ->orderBy('p.code')
+                ->get(['p.id', 'p.code', 'p.name', 'c.name as customer_name']),
+            'designers' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -75,6 +86,7 @@ class ArtworkController extends Controller
                 'code' => $artwork->code,
                 'title' => $artwork->title,
                 'designer' => $artwork->designer?->name,
+                'designer_id' => $artwork->designer_id,
                 'product' => $artwork->product?->only(['id', 'code', 'name', 'product_type']),
                 'customer' => $artwork->product?->customer?->only(['id', 'code', 'name']),
             ],
@@ -92,6 +104,8 @@ class ArtworkController extends Controller
                 'referenced_by_production' => $version->isReferencedByProduction(),
             ]),
             'nextVersionNo' => $artwork->nextVersionNo(),
+            'designers' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'codeLocked' => $artwork->versions->isNotEmpty(),
         ]);
     }
 
@@ -109,5 +123,31 @@ class ArtworkController extends Controller
         return redirect()
             ->route('artworks.show', $artwork)
             ->with('success', "Artwork {$artwork->code} created. Upload version 1 to begin.");
+    }
+
+    /**
+     * The artwork record itself — its title, its designer, and its code while nothing has been
+     * drawn against it yet. Versions are immutable and are not touched here (A1).
+     */
+    public function update(Request $request, Artwork $artwork): RedirectResponse
+    {
+        $hasVersions = $artwork->versions()->exists();
+
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:180'],
+            'designer_id' => ['nullable', 'integer', 'exists:employees,id'],
+            // A code printed on an approved version is a reference other people already hold.
+            'code' => $hasVersions
+                ? ['nullable']
+                : ['required', 'string', 'max:40', Rule::unique('artworks', 'code')->ignore($artwork->id)],
+        ]);
+
+        if ($hasVersions) {
+            unset($data['code']);
+        }
+
+        $artwork->update($data);
+
+        return back()->with('success', "Artwork {$artwork->code} updated.");
     }
 }

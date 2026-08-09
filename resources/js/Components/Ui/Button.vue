@@ -13,10 +13,10 @@ const props = defineProps({
 
 const VARIANTS = {
     primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 focus-visible:outline-brand-600',
-    secondary: 'bg-white text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus-visible:outline-slate-400',
+    secondary: 'bg-white text-ink-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus-visible:outline-slate-400',
     danger: 'bg-rose-600 text-white shadow-sm hover:bg-rose-700 focus-visible:outline-rose-600',
     success: 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 focus-visible:outline-emerald-600',
-    ghost: 'text-slate-600 hover:bg-slate-100 focus-visible:outline-slate-400',
+    ghost: 'text-ink-700 hover:bg-slate-100 focus-visible:outline-slate-400',
 };
 
 const SIZES = {

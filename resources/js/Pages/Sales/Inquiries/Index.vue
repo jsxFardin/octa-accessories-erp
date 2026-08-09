@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -10,6 +10,14 @@ import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ inquiries: Object, filters: Object, customers: Array });
+
+/** Built per row so the menu never offers what this user may not do, or the record will not allow. */
+function rowActions(row) {
+    return [
+        { label: 'Open', onSelect: () => router.visit(`/inquiries/${row.id}`) },
+        { label: 'Edit', hidden: !can('inquiry.update') || !(row.status === 'draft'), onSelect: () => router.visit(`/inquiries/${row.id}/edit`) },
+    ];
+}
 
 const columns = [
     { key: 'number', label: 'Number' },
@@ -38,10 +46,10 @@ const columns = [
             <DataTable
                 :columns="columns"
                 :rows="inquiries"
-                row-key="id" :row-href="(row) => `/inquiries/${row.id}`"
+                row-key="id" :actions="rowActions" :row-href="(row) => `/inquiries/${row.id}`"
                 empty="No inquiries match these filters."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-slate-900">{{ value ?? "(unnumbered)" }}</span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
                 <template #cell:inquiry_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:required_by="{ row, value }">{{ date(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>

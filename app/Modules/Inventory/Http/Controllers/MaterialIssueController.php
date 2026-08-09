@@ -67,6 +67,10 @@ class MaterialIssueController extends Controller
                 ->get(['id', 'number', 'product_id', 'planned_qty', 'bom_id']),
             'warehouses' => DB::table('warehouses')->where('is_active', true)->where('is_nettable', true)
                 ->orderBy('code')->get(['id', 'code', 'name']),
+            // The picker needs `is_shade_critical` to know whether to offer a shade at all
+            // (BR-37), and the base UoM to post the line without a second lookup.
+            'items' => Item::query()->where('is_active', true)->orderBy('code')
+                ->get(['id', 'code', 'name', 'base_uom_id', 'is_shade_critical']),
         ]);
     }
 

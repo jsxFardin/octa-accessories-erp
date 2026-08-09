@@ -21,10 +21,10 @@ defineProps({ grn: { type: Object, required: true }, lines: { type: Array, defau
         <div class="space-y-4">
             <Card title="Landed cost" rule="BR-36" subtitle="Apportioned to lines by value before the weighted average moves">
                 <dl class="flex flex-wrap gap-8 text-sm">
-                    <div><dt class="text-slate-500">Freight</dt><dd class="tnum font-medium">{{ money(grn.freight_amount) }}</dd></div>
-                    <div><dt class="text-slate-500">Duty</dt><dd class="tnum font-medium">{{ money(grn.duty_amount) }}</dd></div>
-                    <div><dt class="text-slate-500">Clearing</dt><dd class="tnum font-medium">{{ money(grn.clearing_amount) }}</dd></div>
-                    <div><dt class="text-slate-500">Invoice</dt><dd class="font-medium">{{ grn.invoice_no ?? '—' }}</dd></div>
+                    <div><dt class="text-ink-500">Freight</dt><dd class="tnum font-medium">{{ money(grn.freight_amount) }}</dd></div>
+                    <div><dt class="text-ink-500">Duty</dt><dd class="tnum font-medium">{{ money(grn.duty_amount) }}</dd></div>
+                    <div><dt class="text-ink-500">Clearing</dt><dd class="tnum font-medium">{{ money(grn.clearing_amount) }}</dd></div>
+                    <div><dt class="text-ink-500">Invoice</dt><dd class="font-medium">{{ grn.invoice_no ?? '—' }}</dd></div>
                 </dl>
             </Card>
 
@@ -46,14 +46,14 @@ defineProps({ grn: { type: Object, required: true }, lines: { type: Array, defau
                 >
                     <template #cell:item_code="{ row }">
                         <span class="font-medium">{{ row.item_code }}</span>
-                        <span class="text-slate-500"> {{ row.item_name }}</span>
+                        <span class="text-ink-500"> {{ row.item_name }}</span>
                     </template>
                     <template #cell:received_qty="{ row }">{{ qty(row.received_qty) }} {{ row.uom }}</template>
                     <template #cell:rate="{ value }">{{ money(value) }}</template>
                     <template #cell:landed_rate="{ value }">{{ money(value) }}</template>
                     <template #cell:cert="{ row }">
                         <Badge v-if="row.cert_scheme" tone="success" :label="`${row.cert_scheme} ${row.cert_claim_pct}%`" />
-                        <span v-else class="text-slate-400">—</span>
+                        <span v-else class="text-ink-400">—</span>
                     </template>
                 </DataTable>
             </Card>

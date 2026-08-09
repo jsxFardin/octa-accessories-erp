@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -10,6 +10,14 @@ import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ orders: Object, filters: Object, customers: Array });
+
+/** Built per row so the menu never offers what this user may not do, or the record will not allow. */
+function rowActions(row) {
+    return [
+        { label: 'Open', onSelect: () => router.visit(`/sales-orders/${row.id}`) },
+        { label: 'Edit', hidden: !can('sales_order.update') || !(!['closed', 'cancelled'].includes(row.status)), onSelect: () => router.visit(`/sales-orders/${row.id}/edit`) },
+    ];
+}
 
 const columns = [
     { key: 'number', label: 'Number' },
@@ -40,10 +48,10 @@ const columns = [
             <DataTable
                 :columns="columns"
                 :rows="orders"
-                row-key="id" :row-href="(row) => `/sales-orders/${row.id}`"
+                row-key="id" :actions="rowActions" :row-href="(row) => `/sales-orders/${row.id}`"
                 empty="No orders match these filters."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-slate-900">{{ value ?? "(unnumbered)" }}<span v-if="row.revision_no" class="text-slate-400">/R{{ row.revision_no }}</span></span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}<span v-if="row.revision_no" class="text-ink-400">/R{{ row.revision_no }}</span></span></template>
                 <template #cell:order_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:delivery_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:total="{ row, value }">{{ money(value) }}</template>

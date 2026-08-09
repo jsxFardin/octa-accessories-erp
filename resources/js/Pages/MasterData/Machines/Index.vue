@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -10,6 +10,26 @@ import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ machines: Object, filters: Object, groups: Array });
+
+function remove(row) {
+    if (!confirm(`Retire ${row.code ?? row.name}? History is kept; it simply stops being offered.`)) return;
+
+    router.delete(`/machines/${row.id}`, { preserveScroll: true });
+}
+
+/** Built per row so the menu never offers what this user may not do, or the record will not allow. */
+function rowActions(row) {
+    return [
+        { label: 'Open', onSelect: () => router.visit(`/machines/${row.id}`) },
+        { label: 'Edit', hidden: !can('machine.update'), onSelect: () => router.visit(`/machines/${row.id}/edit`) },
+        {
+            label: 'Retire',
+            tone: 'danger',
+            hidden: !can('machine.delete'),
+            onSelect: () => remove(row),
+        },
+    ];
+}
 
 const columns = [
     { key: 'code', label: 'Code' },
@@ -40,10 +60,10 @@ const columns = [
             <DataTable
                 :columns="columns"
                 :rows="machines"
-                row-key="id" :row-href="(row) => `/machines/${row.id}`"
+                row-key="id" :actions="rowActions" :row-href="(row) => `/machines/${row.id}`"
                 empty="No machines match these filters."
             >
-                <template #cell:code="{ row, value }"><span class="font-medium text-slate-900">{{ value }}</span></template>
+                <template #cell:code="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:std_rate_per_hour="{ row, value }">{{ value ? qty(value, 0) : "—" }}</template>
                 <template #cell:hourly_rate="{ row, value }">{{ money(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>

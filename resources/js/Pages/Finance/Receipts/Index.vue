@@ -32,6 +32,16 @@ const columns = [
         </template>
 
         <Card :padded="false">
+            <!--
+                A receipt allocates against invoices; with no invoice to allocate to, a create
+                form would only produce unapplied cash. Left read-only until invoicing lands.
+            -->
+            <div class="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <span class="font-medium">Receipts allocate against invoices.</span>
+                Invoicing is Phase 3 sprint 17 (docs/10-roadmap.md); until it lands there is
+                nothing for a receipt to be applied to, so this screen is read-only.
+            </div>
+
             <FilterBar :filters="filters" :fields="[]" placeholder="Search receipt or reference number…" />
 
             <DataTable
@@ -40,7 +50,7 @@ const columns = [
                 row-key="id"
                 empty="No receipts recorded."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-slate-900">{{ value ?? "(unnumbered)" }}</span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
                 <template #cell:customer_name="{ row, value }">{{ row.customer?.name ?? "—" }}</template>
                 <template #cell:receipt_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:amount="{ row, value }">{{ money(value) }}</template>

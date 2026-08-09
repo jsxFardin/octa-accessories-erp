@@ -86,7 +86,7 @@ const columns = [
                     </template>
                     <template #cell:item_code="{ row }">
                         <span class="font-medium">{{ row.item_code }}</span>
-                        <span class="text-slate-500"> {{ row.item_name }}</span>
+                        <span class="text-ink-500"> {{ row.item_name }}</span>
                     </template>
                     <template #cell:warehouse="{ row }">
                         {{ row.warehouse }}
@@ -97,12 +97,12 @@ const columns = [
                     <template #cell:value="{ value }">{{ money(value) }}</template>
                     <template #cell:cert="{ row }">
                         <Badge v-if="row.cert_scheme" tone="success" :label="`${row.cert_scheme} ${row.cert_claim_pct}%`" />
-                        <span v-else class="text-slate-400">—</span>
+                        <span v-else class="text-ink-400">—</span>
                     </template>
                     <template #cell:expiry_alert="{ row }">
                         <Badge v-if="row.expiry_alert === 'expired'" tone="danger" label="Expired" />
                         <Badge v-else-if="row.expiry_alert === 'expiring_soon'" tone="warning" :label="date(row.expiry_date)" />
-                        <span v-else class="text-slate-400">—</span>
+                        <span v-else class="text-ink-400">—</span>
                     </template>
                 </DataTable>
             </Card>

@@ -42,7 +42,7 @@ const columns = [
                 row-key="id" :row-href="(row) => `/grns/${row.id}`"
                 empty="No goods receipts match these filters."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-slate-900">{{ value }}</span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:received_on="{ row, value }">{{ date(value) }}</template>
                 <template #cell:freight_amount="{ row, value }">{{ money(value) }}</template>
                 <template #cell:duty_amount="{ row, value }">{{ money(value) }}</template>

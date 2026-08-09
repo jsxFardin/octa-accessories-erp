@@ -38,6 +38,7 @@ use App\Modules\Sales\Http\Controllers\SalesOrderController;
 use App\Support\Http\LandingPage;
 use App\Support\Platform\Http\Controllers\AuditLogController;
 use App\Support\Platform\Http\Controllers\NumberSequenceController;
+use App\Support\Platform\Http\Controllers\RoleController;
 use App\Support\Platform\Http\Controllers\SettingController;
 use App\Support\Platform\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -63,6 +64,7 @@ Route::middleware('auth')->group(function (): void {
     // password, and gating that behind a permission is how people keep sharing one.
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
+    Route::put('profile/locale', [ProfileController::class, 'updateLocale'])->name('profile.locale');
 
     Route::get('dashboard', DashboardController::class)
         ->middleware('can:report.dashboard')
@@ -113,26 +115,37 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:artwork.view')->name('artworks.show');
     Route::post('artworks', [ArtworkController::class, 'store'])
         ->middleware('can:artwork.create')->name('artworks.store');
+    Route::put('artworks/{artwork}', [ArtworkController::class, 'update'])
+        ->middleware('can:artwork.update')->name('artworks.update');
     Route::post('artworks/{artwork}/versions', [ArtworkVersionController::class, 'store'])
         ->middleware('can:artwork.create')->name('artworks.versions.store');
+    // Transition endpoints are gated on `.view`, not on one named action: a target's own
+    // permission is checked by the state machine (StateMachine::assertPermitted). Gating the
+    // route on `.submit` locked approvers out — the MD holds `artwork.approve` and nothing else.
     Route::post('artwork-versions/{version}/transition', [ArtworkVersionController::class, 'transition'])
-        ->middleware('can:artwork.submit')->name('artwork-versions.transition');
+        ->middleware('can:artwork.view')->name('artwork-versions.transition');
 
     Route::post('products/{product}/boms', [BomController::class, 'store'])
         ->middleware('can:bom.create')->name('products.boms.store');
     Route::post('boms/{bom}/activate', [BomController::class, 'activate'])
         ->middleware('can:bom.activate')->name('boms.activate');
 
-    Route::get('routings', [RoutingController::class, 'index'])
-        ->middleware('can:routing.view_any')->name('routings.index');
+    Route::resource('routings', RoutingController::class)
+        ->middlewareFor(['index', 'show'], 'can:routing.view_any')
+        ->middlewareFor(['create', 'store'], 'can:routing.create')
+        ->middlewareFor(['edit', 'update'], 'can:routing.update')
+        ->middlewareFor('destroy', 'can:routing.delete');
     Route::get('tools', [ToolController::class, 'index'])
         ->middleware('can:tool.view_any')->name('tools.index');
 
     // ---- Commercial ----------------------------------------------------------------
-    Route::resource('inquiries', InquiryController::class)->except(['edit', 'destroy'])
+    Route::resource('inquiries', InquiryController::class)->except(['destroy'])
         ->middlewareFor(['index', 'show'], 'can:inquiry.view_any')
         ->middlewareFor(['create', 'store'], 'can:inquiry.create')
-        ->middlewareFor('update', 'can:inquiry.update');
+        ->middlewareFor(['edit', 'update'], 'can:inquiry.update');
+
+    Route::post('inquiries/{inquiry}/transition', [InquiryController::class, 'transition'])
+        ->middleware('can:inquiry.view')->name('inquiries.transition');
 
     Route::resource('quotations', QuotationController::class)->except(['destroy'])
         ->middlewareFor(['index', 'show'], 'can:quotation.view_any')
@@ -140,7 +153,7 @@ Route::middleware('auth')->group(function (): void {
         ->middlewareFor(['edit', 'update'], 'can:quotation.update');
 
     Route::post('quotations/{quotation}/transition', [QuotationController::class, 'transition'])
-        ->middleware('can:quotation.send')->name('quotations.transition');
+        ->middleware('can:quotation.view')->name('quotations.transition');
     Route::post('quotations/{quotation}/convert', [QuotationController::class, 'convert'])
         ->middleware('can:sales_order.create')->name('quotations.convert');
 
@@ -155,15 +168,24 @@ Route::middleware('auth')->group(function (): void {
         ->middlewareFor(['edit', 'update'], 'can:sales_order.update');
 
     Route::post('sales-orders/{salesOrder}/transition', [SalesOrderController::class, 'transition'])
-        ->middleware('can:sales_order.confirm')->name('sales-orders.transition');
+        ->middleware('can:sales_order.view')->name('sales-orders.transition');
 
     // ---- Supply --------------------------------------------------------------------
-    Route::get('purchase-requisitions', [PurchaseRequisitionController::class, 'index'])
-        ->middleware('can:purchase_requisition.view_any')->name('purchase-requisitions.index');
-    Route::get('purchase-orders', [PurchaseOrderController::class, 'index'])
-        ->middleware('can:purchase_order.view_any')->name('purchase-orders.index');
-    Route::get('purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show'])
-        ->middleware('can:purchase_order.view')->name('purchase-orders.show');
+    Route::resource('purchase-requisitions', PurchaseRequisitionController::class)->except(['destroy'])
+        ->middlewareFor(['index', 'show'], 'can:purchase_requisition.view_any')
+        ->middlewareFor(['create', 'store'], 'can:purchase_requisition.create')
+        ->middlewareFor(['edit', 'update'], 'can:purchase_requisition.update');
+
+    Route::post('purchase-requisitions/{purchaseRequisition}/transition', [PurchaseRequisitionController::class, 'transition'])
+        ->middleware('can:purchase_requisition.view')->name('purchase-requisitions.transition');
+
+    Route::resource('purchase-orders', PurchaseOrderController::class)->except(['destroy'])
+        ->middlewareFor(['index', 'show'], 'can:purchase_order.view_any')
+        ->middlewareFor(['create', 'store'], 'can:purchase_order.create')
+        ->middlewareFor(['edit', 'update'], 'can:purchase_order.update');
+
+    Route::post('purchase-orders/{purchaseOrder}/transition', [PurchaseOrderController::class, 'transition'])
+        ->middleware('can:purchase_order.view')->name('purchase-orders.transition');
 
     Route::get('grns', [GrnController::class, 'index'])
         ->middleware('can:grn.view_any')->name('grns.index');
@@ -210,7 +232,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('job-cards/{jobCard}', [JobCardController::class, 'show'])
         ->middleware('can:job_card.view')->name('job-cards.show');
     Route::post('job-cards/{jobCard}/transition', [JobCardController::class, 'transition'])
-        ->middleware('can:job_card.update')->name('job-cards.transition');
+        ->middleware('can:job_card.view')->name('job-cards.transition');
 
     // ---- Assurance -----------------------------------------------------------------
     Route::get('qc-inspections', [QcInspectionController::class, 'index'])
@@ -248,8 +270,23 @@ Route::middleware('auth')->group(function (): void {
     Route::prefix('admin')->name('admin.')->group(function (): void {
         Route::get('users', [UserController::class, 'index'])
             ->middleware('can:user.view_any')->name('users.index');
+        Route::post('users', [UserController::class, 'store'])
+            ->middleware('can:user.create')->name('users.store');
+        Route::put('users/{user}', [UserController::class, 'update'])
+            ->middleware('can:user.update')->name('users.update');
+        Route::delete('users/{user}', [UserController::class, 'destroy'])
+            ->middleware('can:user.delete')->name('users.destroy');
         Route::post('users/{user}/roles', [UserController::class, 'updateRoles'])
             ->middleware('can:user.assign_role')->name('users.roles');
+
+        Route::get('roles', [RoleController::class, 'index'])
+            ->middleware('can:role.view_any')->name('roles.index');
+        Route::post('roles', [RoleController::class, 'store'])
+            ->middleware('can:role.create')->name('roles.store');
+        Route::put('roles/{role}', [RoleController::class, 'update'])
+            ->middleware('can:role.update')->name('roles.update');
+        Route::delete('roles/{role}', [RoleController::class, 'destroy'])
+            ->middleware('can:role.delete')->name('roles.destroy');
 
         Route::get('settings', [SettingController::class, 'index'])
             ->middleware('can:setting.view_any')->name('settings.index');

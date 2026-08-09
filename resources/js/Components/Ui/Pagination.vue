@@ -20,7 +20,7 @@ const hasPages = computed(() => (props.meta.links?.length ?? 0) > 3);
 <template>
     <div
         v-if="meta.total"
-        class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
+        class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white px-3 py-2 text-xs text-ink-700"
     >
         <span class="tnum">{{ showing }}</span>
 
@@ -34,7 +34,7 @@ const hasPages = computed(() => (props.meta.links?.length ?? 0) > 3);
                 preserve-state
                 class="min-w-7 rounded px-2 py-1 text-center"
                 :class="[
-                    link.active ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100',
+                    link.active ? 'bg-brand-600 text-white' : 'text-ink-700 hover:bg-slate-100',
                     !link.url && 'cursor-default opacity-40',
                 ]"
                 v-html="link.label"

@@ -14,9 +14,9 @@ const sections = computed(() => [
         fields: [
             { key: 'code', label: 'Code', required: true },
             { key: 'name', label: 'Name', required: true },
-            { key: 'machine_group_id', label: 'Group', type: 'select', options: groups, valueKey: 'id', labelKey: 'name', required: true },
-            { key: 'factory_unit_id', label: 'Factory unit', type: 'select', options: units, valueKey: 'id', labelKey: 'name', required: true },
-            { key: 'department_id', label: 'Department', type: 'select', options: departments, valueKey: 'id', labelKey: 'name' },
+            { key: 'machine_group_id', label: 'Group', type: 'select', options: props.groups, valueKey: 'id', labelKey: 'name', required: true },
+            { key: 'factory_unit_id', label: 'Factory unit', type: 'select', options: props.units, valueKey: 'id', labelKey: 'name', required: true },
+            { key: 'department_id', label: 'Department', type: 'select', options: props.departments, valueKey: 'id', labelKey: 'name' },
             { key: 'make', label: 'Make' },
             { key: 'model', label: 'Model' },
             { key: 'serial_no', label: 'Serial no' },

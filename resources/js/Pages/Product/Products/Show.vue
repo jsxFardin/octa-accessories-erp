@@ -95,22 +95,22 @@ const bomColumns = [
                                     </div>
 
                                     <dl class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-4">
-                                        <div><dt class="text-slate-500">Label</dt><dd class="tnum">{{ mm(spec.label_width_mm) }} × {{ mm(spec.label_height_mm) }}</dd></div>
-                                        <div><dt class="text-slate-500">Web</dt><dd class="tnum">{{ spec.web_width_mm ? mm(spec.web_width_mm) : '—' }}</dd></div>
-                                        <div><dt class="text-slate-500">Cut</dt><dd>{{ titleCase(spec.cut_type) || '—' }}</dd></div>
-                                        <div><dt class="text-slate-500">Fold</dt><dd>{{ titleCase(spec.fold_type) || '—' }}</dd></div>
-                                        <div><dt class="text-slate-500">Colours</dt><dd class="tnum">{{ spec.colours }}</dd></div>
-                                        <div><dt class="text-slate-500">Bundle</dt><dd class="tnum">{{ spec.bundle_size }} / {{ spec.bundles_per_carton }}</dd></div>
-                                        <div><dt class="text-slate-500">GSM</dt><dd class="tnum">{{ spec.fabric_gsm ?? '—' }}</dd></div>
-                                        <div><dt class="text-slate-500">Coverage</dt><dd class="tnum">{{ spec.coverage_pct }}%</dd></div>
+                                        <div><dt class="text-ink-500">Label</dt><dd class="tnum">{{ mm(spec.label_width_mm) }} × {{ mm(spec.label_height_mm) }}</dd></div>
+                                        <div><dt class="text-ink-500">Web</dt><dd class="tnum">{{ spec.web_width_mm ? mm(spec.web_width_mm) : '—' }}</dd></div>
+                                        <div><dt class="text-ink-500">Cut</dt><dd>{{ titleCase(spec.cut_type) || '—' }}</dd></div>
+                                        <div><dt class="text-ink-500">Fold</dt><dd>{{ titleCase(spec.fold_type) || '—' }}</dd></div>
+                                        <div><dt class="text-ink-500">Colours</dt><dd class="tnum">{{ spec.colours }}</dd></div>
+                                        <div><dt class="text-ink-500">Bundle</dt><dd class="tnum">{{ spec.bundle_size }} / {{ spec.bundles_per_carton }}</dd></div>
+                                        <div><dt class="text-ink-500">GSM</dt><dd class="tnum">{{ spec.fabric_gsm ?? '—' }}</dd></div>
+                                        <div><dt class="text-ink-500">Coverage</dt><dd class="tnum">{{ spec.coverage_pct }}%</dd></div>
                                     </dl>
 
                                     <!-- BR-4/5/6 shown beside the inputs that produced them -->
                                     <div class="mt-2 flex flex-wrap gap-3 rounded bg-slate-50 px-2 py-1.5 text-xs">
-                                        <span><span class="text-slate-500">pitch</span> <span class="tnum font-medium">{{ spec.derived.pitch_mm }} mm</span> <span class="font-mono text-[10px] text-slate-400">BR-4</span></span>
-                                        <span><span class="text-slate-500">labels/m</span> <span class="tnum font-medium">{{ spec.derived.labels_per_metre }}</span> <span class="font-mono text-[10px] text-slate-400">BR-4</span></span>
-                                        <span><span class="text-slate-500">ends</span> <span class="tnum font-medium">{{ spec.ends ?? spec.derived.suggested_ends }}</span> <span class="font-mono text-[10px] text-slate-400">BR-5</span></span>
-                                        <span><span class="text-slate-500">labels/web m</span> <span class="tnum font-medium">{{ spec.derived.labels_per_web_metre }}</span> <span class="font-mono text-[10px] text-slate-400">BR-6</span></span>
+                                        <span><span class="text-ink-500">pitch</span> <span class="tnum font-medium">{{ spec.derived.pitch_mm }} mm</span> <span class="font-mono text-[10px] text-ink-400">BR-4</span></span>
+                                        <span><span class="text-ink-500">labels/m</span> <span class="tnum font-medium">{{ spec.derived.labels_per_metre }}</span> <span class="font-mono text-[10px] text-ink-400">BR-4</span></span>
+                                        <span><span class="text-ink-500">ends</span> <span class="tnum font-medium">{{ spec.ends ?? spec.derived.suggested_ends }}</span> <span class="font-mono text-[10px] text-ink-400">BR-5</span></span>
+                                        <span><span class="text-ink-500">labels/web m</span> <span class="tnum font-medium">{{ spec.derived.labels_per_web_metre }}</span> <span class="font-mono text-[10px] text-ink-400">BR-6</span></span>
                                     </div>
                                 </div>
 
@@ -124,7 +124,7 @@ const bomColumns = [
                             </div>
                         </li>
 
-                        <li v-if="specs.length === 0" class="p-6 text-center text-sm text-slate-500">
+                        <li v-if="specs.length === 0" class="p-6 text-center text-sm text-ink-500">
                             No spec yet. This product cannot be quoted or ordered until one exists.
                         </li>
                     </ul>
@@ -136,7 +136,7 @@ const bomColumns = [
                             <Link :href="`/artworks/${artwork.id}`" class="font-medium text-brand-700 hover:underline">
                                 {{ artwork.code }}
                             </Link>
-                            <p class="text-xs text-slate-500">{{ artwork.title }}</p>
+                            <p class="text-xs text-ink-500">{{ artwork.title }}</p>
                             <div class="mt-1 flex flex-wrap gap-1">
                                 <Badge
                                     v-for="version in artwork.versions"
@@ -146,7 +146,7 @@ const bomColumns = [
                                 />
                             </div>
                         </li>
-                        <li v-if="artworks.length === 0" class="p-6 text-center text-slate-500">No artwork yet.</li>
+                        <li v-if="artworks.length === 0" class="p-6 text-center text-ink-500">No artwork yet.</li>
                     </ul>
                 </Card>
             </div>
@@ -157,7 +157,7 @@ const bomColumns = [
                         <div class="flex items-center gap-2">
                             <span class="text-sm font-semibold">v{{ bom.version_no }}</span>
                             <Badge :status="bom.status" />
-                            <span class="text-xs text-slate-500">per {{ pcs(bom.base_qty) }} pcs</span>
+                            <span class="text-xs text-ink-500">per {{ pcs(bom.base_qty) }} pcs</span>
                         </div>
                         <Button v-if="bom.status !== 'active' && can('bom.activate')" size="sm" @click="activateBom(bom)">
                             Activate
@@ -167,18 +167,18 @@ const bomColumns = [
                     <DataTable :columns="bomColumns" :rows="bom.lines" row-key="id" dense empty="No lines.">
                         <template #cell:item="{ row }">
                             <span class="font-medium">{{ row.item?.code }}</span>
-                            <span class="text-slate-500"> {{ row.item?.name }}</span>
+                            <span class="text-ink-500"> {{ row.item?.name }}</span>
                         </template>
                         <template #cell:qty_per_base="{ value }">{{ qty(value) }}</template>
                         <template #cell:colour_index="{ value }">{{ value ?? 'all' }}</template>
                         <template #cell:formula_ref="{ value }">
                             <span v-if="value" class="rounded bg-slate-100 px-1 font-mono text-[10px]">{{ value }}</span>
-                            <span v-else class="text-slate-400">fixed</span>
+                            <span v-else class="text-ink-400">fixed</span>
                         </template>
                     </DataTable>
                 </div>
 
-                <p v-if="boms.length === 0" class="px-3 py-6 text-center text-sm text-slate-500">
+                <p v-if="boms.length === 0" class="px-3 py-6 text-center text-sm text-ink-500">
                     No BOM yet. A job card cannot be released without an active one (J1).
                 </p>
             </Card>

@@ -40,7 +40,7 @@ const columns = [
                 row-key="id"
                 empty="No packing lists yet."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-slate-900">{{ value ?? "(unnumbered)" }}</span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
                 <template #cell:packed_on="{ row, value }">{{ date(value) }}</template>
                 <template #cell:total_qty="{ row, value }">{{ pcs(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>

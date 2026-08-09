@@ -45,7 +45,7 @@ it('guards every application route with a permission', function (): void {
     // `profile*` is deliberately ungated: changing your own password is not a permission.
     $exempt = [
         'login', 'logout', 'up', '/', 'floor', 'portal', 'api/v1/device/session',
-        'profile', 'profile/password',
+        'profile', 'profile/password', 'profile/locale',
     ];
     $unguarded = [];
 
@@ -164,7 +164,7 @@ it('flushes a user permission cache when their roles change', function (): void 
     $merchandiserRoleId = App\Models\Role::query()->where('name', 'merchandiser')->value('id');
 
     $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
-        ->post("/admin/users/{$user->id}/roles", ['role_ids' => [$merchandiserRoleId]])
+        ->post("/admin/users/{$user->id}/roles", ['role_id' => $merchandiserRoleId])
         ->assertRedirect();
 
     expect($user->fresh()->hasPermission('sales_order.create'))->toBeTrue();

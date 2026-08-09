@@ -30,8 +30,8 @@ const sections = computed(() => [
         title: 'Commercial guard rails',
         rule: 'BR-21 · BR-44 · BR-46',
         fields: [
-            { key: 'currency_id', label: 'Currency', type: 'select', options: currencies, valueKey: 'id', labelKey: 'code' },
-            { key: 'payment_term_id', label: 'Payment terms', type: 'select', options: paymentTerms, valueKey: 'id', labelKey: 'name' },
+            { key: 'currency_id', label: 'Currency', type: 'select', options: props.currencies, valueKey: 'id', labelKey: 'code' },
+            { key: 'payment_term_id', label: 'Payment terms', type: 'select', options: props.paymentTerms, valueKey: 'id', labelKey: 'name' },
             { key: 'credit_limit', label: 'Credit limit', type: 'number', step: '0.0001', default: 0, rule: 'BR-46', hint: 'Zero means no limit set, not no credit.' },
             { key: 'min_order_value', label: 'Minimum order value', type: 'number', step: '0.0001', default: 0, rule: 'BR-21' },
             { key: 'under_tolerance_pct', label: 'Under tolerance %', type: 'number', step: '0.01', default: 5, rule: 'BR-44' },

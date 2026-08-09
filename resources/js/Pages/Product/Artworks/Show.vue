@@ -6,6 +6,7 @@ import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { datetime, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -15,6 +16,9 @@ const props = defineProps({
     artwork: { type: Object, required: true },
     versions: { type: Array, default: () => [] },
     nextVersionNo: { type: Number, required: true },
+    designers: { type: Array, default: () => [] },
+    /** True once a version exists: the code is a reference other people already hold. */
+    codeLocked: { type: Boolean, default: false },
 });
 
 const approved = computed(() => props.versions.find((v) => v.status === 'approved') ?? null);
@@ -26,6 +30,20 @@ const rejectForm = useForm({ to: 'rejected', rejection_reason: '' });
 
 const approveOpen = ref(false);
 const rejectOpen = ref(false);
+const editOpen = ref(false);
+
+const editForm = useForm({
+    code: props.artwork.code,
+    title: props.artwork.title,
+    designer_id: props.artwork.designer_id ?? '',
+});
+
+function saveArtwork() {
+    editForm.put(`/artworks/${props.artwork.id}`, {
+        preserveScroll: true,
+        onSuccess: () => (editOpen.value = false),
+    });
+}
 
 function upload() {
     uploadForm.post(`/artworks/${props.artwork.id}/versions`, {
@@ -82,6 +100,10 @@ function openReject(version) {
             <span v-if="artwork.customer"> · {{ artwork.customer.name }}</span>
         </template>
 
+        <template #actions>
+            <Button v-if="can('artwork.update')" size="sm" @click="editOpen = true">Edit details</Button>
+        </template>
+
         <div class="grid gap-4 lg:grid-cols-3">
             <!-- Gate 1 status -->
             <Card
@@ -135,34 +157,34 @@ function openReject(version) {
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2">
-                                    <span class="text-sm font-semibold text-slate-900">v{{ version.version_no }}</span>
+                                    <span class="text-sm font-semibold text-ink-900">v{{ version.version_no }}</span>
                                     <Badge :status="version.status" />
                                     <Badge v-if="version.referenced_by_production" tone="info" label="In production" />
                                 </div>
 
-                                <p class="mt-1 font-mono text-[11px] break-all text-slate-500">
+                                <p class="mt-1 font-mono text-[11px] break-all text-ink-500">
                                     {{ version.file_path }}
                                 </p>
 
                                 <!-- A3: the checksum is what proves the approved file is the file that went to plate-making -->
-                                <p v-if="version.checksum_sha256" class="mt-0.5 font-mono text-[10px] break-all text-slate-400">
+                                <p v-if="version.checksum_sha256" class="mt-0.5 font-mono text-[10px] break-all text-ink-400">
                                     sha256 {{ version.checksum_sha256 }}
                                 </p>
 
-                                <dl class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+                                <dl class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-500">
                                     <div v-if="version.submitted_at">
                                         <dt class="inline">Submitted</dt>
-                                        <dd class="inline font-medium text-slate-700">{{ datetime(version.submitted_at) }}</dd>
+                                        <dd class="inline font-medium text-ink-700">{{ datetime(version.submitted_at) }}</dd>
                                     </div>
                                     <div v-if="version.approved_at">
                                         <dt class="inline">Approved</dt>
-                                        <dd class="inline font-medium text-slate-700">
+                                        <dd class="inline font-medium text-ink-700">
                                             {{ datetime(version.approved_at) }} by {{ version.approved_by }}
                                         </dd>
                                     </div>
                                     <div v-if="version.customer_ref">
                                         <dt class="inline">Customer ref</dt>
-                                        <dd class="inline font-medium text-slate-700">{{ version.customer_ref }}</dd>
+                                        <dd class="inline font-medium text-ink-700">{{ version.customer_ref }}</dd>
                                     </div>
                                 </dl>
 
@@ -200,7 +222,7 @@ function openReject(version) {
                         </div>
                     </li>
 
-                    <li v-if="versions.length === 0" class="p-6 text-center text-sm text-slate-500">
+                    <li v-if="versions.length === 0" class="p-6 text-center text-sm text-ink-500">
                         No versions yet. Upload version 1 to begin.
                     </li>
                 </ul>
@@ -209,20 +231,20 @@ function openReject(version) {
             <Card title="Artwork">
                 <dl class="space-y-2 text-sm">
                     <div>
-                        <dt class="text-xs text-slate-500">Code</dt>
-                        <dd class="font-medium text-slate-900">{{ artwork.code }}</dd>
+                        <dt class="text-xs text-ink-500">Code</dt>
+                        <dd class="font-medium text-ink-900">{{ artwork.code }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs text-slate-500">Title</dt>
-                        <dd class="text-slate-800">{{ artwork.title }}</dd>
+                        <dt class="text-xs text-ink-500">Title</dt>
+                        <dd class="text-ink-800">{{ artwork.title }}</dd>
                     </div>
                     <div v-if="artwork.designer">
-                        <dt class="text-xs text-slate-500">Designer</dt>
-                        <dd class="text-slate-800">{{ artwork.designer }}</dd>
+                        <dt class="text-xs text-ink-500">Designer</dt>
+                        <dd class="text-ink-800">{{ artwork.designer }}</dd>
                     </div>
                     <div v-if="artwork.product">
-                        <dt class="text-xs text-slate-500">Product type</dt>
-                        <dd class="text-slate-800">{{ titleCase(artwork.product.product_type) }}</dd>
+                        <dt class="text-xs text-ink-500">Product type</dt>
+                        <dd class="text-ink-800">{{ titleCase(artwork.product.product_type) }}</dd>
                     </div>
                 </dl>
             </Card>
@@ -261,6 +283,36 @@ function openReject(version) {
                 <Button @click="close">Cancel</Button>
                 <Button variant="danger" :loading="rejectForm.processing" :disabled="!rejectForm.rejection_reason" @click="reject">
                     Reject v{{ selected?.version_no }}
+                </Button>
+            </template>
+        </Modal>
+        <Modal
+            v-model:open="editOpen"
+            title="Edit artwork"
+            subtitle="Versions are immutable (A1); only the record that carries them is edited here."
+        >
+            <form class="space-y-3" @submit.prevent="saveArtwork">
+                <FormField
+                    label="Code"
+                    :hint="codeLocked ? 'Locked — versions already reference this code.' : null"
+                    :error="editForm.errors.code"
+                >
+                    <TextInput v-model="editForm.code" :disabled="codeLocked" />
+                </FormField>
+
+                <FormField label="Title" :error="editForm.errors.title" required>
+                    <TextInput v-model="editForm.title" />
+                </FormField>
+
+                <FormField label="Designer" :error="editForm.errors.designer_id">
+                    <SelectInput v-model="editForm.designer_id" :options="designers" value-key="id" label-key="name" />
+                </FormField>
+            </form>
+
+            <template #footer="{ close }">
+                <Button @click="close">Cancel</Button>
+                <Button variant="primary" :loading="editForm.processing" :disabled="!editForm.title" @click="saveArtwork">
+                    Save
                 </Button>
             </template>
         </Modal>

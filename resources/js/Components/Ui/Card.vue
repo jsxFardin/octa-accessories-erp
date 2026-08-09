@@ -15,13 +15,13 @@ defineProps({
             class="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/70 px-4 py-2.5"
         >
             <div class="min-w-0">
-                <h2 class="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <h2 class="flex items-center gap-2 text-sm font-semibold text-ink-800">
                     {{ title }}
-                    <span v-if="rule" class="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-normal text-slate-600">
+                    <span v-if="rule" class="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-normal text-ink-700">
                         {{ rule }}
                     </span>
                 </h2>
-                <p v-if="subtitle" class="mt-0.5 text-xs text-slate-500">{{ subtitle }}</p>
+                <p v-if="subtitle" class="mt-0.5 text-xs text-ink-500">{{ subtitle }}</p>
             </div>
             <div v-if="$slots.actions" class="flex shrink-0 items-center gap-2">
                 <slot name="actions" />

@@ -79,20 +79,20 @@ function submit() {
             <Card title="Account">
                 <dl class="space-y-2 text-sm">
                     <div>
-                        <dt class="text-xs text-slate-500">Name</dt>
-                        <dd class="font-medium text-slate-900">{{ profile.name }}</dd>
+                        <dt class="text-xs text-ink-500">Name</dt>
+                        <dd class="font-medium text-ink-900">{{ profile.name }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs text-slate-500">Roles</dt>
-                        <dd class="text-slate-800">{{ profile.roles.map((r) => r.label).join(', ') }}</dd>
+                        <dt class="text-xs text-ink-500">Roles</dt>
+                        <dd class="text-ink-800">{{ profile.roles.map((r) => r.label).join(', ') }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs text-slate-500">Last sign-in</dt>
-                        <dd class="text-slate-800">{{ profile.last_login_at ? datetime(profile.last_login_at) : 'never' }}</dd>
+                        <dt class="text-xs text-ink-500">Last sign-in</dt>
+                        <dd class="text-ink-800">{{ profile.last_login_at ? datetime(profile.last_login_at) : 'never' }}</dd>
                     </div>
                 </dl>
 
-                <p class="mt-3 text-xs text-slate-500">
+                <p class="mt-3 text-xs text-ink-500">
                     Roles are changed by an administrator, and every change is audit-logged.
                 </p>
             </Card>

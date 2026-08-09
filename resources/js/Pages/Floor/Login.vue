@@ -74,6 +74,10 @@ async function signIn() {
 
             <div>
                 <label class="mb-2 block text-lg font-semibold">মেশিন · Machine</label>
+                <!--
+                    Native picker on purpose: the floor terminal is touched with gloves and has
+                    no keyboard, so the OS wheel beats a filter box the operator cannot type in.
+                -->
                 <select v-model="machineCode" class="w-full rounded-xl bg-white/10 px-5 py-4 text-2xl text-white outline-none">
                     <option value="" class="text-slate-900">— any —</option>
                     <option v-for="machine in machines" :key="machine.id" :value="machine.code" class="text-slate-900">

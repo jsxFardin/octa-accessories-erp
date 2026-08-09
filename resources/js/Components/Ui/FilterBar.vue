@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
 
 const props = defineProps({
     filters: { type: Object, default: () => ({}) },
@@ -48,19 +49,15 @@ function reset() {
 
         <div v-for="field in fields" :key="field.key" class="w-40">
             <label class="field-label">{{ field.label }}</label>
-            <select v-model="state[field.key]" class="form-select">
-                <option value="">All</option>
-                <option v-for="option in field.options" :key="option.value" :value="option.value">
-                    {{ option.label }}
-                </option>
-            </select>
+            <!-- A customer filter on a list of 400 customers is unusable without a search box. -->
+            <SelectInput v-model="state[field.key]" :options="field.options" placeholder="All" />
         </div>
 
         <slot />
 
         <button
             v-if="Object.values(state).some((v) => v)"
-            class="rounded-md px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100"
+            class="rounded-md px-2 py-1.5 text-xs text-ink-500 hover:bg-slate-100"
             @click="reset"
         >
             Clear

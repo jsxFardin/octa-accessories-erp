@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -10,6 +10,26 @@ import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ items: Object, filters: Object, categories: Array });
+
+function remove(row) {
+    if (!confirm(`Deactivate ${row.code ?? row.name}? History is kept; it simply stops being offered.`)) return;
+
+    router.delete(`/items/${row.id}`, { preserveScroll: true });
+}
+
+/** Built per row so the menu never offers what this user may not do, or the record will not allow. */
+function rowActions(row) {
+    return [
+        { label: 'Open', onSelect: () => router.visit(`/items/${row.id}`) },
+        { label: 'Edit', hidden: !can('item.update'), onSelect: () => router.visit(`/items/${row.id}/edit`) },
+        {
+            label: 'Deactivate',
+            tone: 'danger',
+            hidden: !can('item.delete'),
+            onSelect: () => remove(row),
+        },
+    ];
+}
 
 const columns = [
     { key: 'code', label: 'Code' },
@@ -40,10 +60,10 @@ const columns = [
             <DataTable
                 :columns="columns"
                 :rows="items"
-                row-key="id" :row-href="(row) => `/items/${row.id}`"
+                row-key="id" :actions="rowActions" :row-href="(row) => `/items/${row.id}`"
                 empty="No items match these filters."
             >
-                <template #cell:code="{ row, value }"><span class="font-medium text-slate-900">{{ value }}</span></template>
+                <template #cell:code="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:avg_rate="{ row, value }">{{ money(value) }}</template>
                 <template #cell:reorder_level="{ row, value }">{{ qty(value) }}</template>
                 <template #cell:flags="{ row, value }"><span class="flex gap-1">

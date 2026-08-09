@@ -31,7 +31,7 @@ const TONES = {
     brand: 'text-brand-700',
     danger: 'text-rose-600',
     warning: 'text-amber-600',
-    muted: 'text-slate-900',
+    muted: 'text-ink-900',
 };
 
 const orderBookColumns = [
@@ -74,7 +74,7 @@ const loadByMachine = computed(() => {
                     :href="tile.href"
                     class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:border-brand-300 hover:shadow"
                 >
-                    <p class="truncate text-[11px] text-slate-500">{{ tile.label }}</p>
+                    <p class="truncate text-[11px] text-ink-500">{{ tile.label }}</p>
                     <p class="mt-1 text-xl font-semibold tnum" :class="TONES[tile.tone]">{{ tile.value }}</p>
                 </Link>
             </div>
@@ -109,16 +109,16 @@ const loadByMachine = computed(() => {
                         subtitle="Nothing downstream may run against these"
                         rule="Gate 1 · A2"
                     >
-                        <p v-if="artworkQueue.length === 0" class="text-sm text-slate-500">
+                        <p v-if="artworkQueue.length === 0" class="text-sm text-ink-500">
                             No artwork is waiting on a signature.
                         </p>
                         <ul v-else class="divide-y divide-slate-100 text-sm">
                             <li v-for="version in artworkQueue" :key="version.id" class="flex items-center gap-3 py-2">
                                 <div class="min-w-0 flex-1">
-                                    <Link :href="`/artworks/${version.artwork_id}`" class="block truncate font-medium text-slate-800">
+                                    <Link :href="`/artworks/${version.artwork_id}`" class="block truncate font-medium text-ink-800">
                                         {{ version.code }} · v{{ version.version_no }}
                                     </Link>
-                                    <p class="truncate text-xs text-slate-500">{{ version.customer }} — {{ version.title }}</p>
+                                    <p class="truncate text-xs text-ink-500">{{ version.customer }} — {{ version.title }}</p>
                                 </div>
                                 <Badge
                                     :tone="version.waiting_days > 7 ? 'danger' : 'warning'"
@@ -130,11 +130,11 @@ const loadByMachine = computed(() => {
 
                     <!-- Job cards by status -->
                     <Card title="Job cards by status">
-                        <p v-if="jobCardsByStatus.length === 0" class="text-sm text-slate-500">No job cards yet.</p>
+                        <p v-if="jobCardsByStatus.length === 0" class="text-sm text-ink-500">No job cards yet.</p>
                         <ul v-else class="space-y-1.5">
                             <li v-for="row in jobCardsByStatus" :key="row.status" class="flex items-center justify-between gap-2">
                                 <Badge :status="row.status" />
-                                <span class="text-sm font-medium tnum text-slate-700">{{ pcs(row.count) }}</span>
+                                <span class="text-sm font-medium tnum text-ink-700">{{ pcs(row.count) }}</span>
                             </li>
                         </ul>
                     </Card>
@@ -144,12 +144,12 @@ const loadByMachine = computed(() => {
             <div class="grid gap-4 lg:grid-cols-2">
                 <!-- Machine load -->
                 <Card title="Scheduled machine load" subtitle="Next 7 days" rule="BR-27">
-                    <p v-if="loadByMachine.length === 0" class="text-sm text-slate-500">Nothing scheduled.</p>
+                    <p v-if="loadByMachine.length === 0" class="text-sm text-ink-500">Nothing scheduled.</p>
                     <ul v-else class="space-y-2">
                         <li v-for="row in loadByMachine" :key="row.machine" class="text-sm">
                             <div class="mb-1 flex items-center justify-between">
-                                <span class="font-medium text-slate-700">{{ row.machine }}</span>
-                                <span class="tnum text-xs text-slate-500">
+                                <span class="font-medium text-ink-700">{{ row.machine }}</span>
+                                <span class="tnum text-xs text-ink-500">
                                     {{ Math.round(row.minutes / 60) }} h · {{ row.operations }} ops
                                 </span>
                             </div>
@@ -169,14 +169,14 @@ const loadByMachine = computed(() => {
                     subtitle="A shipment cannot claim a scheme whose certificate has lapsed"
                     rule="Gate 2 · BR-43"
                 >
-                    <p v-if="expiringCertificates.length === 0" class="text-sm text-slate-500">
+                    <p v-if="expiringCertificates.length === 0" class="text-sm text-ink-500">
                         Every certificate is current.
                     </p>
                     <ul v-else class="divide-y divide-slate-100 text-sm">
                         <li v-for="cert in expiringCertificates" :key="cert.id" class="flex items-center justify-between gap-3 py-2">
                             <div class="min-w-0">
-                                <p class="font-medium text-slate-800">{{ cert.scheme.replace('_', ' ') }}</p>
-                                <p class="truncate text-xs text-slate-500">{{ cert.certificate_no }}</p>
+                                <p class="font-medium text-ink-800">{{ cert.scheme.replace('_', ' ') }}</p>
+                                <p class="truncate text-xs text-ink-500">{{ cert.certificate_no }}</p>
                             </div>
                             <Badge tone="danger" :label="date(cert.expires_on)" />
                         </li>

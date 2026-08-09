@@ -34,6 +34,18 @@ const columns = [
         </template>
 
         <Card :padded="false">
+            <!--
+                Invoicing is raised *from* a delivery challan, never typed: the quantities,
+                rates and lot references have to be the ones that left the gate. The challan
+                chain (packing list → challan) is not built yet, so there is deliberately no
+                "New invoice" button here rather than a form that would invent its own lines.
+            -->
+            <div class="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <span class="font-medium">Invoices are raised from a delivery challan.</span>
+                Packing, challan and invoicing are Phase 2 sprint 13 / Phase 3 sprint 17
+                (docs/10-roadmap.md) and are not built yet — this screen reads the AR subledger only.
+            </div>
+
             <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','issued','partially_paid','paid','overdue','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search invoice or Mushak number…" />
 
             <DataTable
@@ -42,7 +54,7 @@ const columns = [
                 row-key="id"
                 empty="No invoices issued."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-slate-900">{{ value ?? "(unnumbered)" }}</span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
                 <template #cell:customer_name="{ row, value }">{{ row.customer?.name ?? "—" }}</template>
                 <template #cell:invoice_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:due_date="{ row, value }">{{ date(value) }}</template>

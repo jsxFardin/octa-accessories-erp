@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -10,6 +10,14 @@ import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ quotations: Object, filters: Object, customers: Array });
+
+/** Built per row so the menu never offers what this user may not do, or the record will not allow. */
+function rowActions(row) {
+    return [
+        { label: 'Open', onSelect: () => router.visit(`/quotations/${row.id}`) },
+        { label: 'Edit', hidden: !can('quotation.update') || !(row.status === 'draft'), onSelect: () => router.visit(`/quotations/${row.id}/edit`) },
+    ];
+}
 
 const columns = [
     { key: 'number', label: 'Number' },
@@ -39,10 +47,10 @@ const columns = [
             <DataTable
                 :columns="columns"
                 :rows="quotations"
-                row-key="id" :row-href="(row) => `/quotations/${row.id}`"
+                row-key="id" :actions="rowActions" :row-href="(row) => `/quotations/${row.id}`"
                 empty="No quotations match these filters."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-slate-900">{{ value ?? "(unnumbered)" }}<span v-if="row.revision_no" class="text-slate-400">/R{{ row.revision_no }}</span></span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}<span v-if="row.revision_no" class="text-ink-400">/R{{ row.revision_no }}</span></span></template>
                 <template #cell:quotation_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:valid_until="{ row, value }">{{ date(value) }}</template>
                 <template #cell:total="{ row, value }">{{ money(value) }}</template>

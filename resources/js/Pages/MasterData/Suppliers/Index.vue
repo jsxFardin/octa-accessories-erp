@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -10,6 +10,26 @@ import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ suppliers: Object, filters: Object });
+
+function remove(row) {
+    if (!confirm(`Archive ${row.code ?? row.name}? History is kept; it simply stops being offered.`)) return;
+
+    router.delete(`/suppliers/${row.id}`, { preserveScroll: true });
+}
+
+/** Built per row so the menu never offers what this user may not do, or the record will not allow. */
+function rowActions(row) {
+    return [
+        { label: 'Open', onSelect: () => router.visit(`/suppliers/${row.id}`) },
+        { label: 'Edit', hidden: !can('supplier.update'), onSelect: () => router.visit(`/suppliers/${row.id}/edit`) },
+        {
+            label: 'Archive',
+            tone: 'danger',
+            hidden: !can('supplier.delete'),
+            onSelect: () => remove(row),
+        },
+    ];
+}
 
 const columns = [
     { key: 'code', label: 'Code' },
@@ -39,10 +59,10 @@ const columns = [
             <DataTable
                 :columns="columns"
                 :rows="suppliers"
-                row-key="id" :row-href="(row) => `/suppliers/${row.id}`"
+                row-key="id" :actions="rowActions" :row-href="(row) => `/suppliers/${row.id}`"
                 empty="No suppliers match these filters."
             >
-                <template #cell:code="{ row, value }"><span class="font-medium text-slate-900">{{ value }}</span></template>
+                <template #cell:code="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:is_approved="{ row, value }"><Badge :tone="value ? 'success' : 'warning'" :label="value ? 'Approved' : 'Pending'" /></template>
                 <template #cell:is_active="{ row, value }"><Badge :tone="value ? 'success' : 'neutral'" :label="value ? 'Active' : 'Inactive'" /></template>
             </DataTable>

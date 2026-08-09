@@ -3,6 +3,7 @@ import { Head, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
 import { qty } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
@@ -33,14 +34,14 @@ const columns = [
         </template>
 
         <template #actions>
-            <select
-                class="form-select w-36"
-                :value="filters.scheme ?? ''"
-                @change="router.get('/compliance/reconciliation', { ...filters, scheme: $event.target.value || undefined }, { preserveState: true, replace: true })"
-            >
-                <option value="">All schemes</option>
-                <option v-for="scheme in schemes" :key="scheme" :value="scheme">{{ scheme.replace('_', ' ') }}</option>
-            </select>
+            <div class="w-36">
+                <SelectInput
+                    :model-value="filters.scheme ?? ''"
+                    placeholder="All schemes"
+                    :options="schemes.map((scheme) => ({ value: scheme, label: scheme.replace('_', ' ') }))"
+                    @update:model-value="router.get('/compliance/reconciliation', { ...filters, scheme: $event || undefined }, { preserveState: true, replace: true })"
+                />
+            </div>
         </template>
 
         <Card :padded="false">
@@ -51,7 +52,7 @@ const columns = [
                 empty="No chain-of-custody transactions recorded yet. Certified input enters the system on a GRN line."
             >
                 <template #cell:scheme="{ value }">
-                    <span class="font-medium text-slate-900">{{ value.replace('_', ' ') }}</span>
+                    <span class="font-medium text-ink-900">{{ value.replace('_', ' ') }}</span>
                 </template>
                 <template #cell:certified_input_qty="{ value }">{{ qty(value) }}</template>
                 <template #cell:certified_output_qty="{ value }">{{ qty(value) }}</template>

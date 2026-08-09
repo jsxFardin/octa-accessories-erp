@@ -43,8 +43,8 @@ const columns = [
                 row-key="id" :row-href="(row) => `/job-cards/${row.id}`"
                 empty="No job cards match these filters."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-slate-900">{{ value ?? "(unnumbered)" }}</span></template>
-                <template #cell:product="{ row, value }"><span v-if="row.product"><span class="font-medium">{{ row.product.code }}</span> <span class="text-slate-500">{{ row.product.name }}</span></span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
+                <template #cell:product="{ row, value }"><span v-if="row.product"><span class="font-medium">{{ row.product.code }}</span> <span class="text-ink-500">{{ row.product.name }}</span></span></template>
                 <template #cell:planned_qty="{ row, value }">{{ pcs(value) }}</template>
                 <template #cell:good_qty="{ row, value }">{{ pcs(value) }}</template>
                 <template #cell:waste_qty="{ row, value }">{{ pcs(value) }}</template>

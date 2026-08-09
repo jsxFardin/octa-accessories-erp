@@ -58,7 +58,7 @@ function submit() {
                     :error="form.errors[field.key]"
                     :class="field.span === 'full' ? 'sm:col-span-2 lg:col-span-3' : ''"
                 >
-                    <label v-if="field.type === 'checkbox'" class="flex items-center gap-2 py-1.5 text-sm text-slate-700">
+                    <label v-if="field.type === 'checkbox'" class="flex items-center gap-2 py-1.5 text-sm text-ink-700">
                         <input v-model="form[field.key]" type="checkbox" class="rounded border-slate-300">
                         {{ field.checkboxLabel ?? 'Yes' }}
                     </label>

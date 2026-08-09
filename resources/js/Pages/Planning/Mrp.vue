@@ -57,13 +57,13 @@ const columns = [
                         :class="run?.id === r.id ? 'bg-brand-50' : ''"
                         @click="router.get('/mrp', { run: r.id }, { preserveState: true })"
                     >
-                        <p class="font-medium text-slate-800">{{ datetime(r.run_at) }}</p>
-                        <p class="text-xs text-slate-500">
+                        <p class="font-medium text-ink-800">{{ datetime(r.run_at) }}</p>
+                        <p class="text-xs text-ink-500">
                             {{ date(r.horizon_from) }} → {{ date(r.horizon_to) }}
                         </p>
                         <Badge :tone="r.shortage_count > 0 ? 'warning' : 'success'" :label="`${r.shortage_count} shortage(s)`" />
                     </li>
-                    <li v-if="runs.length === 0" class="px-3 py-6 text-center text-slate-500">No runs yet.</li>
+                    <li v-if="runs.length === 0" class="px-3 py-6 text-center text-ink-500">No runs yet.</li>
                 </ul>
             </Card>
 
@@ -71,7 +71,7 @@ const columns = [
                 <DataTable :columns="columns" :rows="requirements" row-key="id" empty="Run MRP to see requirements." dense>
                     <template #cell:item_code="{ row }">
                         <span class="font-medium">{{ row.item_code }}</span>
-                        <span class="text-slate-500"> {{ row.item_name }}</span>
+                        <span class="text-ink-500"> {{ row.item_name }}</span>
                     </template>
                     <template #cell:gross_req_qty="{ value }">{{ qty(value) }}</template>
                     <template #cell:on_hand_qty="{ value }">{{ qty(value) }}</template>

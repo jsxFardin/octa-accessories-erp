@@ -137,6 +137,10 @@ async function logDowntime() {
             </div>
 
             <div v-else-if="mode === 'downtime'" class="space-y-4">
+                <!--
+                    Native picker on purpose: the floor terminal is touched with gloves and has
+                    no keyboard, so the OS wheel beats a filter box the operator cannot type in.
+                -->
                 <select v-model="downtimeReasonId" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
                     <option value="" class="text-slate-900">— কারণ · reason —</option>
                     <option v-for="reason in downtimeReasons" :key="reason.id" :value="reason.id" class="text-slate-900">

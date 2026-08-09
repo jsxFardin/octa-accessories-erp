@@ -38,7 +38,7 @@ const columns = [
                 row-key="id"
                 empty="No trips planned."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-slate-900">{{ value ?? "(unnumbered)" }}</span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
                 <template #cell:trip_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
             </DataTable>

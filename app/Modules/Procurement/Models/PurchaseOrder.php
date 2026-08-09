@@ -6,6 +6,7 @@ namespace App\Modules\Procurement\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -85,5 +86,11 @@ class PurchaseOrder extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\Supplier::class, 'supplier_id');
+    }
+
+    /** @return HasMany<PurchaseOrderLine, $this> */
+    public function lines(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderLine::class, 'po_id')->orderBy('line_no');
     }
 }

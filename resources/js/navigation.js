@@ -83,7 +83,8 @@ export const navigation = [
     {
         label: 'Administration',
         items: [
-            { label: 'Users & roles', href: '/admin/users', icon: '☗', permissions: ['user.view_any'] },
+            { label: 'Users', href: '/admin/users', icon: '☗', permissions: ['user.view_any'] },
+            { label: 'Roles & permissions', href: '/admin/roles', icon: '⛊', permissions: ['role.view_any'] },
             { label: 'Settings', href: '/admin/settings', icon: '⚑', permissions: ['setting.view_any'] },
             { label: 'Number sequences', href: '/admin/number-sequences', icon: '#', permissions: ['number_sequence.view_any'] },
             { label: 'Audit log', href: '/admin/audit-log', icon: '☱', permissions: ['audit_log.view_any'] },

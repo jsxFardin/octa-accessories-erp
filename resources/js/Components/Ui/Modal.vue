@@ -53,8 +53,8 @@ onUnmounted(() => {
                         aria-modal="true"
                     >
                         <header v-if="title" class="border-b border-slate-200 px-4 py-3">
-                            <h3 class="text-sm font-semibold text-slate-900">{{ title }}</h3>
-                            <p v-if="subtitle" class="mt-0.5 text-xs text-slate-500">{{ subtitle }}</p>
+                            <h3 class="text-sm font-semibold text-ink-900">{{ title }}</h3>
+                            <p v-if="subtitle" class="mt-0.5 text-xs text-ink-500">{{ subtitle }}</p>
                         </header>
 
                         <div class="px-4 py-4">

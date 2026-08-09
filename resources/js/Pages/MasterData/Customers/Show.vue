@@ -1,9 +1,11 @@
 <script setup>
 import { Head } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
+import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, datetime, money, pcs, qty, titleCase } from '@/plugins/formatting';
+import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ customer: Object, products: Array, openOrders: Array, outstanding: Number });
@@ -17,18 +19,22 @@ const props = defineProps({ customer: Object, products: Array, openOrders: Array
         <template #title>{{ customer.code }} · {{ customer.name }}</template>
         <template #subtitle>{{ customer.country }}</template>
 
+        <template #actions>
+            <Button v-if="can('customer.update')" size="sm" :href="`/customers/${customer.id}/edit`">Edit</Button>
+        </template>
+
         <div class="grid gap-4 lg:grid-cols-3">
             <Card title="Commercial guard rails" rule="BR-21 · BR-44 · BR-46">
                 <dl class="space-y-2 text-sm">
-                    <div class="flex justify-between"><dt class="text-slate-500">Credit limit</dt><dd class="tnum">{{ money(customer.credit_limit) }}</dd></div>
+                    <div class="flex justify-between"><dt class="text-ink-500">Credit limit</dt><dd class="tnum">{{ money(customer.credit_limit) }}</dd></div>
                     <div class="flex justify-between">
-                        <dt class="text-slate-500">Outstanding</dt>
+                        <dt class="text-ink-500">Outstanding</dt>
                         <dd class="tnum font-medium" :class="outstanding > customer.credit_limit && customer.credit_limit > 0 ? 'text-rose-600' : ''">
                             {{ money(outstanding) }}
                         </dd>
                     </div>
-                    <div class="flex justify-between"><dt class="text-slate-500">Minimum order value</dt><dd class="tnum">{{ money(customer.min_order_value) }}</dd></div>
-                    <div class="flex justify-between"><dt class="text-slate-500">Delivery tolerance</dt><dd class="tnum">−{{ customer.under_tolerance_pct }}% / +{{ customer.over_tolerance_pct }}%</dd></div>
+                    <div class="flex justify-between"><dt class="text-ink-500">Minimum order value</dt><dd class="tnum">{{ money(customer.min_order_value) }}</dd></div>
+                    <div class="flex justify-between"><dt class="text-ink-500">Delivery tolerance</dt><dd class="tnum">−{{ customer.under_tolerance_pct }}% / +{{ customer.over_tolerance_pct }}%</dd></div>
                 </dl>
             </Card>
 

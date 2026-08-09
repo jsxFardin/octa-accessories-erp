@@ -41,11 +41,11 @@ const columns = [
                 <template #cell:change="{ row }">
                     <span v-if="row.event === 'status_changed'" class="text-xs">
                         {{ row.old_values?.status }} → <span class="font-medium">{{ row.new_values?.status }}</span>
-                        <span v-if="row.new_values?.reason || row.new_values?.hold_reason" class="text-slate-500">
+                        <span v-if="row.new_values?.reason || row.new_values?.hold_reason" class="text-ink-500">
                             · {{ row.new_values.reason ?? row.new_values.hold_reason }}
                         </span>
                     </span>
-                    <span v-else class="font-mono text-[10px] text-slate-500">
+                    <span v-else class="font-mono text-[10px] text-ink-500">
                         {{ Object.keys(row.new_values ?? {}).slice(0, 4).join(', ') }}
                     </span>
                 </template>

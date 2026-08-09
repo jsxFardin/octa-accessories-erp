@@ -1,20 +1,48 @@
+/*
+ * Inter, self-hosted through npm — no CDN (08-architecture §5). The variable font gives us
+ * 400/500/600/700 from one file, and `cv11` makes the lowercase l a straight stem so a lot
+ * number like `L260802-00341` cannot be misread as a 1.
+ */
+@import '@fontsource-variable/inter';
+
+/*
+ * Inter carries no Bengali glyphs, and the shop floor runs in Bangla by default (README §4).
+ * Without this the operator terminal falls back to whatever the device happens to have, which
+ * on an Android scanner is usually nothing good.
+ */
+@import '@fontsource-variable/noto-sans-bengali';
+
 @import 'tailwindcss';
 
 @theme {
-    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --font-sans: 'Inter Variable', 'Noto Sans Bengali Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
 
-    /* Octa ERP palette — indigo primary, slate neutrals */
-    --color-brand-50: oklch(0.97 0.014 254);
-    --color-brand-100: oklch(0.93 0.033 255);
-    --color-brand-200: oklch(0.88 0.059 254);
-    --color-brand-300: oklch(0.81 0.096 252);
-    --color-brand-400: oklch(0.71 0.143 254);
-    --color-brand-500: oklch(0.62 0.188 260);
-    --color-brand-600: oklch(0.55 0.212 263);
-    --color-brand-700: oklch(0.49 0.201 264);
-    --color-brand-800: oklch(0.42 0.169 266);
-    --color-brand-900: oklch(0.38 0.135 266);
+    /*
+     * Brand: a deep azure. Deliberately not the violet-leaning indigo Tailwind ships as a
+     * default — this is a factory system that sits next to amber warnings and rose failures
+     * all day, and it should read as instrument panel, not as marketing site.
+     *
+     * 600 is the interactive colour and clears 4.5:1 on white; 700 is its hover.
+     */
+    --color-brand-50: oklch(0.972 0.017 236);
+    --color-brand-100: oklch(0.938 0.036 236);
+    --color-brand-200: oklch(0.885 0.069 236);
+    --color-brand-300: oklch(0.807 0.112 237);
+    --color-brand-400: oklch(0.707 0.148 240);
+    --color-brand-500: oklch(0.618 0.158 243);
+    --color-brand-600: oklch(0.532 0.152 246);
+    --color-brand-700: oklch(0.448 0.130 248);
+    --color-brand-800: oklch(0.382 0.104 249);
+    --color-brand-900: oklch(0.331 0.083 250);
+
+    /* Ink: the text ramp. Body copy is --color-ink-700, never lighter. */
+    --color-ink-400: oklch(0.640 0.019 258);
+    --color-ink-500: oklch(0.551 0.021 258);
+    --color-ink-600: oklch(0.461 0.023 257);
+    --color-ink-700: oklch(0.386 0.024 257);
+    --color-ink-800: oklch(0.301 0.023 256);
+    --color-ink-900: oklch(0.221 0.021 256);
 }
 
 @layer base {
@@ -23,31 +51,72 @@
     }
 
     body {
-        @apply bg-slate-100 text-slate-800 antialiased;
+        @apply bg-slate-50 text-ink-800 antialiased;
+
+        /* Straight-stemmed l, tabular-friendly digits, real ligatures off in code. */
+        font-feature-settings: 'cv11', 'ss01';
+        font-variation-settings: normal;
     }
 
-    /* Dense desk UI: tabular numerals everywhere numbers matter */
-    .tnum {
-        font-variant-numeric: tabular-nums;
+    /*
+     * Tailwind 4's preflight sets `cursor: default` on buttons. Everything that responds to a
+     * click should say so — a disabled control still says "not-allowed" rather than nothing.
+     */
+    button:not(:disabled),
+    [role='button']:not([aria-disabled='true']),
+    [role='menuitem'],
+    summary,
+    label:has(input[type='checkbox']:not(:disabled)),
+    label:has(input[type='radio']:not(:disabled)),
+    input[type='checkbox']:not(:disabled),
+    input[type='radio']:not(:disabled),
+    input[type='file']:not(:disabled),
+    select:not(:disabled),
+    a[href] {
+        cursor: pointer;
+    }
+
+    button:disabled,
+    [aria-disabled='true'],
+    input:disabled,
+    select:disabled,
+    textarea:disabled {
+        cursor: not-allowed;
+    }
+
+    /* Headings carry the weight; body text carries the contrast. */
+    h1, h2, h3, h4 {
+        @apply text-ink-900;
+        letter-spacing: -0.011em;
     }
 }
 
 @layer components {
     .field-label {
-        @apply mb-1 block text-xs font-medium text-slate-600;
+        @apply mb-1 block text-xs font-medium text-ink-700;
     }
 
     .form-input,
     .form-select,
     .form-textarea {
-        @apply block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900
-               shadow-sm transition placeholder:text-slate-400
+        @apply block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-ink-900
+               shadow-sm transition placeholder:text-ink-400
                focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 focus:outline-none
-               disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500;
+               disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-ink-500;
     }
 
     .form-input-error {
         @apply border-rose-400 focus:border-rose-500 focus:ring-rose-500/25;
+    }
+
+    /* Dense desk UI: tabular numerals everywhere numbers matter. */
+    .tnum {
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* Muted, but still readable — the floor of the text ramp for anything a user must read. */
+    .text-muted {
+        @apply text-ink-500;
     }
 }
 
@@ -57,5 +126,5 @@
 }
 
 .floor-scope .floor-btn {
-    @apply min-h-24 rounded-2xl text-2xl font-bold uppercase tracking-wide;
+    @apply min-h-24 cursor-pointer rounded-2xl text-2xl font-bold tracking-wide uppercase;
 }

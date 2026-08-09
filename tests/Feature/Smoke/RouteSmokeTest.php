@@ -33,6 +33,8 @@ it('renders every screen without erroring', function (): void {
         'inspection' => fn () => DB::table('qc_inspections')->value('id'),
         'purchaseOrder' => fn () => DB::table('purchase_orders')->value('id'),
         'operation' => fn () => DB::table('job_card_operations')->value('id'),
+        'routing' => fn () => DB::table('routings')->value('id'),
+        'purchaseRequisition' => fn () => DB::table('purchase_requisitions')->value('id'),
     ];
 
     $failures = [];

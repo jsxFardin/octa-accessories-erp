@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -10,6 +10,26 @@ import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ products: Object, filters: Object, customers: Array, productTypes: Array });
+
+function remove(row) {
+    if (!confirm(`Archive ${row.code ?? row.name}? History is kept; it simply stops being offered.`)) return;
+
+    router.delete(`/products/${row.id}`, { preserveScroll: true });
+}
+
+/** Built per row so the menu never offers what this user may not do, or the record will not allow. */
+function rowActions(row) {
+    return [
+        { label: 'Open', onSelect: () => router.visit(`/products/${row.id}`) },
+        { label: 'Edit', hidden: !can('product.update'), onSelect: () => router.visit(`/products/${row.id}/edit`) },
+        {
+            label: 'Archive',
+            tone: 'danger',
+            hidden: !can('product.delete'),
+            onSelect: () => remove(row),
+        },
+    ];
+}
 
 const columns = [
     { key: 'code', label: 'Code' },
@@ -39,10 +59,10 @@ const columns = [
             <DataTable
                 :columns="columns"
                 :rows="products"
-                row-key="id" :row-href="(row) => `/products/${row.id}`"
+                row-key="id" :actions="rowActions" :row-href="(row) => `/products/${row.id}`"
                 empty="No products match these filters."
             >
-                <template #cell:code="{ row, value }"><span class="font-medium text-slate-900">{{ value }}</span></template>
+                <template #cell:code="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:product_type="{ row, value }">{{ titleCase(value) }}</template>
                 <template #cell:spec_version="{ row, value }"><Badge v-if="value" tone="success" :label="`v${value}`" /><Badge v-else tone="danger" label="none" /></template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>

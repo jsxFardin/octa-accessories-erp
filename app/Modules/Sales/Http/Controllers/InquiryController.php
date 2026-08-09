@@ -103,11 +103,56 @@ class InquiryController extends Controller
         ]);
     }
 
+    public function edit(Inquiry $inquiry): Response
+    {
+        // Once an inquiry has been quoted, its lines are what the quotation was costed from;
+        // changing them behind the quote is how a customer ends up billed for a different job.
+        if (! in_array($inquiry->status, ['draft', 'open'], true)) {
+            abort(403, 'Only a draft or open inquiry can be edited.');
+        }
+
+        $inquiry->load('lines');
+
+        return Inertia::render('Sales/Inquiries/Form', [
+            'inquiry' => [
+                ...$inquiry->only([
+                    'id', 'number', 'customer_id', 'customer_contact_id', 'brand_id',
+                    'inquiry_date', 'required_by', 'source', 'notes', 'status',
+                ]),
+                'lines' => $inquiry->lines->map(fn ($line): array => $line->only([
+                    'id', 'line_no', 'product_id', 'description', 'product_type', 'qty',
+                    'target_rate_per_m', 'notes',
+                ]))->all(),
+            ],
+            'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
+            'productTypes' => array_map(
+                fn (ProductType $t): array => ['value' => $t->value, 'label' => $t->label()],
+                ProductType::cases(),
+            ),
+        ]);
+    }
+
+    public function update(Request $request, Inquiry $inquiry): RedirectResponse
+    {
+        if (! in_array($inquiry->status, ['draft', 'open'], true)) {
+            return back()->with('error', 'Only a draft or open inquiry can be edited.');
+        }
+
+        $data = $this->validated($request);
+
+        DB::transaction(function () use ($inquiry, $data): void {
+            $inquiry->update(collect($data)->except('lines')->all());
+            $this->syncLines($inquiry, $data['lines']);
+        });
+
+        return redirect()->route('inquiries.show', $inquiry)->with('success', 'Inquiry updated.');
+    }
+
     /**
      * The transitions the inquiry state machine allows, applied inline because this document
      * has no side effects beyond numbering and a lost reason (05-workflows §1).
      */
-    public function update(Request $request, Inquiry $inquiry): RedirectResponse
+    public function transition(Request $request, Inquiry $inquiry): RedirectResponse
     {
         $data = $request->validate([
             'status' => ['required', Rule::in(['draft', 'open', 'quoted', 'won', 'lost', 'cancelled'])],

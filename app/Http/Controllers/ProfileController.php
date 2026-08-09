@@ -41,6 +41,19 @@ class ProfileController extends Controller
         ]);
     }
 
+    /**
+     * The language switch in the topbar. Its own route because changing your display
+     * language should not require typing your password.
+     */
+    public function updateLocale(Request $request): RedirectResponse
+    {
+        $data = $request->validate(['locale' => ['required', 'in:en,bn']]);
+
+        $request->user()->forceFill(['locale' => $data['locale']])->save();
+
+        return back();
+    }
+
     public function updatePassword(Request $request): RedirectResponse
     {
         /** @var User $user */

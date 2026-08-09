@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Card from '@/Components/Ui/Card.vue';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
 import { date, pcs } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
@@ -34,7 +35,7 @@ function cell(machineId, date) {
  * over-committed machine before they add to it, not after the delivery slips.
  */
 function tone(cell) {
-    if (!cell || cell.is_holiday) return 'bg-slate-100 text-slate-400';
+    if (!cell || cell.is_holiday) return 'bg-slate-100 text-ink-400';
     if (cell.over_capacity) return 'bg-rose-100 text-rose-900 ring-1 ring-rose-300';
     if (cell.utilisation_pct >= 85) return 'bg-amber-100 text-amber-900';
     if (cell.utilisation_pct > 0) return 'bg-emerald-50 text-emerald-900';
@@ -59,18 +60,25 @@ function weekday(value) {
         <template #subtitle>Machine × day utilisation — available minutes are discounted by planned downtime and machine efficiency (BR-27)</template>
 
         <template #actions>
-            <select
-                class="form-select w-32"
-                :value="filters.group ?? ''"
-                @change="router.get('/planning', { ...filters, group: $event.target.value || undefined }, { preserveState: true, replace: true })"
-            >
-                <option value="">All groups</option>
-                <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option>
-            </select>
+            <div class="w-36">
+                <SelectInput
+                    :model-value="filters.group ?? ''"
+                    placeholder="All groups"
+                    :options="groups"
+                    value-key="id"
+                    label-key="name"
+                    @update:model-value="router.get('/planning', { ...filters, group: $event || undefined }, { preserveState: true, replace: true })"
+                />
+            </div>
 
-            <select class="form-select w-24" :value="filters.days" @change="shiftWindow($event.target.value)">
-                <option v-for="n in [7, 10, 14, 21]" :key="n" :value="n">{{ n }} days</option>
-            </select>
+            <div class="w-28">
+                <SelectInput
+                    :model-value="filters.days"
+                    :placeholder="null"
+                    :options="[7, 10, 14, 21].map((n) => ({ value: n, label: `${n} days` }))"
+                    @update:model-value="shiftWindow($event)"
+                />
+            </div>
         </template>
 
         <div class="space-y-4">
@@ -79,16 +87,16 @@ function weekday(value) {
                     <table class="min-w-full text-xs">
                         <thead>
                             <tr class="bg-slate-50">
-                                <th class="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600">
+                                <th class="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left font-semibold text-ink-700">
                                     Machine
                                 </th>
                                 <th
                                     v-for="d in dates"
                                     :key="d"
-                                    class="px-1 py-2 text-center font-semibold whitespace-nowrap text-slate-600"
+                                    class="px-1 py-2 text-center font-semibold whitespace-nowrap text-ink-700"
                                 >
                                     <div>{{ weekday(d) }}</div>
-                                    <div class="font-normal text-slate-400">{{ d.slice(5) }}</div>
+                                    <div class="font-normal text-ink-400">{{ d.slice(5) }}</div>
                                 </th>
                             </tr>
                         </thead>
@@ -96,8 +104,8 @@ function weekday(value) {
                         <tbody class="divide-y divide-slate-100">
                             <tr v-for="machine in machines" :key="machine.id">
                                 <td class="sticky left-0 z-10 bg-white px-3 py-1.5 whitespace-nowrap">
-                                    <div class="font-medium text-slate-800">{{ machine.code }}</div>
-                                    <div class="text-[10px] text-slate-400">
+                                    <div class="font-medium text-ink-800">{{ machine.code }}</div>
+                                    <div class="text-[10px] text-ink-400">
                                         {{ machine.group_code }} · {{ machine.efficiency_pct }}% eff
                                     </div>
                                 </td>
@@ -121,7 +129,7 @@ function weekday(value) {
                             </tr>
 
                             <tr v-if="machines.length === 0">
-                                <td :colspan="dates.length + 1" class="px-3 py-10 text-center text-slate-500">
+                                <td :colspan="dates.length + 1" class="px-3 py-10 text-center text-ink-500">
                                     No active machines in this group.
                                 </td>
                             </tr>
@@ -136,11 +144,11 @@ function weekday(value) {
                         <Link :href="`/job-cards/${op.job_card_id}`" class="font-medium text-brand-700">
                             {{ op.number ?? '(unnumbered)' }}
                         </Link>
-                        <span class="text-slate-700">{{ op.name }}</span>
-                        <span class="tnum text-xs text-slate-500">{{ pcs(op.planned_qty) }}</span>
-                        <span class="ml-auto text-xs text-slate-500">due {{ date(op.due_date) }}</span>
+                        <span class="text-ink-700">{{ op.name }}</span>
+                        <span class="tnum text-xs text-ink-500">{{ pcs(op.planned_qty) }}</span>
+                        <span class="ml-auto text-xs text-ink-500">due {{ date(op.due_date) }}</span>
                     </li>
-                    <li v-if="unscheduled.length === 0" class="px-3 py-6 text-center text-slate-500">
+                    <li v-if="unscheduled.length === 0" class="px-3 py-6 text-center text-ink-500">
                         Everything open is scheduled.
                     </li>
                 </ul>

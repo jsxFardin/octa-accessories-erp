@@ -31,7 +31,7 @@ const columns = [
             <DataTable :columns="columns" :rows="sequences" row-key="id" empty="No sequences seeded.">
                 <template #cell:document_type="{ value }">{{ titleCase(value) }}</template>
                 <template #cell:next_formatted="{ value }">
-                    <span class="font-mono text-xs font-medium text-slate-900">{{ value }}</span>
+                    <span class="font-mono text-xs font-medium text-ink-900">{{ value }}</span>
                 </template>
             </DataTable>
         </Card>

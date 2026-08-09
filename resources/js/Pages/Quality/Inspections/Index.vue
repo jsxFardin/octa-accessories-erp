@@ -45,11 +45,11 @@ const columns = [
                 row-key="id" :row-href="(row) => `/qc-inspections/${row.id}`"
                 empty="No inspections match these filters."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-slate-900">{{ value }}</span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:stage="{ row, value }">{{ titleCase(value) }}</template>
                 <template #cell:lot_size="{ row, value }">{{ pcs(value) }}</template>
                 <template #cell:result="{ row, value }"><Badge :status="value" /></template>
-                <template #cell:disposition="{ row, value }"><Badge v-if="value" tone="warning" :label="titleCase(value)" /><span v-else class="text-slate-400">—</span></template>
+                <template #cell:disposition="{ row, value }"><Badge v-if="value" tone="warning" :label="titleCase(value)" /><span v-else class="text-ink-400">—</span></template>
             </DataTable>
         </Card>
     </AppLayout>
