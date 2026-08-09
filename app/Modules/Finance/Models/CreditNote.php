@@ -1,0 +1,58 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Finance\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+/**
+ * @property int $id
+ * @property string|null $number
+ * @property int $customer_id
+ * @property int|null $sales_invoice_id
+ * @property \Illuminate\Support\Carbon $note_date
+ * @property string $reason
+ * @property int|null $ncr_id
+ * @property int $currency_id
+ * @property string $amount
+ * @property string $status
+ * @property int|null $approved_by
+ * @property string|null $remarks
+ * @property \Illuminate\Support\Carbon $created_at
+ */
+class CreditNote extends Model
+{
+    protected $table = 'credit_notes';
+
+    public const UPDATED_AT = null;
+
+    protected $fillable = [
+        'number',
+        'customer_id',
+        'sales_invoice_id',
+        'note_date',
+        'reason',
+        'ncr_id',
+        'currency_id',
+        'amount',
+        'status',
+        'approved_by',
+        'remarks',
+    ];
+
+    /** @return array<string, string> */
+    protected function casts(): array
+    {
+        return [
+            'customer_id' => 'integer',
+            'sales_invoice_id' => 'integer',
+            'note_date' => 'date',
+            'ncr_id' => 'integer',
+            'currency_id' => 'integer',
+            'amount' => 'decimal:4',
+            'approved_by' => 'integer',
+            'created_at' => 'datetime',
+        ];
+    }
+}

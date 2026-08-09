@@ -1,0 +1,22 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 6
+
+    paths:
+        - app
+        - database/seeders
+
+    excludePaths:
+        # Scanned but not analysed: the generated persistence layer contributes its @property
+        # annotations to everything else, while its own boilerplate is not worth linting. The
+        # rules live in Support/Calculators and the module services, analysed in full.
+        analyse:
+            - app/Modules/*/Models/*
+            - app/Support/Platform/Models/*
+
+    ignoreErrors:
+        # Consequence of the exclusion above: the trait is applied only inside model bodies.
+        - identifier: trait.unused
+          path: app/Support/Audit/Auditable.php

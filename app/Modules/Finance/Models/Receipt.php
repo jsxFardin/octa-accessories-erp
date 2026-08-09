@@ -1,0 +1,69 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Finance\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * @property int $id
+ * @property string|null $number
+ * @property int $customer_id
+ * @property \Illuminate\Support\Carbon $receipt_date
+ * @property string $method
+ * @property string|null $reference_no
+ * @property string|null $bank_name
+ * @property int $currency_id
+ * @property string $exchange_rate
+ * @property string $amount
+ * @property string $allocated_amount
+ * @property string $status
+ * @property string|null $remarks
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property int|null $created_by
+ */
+class Receipt extends Model
+{
+    protected $table = 'receipts';
+
+    public const UPDATED_AT = null;
+
+    protected $fillable = [
+        'number',
+        'customer_id',
+        'receipt_date',
+        'method',
+        'reference_no',
+        'bank_name',
+        'currency_id',
+        'exchange_rate',
+        'amount',
+        'allocated_amount',
+        'status',
+        'remarks',
+        'created_by',
+    ];
+
+    /** @return array<string, string> */
+    protected function casts(): array
+    {
+        return [
+            'customer_id' => 'integer',
+            'receipt_date' => 'date',
+            'currency_id' => 'integer',
+            'exchange_rate' => 'decimal:8',
+            'amount' => 'decimal:4',
+            'allocated_amount' => 'decimal:4',
+            'created_at' => 'datetime',
+            'created_by' => 'integer',
+        ];
+    }
+
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Customer, $this> */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Customer::class, 'customer_id');
+    }
+}
