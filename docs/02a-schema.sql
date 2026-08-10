@@ -118,7 +118,7 @@ CREATE TABLE audit_logs (
     KEY audit_logs_auditable_idx (auditable_type, auditable_id, created_at),
     KEY audit_logs_user_idx (user_id, created_at),
     CONSTRAINT audit_logs_user_fk  FOREIGN KEY (user_id) REFERENCES users(id),
-    CONSTRAINT audit_logs_event_chk CHECK (event IN ('created','updated','deleted','restored','status_changed','printed','exported'))
+    CONSTRAINT audit_logs_event_chk CHECK (event IN ('created','updated','deleted','restored','status_changed','printed','exported','imported'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE attachments (

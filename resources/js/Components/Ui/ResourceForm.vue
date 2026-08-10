@@ -1,9 +1,10 @@
 <script setup>
 import { computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
-import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
+import FormFooter from '@/Components/Ui/FormFooter.vue';
+import FormPage from '@/Components/Ui/FormPage.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 
@@ -45,57 +46,69 @@ function submit() {
 </script>
 
 <template>
-    <form class="space-y-4" @submit.prevent="submit">
-        <Card v-for="section in sections" :key="section.title" :title="section.title" :rule="section.rule">
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <FormField
-                    v-for="field in section.fields"
-                    :key="field.key"
-                    :label="field.label"
-                    :rule="field.rule"
-                    :hint="field.hint"
-                    :required="field.required"
-                    :error="form.errors[field.key]"
-                    :class="field.span === 'full' ? 'sm:col-span-2 lg:col-span-3' : ''"
-                >
-                    <label v-if="field.type === 'checkbox'" class="flex items-center gap-2 py-1.5 text-sm text-ink-700">
-                        <input v-model="form[field.key]" type="checkbox" class="rounded border-slate-300">
-                        {{ field.checkboxLabel ?? 'Yes' }}
-                    </label>
-
-                    <SelectInput
-                        v-else-if="field.type === 'select'"
-                        v-model="form[field.key]"
-                        :options="field.options ?? []"
-                        :value-key="field.valueKey ?? 'value'"
-                        :label-key="field.labelKey ?? 'label'"
+    <FormPage :sections="sections.map((section) => section.title)">
+        <form class="space-y-4" @submit.prevent="submit">
+            <Card
+                v-for="section in sections"
+                :id="section.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')"
+                :key="section.title"
+                :title="section.title"
+                :subtitle="section.description"
+                :rule="section.rule"
+            >
+                <!--
+                    Two columns, not three. A form field wants to be about 360px: wide enough
+                    for a customer name, narrow enough that the label and the caret are in one
+                    glance.
+                -->
+                <div class="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+                    <FormField
+                        v-for="field in section.fields"
+                        :key="field.key"
+                        :label="field.label"
+                        :rule="field.rule"
+                        :hint="field.hint"
+                        :required="field.required"
                         :error="form.errors[field.key]"
-                    />
+                        :class="field.span === 'full' ? 'sm:col-span-2' : ''"
+                    >
+                        <label v-if="field.type === 'checkbox'" class="flex h-9 items-center gap-2 text-sm text-ink-700">
+                            <input v-model="form[field.key]" type="checkbox" class="rounded border-slate-300">
+                            {{ field.checkboxLabel ?? 'Yes' }}
+                        </label>
 
-                    <textarea
-                        v-else-if="field.type === 'textarea'"
-                        v-model="form[field.key]"
-                        rows="3"
-                        class="form-textarea"
-                    />
+                        <SelectInput
+                            v-else-if="field.type === 'select'"
+                            v-model="form[field.key]"
+                            :options="field.options ?? []"
+                            :value-key="field.valueKey ?? 'value'"
+                            :label-key="field.labelKey ?? 'label'"
+                            :error="form.errors[field.key]"
+                        />
 
-                    <TextInput
-                        v-else
-                        v-model="form[field.key]"
-                        :type="field.type ?? 'text'"
-                        :step="field.step"
-                        :min="field.min"
-                        :numeric="field.type === 'number'"
-                        :error="form.errors[field.key]"
-                    />
-                </FormField>
-            </div>
-        </Card>
+                        <textarea
+                            v-else-if="field.type === 'textarea'"
+                            v-model="form[field.key]"
+                            rows="3"
+                            class="form-textarea"
+                        />
 
-        <div class="flex items-center gap-2">
-            <Button type="submit" variant="primary" :loading="form.processing">{{ submitLabel }}</Button>
-            <Button v-if="cancelHref" :href="cancelHref">Cancel</Button>
-            <span v-if="form.isDirty" class="text-xs text-amber-600">Unsaved changes</span>
-        </div>
-    </form>
+                        <TextInput
+                            v-else
+                            v-model="form[field.key]"
+                            :type="field.type ?? 'text'"
+                            :step="field.step"
+                            :min="field.min"
+                            :numeric="field.type === 'number'"
+                            :error="form.errors[field.key]"
+                        />
+
+                        <!-- A checkbox aligns to the 36px control row so the grid stays level. -->
+                    </FormField>
+                </div>
+            </Card>
+
+            <FormFooter :form="form" :label="submitLabel" :cancel-href="cancelHref" @save="submit" />
+        </form>
+    </FormPage>
 </template>

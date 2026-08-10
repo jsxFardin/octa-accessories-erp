@@ -4,16 +4,25 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import ExportDialog from '@/Components/Ui/ExportDialog.vue';
+import ImportDialog from '@/Components/Ui/ImportDialog.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
+import { useConfirm } from '@/composables/useConfirm';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
+const { confirm } = useConfirm();
+
 const props = defineProps({ suppliers: Object, filters: Object });
 
-function remove(row) {
-    if (!confirm(`Archive ${row.code ?? row.name}? History is kept; it simply stops being offered.`)) return;
+async function remove(row) {
+    if (!await confirm({
+        title: `Archive ${row.code ?? row.name}?`,
+        message: 'History is kept; it simply stops being offered.',
+        confirmLabel: 'Archive',
+    })) return;
 
     router.delete(`/suppliers/${row.id}`, { preserveScroll: true });
 }
@@ -51,6 +60,8 @@ const columns = [
         <template #subtitle>Yarn, ribbon, ink and chemicals — lead time is per supplier-item (BR-26)</template>
 
         <template #actions>
+            <ImportDialog v-if="can('supplier.import')" resource="suppliers" label="Suppliers" />
+            <ExportDialog v-if="can('supplier.export')" resource="suppliers" />
             <Button v-if="can('supplier.create')" variant="primary" href="/suppliers/create">New supplier</Button>
         </template>
 

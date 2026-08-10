@@ -45,6 +45,16 @@ function transition(to) {
             <Button v-if="availableTransitions.includes('sent')" size="sm" variant="primary" @click="transition('sent')">
                 Send to supplier
             </Button>
+            <!-- Only once approved: the controller refuses a draft, so the button follows it. -->
+            <Button
+                v-if="!['draft', 'pending_approval'].includes(purchaseOrder.status)"
+                size="sm"
+                :href="`/purchase-orders/${purchaseOrder.id}/print`"
+                external
+                target="_blank"
+            >
+                Print
+            </Button>
             <Button v-if="availableTransitions.includes('closed')" size="sm" @click="transition('closed')">Close</Button>
             <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="transition('cancelled')">
                 Cancel

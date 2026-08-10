@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import ExportDialog from '@/Components/Ui/ExportDialog.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
@@ -33,6 +34,7 @@ const columns = [
         <template #subtitle>One barcode, one origin, one certification claim (I5)</template>
 
         <template #actions>
+            <ExportDialog v-if="can('stock_lot.export')" resource="lots" />
             <span />
         </template>
 

@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import DropdownMenu from '@/Components/Ui/DropdownMenu.vue';
 import Icon from '@/Components/Ui/Icon.vue';
@@ -19,10 +19,16 @@ const props = defineProps({
      */
     actions: { type: Function, default: null },
     empty: { type: String, default: 'Nothing here yet.' },
+    /** Starting density; the user's own choice overrides it and persists. */
     dense: { type: Boolean, default: false },
     /** Renders skeleton rows instead of content — for lists that load after the page. */
     loading: { type: Boolean, default: false },
+    /** Turns on the checkbox column. The page owns what the selection is then used for. */
+    selectable: { type: Boolean, default: false },
 });
+
+/** Selected row ids, as a v-model so the page can act on them. */
+const selection = defineModel('selection', { type: Array, default: () => [] });
 
 const page = usePage();
 
@@ -88,14 +94,72 @@ function toggleSort(column) {
 }
 
 const skeletonRows = computed(() => Array.from({ length: 6 }, (_, index) => index));
+
+// --- Selection ---------------------------------------------------------------------------
+const pageIds = computed(() => items(props.rows).map((row) => row[props.rowKey]));
+
+const allSelected = computed(
+    () => pageIds.value.length > 0 && pageIds.value.every((id) => selection.value.includes(id)),
+);
+
+const someSelected = computed(
+    () => !allSelected.value && pageIds.value.some((id) => selection.value.includes(id)),
+);
+
+function toggleRow(id) {
+    selection.value = selection.value.includes(id)
+        ? selection.value.filter((selected) => selected !== id)
+        : [...selection.value, id];
+}
+
+/**
+ * Selects this page only. Carrying a selection across pages reads as safe and then approves
+ * forty documents nobody looked at.
+ */
+function togglePage() {
+    selection.value = allSelected.value
+        ? selection.value.filter((id) => !pageIds.value.includes(id))
+        : [...new Set([...selection.value, ...pageIds.value])];
+}
+
+/**
+ * Density is a per-user preference, not a per-screen decision: someone entering fifty issue
+ * lines wants compact rows everywhere, and someone reading an order book wants air.
+ */
+const compact = ref(localStorage.getItem('octa.table.compact') === '1' || props.dense);
+
+watch(compact, (value) => localStorage.setItem('octa.table.compact', value ? '1' : '0'));
+
+const rowPadding = computed(() => (compact.value ? 'py-1.5' : 'py-2.5'));
 </script>
 
 <template>
     <div>
-        <div class="overflow-x-auto">
+        <!--
+            The scroll container for both axes, which is also what the sticky header pins to.
+            It has to be this element: `position: sticky` resolves against the nearest ancestor
+            with a scroll port, and both this wrapper and the Card around it have one — so a
+            header offset from the *viewport* (`top-14`) was pushed 3.5rem down into the body
+            and sat on top of the first row.
+
+            Bounded rather than page-length so the pinning has something to happen inside; a
+            short list never reaches the limit and renders exactly as before.
+        -->
+        <div class="max-h-[70vh] overflow-auto">
             <table class="min-w-full text-sm">
-                <thead>
-                    <tr class="border-b border-slate-200 bg-slate-50/80">
+                <!-- A forty-row list scrolled halfway is a grid of numbers with no column names. -->
+                <thead class="sticky top-0 z-10">
+                    <tr class="bg-slate-50 shadow-[0_1px_0_0_var(--color-slate-200)]">
+                        <th v-if="selectable" scope="col" class="w-9 px-3 py-2">
+                            <input
+                                type="checkbox"
+                                class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                :checked="allSelected"
+                                :indeterminate="someSelected"
+                                aria-label="Select all rows on this page"
+                                @change="togglePage"
+                            >
+                        </th>
                         <th
                             v-for="column in columns"
                             :key="column.key"
@@ -135,7 +199,7 @@ const skeletonRows = computed(() => Array.from({ length: 6 }, (_, index) => inde
                                 v-for="column in columns"
                                 :key="column.key"
                                 class="px-3"
-                                :class="dense ? 'py-2' : 'py-3'"
+                                :class="compact ? 'py-2' : 'py-3'"
                             >
                                 <span
                                     class="block h-3 animate-pulse rounded bg-slate-100"
@@ -147,7 +211,7 @@ const skeletonRows = computed(() => Array.from({ length: 6 }, (_, index) => inde
                     </template>
 
                     <tr v-else-if="items(rows).length === 0">
-                        <td :colspan="columns.length + (actions ? 1 : 0)" class="px-3 py-12 text-center">
+                        <td :colspan="columns.length + (actions ? 1 : 0) + (selectable ? 1 : 0)" class="px-3 py-12 text-center">
                             <slot name="empty">
                                 <p class="text-sm text-ink-500">{{ empty }}</p>
                             </slot>
@@ -158,12 +222,22 @@ const skeletonRows = computed(() => Array.from({ length: 6 }, (_, index) => inde
                         v-for="row in loading ? [] : items(rows)"
                         :key="row[rowKey]"
                         class="transition hover:bg-brand-50/40 focus-within:bg-brand-50/40"
+                        :class="selection.includes(row[rowKey]) && 'bg-brand-50/60'"
                     >
+                        <td v-if="selectable" class="px-3" :class="rowPadding">
+                            <input
+                                type="checkbox"
+                                class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                :checked="selection.includes(row[rowKey])"
+                                :aria-label="`Select row ${row[rowKey]}`"
+                                @change="toggleRow(row[rowKey])"
+                            >
+                        </td>
                         <td
                             v-for="column in columns"
                             :key="column.key"
                             class="px-3 whitespace-nowrap text-ink-700"
-                            :class="[alignClass(column), dense ? 'py-1.5' : 'py-2.5']"
+                            :class="[alignClass(column), rowPadding]"
                         >
                             <component
                                 :is="rowHref ? Link : 'div'"
@@ -176,7 +250,7 @@ const skeletonRows = computed(() => Array.from({ length: 6 }, (_, index) => inde
                             </component>
                         </td>
 
-                        <td v-if="actions" class="px-3 text-right" :class="dense ? 'py-1.5' : 'py-2.5'">
+                        <td v-if="actions" class="px-3 text-right" :class="rowPadding">
                             <DropdownMenu v-if="rowActions(row).length" :items="rowActions(row)" />
                         </td>
                     </tr>
@@ -188,6 +262,6 @@ const skeletonRows = computed(() => Array.from({ length: 6 }, (_, index) => inde
             </table>
         </div>
 
-        <Pagination v-if="!Array.isArray(rows)" :meta="rows" />
+        <Pagination v-if="!Array.isArray(rows)" v-model:compact="compact" :meta="rows" />
     </div>
 </template>

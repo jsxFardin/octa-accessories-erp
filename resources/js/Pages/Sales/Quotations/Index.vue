@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import ExportDialog from '@/Components/Ui/ExportDialog.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
@@ -16,7 +17,12 @@ const props = defineProps({ quotations: Object, filters: Object, customers: Arra
 function rowActions(row) {
     return [
         { label: 'Open', onSelect: () => router.visit(`/quotations/${row.id}`) },
-        { label: 'Edit', hidden: !can('quotation.update') || !(row.status === 'draft'), onSelect: () => router.visit(`/quotations/${row.id}/edit`) },
+        { label: 'Edit', hidden: !can('quotation.update') || row.status !== 'draft', onSelect: () => router.visit(`/quotations/${row.id}/edit`) },
+        {
+            label: 'Duplicate',
+            hidden: !can('quotation.create'),
+            onSelect: () => router.post(`/quotations/${row.id}/duplicate`),
+        },
     ];
 }
 
@@ -39,6 +45,7 @@ const columns = [
         <template #subtitle>A sent quotation is immutable; its cost sheet is snapshotted and locked (Q1)</template>
 
         <template #actions>
+            <ExportDialog v-if="can('quotation.export')" resource="quotations" />
             <Button v-if="can('quotation.create')" variant="primary" href="/quotations/create">New quotation</Button>
         </template>
 

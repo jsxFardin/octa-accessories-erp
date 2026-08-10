@@ -14,6 +14,7 @@ use App\Modules\Sales\Models\SalesOrderLine;
 use App\Modules\Sales\States\SalesOrderStateMachine;
 use App\Support\Calculators\CostSheetCalculator;
 use App\Support\Http\ListsResources;
+use App\Support\Reference\Vocabulary;
 use App\Support\Settings\Settings;
 use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
@@ -384,6 +385,7 @@ class SalesOrderController extends Controller
     private function formOptions(): array
     {
         return [
+            'priorities' => Vocabulary::options('order_priority'),
             'customers' => Customer::query()->active()->orderBy('name')
                 ->get(['id', 'code', 'name', 'credit_limit', 'min_order_value']),
             'currencies' => Currency::query()->orderBy('code')->get(['id', 'code', 'name', 'is_base']),

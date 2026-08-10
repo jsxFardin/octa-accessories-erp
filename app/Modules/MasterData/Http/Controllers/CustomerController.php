@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Customer;
 use App\Modules\MasterData\Models\PaymentTerm;
 use App\Support\Http\ListsResources;
+use App\Support\Reference\Vocabulary;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -120,6 +121,9 @@ class CustomerController extends Controller
         return [
             'paymentTerms' => PaymentTerm::query()->orderBy('net_days')->get(['id', 'code', 'name', 'net_days']),
             'currencies' => DB::table('currencies')->orderBy('code')->get(['id', 'code', 'name']),
+            // From the vocabulary registry rather than typed into the page: the same four
+            // kinds were written out by hand on the form and worded differently in the list.
+            'kinds' => Vocabulary::options('customer_kind'),
         ];
     }
 }

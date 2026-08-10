@@ -1,5 +1,6 @@
 <script setup>
-import { onMounted, onUnmounted, watch } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { closeOverlay, isTopOverlay, openOverlay } from '@/composables/useOverlay';
 
 const open = defineModel('open', { type: Boolean, default: false });
 
@@ -10,24 +11,36 @@ const props = defineProps({
     closeOnBackdrop: { type: Boolean, default: true },
 });
 
+/** This instance's place in the overlay stack, while it is open. */
+const token = ref(null);
+
 function close() {
     open.value = false;
 }
 
 function onKeydown(event) {
-    if (event.key === 'Escape' && open.value) {
+    // Only the innermost overlay answers Escape, or closing a modal opened from a slide-over
+    // would close the panel behind it in the same keypress.
+    if (event.key === 'Escape' && open.value && isTopOverlay(token.value)) {
         close();
     }
 }
 
 watch(open, (value) => {
-    document.body.style.overflow = value ? 'hidden' : '';
+    if (value) {
+        token.value ??= openOverlay();
+
+        return;
+    }
+
+    closeOverlay(token.value);
+    token.value = null;
 });
 
 onMounted(() => document.addEventListener('keydown', onKeydown));
 onUnmounted(() => {
     document.removeEventListener('keydown', onKeydown);
-    document.body.style.overflow = '';
+    closeOverlay(token.value);
 });
 </script>
 
@@ -39,7 +52,13 @@ onUnmounted(() => {
             leave-active-class="transition duration-100"
             leave-to-class="opacity-0"
         >
-            <div v-if="open" class="fixed inset-0 z-50 overflow-y-auto">
+            <!--
+                Overlay stack: dropdowns and toasts 60, slide-overs and the palette 70, modals
+                75, confirmations 80. A modal opened from inside a slide-over — the import
+                guidelines — has to sit above the panel that opened it, and a confirmation has
+                to sit above both.
+            -->
+            <div v-if="open" class="fixed inset-0 z-[75] overflow-y-auto">
                 <div
                     class="fixed inset-0 bg-slate-900/50 backdrop-blur-[1px]"
                     @click="closeOnBackdrop && close()"

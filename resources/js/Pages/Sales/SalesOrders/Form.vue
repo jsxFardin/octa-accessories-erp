@@ -9,10 +9,12 @@ import FormField from '@/Components/Ui/FormField.vue';
 import LineItemsTable from '@/Components/Ui/LineItemsTable.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import UnsavedBar from '@/Components/Ui/UnsavedBar.vue';
+import FormFooter from '@/Components/Ui/FormFooter.vue';
+import FormPage from '@/Components/Ui/FormPage.vue';
 import { money, pcs } from '@/plugins/formatting';
 
 const props = defineProps({
+    priorities: { type: Array, default: () => [] },
     order: { type: Object, default: null },
     customers: { type: Array, default: () => [] },
     currencies: { type: Array, default: () => [] },
@@ -122,161 +124,156 @@ const columns = [
             A draft is not a commitment — confirmation is where Gate 1 and the credit check apply.
         </template>
 
-        <template #actions>
-            <Button href="/sales-orders">Cancel</Button>
-            <Button variant="primary" :loading="form.processing" @click="submit">
-                {{ isEdit ? 'Save changes' : 'Save draft' }}
-            </Button>
-        </template>
+        <FormPage wide>
 
-        <form class="space-y-4" @submit.prevent="submit">
-            <!-- S2: no silent edits after confirmation. -->
-            <Card
-                v-if="isConfirmed"
-                title="Amendment reason"
-                rule="S2"
-                subtitle="This order is confirmed. Every quantity or date change is recorded against your name."
-            >
-                <FormField :error="form.errors.amendment_reason" required>
-                    <TextInput v-model="form.amendment_reason" placeholder="Customer moved the shipment to week 42" />
-                </FormField>
-            </Card>
 
-            <Card title="Header">
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <FormField label="Customer" :error="form.errors.customer_id" required>
-                        <SelectInput
-                            v-model="form.customer_id"
-                            placeholder="— select —"
-                            :options="customers"
-                            value-key="id"
-                            label-key="name"
-                        />
+            <form class="space-y-4" @submit.prevent="submit">
+                <!-- S2: no silent edits after confirmation. -->
+                <Card
+                    v-if="isConfirmed"
+                    title="Amendment reason"
+                    rule="S2"
+                    subtitle="This order is confirmed. Every quantity or date change is recorded against your name."
+                >
+                    <FormField :error="form.errors.amendment_reason" required>
+                        <TextInput v-model="form.amendment_reason" placeholder="Customer moved the shipment to week 42" />
                     </FormField>
+                </Card>
 
-                    <FormField label="Customer PO number" :error="form.errors.customer_po_no">
-                        <TextInput v-model="form.customer_po_no" />
-                    </FormField>
-
-                    <FormField label="Order date" :error="form.errors.order_date" required>
-                        <DateInput v-model="form.order_date" />
-                    </FormField>
-
-                    <FormField label="Delivery date" :error="form.errors.delivery_date">
-                        <DateInput v-model="form.delivery_date" />
-                    </FormField>
-
-                    <FormField label="Currency" :error="form.errors.currency_id" required>
-                        <SelectInput
-                            v-model="form.currency_id"
-                            :placeholder="null"
-                            :options="currencies"
-                            value-key="id"
-                            label-key="code"
-                        />
-                    </FormField>
-
-                    <FormField label="Exchange rate" :error="form.errors.exchange_rate" required>
-                        <TextInput v-model="form.exchange_rate" type="number" step="0.000001" numeric />
-                    </FormField>
-
-                    <FormField label="Priority" :error="form.errors.priority" required>
-                        <SelectInput
-                            v-model="form.priority"
-                            :placeholder="null"
-                            :options="[
-                                { value: 'low', label: 'Low' },
-                                { value: 'normal', label: 'Normal' },
-                                { value: 'high', label: 'High' },
-                                { value: 'urgent', label: 'Urgent' },
-                            ]"
-                        />
-                    </FormField>
-                </div>
-            </Card>
-
-            <Card title="Lines" rule="BR-1 · BR-44" :padded="false">
-                <div class="p-3">
-                    <LineItemsTable
-                        :columns="columns"
-                        :lines="form.lines"
-                        :errors="form.errors"
-                        :can-remove="canRemove"
-                        add-label="Add line"
-                        empty="An order needs at least one line."
-                        @add="addLine"
-                        @remove="removeLine"
-                    >
-                        <template #cell:product_id="{ line }">
+                <Card title="Header">
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <FormField label="Customer" :error="form.errors.customer_id" required>
                             <SelectInput
-                                v-model="line.product_id"
-                                placeholder="— product —"
-                                :options="availableProducts"
+                                v-model="form.customer_id"
+                                placeholder="— select —"
+                                :options="customers"
+                                value-key="id"
+                                label-key="name"
+                            />
+                        </FormField>
+
+                        <FormField label="Customer PO number" :error="form.errors.customer_po_no">
+                            <TextInput v-model="form.customer_po_no" />
+                        </FormField>
+
+                        <FormField label="Order date" :error="form.errors.order_date" required>
+                            <DateInput v-model="form.order_date" />
+                        </FormField>
+
+                        <FormField label="Delivery date" :error="form.errors.delivery_date">
+                            <DateInput v-model="form.delivery_date" />
+                        </FormField>
+
+                        <FormField label="Currency" :error="form.errors.currency_id" required>
+                            <SelectInput
+                                v-model="form.currency_id"
+                                :placeholder="null"
+                                :options="currencies"
                                 value-key="id"
                                 label-key="code"
                             />
-                            <p v-if="Number(line.produced_qty) > 0" class="mt-1 text-[11px] text-ink-500">
-                                {{ pcs(line.produced_qty) }} produced — line cannot be removed (S1)
-                            </p>
-                        </template>
+                        </FormField>
 
-                        <template #cell:ordered_qty="{ line }">
-                            <TextInput v-model="line.ordered_qty" type="number" numeric min="1" />
-                        </template>
+                        <FormField label="Exchange rate" :error="form.errors.exchange_rate" required>
+                            <TextInput v-model="form.exchange_rate" type="number" step="0.000001" numeric />
+                        </FormField>
 
-                        <template #cell:rate_per_m="{ line }">
-                            <TextInput v-model="line.rate_per_m" type="number" step="0.0001" numeric />
-                        </template>
+                        <FormField label="Priority" :error="form.errors.priority" required>
+                            <SelectInput v-model="form.priority" :placeholder="null" :options="priorities" />
+                        </FormField>
+                    </div>
+                </Card>
 
-                        <template #cell:tolerance="{ line }">
-                            <div class="flex gap-1">
-                                <TextInput v-model="line.under_tolerance_pct" type="number" step="0.01" numeric />
-                                <TextInput v-model="line.over_tolerance_pct" type="number" step="0.01" numeric />
-                            </div>
-                        </template>
+                <Card title="Lines" rule="BR-1 · BR-44" :padded="false">
+                    <div class="p-3">
+                        <LineItemsTable
+                            :columns="columns"
+                            :lines="form.lines"
+                            :errors="form.errors"
+                            :can-remove="canRemove"
+                            add-label="Add line"
+                            empty="No lines yet"
+                        empty-hint="Each line needs a product with a current spec and an approved artwork before the order can be confirmed (S3)."
+                            @add="addLine"
+                            @remove="removeLine"
+                        >
+                            <template #cell:product_id="{ line }">
+                                <SelectInput
+                                    v-model="line.product_id"
+                                    placeholder="— product —"
+                                    :options="availableProducts"
+                                    value-key="id"
+                                    label-key="code"
+                                />
+                                <p v-if="Number(line.produced_qty) > 0" class="mt-1 text-[11px] text-ink-500">
+                                    {{ pcs(line.produced_qty) }} produced — line cannot be removed (S1)
+                                </p>
+                            </template>
 
-                        <template #cell:band="{ line }">
-                            <span class="text-xs tnum text-ink-500">
-                                {{ pcs(band(line).min) }}–{{ pcs(band(line).max) }}
-                            </span>
-                        </template>
+                            <template #cell:ordered_qty="{ line }">
+                                <TextInput cell v-model="line.ordered_qty" type="number" numeric min="1" />
+                            </template>
 
-                        <template #cell:promised_date="{ line }">
-                            <DateInput v-model="line.promised_date" />
-                        </template>
+                            <template #cell:rate_per_m="{ line }">
+                                <TextInput cell v-model="line.rate_per_m" type="number" step="0.0001" numeric />
+                            </template>
 
-                        <template #cell:line_total="{ line }">
-                            <span class="text-sm tnum text-ink-800">{{ money(lineTotal(line)) }}</span>
-                        </template>
+                            <template #cell:tolerance="{ line }">
+                                <div class="flex gap-1">
+                                    <TextInput cell v-model="line.under_tolerance_pct" type="number" step="0.01" numeric />
+                                    <TextInput cell v-model="line.over_tolerance_pct" type="number" step="0.01" numeric />
+                                </div>
+                            </template>
 
-                        <template #footer>
-                            <tr>
-                                <td colspan="6" class="px-3 py-2 text-right text-xs text-ink-700">Subtotal</td>
-                                <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
-                                    {{ money(subtotal) }}
-                                </td>
-                                <td />
-                            </tr>
-                        </template>
-                    </LineItemsTable>
+                            <template #cell:band="{ line }">
+                                <span class="text-xs tnum text-ink-500">
+                                    {{ pcs(band(line).min) }}–{{ pcs(band(line).max) }}
+                                </span>
+                            </template>
 
-                    <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
+                            <template #cell:promised_date="{ line }">
+                                <DateInput v-model="line.promised_date" />
+                            </template>
 
-                    <p class="mt-2 text-xs text-ink-500">
-                        Promised dates are computed on confirmation from the delivery date, QC and
-                        packing days, and the address transit time (BR-29) — leave them blank to
-                        let the system fill them in.
-                    </p>
-                </div>
-            </Card>
+                            <template #cell:line_total="{ line }">
+                                <span class="text-sm tnum text-ink-800">{{ money(lineTotal(line)) }}</span>
+                            </template>
 
-            <Card title="Notes">
-                <FormField :error="form.errors.notes">
-                    <textarea v-model="form.notes" rows="3" class="form-textarea" />
-                </FormField>
-            </Card>
-        </form>
-        <UnsavedBar :form="form" @save="submit" />
+                            <template #footer>
+                                <tr>
+                                    <td colspan="6" class="px-3 py-2 text-right text-xs text-ink-700">Subtotal</td>
+                                    <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
+                                        {{ money(subtotal) }}
+                                    </td>
+                                    <td />
+                                </tr>
+                            </template>
+                        </LineItemsTable>
 
+                        <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
+
+                        <p class="mt-2 text-xs text-ink-500">
+                            Promised dates are computed on confirmation from the delivery date, QC and
+                            packing days, and the address transit time (BR-29) — leave them blank to
+                            let the system fill them in.
+                        </p>
+                    </div>
+                </Card>
+
+                <Card title="Notes">
+                    <FormField :error="form.errors.notes">
+                        <textarea v-model="form.notes" rows="3" class="form-textarea" />
+                    </FormField>
+                </Card>
+            </form>
+        
+
+            <FormFooter
+                :form="form"
+                cancel-href="/sales-orders"
+                :label="isEdit ? 'Save changes' : 'Save draft'"
+                @save="submit"
+            />
+        </FormPage>
     </AppLayout>
 </template>

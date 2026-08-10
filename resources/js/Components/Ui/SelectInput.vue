@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 /**
  * The one select in the system, and it is searchable.
@@ -28,6 +28,9 @@ const props = defineProps({
     /** Below this many options the search box is hidden; it would only be in the way. */
     searchThreshold: { type: Number, default: 7 },
 });
+
+const inheritedError = inject('fieldError', null);
+const invalid = computed(() => Boolean(props.error ?? inheritedError?.value));
 
 const open = ref(false);
 const query = ref('');
@@ -185,7 +188,7 @@ onUnmounted(() => {
             ref="trigger"
             type="button"
             class="form-select flex w-full items-center justify-between gap-2 text-left"
-            :class="[error && 'form-input-error', disabled && 'cursor-not-allowed opacity-60']"
+            :class="[invalid && 'form-input-error', disabled && 'cursor-not-allowed opacity-60']"
             :disabled="disabled"
             role="combobox"
             :aria-expanded="open"

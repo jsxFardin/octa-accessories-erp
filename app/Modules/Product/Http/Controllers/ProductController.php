@@ -12,6 +12,7 @@ use App\Modules\Product\Models\Routing;
 use App\Support\Calculators\CutType;
 use App\Support\Calculators\ProductType;
 use App\Support\Http\ListsResources;
+use App\Support\Reference\Vocabulary;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -186,6 +187,7 @@ class ProductController extends Controller
             'brands' => Brand::query()->orderBy('name')->get(['id', 'name', 'customer_id']),
             'routings' => Routing::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name', 'product_type', 'max_lot_size']),
             'productTypes' => $this->productTypes(),
+            'statuses' => Vocabulary::options('product_status'),
             'cutTypes' => array_map(
                 fn (CutType $type): array => [
                     'value' => $type->value,

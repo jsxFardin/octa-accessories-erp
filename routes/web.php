@@ -36,7 +36,10 @@ use App\Modules\Sales\Http\Controllers\InquiryController;
 use App\Modules\Sales\Http\Controllers\PriceListController;
 use App\Modules\Sales\Http\Controllers\QuotationController;
 use App\Modules\Sales\Http\Controllers\SalesOrderController;
+use App\Support\Export\Http\Controllers\ExportController;
+use App\Support\Http\Controllers\BulkTransitionController;
 use App\Support\Http\LandingPage;
+use App\Support\Import\Http\Controllers\ImportController;
 use App\Support\Platform\Http\Controllers\AuditLogController;
 use App\Support\Platform\Http\Controllers\NumberSequenceController;
 use App\Support\Platform\Http\Controllers\OrganisationController;
@@ -44,6 +47,7 @@ use App\Support\Platform\Http\Controllers\RoleController;
 use App\Support\Platform\Http\Controllers\SearchController;
 use App\Support\Platform\Http\Controllers\SettingController;
 use App\Support\Platform\Http\Controllers\UserController;
+use App\Support\Print\Http\Controllers\DocumentPrintController;
 use App\Support\Reference\Http\Controllers\ReferenceController;
 use Illuminate\Support\Facades\Route;
 
@@ -155,6 +159,9 @@ Route::middleware('auth')->group(function (): void {
         ->middlewareFor(['index', 'show'], 'can:quotation.view_any')
         ->middlewareFor(['create', 'store'], 'can:quotation.create')
         ->middlewareFor(['edit', 'update'], 'can:quotation.update');
+
+    Route::post('quotations/{quotation}/duplicate', [QuotationController::class, 'duplicate'])
+        ->middleware('can:quotation.create')->name('quotations.duplicate');
 
     Route::post('quotations/{quotation}/transition', [QuotationController::class, 'transition'])
         ->middleware('can:quotation.view')->name('quotations.transition');
@@ -277,6 +284,42 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:sales_invoice.view_any')->name('invoices.index');
     Route::get('receipts', [ReceiptController::class, 'index'])
         ->middleware('can:receipt.view_any')->name('receipts.index');
+
+    /*
+     * Bulk transitions. Every document still goes through its own state machine one at a
+     * time — this is a loop, not a shortcut past the guards.
+     */
+    Route::post('bulk/{resource}/transition', BulkTransitionController::class)
+        ->middleware('can:purchase_requisition.view_any')->name('bulk.transition');
+
+    /*
+     * Printable documents. Blade, not Inertia: a print view wants no shell and no JavaScript,
+     * and the browser's own PDF writer is better than a library that renders something subtly
+     * different from what the screen showed.
+     */
+    Route::get('quotations/{quotation}/print', [DocumentPrintController::class, 'quotation'])
+        ->middleware('can:quotation.view')->name('quotations.print');
+    Route::get('purchase-orders/{purchaseOrder}/print', [DocumentPrintController::class, 'purchaseOrder'])
+        ->middleware('can:purchase_order.view')->name('purchase-orders.print');
+    Route::get('job-cards/{jobCard}/print', [DocumentPrintController::class, 'jobCard'])
+        ->middleware('can:job_card.view')->name('job-cards.print');
+
+    /*
+     * CSV, XLSX and PDF export. One controller for every list; the `.export` permission is
+     * checked per resource inside, because it is not the same right as reading the list on
+     * screen.
+     */
+    Route::get('exports/{resource}/columns', [ExportController::class, 'columns'])->name('exports.columns');
+    Route::get('exports/{resource}', ExportController::class)->name('exports');
+
+    /*
+     * Spreadsheet import, for the master-data lists only. `.import` is checked per resource
+     * inside the controller for the same reason `.export` is, and is a right of its own:
+     * loading four hundred suppliers in one upload is not the same act as adding one.
+     */
+    Route::get('imports/{resource}/fields', [ImportController::class, 'fields'])->name('imports.fields');
+    Route::get('imports/{resource}/sample', [ImportController::class, 'sample'])->name('imports.sample');
+    Route::post('imports/{resource}', ImportController::class)->name('imports');
 
     // The ⌘K palette. Every source inside is permission-checked individually.
     Route::get('search', SearchController::class)->name('search');

@@ -84,15 +84,37 @@ it('rejects a branding upload that is not an image', function (): void {
     ])->assertSessionHasErrors('file');
 });
 
-it('keeps the organisation group out of the raw settings screen', function (): void {
-    // Two screens editing the same key is how a timezone ends up half-changed.
+it('keeps the organisation group out of the business rules tab', function (): void {
+    // Two places editing the same key is how a timezone ends up half-changed: the profile is
+    // edited on its own tab, never in the raw rules list.
     $groups = app(Settings::class)->grouped();
 
     expect($groups)->toHaveKey('organisation');
 
-    $this->actingAs($this->admin)->get('/admin/settings')
+    $this->actingAs($this->admin)->get('/admin/settings?tab=rules')
         ->assertOk()
         ->assertInertia(fn ($page) => $page->missing('groups.organisation'));
+});
+
+it('serves organisation and business rules as tabs of one screen', function (): void {
+    $this->actingAs($this->admin)->get('/admin/settings')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Admin/Settings')
+            ->where('tab', 'organisation')
+            ->has('organisation')
+            ->has('options.timezones')
+            ->has('groups'));
+
+    $this->actingAs($this->admin)->get('/admin/settings?tab=rules')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('tab', 'rules'));
+});
+
+it('sends the old organisation URL to its tab', function (): void {
+    // The screen moved; the links people already have should not break.
+    $this->actingAs($this->admin)->get('/admin/organisation')
+        ->assertRedirect('/admin/settings?tab=organisation');
 });
 
 it('does not lose a setting\'s group or description when its value is saved', function (): void {

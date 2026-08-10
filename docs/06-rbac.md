@@ -14,6 +14,10 @@ Permission-based, not role-based, at the code level: every check asks for a **pe
 ```
 
 Standard actions: `view`, `view_any`, `create`, `update`, `delete`, `export`.
+`import` is standard only on the four master-data lists a spreadsheet can state in full —
+`item`, `customer`, `supplier`, `product` (`App\Support\Import\ImportRegistry`). It is separate
+from `create`: loading four hundred records in one upload, over records that already exist, is
+not the same act as adding one.
 Transition actions match the state machine: `submit`, `approve`, `confirm`, `release`, `post`, `cancel`, `close`.
 Exceptional actions are explicit: `override_margin`, `waive_material`, `release_credit_hold`, `approve_variance`, `short_close`, `override_tolerance`.
 

@@ -2,10 +2,11 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import CommandPalette from '@/Components/Ui/CommandPalette.vue';
+import ConfirmDialog from '@/Components/Ui/ConfirmDialog.vue';
 import Icon from '@/Components/Ui/Icon.vue';
 import Toasts from '@/Components/Ui/Toasts.vue';
 import { canAny } from '@/plugins/permissions';
-import { navigation } from '@/navigation';
+import { ADMIN_PREFIXES, adminNavigation, navigation, visibleSections } from '@/navigation';
 
 /**
  * The desk layout: dense, keyboard-driven, built for people who live in it all day
@@ -18,19 +19,67 @@ const user = computed(() => page.props.auth?.user);
 const organisation = computed(() => page.props.app ?? {});
 const currentUrl = computed(() => page.url);
 
-/** A section the user can open nothing inside is not shown at all. */
-const sections = computed(() =>
-    navigation
-        .map((section) => ({
-            ...section,
-            items: section.items.filter((item) => canAny(...item.permissions)),
-        }))
-        .filter((section) => section.items.length > 0),
+/**
+ * Configuration is a mode, not a menu. Inside it the sidebar swaps wholesale and offers an
+ * explicit way out, so the working application never shows admin rows.
+ */
+const inAdminShell = computed(() =>
+    ADMIN_PREFIXES.some((prefix) => currentUrl.value.startsWith(prefix)),
 );
 
-function isActive(item) {
-    return currentUrl.value.startsWith(item.href);
+/** A section the user can open nothing inside is not shown at all. */
+const sections = computed(() =>
+    visibleSections(inAdminShell.value ? adminNavigation : navigation, canAny),
+);
+
+const path = computed(() => currentUrl.value.split('?')[0]);
+
+function matches(href) {
+    return path.value === href || path.value.startsWith(`${href}/`);
 }
+
+function isActive(item) {
+    return (item.children ?? []).some((child) => matches(child.href)) || matches(item.href);
+}
+
+/**
+ * The tab strip for the hub the current screen belongs to.
+ *
+ * Rendered by the layout rather than by each page, so collapsing four sidebar rows into one
+ * hub costs a navigation entry and nothing else — no controller, no route, no page edit, and
+ * every existing deep link still lands where it always did.
+ */
+const hubTabs = computed(() => {
+    // Only on the lists themselves. A tab strip above a half-filled form invites a click that
+    // throws the form away, and "Artwork · Routings · Tools" means nothing while you are
+    // creating a product — the breadcrumb already says where you are.
+    const onAList = sections.value
+        .flatMap((section) => section.items)
+        .flatMap((item) => item.children ?? [])
+        .some((child) => child.href === path.value);
+
+    if (!onAList) {
+        return [];
+    }
+
+    for (const section of sections.value) {
+        for (const item of section.items) {
+            if (item.children?.length && item.children.some((child) => matches(child.href))) {
+                return item.children.map((child) => ({
+                    key: child.href,
+                    label: child.label,
+                    href: child.href,
+                }));
+            }
+        }
+    }
+
+    return [];
+});
+
+const currentTab = computed(
+    () => hubTabs.value.find((tab) => matches(tab.href))?.key ?? '',
+);
 
 /**
  * Breadcrumbs are derived from the navigation tree rather than declared per page: the section
@@ -115,6 +164,12 @@ function onKeydown(event) {
         accountOpen.value = false;
         mobileOpen.value = false;
     }
+
+    // ⌘B / Ctrl-B collapses the sidebar to its icon rail, as both sibling products do.
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'b') {
+        event.preventDefault();
+        railed.value = !railed.value;
+    }
 }
 
 onMounted(() => {
@@ -141,75 +196,140 @@ const paletteHint = computed(() =>
     <div class="min-h-full">
         <Toasts />
         <CommandPalette ref="palette" />
+        <ConfirmDialog />
 
         <!-- Sidebar -->
         <aside
             class="fixed inset-y-0 left-0 z-40 flex flex-col border-r border-slate-200 bg-white transition-all duration-200 lg:translate-x-0 print:hidden"
             :class="[
                 railed ? 'w-16' : 'w-60',
-                mobileOpen ? 'translate-x-0' : '-translate-x-full',
+                mobileOpen ? 'translate-x-0 shadow-2xl lg:shadow-none' : '-translate-x-full',
             ]"
         >
-            <div class="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 px-3">
-                <!-- The square mark from the organisation profile, falling back to an initial. -->
-                <div
-                    class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-                    :class="organisation.icon_url ? 'bg-white ring-1 ring-slate-200' : 'bg-brand-600'"
+            <!-- Inside configuration the header becomes the way out, as `socialx` does. -->
+            <div v-if="inAdminShell" class="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 px-3">
+                <Link
+                    href="/dashboard"
+                    class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1.5 text-sm text-ink-700 transition hover:bg-slate-100"
+                    :class="railed && 'justify-center px-0'"
+                    :title="railed ? 'Exit configuration' : undefined"
                 >
-                    <img v-if="organisation.icon_url" :src="organisation.icon_url" alt="" class="size-full object-contain">
-                    <span v-else class="text-sm font-bold text-white">
-                        {{ (organisation.name ?? 'O').charAt(0).toUpperCase() }}
-                    </span>
-                </div>
+                    <Icon name="close" size="size-4" class="shrink-0 text-ink-400" />
+                    <span v-if="!railed" class="truncate font-medium">Exit configuration</span>
+                </Link>
+            </div>
 
-                <div v-if="!railed" class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-semibold text-ink-900">{{ organisation.short_name ?? 'Octa ERP' }}</p>
-                    <p class="truncate text-[11px] text-ink-500">{{ organisation.name }}</p>
-                </div>
-
+            <!--
+                Railed, the header is one 64px column: the mark alone, and it is the way back
+                out. A logo and a collapse button side by side do not fit in a rail, and the
+                pair of them squeezed in was the first thing that looked wrong.
+            -->
+            <div v-else-if="railed" class="flex h-14 shrink-0 items-center justify-center border-b border-slate-200">
                 <button
-                    class="hidden shrink-0 rounded-md p-1 text-ink-400 transition hover:bg-slate-100 hover:text-ink-700 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none lg:block"
-                    :title="railed ? 'Expand sidebar' : 'Collapse sidebar'"
-                    :aria-label="railed ? 'Expand sidebar' : 'Collapse sidebar'"
-                    @click="railed = !railed"
+                    class="group relative flex size-9 items-center justify-center rounded-lg transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                    title="Expand sidebar"
+                    aria-label="Expand sidebar"
+                    @click="railed = false"
                 >
-                    <Icon :name="railed ? 'right' : 'left'" />
+                    <span
+                        class="flex size-8 items-center justify-center overflow-hidden rounded-lg transition group-hover:opacity-0"
+                        :class="organisation.icon_url ? 'bg-white ring-1 ring-slate-200' : 'bg-brand-600'"
+                    >
+                        <img v-if="organisation.icon_url" :src="organisation.icon_url" alt="" class="size-full object-contain">
+                        <span v-else class="text-sm font-bold text-white">
+                            {{ (organisation.name ?? 'O').charAt(0).toUpperCase() }}
+                        </span>
+                    </span>
+
+                    <Icon
+                        name="right"
+                        class="absolute text-ink-500 opacity-0 transition group-hover:opacity-100"
+                    />
                 </button>
             </div>
 
-            <nav class="flex-1 overflow-y-auto px-2 py-3">
-                <div v-for="section in sections" :key="section.label" class="mb-1">
-                    <!-- Section headers collapse; the rail hides them entirely. -->
+            <div v-else class="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 px-3">
+                <!-- The square mark from the organisation profile, falling back to an initial. -->
+                <Link
+                    href="/dashboard"
+                    class="-mx-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-1 py-1 transition hover:bg-slate-50"
+                >
+                    <span
+                        class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+                        :class="organisation.icon_url ? 'bg-white ring-1 ring-slate-200' : 'bg-brand-600'"
+                    >
+                        <img v-if="organisation.icon_url" :src="organisation.icon_url" alt="" class="size-full object-contain">
+                        <span v-else class="text-sm font-bold text-white">
+                            {{ (organisation.name ?? 'O').charAt(0).toUpperCase() }}
+                        </span>
+                    </span>
+
+                    <span class="min-w-0 flex-1">
+                        <span class="block truncate text-sm font-semibold text-ink-900">{{ organisation.short_name ?? 'Octa ERP' }}</span>
+                        <span class="block truncate text-[11px] text-ink-500">{{ organisation.name }}</span>
+                    </span>
+                </Link>
+
+                <button
+                    class="hidden shrink-0 rounded-md p-1 text-ink-400 transition hover:bg-slate-100 hover:text-ink-700 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none lg:block"
+                    :title="`Collapse sidebar (${paletteHint.replace('K', 'B')})`"
+                    aria-label="Collapse sidebar"
+                    @click="railed = true"
+                >
+                    <Icon name="left" />
+                </button>
+            </div>
+
+            <nav class="quiet-scroll flex-1 overflow-y-auto overscroll-contain px-2 py-2">
+                <div
+                    v-for="(section, index) in sections"
+                    :key="section.label"
+                    :class="index > 0 && (railed ? 'mt-2 border-t border-slate-100 pt-2' : 'mt-3')"
+                >
+                    <!--
+                        Section headers collapse; the rail hides them entirely and separates
+                        sections with a hairline instead, since a rail of unlabelled icons with
+                        no grouping is twenty identical rows.
+                    -->
                     <button
                         v-if="!railed"
-                        class="flex w-full items-center justify-between rounded px-2 py-1.5 text-[10px] font-semibold tracking-wider text-ink-400 uppercase transition hover:text-ink-700 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                        class="group/section flex w-full items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold tracking-[0.09em] text-ink-400 uppercase transition hover:text-ink-600 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                        :aria-expanded="isOpen(section)"
                         @click="toggleSection(section.label)"
                     >
                         <span>{{ section.label }}</span>
-                        <Icon name="down" size="size-3.5" class="transition-transform" :class="isOpen(section) ? '' : '-rotate-90'" />
+                        <!-- The chevron is chrome until you go looking for it. -->
+                        <Icon
+                            name="down"
+                            size="size-3"
+                            class="transition-all group-hover/section:opacity-100 group-focus-visible/section:opacity-100"
+                            :class="isOpen(section) ? 'opacity-0' : '-rotate-90 opacity-60'"
+                        />
                     </button>
 
-                    <ul v-show="railed || isOpen(section)" class="space-y-0.5 pb-2">
+                    <ul v-show="railed || isOpen(section)" class="mt-0.5 space-y-px">
                         <li v-for="item in section.items" :key="item.href">
                             <Link
                                 :href="item.href"
                                 :title="railed ? item.label : undefined"
-                                class="group relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                :aria-current="isActive(item) ? 'page' : undefined"
+                                class="group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                                 :class="[
+                                    // The active row carries a 2px brand edge drawn as an inset
+                                    // shadow rather than an absolutely-placed bar: it follows the
+                                    // rounded corner instead of poking out of it. In the rail
+                                    // there is no row to edge, so the tint carries it alone.
                                     isActive(item)
-                                        ? 'bg-brand-50 font-medium text-brand-700'
+                                        ? railed
+                                            ? 'bg-brand-50 text-brand-700'
+                                            : 'bg-brand-50 font-medium text-brand-700 shadow-[inset_2px_0_0_0_var(--color-brand-600)]'
                                         : 'text-ink-700 hover:bg-slate-100 hover:text-ink-900',
                                     railed && 'justify-center px-0',
                                 ]"
                             >
-                                <!-- A rail bar on the active row, so the current screen reads at a glance. -->
-                                <span
-                                    v-if="isActive(item)"
-                                    class="absolute inset-y-1 left-0 w-0.5 rounded-full bg-brand-600"
-                                />
                                 <Icon
                                     :name="item.icon"
-                                    class="shrink-0"
+                                    class="shrink-0 transition-colors"
                                     :class="isActive(item) ? 'text-brand-600' : 'text-ink-400 group-hover:text-ink-600'"
                                 />
                                 <span v-if="!railed" class="truncate">{{ item.label }}</span>
@@ -219,17 +339,36 @@ const paletteHint = computed(() =>
                 </div>
             </nav>
 
-            <div v-if="!railed" class="shrink-0 border-t border-slate-200 px-3 py-2">
+            <div class="shrink-0 space-y-px border-t border-slate-200 bg-slate-50/60 px-2 py-2">
                 <button
-                    class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-ink-500 transition hover:bg-slate-100 hover:text-ink-800"
+                    class="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-ink-600 transition hover:bg-white hover:text-ink-900 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                    :class="railed && 'justify-center px-0'"
+                    :title="railed ? `Search (${paletteHint})` : undefined"
                     @click="palette?.show()"
                 >
-                    <Icon name="search" size="size-3.5" />
-                    <span>Search</span>
-                    <kbd class="ml-auto rounded border border-slate-200 px-1 py-0.5 font-sans text-[10px] text-ink-400">
-                        {{ paletteHint }}
-                    </kbd>
+                    <Icon name="search" class="shrink-0 text-ink-400 transition-colors group-hover:text-ink-600" />
+                    <template v-if="!railed">
+                        <span>Search</span>
+                        <kbd class="ml-auto rounded border border-slate-200 bg-white px-1 py-0.5 font-sans text-[10px] text-ink-400">
+                            {{ paletteHint }}
+                        </kbd>
+                    </template>
                 </button>
+
+                <!--
+                    Configuration is entered deliberately and left deliberately. Six admin rows
+                    used to sit in the main tree competing with the shop floor for attention.
+                -->
+                <Link
+                    v-if="!inAdminShell && canAny('reference_data.view_any', 'setting.view_any', 'user.view_any', 'role.view_any')"
+                    href="/setup"
+                    class="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-ink-600 transition hover:bg-white hover:text-ink-900 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                    :class="railed && 'justify-center px-0'"
+                    :title="railed ? 'Configuration' : undefined"
+                >
+                    <Icon name="settings" class="shrink-0 text-ink-400 transition-colors group-hover:text-ink-600" />
+                    <span v-if="!railed">Configuration</span>
+                </Link>
             </div>
         </aside>
 
@@ -341,6 +480,27 @@ const paletteHint = computed(() =>
                     </div>
                 </div>
             </header>
+
+            <!--
+                The hub's sibling screens, as tabs. Four sidebar rows become one row plus this
+                strip, and the pages themselves never learned they are in a hub.
+            -->
+            <div v-if="hubTabs.length > 1" class="border-b border-slate-200 bg-white px-4 print:hidden">
+                <nav class="mx-auto -mb-px flex max-w-[1600px] flex-wrap gap-1" aria-label="Section">
+                    <Link
+                        v-for="tab in hubTabs"
+                        :key="tab.key"
+                        :href="tab.href"
+                        class="border-b-2 px-3 py-2 text-sm transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                        :class="tab.key === currentTab
+                            ? 'border-brand-600 font-medium text-brand-700'
+                            : 'border-transparent text-ink-600 hover:border-slate-300 hover:text-ink-900'"
+                        :aria-current="tab.key === currentTab ? 'page' : undefined"
+                    >
+                        {{ tab.label }}
+                    </Link>
+                </nav>
+            </div>
 
             <!--
                 Capped: on a 1920 monitor a full-bleed table stretches so wide the eye loses the

@@ -4,16 +4,25 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import ExportDialog from '@/Components/Ui/ExportDialog.vue';
+import ImportDialog from '@/Components/Ui/ImportDialog.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
+import { useConfirm } from '@/composables/useConfirm';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
+const { confirm } = useConfirm();
+
 const props = defineProps({ items: Object, filters: Object, categories: Array });
 
-function remove(row) {
-    if (!confirm(`Deactivate ${row.code ?? row.name}? History is kept; it simply stops being offered.`)) return;
+async function remove(row) {
+    if (!await confirm({
+        title: `Deactivate ${row.code ?? row.name}?`,
+        message: 'History is kept; it simply stops being offered.',
+        confirmLabel: 'Deactivate',
+    })) return;
 
     router.delete(`/items/${row.id}`, { preserveScroll: true });
 }
@@ -52,6 +61,8 @@ const columns = [
         <template #subtitle>Raw materials, consumables and packing — with the technical fields the formulas read</template>
 
         <template #actions>
+            <ImportDialog v-if="can('item.import')" resource="items" label="Items" />
+            <ExportDialog v-if="can('item.export')" resource="items" />
             <Button v-if="can('item.create')" variant="primary" href="/items/create">New item</Button>
         </template>
 

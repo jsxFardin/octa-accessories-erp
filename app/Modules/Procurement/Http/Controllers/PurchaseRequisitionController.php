@@ -10,12 +10,12 @@ use App\Modules\MasterData\Models\FactoryUnit;
 use App\Modules\MasterData\Models\Item;
 use App\Modules\MasterData\Models\Uom;
 use App\Modules\Procurement\Models\PurchaseRequisition;
+use App\Modules\Procurement\States\PurchaseRequisitionStateMachine;
 use App\Support\Http\ListsResources;
-use App\Support\Numbering\NumberAllocator;
+use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -29,7 +29,7 @@ class PurchaseRequisitionController extends Controller
 {
     use ListsResources;
 
-    public function __construct(private readonly NumberAllocator $numbers) {}
+    public function __construct(private readonly PurchaseRequisitionStateMachine $states) {}
 
     public function index(Request $request): Response
     {
@@ -135,33 +135,17 @@ class PurchaseRequisitionController extends Controller
     public function transition(Request $request, PurchaseRequisition $purchaseRequisition): RedirectResponse
     {
         $data = $request->validate([
-            'to' => ['required', Rule::in(['submitted', 'approved', 'rejected', 'cancelled'])],
+            'to' => ['required', 'string'],
             'remarks' => ['nullable', 'string', 'max:500'],
         ]);
 
-        if ($data['to'] === 'submitted' && $purchaseRequisition->lines()->doesntExist()) {
-            return back()->with('error', 'A requisition with no lines cannot be submitted.');
+        try {
+            // The guards, the numbering and the permission per target all live in the state
+            // machine, so this path and the bulk one cannot drift apart.
+            $this->states->transition($purchaseRequisition, $data['to'], $data);
+        } catch (TransitionDenied $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        if ($data['to'] === 'approved' && ! $request->user()->hasPermission('purchase_requisition.approve')) {
-            return back()->with('error', 'Approving a requisition needs the purchase_requisition.approve permission.');
-        }
-
-        DB::transaction(function () use ($purchaseRequisition, $data, $request): void {
-            // BR-34 — numbered on the first transition out of draft, never on form open.
-            if ($purchaseRequisition->number === null && $data['to'] !== 'cancelled') {
-                $purchaseRequisition->forceFill([
-                    'number' => $this->numbers->next('purchase_requisition'),
-                ])->save();
-            }
-
-            $purchaseRequisition->update([
-                'status' => $data['to'],
-                'remarks' => $data['remarks'] ?? $purchaseRequisition->remarks,
-                'approved_by' => $data['to'] === 'approved' ? $request->user()->id : $purchaseRequisition->approved_by,
-                'approved_at' => $data['to'] === 'approved' ? now() : $purchaseRequisition->approved_at,
-            ]);
-        });
 
         return back()->with('success', "Requisition moved to {$data['to']}.");
     }

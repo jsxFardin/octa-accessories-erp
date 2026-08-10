@@ -49,6 +49,11 @@ it('guards every application route with a permission', function (): void {
     $exempt = [
         'login', 'logout', 'up', '/', 'floor', 'portal', 'api/v1/device/session',
         'profile', 'profile/password', 'profile/locale', 'search',
+        // Export is gated per resource inside the controller — `sales_order.export` for one
+        // list, `item.export` for the next — which a single route-level `can:` cannot express.
+        'exports/{resource}', 'exports/{resource}/columns',
+        // Import, for the same reason: `customer.import` for one list, `item.import` for the next.
+        'imports/{resource}', 'imports/{resource}/fields', 'imports/{resource}/sample',
     ];
     $unguarded = [];
 

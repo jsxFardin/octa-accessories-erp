@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import ExportDialog from '@/Components/Ui/ExportDialog.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
@@ -40,6 +41,7 @@ const columns = [
         <template #subtitle>Confirmed orders need a current spec and an approved artwork on every line (S3)</template>
 
         <template #actions>
+            <ExportDialog v-if="can('sales_order.export')" resource="sales-orders" />
             <Button v-if="can('sales_order.create')" variant="primary" href="/sales-orders/create">New order</Button>
         </template>
 

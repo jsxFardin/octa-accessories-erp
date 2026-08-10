@@ -4,7 +4,7 @@ import { Head } from '@inertiajs/vue3';
 import ResourceForm from '@/Components/Ui/ResourceForm.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
-const props = defineProps({ product: Object, preselectedCustomer: Number, customers: Array, brands: Array, routings: Array, productTypes: Array, cutTypes: Array });
+const props = defineProps({ product: Object, preselectedCustomer: Number, customers: Array, brands: Array, routings: Array, productTypes: Array, statuses: Array, cutTypes: Array });
 
 const isEdit = computed(() => Boolean(props.product));
 
@@ -27,12 +27,7 @@ const sections = computed(() => [
             { key: 'routing_id', label: 'Routing', type: 'select', options: props.routings, valueKey: 'id', labelKey: 'name' },
             { key: 'is_running_programme', label: 'Running programme', type: 'checkbox', rule: 'BR-15', checkboxLabel: 'Amortise tooling over the annual forecast' },
             { key: 'annual_forecast_qty', label: 'Annual forecast qty', type: 'number', step: '0.000001', rule: 'BR-15' },
-            { key: 'status', label: 'Status', type: 'select', default: 'development', options: [
-                { value: 'development', label: 'Development' },
-                { value: 'active', label: 'Active' },
-                { value: 'on_hold', label: 'On hold' },
-                { value: 'discontinued', label: 'Discontinued' },
-            ] },
+            { key: 'status', label: 'Status', type: 'select', default: 'development', options: props.statuses },
             { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
         ],
     },

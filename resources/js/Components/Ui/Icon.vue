@@ -4,10 +4,11 @@ import {
     Activity, ArchiveRestore, Award, BadgeCheck, Banknote, Barcode, Beaker, Bell, Blocks,
     Boxes, Building2, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
     ClipboardCheck, ClipboardList, Cog, Command, Copy, CreditCard, Download, Factory,
-    FileSpreadsheet, FileText, Filter, Gauge, Inbox, Layers, LayoutDashboard, LogOut, Mail,
-    MapPin, Menu, MoreVertical, Package, PackageCheck, PackageOpen, Pencil, Plus, Printer,
-    Receipt, RefreshCw, Route, Ruler, Search, Send, Settings2, Shield, ShieldCheck,
-    ShoppingCart, SlidersHorizontal, Sparkles, Trash2, Truck, User, Users, Warehouse, X,
+    FileSpreadsheet, FileText, Filter, Gauge, Inbox, Info, Layers, LayoutDashboard, LogOut,
+    Mail, MapPin, Menu, MoreVertical, Package, PackageCheck, PackageOpen, Pencil, Plus,
+    Printer, Receipt, RefreshCw, Route, Ruler, Search, Send, Settings2, Shield, ShieldCheck,
+    ShoppingCart, SlidersHorizontal, Sparkles, Trash2, TriangleAlert, Truck, Upload, User,
+    Users, Warehouse, X,
 } from '@lucide/vue';
 
 /**
@@ -75,6 +76,9 @@ const REGISTRY = {
     right: ChevronRight,
     print: Printer,
     download: Download,
+    upload: Upload,
+    info: Info,
+    warning: TriangleAlert,
     copy: Copy,
     refresh: RefreshCw,
     send: Send,

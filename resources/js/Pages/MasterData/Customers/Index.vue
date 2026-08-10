@@ -4,16 +4,25 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import ExportDialog from '@/Components/Ui/ExportDialog.vue';
+import ImportDialog from '@/Components/Ui/ImportDialog.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
+import { useConfirm } from '@/composables/useConfirm';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
+const { confirm } = useConfirm();
+
 const props = defineProps({ customers: Object, filters: Object });
 
-function remove(row) {
-    if (!confirm(`Archive ${row.code ?? row.name}? History is kept; it simply stops being offered.`)) return;
+async function remove(row) {
+    if (!await confirm({
+        title: `Archive ${row.code ?? row.name}?`,
+        message: 'History is kept; it simply stops being offered.',
+        confirmLabel: 'Archive',
+    })) return;
 
     router.delete(`/customers/${row.id}`, { preserveScroll: true });
 }
@@ -52,6 +61,8 @@ const columns = [
         <template #subtitle>Credit limits, minimum order values and delivery tolerances</template>
 
         <template #actions>
+            <ImportDialog v-if="can('customer.import')" resource="customers" label="Customers" />
+            <ExportDialog v-if="can('customer.export')" resource="customers" />
             <Button v-if="can('customer.create')" variant="primary" href="/customers/create">New customer</Button>
         </template>
 

@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import ExportDialog from '@/Components/Ui/ExportDialog.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
@@ -32,6 +33,7 @@ const columns = [
         <template #subtitle>Bound to a routing and an approved artwork version (Gate 1)</template>
 
         <template #actions>
+            <ExportDialog v-if="can('job_card.export')" resource="job-cards" />
             <Button v-if="can('job_card.create')" variant="primary" href="/job-cards/create">New job card</Button>
         </template>
 

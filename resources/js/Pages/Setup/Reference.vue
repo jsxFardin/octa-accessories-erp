@@ -6,20 +6,20 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
-import DateInput from '@/Components/Ui/DateInput.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
-import FormField from '@/Components/Ui/FormField.vue';
 import Icon from '@/Components/Ui/Icon.vue';
-import Modal from '@/Components/Ui/Modal.vue';
-import SelectInput from '@/Components/Ui/SelectInput.vue';
-import TextInput from '@/Components/Ui/TextInput.vue';
+import SlideOver from '@/Components/Ui/SlideOver.vue';
+import ReferenceFields from '@/Components/Ui/ReferenceFields.vue';
 import { titleCase } from '@/plugins/formatting';
+import { useConfirm } from '@/composables/useConfirm';
 
 /**
  * One screen for every lookup list. The shape comes from the server's definition, so adding a
  * list is a definition in ReferenceRegistry rather than another near-identical page here.
  */
+const { confirm } = useConfirm();
+
 const props = defineProps({
     reference: { type: Object, required: true },
     rows: { type: Object, required: true },
@@ -71,8 +71,12 @@ function save() {
         : form.post(`/setup/${props.reference.slug}`, done);
 }
 
-function remove(row) {
-    if (!window.confirm(`Delete this ${props.reference.singular}? It cannot be undone.`)) return;
+async function remove(row) {
+    if (!await confirm({
+        title: `Delete this ${props.reference.singular}?`,
+        message: 'Records already pointing at it will block the deletion.',
+        confirmLabel: 'Delete',
+    })) return;
 
     router.delete(`/setup/${props.reference.slug}/${row.id}`, { preserveScroll: true });
 }
@@ -174,71 +178,12 @@ function rowActions(row) {
             </DataTable>
         </Card>
 
-        <Modal
+        <SlideOver
             v-model:open="open"
             :title="editing ? `Edit ${reference.singular}` : `New ${reference.singular}`"
             width="max-w-xl"
         >
-            <form class="grid gap-3 sm:grid-cols-2" @submit.prevent="save">
-                <FormField
-                    v-for="field in reference.fields"
-                    :key="field.name"
-                    :label="field.label"
-                    :hint="field.hint"
-                    :error="form.errors[field.name]"
-                    :class="['textarea'].includes(field.type) && 'sm:col-span-2'"
-                >
-                    <!-- A switch reads as a setting; a bare checkbox in a form grid reads as a mistake. -->
-                    <button
-                        v-if="field.type === 'boolean'"
-                        type="button"
-                        role="switch"
-                        :aria-checked="form[field.name]"
-                        class="relative h-5 w-9 rounded-full transition"
-                        :class="form[field.name] ? 'bg-brand-600' : 'bg-slate-300'"
-                        @click="form[field.name] = !form[field.name]"
-                    >
-                        <span
-                            class="absolute top-0.5 size-4 rounded-full bg-white shadow transition-all"
-                            :class="form[field.name] ? 'left-4.5' : 'left-0.5'"
-                        />
-                    </button>
-
-                    <SelectInput
-                        v-else-if="field.type === 'reference'"
-                        v-model="form[field.name]"
-                        :options="options[field.name] ?? []"
-                        hint-key="hint"
-                        :placeholder="(field.rules ?? []).includes('required') ? '— select —' : '— none —'"
-                    />
-
-                    <SelectInput
-                        v-else-if="field.type === 'select'"
-                        v-model="form[field.name]"
-                        :options="field.options.map((option) => ({ value: option, label: titleCase(option) }))"
-                        placeholder="— select —"
-                    />
-
-                    <DateInput v-else-if="field.type === 'date'" v-model="form[field.name]" />
-
-                    <textarea
-                        v-else-if="field.type === 'textarea'"
-                        v-model="form[field.name]"
-                        rows="2"
-                        class="form-textarea"
-                    />
-
-                    <div v-else class="flex items-center gap-2">
-                        <TextInput
-                            v-model="form[field.name]"
-                            :type="field.type === 'time' ? 'time' : (['number', 'decimal'].includes(field.type) ? 'number' : 'text')"
-                            :step="field.step ?? (field.type === 'decimal' ? '0.01' : undefined)"
-                            :numeric="['number', 'decimal'].includes(field.type)"
-                        />
-                        <span v-if="field.unit" class="shrink-0 text-xs text-ink-500">{{ field.unit }}</span>
-                    </div>
-                </FormField>
-            </form>
+            <ReferenceFields :fields="reference.fields" :form="form" :options="options" />
 
             <template #footer="{ close }">
                 <Button @click="close">Cancel</Button>
@@ -246,6 +191,6 @@ function rowActions(row) {
                     {{ editing ? 'Save changes' : `Create ${reference.singular}` }}
                 </Button>
             </template>
-        </Modal>
+        </SlideOver>
     </AppLayout>
 </template>

@@ -93,6 +93,7 @@ const bomColumns = [
         </template>
 
         <template #actions>
+            <Button size="sm" :href="`/job-cards/${jobCard.id}/print`" external target="_blank">Print</Button>
             <Badge :status="jobCard.status" />
 
             <Button

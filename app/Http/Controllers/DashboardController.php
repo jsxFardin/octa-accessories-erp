@@ -6,6 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Product\Models\ArtworkVersion;
+use App\Support\Platform\WorkQueue;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,9 +21,14 @@ use Inertia\Response;
  */
 class DashboardController extends Controller
 {
-    public function __invoke(): Response
+    public function __construct(private readonly WorkQueue $queue) {}
+
+    public function __invoke(Request $request): Response
     {
         return Inertia::render('Dashboard', [
+            // What is stuck on this user, before what is happening in the factory: nobody's
+            // first question of the day is "how are we doing overall".
+            'queue' => $this->queue->for($request->user()),
             'tiles' => $this->tiles(),
             'orderBook' => $this->orderBook(),
             'jobCardsByStatus' => $this->jobCardsByStatus(),

@@ -368,3 +368,42 @@ it('records an amendment row when a confirmed order changes', function (): void 
         ->and($amendments->last()->reason)->toBe('Customer moved the shipment to week 42.')
         ->and($order->fresh()->revision_no)->toBe(1);
 });
+
+// --- Duplication -------------------------------------------------------------------------
+
+it('copies a quotation into a fresh draft', function (): void {
+    $original = makeQuotation($this, 'sent');
+
+    $this->actingAs($this->merchandiser)
+        ->post("/quotations/{$original->id}/duplicate")
+        ->assertRedirect();
+
+    $copy = Quotation::query()->latest('id')->firstOrFail();
+
+    expect($copy->id)->not->toBe($original->id)
+        ->and($copy->status)->toBe('draft')
+        // BR-34: a draft carries no number until it is sent.
+        ->and($copy->number)->toBeNull()
+        ->and($copy->customer_id)->toBe($original->customer_id)
+        ->and($copy->lines()->count())->toBe($original->lines()->count());
+});
+
+it('re-costs a duplicated quotation at today\'s rates rather than copying the old price', function (): void {
+    $original = makeQuotation($this);
+
+    // A cost sheet per line is what makes the copy honest — an input that moved since the
+    // original was quoted has to show up as a new number (Q1).
+    $this->actingAs($this->merchandiser)->post("/quotations/{$original->id}/duplicate");
+
+    $copy = Quotation::query()->latest('id')->firstOrFail();
+    $sheets = DB::table('cost_sheets')->whereIn('quotation_line_id', $copy->lines()->pluck('id'))->count();
+
+    expect($sheets)->toBe($copy->lines()->count());
+});
+
+it('will not duplicate for someone who may not raise a quotation', function (): void {
+    $quotation = makeQuotation($this);
+    $operator = User::query()->whereHas('roles', fn ($q) => $q->where('name', 'operator'))->firstOrFail();
+
+    $this->actingAs($operator)->post("/quotations/{$quotation->id}/duplicate")->assertForbidden();
+});

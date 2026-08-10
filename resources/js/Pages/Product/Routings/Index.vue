@@ -7,13 +7,20 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
+import { useConfirm } from '@/composables/useConfirm';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
+const { confirm } = useConfirm();
+
 const props = defineProps({ routings: Object, filters: Object });
 
-function remove(row) {
-    if (!confirm(`Retire ${row.code ?? row.name}? History is kept; it simply stops being offered.`)) return;
+async function remove(row) {
+    if (!await confirm({
+        title: `Retire ${row.code ?? row.name}?`,
+        message: 'History is kept; it simply stops being offered.',
+        confirmLabel: 'Retire',
+    })) return;
 
     router.delete(`/routings/${row.id}`, { preserveScroll: true });
 }

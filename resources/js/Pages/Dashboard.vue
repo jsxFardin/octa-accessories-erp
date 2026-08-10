@@ -3,11 +3,13 @@ import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Card from '@/Components/Ui/Card.vue';
+import Icon from '@/Components/Ui/Icon.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, money, pcs, pct } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
+    queue: { type: Array, default: () => [] },
     tiles: { type: Object, required: true },
     orderBook: { type: Array, default: () => [] },
     jobCardsByStatus: { type: Array, default: () => [] },
@@ -64,6 +66,43 @@ const loadByMachine = computed(() => {
 
         <template #title>Dashboard</template>
         <template #subtitle>Order book, floor status and the two gates, live</template>
+
+        <!--
+            What is waiting on this user, above what is happening in the factory. Every entry
+            is gated by the permission that would let them act on it, and an empty queue is
+            hidden rather than shown as a row of zeros.
+        -->
+        <section v-if="queue.length" class="mb-4">
+            <h2 class="mb-2 text-[11px] font-semibold tracking-wider text-ink-400 uppercase">
+                Needs you
+            </h2>
+
+            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                <Link
+                    v-for="entry in queue"
+                    :key="entry.key"
+                    :href="entry.href"
+                    class="group flex items-start gap-3 rounded-lg border bg-white p-3 transition hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                    :class="entry.tone === 'danger'
+                        ? 'border-rose-200 hover:border-rose-300'
+                        : 'border-amber-200 hover:border-amber-300'"
+                >
+                    <span
+                        class="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold tnum"
+                        :class="entry.tone === 'danger' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-800'"
+                    >
+                        {{ entry.count }}
+                    </span>
+
+                    <span class="min-w-0 flex-1">
+                        <span class="block text-sm font-medium text-ink-900">{{ entry.label }}</span>
+                        <span class="mt-0.5 block text-xs leading-relaxed text-ink-500">{{ entry.hint }}</span>
+                    </span>
+
+                    <Icon name="right" size="size-4" class="mt-1 shrink-0 text-ink-300 transition group-hover:text-ink-500" />
+                </Link>
+            </div>
+        </section>
 
         <div class="space-y-4">
             <!-- Tiles -->

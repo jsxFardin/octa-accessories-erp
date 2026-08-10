@@ -11,7 +11,10 @@ import Modal from '@/Components/Ui/Modal.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { titleCase } from '@/plugins/formatting';
+import { useConfirm } from '@/composables/useConfirm';
 import { can } from '@/plugins/permissions';
+
+const { confirm } = useConfirm();
 
 const props = defineProps({
     roles: { type: Array, default: () => [] },
@@ -114,8 +117,12 @@ function submit() {
         : form.post('/admin/roles', options);
 }
 
-function destroy(role) {
-    if (!confirm(`Delete the role “${role.label}”? This cannot be undone.`)) return;
+async function destroy(role) {
+    if (!await confirm({
+        title: `Delete the role “${role.label}”?`,
+        message: 'Users holding it lose those permissions immediately.',
+        confirmLabel: 'Delete',
+    })) return;
 
     router.delete(`/admin/roles/${role.id}`, { preserveScroll: true });
 }

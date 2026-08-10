@@ -13,7 +13,10 @@ import Modal from '@/Components/Ui/Modal.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { datetime } from '@/plugins/formatting';
+import { useConfirm } from '@/composables/useConfirm';
 import { can } from '@/plugins/permissions';
+
+const { confirm } = useConfirm();
 
 const props = defineProps({
     users: { type: Object, required: true },
@@ -79,8 +82,12 @@ function submit() {
         : form.post('/admin/users', options);
 }
 
-function deactivate(user) {
-    if (!confirm(`Deactivate ${user.name}? Their history is kept; they simply cannot sign in.`)) return;
+async function deactivate(user) {
+    if (!await confirm({
+        title: `Deactivate ${user.name}?`,
+        message: 'Their history is kept; they simply cannot sign in.',
+        confirmLabel: 'Deactivate',
+    })) return;
 
     router.delete(`/admin/users/${user.id}`, { preserveScroll: true });
 }

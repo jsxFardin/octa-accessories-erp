@@ -4,7 +4,7 @@ import { Head } from '@inertiajs/vue3';
 import ResourceForm from '@/Components/Ui/ResourceForm.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
-const props = defineProps({ customer: Object, paymentTerms: Array, currencies: Array });
+const props = defineProps({ customer: Object, paymentTerms: Array, currencies: Array, kinds: Array });
 
 const isEdit = computed(() => Boolean(props.customer));
 
@@ -14,12 +14,9 @@ const sections = computed(() => [
         fields: [
             { key: 'code', label: 'Code', required: true },
             { key: 'name', label: 'Name', required: true },
-            { key: 'kind', label: 'Kind', type: 'select', default: 'manufacturer', options: [
-                { value: 'manufacturer', label: 'Garment manufacturer' },
-                { value: 'brand', label: 'Brand' },
-                { value: 'buying_house', label: 'Buying house' },
-                { value: 'trader', label: 'Trader' },
-            ] },
+            // The kinds come from the server's vocabulary registry — they were written out
+            // here and worded differently on the list screen.
+            { key: 'kind', label: 'Kind', type: 'select', default: 'manufacturer', options: props.kinds },
             { key: 'email', label: 'Email', type: 'email' },
             { key: 'phone', label: 'Phone' },
             { key: 'bin_no', label: 'BIN' },

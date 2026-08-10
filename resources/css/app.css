@@ -96,13 +96,35 @@
         @apply mb-1 block text-xs font-medium text-ink-700;
     }
 
+    /*
+     * 36px controls (`h-9`). Tall inputs look generous on a settings page and cost a screenful
+     * on a twelve-field product form, where the value being checked is the one that just
+     * scrolled away.
+     */
     .form-input,
-    .form-select,
-    .form-textarea {
-        @apply block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-ink-900
+    .form-select {
+        @apply block h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm text-ink-900
                shadow-sm transition placeholder:text-ink-400
                focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 focus:outline-none
                disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-ink-500;
+    }
+
+    .form-textarea {
+        @apply block w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-ink-900
+               shadow-sm transition placeholder:text-ink-400
+               focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 focus:outline-none
+               disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-ink-500;
+    }
+
+    /*
+     * Line-item cells. A table of bordered boxes reads as a wall of chrome; the borders return
+     * on hover and focus, which is when they are load-bearing.
+     */
+    .cell-input {
+        @apply block w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-sm text-ink-900
+               transition placeholder:text-ink-400/70
+               hover:border-slate-200 focus:border-brand-500 focus:bg-white focus:ring-1 focus:ring-brand-500/30
+               focus:outline-none;
     }
 
     .form-input-error {
@@ -117,6 +139,41 @@
     /* Muted, but still readable — the floor of the text ramp for anything a user must read. */
     .text-muted {
         @apply text-ink-500;
+    }
+
+    /*
+     * Panels that scroll inside the chrome — the sidebar, long pickers. The platform scrollbar
+     * is 15px of grey furniture down the edge of a 240px sidebar, competing with the row it is
+     * next to; here it is thin and only paints while the pointer is in the panel.
+     */
+    .quiet-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+        transition: scrollbar-color 150ms ease;
+    }
+
+    .quiet-scroll:hover,
+    .quiet-scroll:focus-within {
+        scrollbar-color: var(--color-slate-300) transparent;
+    }
+
+    .quiet-scroll::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    .quiet-scroll::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .quiet-scroll::-webkit-scrollbar-thumb {
+        border-radius: 9999px;
+        background: transparent;
+    }
+
+    .quiet-scroll:hover::-webkit-scrollbar-thumb,
+    .quiet-scroll:focus-within::-webkit-scrollbar-thumb {
+        background: var(--color-slate-300);
     }
 }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support\Platform\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Settings\Organisation;
 use App\Support\Settings\Settings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,12 +21,32 @@ use Inertia\Response;
  */
 class SettingController extends Controller
 {
-    public function __construct(private readonly Settings $settings) {}
+    public function __construct(
+        private readonly Settings $settings,
+        private readonly Organisation $organisation,
+        private readonly OrganisationController $organisationScreen,
+    ) {}
 
-    public function index(): Response
+    /**
+     * One screen, two tabs: who the company is, and what the business rules are worth.
+     *
+     * They were separate pages, which meant an administrator had to know that "timezone" is
+     * an organisation setting while "overhead %" is a business one — a distinction that
+     * matters to the code and to nobody else.
+     */
+    public function index(Request $request): Response
     {
+        $tab = $request->query('tab') === 'rules' ? 'rules' : 'organisation';
+
         return Inertia::render('Admin/Settings', [
-            // `organisation` is excluded on purpose: it has a dedicated screen, and two places
+            'tab' => $tab,
+            'organisation' => [
+                ...$this->organisation->all(),
+                'logo_url' => $this->organisation->forFrontend()['logo_url'],
+                'icon_url' => $this->organisation->forFrontend()['icon_url'],
+            ],
+            'options' => $this->organisationScreen->displayOptions(),
+            // The organisation group is excluded from the rules tab on purpose: two places
             // editing the same key is how a timezone ends up half-changed.
             'groups' => collect($this->settings->grouped())->except('organisation')->all(),
         ]);

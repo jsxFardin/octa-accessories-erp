@@ -1,9 +1,12 @@
 <script setup>
+import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import BulkBar from '@/Components/Ui/BulkBar.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import ExportDialog from '@/Components/Ui/ExportDialog.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
@@ -19,6 +22,32 @@ function rowActions(row) {
         { label: 'Edit', hidden: !can('purchase_order.update') || !(row.status === 'draft'), onSelect: () => router.visit(`/purchase-orders/${row.id}/edit`) },
     ];
 }
+
+
+const selection = ref([]);
+const bulkBusy = ref(false);
+
+/**
+ * Bulk actions run server-side one document at a time, through the same state machine as the
+ * single-record path — an order above the approval band is refused inside a bulk run exactly
+ * as it would be on its own screen, and the response names it.
+ */
+const bulkActions = computed(() =>
+    [{ label: 'Approve selected', tone: 'success', icon: 'check', to: 'approved', permission: 'purchase_order.approve' }, { label: 'Send to suppliers', tone: 'primary', icon: 'send', to: 'sent', permission: 'purchase_order.send' }]
+        .filter((action) => can(action.permission))
+        .map((action) => ({
+            ...action,
+            onSelect: () => {
+                bulkBusy.value = true;
+
+                router.post('/bulk/purchase-orders/transition', { ids: selection.value, to: action.to }, {
+                    preserveScroll: true,
+                    onSuccess: () => (selection.value = []),
+                    onFinish: () => (bulkBusy.value = false),
+                });
+            },
+        })),
+);
 
 const columns = [
     { key: 'number', label: 'Number', sort: true },
@@ -38,6 +67,7 @@ const columns = [
         <template #subtitle>Approval routes by value band; the bands are settings, not code</template>
 
         <template #actions>
+            <ExportDialog v-if="can('purchase_order.export')" resource="purchase-orders" />
             <Button v-if="can('purchase_order.create')" variant="primary" href="/purchase-orders/create">New order</Button>
         </template>
 
@@ -47,7 +77,7 @@ const columns = [
             <DataTable
                 :columns="columns"
                 :rows="purchase_orders"
-                row-key="id" :actions="rowActions" :row-href="(row) => `/purchase-orders/${row.id}`"
+                row-key="id" v-model:selection="selection" selectable :actions="rowActions" :row-href="(row) => `/purchase-orders/${row.id}`"
                 empty="No purchase orders match these filters."
             >
                 <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
@@ -69,5 +99,12 @@ const columns = [
                 </template>
             </DataTable>
         </Card>
+
+        <BulkBar
+            :count="selection.length"
+            :actions="bulkActions"
+            :busy="bulkBusy"
+            @clear="selection = []"
+        />
     </AppLayout>
 </template>

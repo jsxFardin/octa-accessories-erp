@@ -1,8 +1,10 @@
 <script setup>
+import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import BulkBar from '@/Components/Ui/BulkBar.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
@@ -19,6 +21,32 @@ function rowActions(row) {
         { label: 'Edit', hidden: !can('purchase_requisition.update') || !(row.status === 'draft'), onSelect: () => router.visit(`/purchase-requisitions/${row.id}/edit`) },
     ];
 }
+
+
+const selection = ref([]);
+const bulkBusy = ref(false);
+
+/**
+ * Bulk actions run server-side one document at a time, through the same state machine as the
+ * single-record path — an order above the approval band is refused inside a bulk run exactly
+ * as it would be on its own screen, and the response names it.
+ */
+const bulkActions = computed(() =>
+    [{ label: 'Approve selected', tone: 'success', icon: 'check', to: 'approved', permission: 'purchase_requisition.approve' }, { label: 'Submit selected', tone: 'primary', icon: 'send', to: 'submitted', permission: 'purchase_requisition.submit' }]
+        .filter((action) => can(action.permission))
+        .map((action) => ({
+            ...action,
+            onSelect: () => {
+                bulkBusy.value = true;
+
+                router.post('/bulk/purchase-requisitions/transition', { ids: selection.value, to: action.to }, {
+                    preserveScroll: true,
+                    onSuccess: () => (selection.value = []),
+                    onFinish: () => (bulkBusy.value = false),
+                });
+            },
+        })),
+);
 
 const columns = [
     { key: 'number', label: 'Number', sort: true },
@@ -48,7 +76,7 @@ const columns = [
             <DataTable
                 :columns="columns"
                 :rows="purchase_requisitions"
-                row-key="id" :actions="rowActions" :row-href="(row) => `/purchase-requisitions/${row.id}`"
+                row-key="id" v-model:selection="selection" selectable :actions="rowActions" :row-href="(row) => `/purchase-requisitions/${row.id}`"
                 empty="No requisitions raised."
             >
                 <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
@@ -69,5 +97,12 @@ const columns = [
                 </template>
             </DataTable>
         </Card>
+
+        <BulkBar
+            :count="selection.length"
+            :actions="bulkActions"
+            :busy="bulkBusy"
+            @clear="selection = []"
+        />
     </AppLayout>
 </template>

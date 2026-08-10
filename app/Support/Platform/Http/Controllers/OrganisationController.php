@@ -11,12 +11,14 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Inertia\Inertia;
-use Inertia\Response;
 
 /**
  * The organisation profile: who the system belongs to, and how it renders dates, times and
- * numbers. One screen, because these settings are read together and changed together.
+ * numbers.
+ *
+ * The screen itself is a tab on Settings — an administrator should not have to know that
+ * "timezone" is an organisation setting while "overhead %" is a business one. This class
+ * keeps the writes and supplies the option lists that tab renders.
  */
 class OrganisationController extends Controller
 {
@@ -25,41 +27,47 @@ class OrganisationController extends Controller
         private readonly Organisation $organisation,
     ) {}
 
-    public function index(): Response
+    /** Old links and bookmarks land on the tab that replaced this screen. */
+    public function index(): RedirectResponse
     {
-        return Inertia::render('Admin/Organisation', [
-            'organisation' => [
-                ...$this->organisation->all(),
-                'logo_url' => $this->organisation->forFrontend()['logo_url'],
-                'icon_url' => $this->organisation->forFrontend()['icon_url'],
-            ],
-            'options' => [
-                'timezones' => $this->timezones(),
-                'date_formats' => array_map(
-                    // The sample is the whole point: nobody reads `d/m/Y` and pictures it.
-                    fn (string $format): array => [
-                        'value' => $format,
-                        'label' => now($this->organisation->timezone())->format($format),
-                    ],
-                    Organisation::DATE_FORMATS,
-                ),
-                'time_formats' => [
-                    ['value' => 'HH:mm', 'label' => '24-hour  —  '.now($this->organisation->timezone())->format('H:i')],
-                    ['value' => 'hh:mm a', 'label' => '12-hour  —  '.now($this->organisation->timezone())->format('h:i a')],
+        return redirect()->route('admin.settings.index', ['tab' => 'organisation']);
+    }
+
+    /**
+     * The choices the organisation tab offers, each rendered as a sample rather than a token:
+     * nobody reads `d/m/Y` and pictures a date.
+     *
+     * @return array<string, list<array{value: string, label: string}>>
+     */
+    public function displayOptions(): array
+    {
+        $timezone = $this->organisation->timezone();
+
+        return [
+            'timezones' => $this->timezones(),
+            'date_formats' => array_map(
+                fn (string $format): array => [
+                    'value' => $format,
+                    'label' => now($timezone)->format($format),
                 ],
-                'week_starts' => array_map(
-                    fn (string $day): array => ['value' => $day, 'label' => ucfirst($day)],
-                    Organisation::WEEK_STARTS,
-                ),
-                'number_locales' => array_map(
-                    fn (string $locale): array => [
-                        'value' => $locale,
-                        'label' => $locale.'  —  '.number_format(1234567.89, 2),
-                    ],
-                    Organisation::NUMBER_LOCALES,
-                ),
+                Organisation::DATE_FORMATS,
+            ),
+            'time_formats' => [
+                ['value' => 'HH:mm', 'label' => '24-hour  —  '.now($timezone)->format('H:i')],
+                ['value' => 'hh:mm a', 'label' => '12-hour  —  '.now($timezone)->format('h:i a')],
             ],
-        ]);
+            'week_starts' => array_map(
+                fn (string $day): array => ['value' => $day, 'label' => ucfirst($day)],
+                Organisation::WEEK_STARTS,
+            ),
+            'number_locales' => array_map(
+                fn (string $locale): array => [
+                    'value' => $locale,
+                    'label' => $locale.'  —  '.number_format(1234567.89, 2),
+                ],
+                Organisation::NUMBER_LOCALES,
+            ),
+        ];
     }
 
     public function update(Request $request): RedirectResponse
@@ -88,8 +96,8 @@ class OrganisationController extends Controller
     }
 
     /**
-     * Branding upload. Kept off the main save so a failed image never loses the form, and
-     * restricted to raster/SVG marks — this is a logo slot, not a file store.
+     * Branding upload. Kept off the main save so a rejected image never loses the typed form,
+     * and restricted to image types — this is a logo slot, not a file store.
      */
     public function updateBranding(Request $request): RedirectResponse
     {

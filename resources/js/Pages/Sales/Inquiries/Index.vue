@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import ExportDialog from '@/Components/Ui/ExportDialog.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
@@ -38,6 +39,7 @@ const columns = [
         <template #subtitle>The front of the funnel — numbered on submit, never on form open (BR-34)</template>
 
         <template #actions>
+            <ExportDialog v-if="can('inquiry.export')" resource="inquiries" />
             <Button v-if="can('inquiry.create')" variant="primary" href="/inquiries/create">New inquiry</Button>
         </template>
 

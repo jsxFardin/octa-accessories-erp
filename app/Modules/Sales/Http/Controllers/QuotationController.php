@@ -96,6 +96,53 @@ class QuotationController extends Controller
             ->with('success', 'Draft quotation created with a cost sheet per line.');
     }
 
+    /**
+     * Copy a quotation into a fresh draft.
+     *
+     * Repeat business is the norm here — the same customer, the same labels, a new season and a
+     * different quantity. Retyping eight lines to change one of them is where transcription
+     * errors come from, and a wrong rate on a repeat order is money.
+     *
+     * The copy is deliberately *not* a snapshot of the old prices: `syncLines()` recomputes a
+     * cost sheet per line from today's rates, so yarn that went up 8% since March shows up as a
+     * new number rather than being quietly re-quoted at the old one (Q1).
+     */
+    public function duplicate(Request $request, Quotation $quotation): RedirectResponse
+    {
+        $quotation->load('lines');
+
+        $copy = DB::transaction(function () use ($quotation, $request): Quotation {
+            $draft = Quotation::query()->create([
+                ...collect($quotation->only([
+                    'customer_id', 'inquiry_id', 'currency_id', 'exchange_rate', 'payment_term_id', 'terms',
+                ]))->filter(fn ($value): bool => $value !== null)->all(),
+                'number' => null,
+                'revision_no' => 0,
+                'quotation_date' => now()->toDateString(),
+                'valid_until' => now()->addDays(30)->toDateString(),
+                'status' => 'draft',
+                'merchandiser_id' => $request->user()->id,
+                'created_by' => $request->user()->id,
+            ]);
+
+            $this->syncLines($draft, $quotation->lines->map(fn ($line): array => [
+                'product_id' => $line->product_id,
+                'product_spec_id' => $line->product_spec_id,
+                'description' => $line->description,
+                'qty' => $line->qty,
+                'rate_per_m' => $line->rate_per_m,
+                'tooling_charge' => $line->tooling_charge,
+                'lead_time_days' => $line->lead_time_days,
+            ])->all());
+
+            return $draft;
+        });
+
+        return redirect()
+            ->route('quotations.edit', $copy)
+            ->with('success', 'Copied into a new draft. Every line has been re-costed at today\'s rates.');
+    }
+
     public function show(Quotation $quotation): Response
     {
         $quotation->load(['customer', 'lines.product:id,code,name,product_type']);

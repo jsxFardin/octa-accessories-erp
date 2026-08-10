@@ -19,6 +19,10 @@ const props = defineProps({
 });
 
 const rejectOpen = ref(false);
+
+function duplicate() {
+    router.post(`/quotations/${props.quotation.id}/duplicate`);
+}
 const convertOpen = ref(false);
 
 const rejectForm = useForm({ to: 'rejected', reject_reason: '' });
@@ -44,6 +48,10 @@ function transition(to) {
             <Button v-if="availableTransitions.includes('rejected')" size="sm" variant="danger" @click="rejectOpen = true">Rejected</Button>
             <Button v-if="availableTransitions.includes('revised')" size="sm" @click="transition('revised')">Revise</Button>
             <Button v-if="quotation.status === 'accepted'" size="sm" variant="primary" @click="convertOpen = true">Convert to order</Button>
+            <!-- Repeat business is the norm: same labels, new season, different quantity. -->
+            <Button v-if="can('quotation.create')" size="sm" @click="duplicate">Duplicate</Button>
+            <!-- Opens in its own tab: printing is a detour, not a navigation. -->
+            <Button size="sm" :href="`/quotations/${quotation.id}/print`" external target="_blank">Print</Button>
         </template>
 
         <div class="space-y-4">

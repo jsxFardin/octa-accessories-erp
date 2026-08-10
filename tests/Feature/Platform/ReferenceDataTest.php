@@ -191,3 +191,106 @@ it('lets a manager read the lists without being able to change them', function (
         'kind' => 'admin',
     ])->assertForbidden();
 });
+
+// --- The tabbed hub ----------------------------------------------------------------------
+
+it('serves one tab per group, with only that tab loaded', function (): void {
+    // Twenty-five lists with their rows and reference options in one payload would be a slow
+    // screen that is 90% unread.
+    $this->actingAs($this->admin)->get('/setup?tab=quality')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Setup/Index')
+            ->where('current', 'quality')
+            // One tab per group, plus the read-only vocabularies tab.
+            ->has('tabs', count(ReferenceRegistry::GROUPS) + 1)
+            ->has('cards', 4)                       // defects, AQL plans, certifications, scopes
+            ->has('cards.0.rows')
+            ->has('cards.0.fields')
+            ->has('cards.0.can'));
+});
+
+it('falls back to the first tab a user may actually open', function (): void {
+    $this->actingAs($this->admin)->get('/setup?tab=nonsense')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('current', 'organisation'));
+});
+
+it('shows a card only to a user who may read that list', function (): void {
+    $planner = User::query()->whereHas('roles', fn ($q) => $q->where('name', 'planner'))->firstOrFail();
+
+    // The planner holds reference_data:read but not employee.view_any, and Employees is the
+    // only list in the People group — so the group disappears rather than showing an empty card.
+    $tabs = collect($this->actingAs($planner)->get('/setup')->viewData('page')['props']['tabs'] ?? [])
+        ->pluck('key');
+
+    expect($tabs)->not->toContain('people');
+});
+
+// --- Fixed vocabularies ------------------------------------------------------------------
+
+it('lists a vocabulary the database would actually accept', function (): void {
+    // The point of the registry is that the screen and the constraint agree. An option the
+    // CHECK refuses is a 500; a value the CHECK allows but the registry omits is a row nobody
+    // can read back — which is exactly how `products.product_type` came to admit 'ribbon',
+    // 'tape' and 'other' while the PHP enum knew six values and threw on the rest.
+    $schema = (string) file_get_contents(base_path('docs/02a-schema.sql'));
+    $problems = [];
+
+    $columns = [
+        'product_type' => ['products', 'product_type'],
+        'cut_type' => ['product_specs', 'cut_type'],
+        'customer_kind' => ['customers', 'kind'],
+        'order_priority' => ['sales_orders', 'priority'],
+        'product_status' => ['products', 'status'],
+        'defect_severity' => ['defects', 'severity'],
+        'qc_disposition' => ['qc_inspections', 'disposition'],
+    ];
+
+    foreach ($columns as $key => [$table, $column]) {
+        preg_match(
+            '/CREATE TABLE '.preg_quote($table, '/').'\s*\((.*?)\n\)\s*ENGINE/s',
+            $schema,
+            $block,
+        );
+
+        preg_match(
+            '/CHECK \([^)]*\b'.preg_quote($column, '/').'\b[^)]*IN \(([^)]*)\)/i',
+            $block[1] ?? '',
+            $matches,
+        );
+
+        expect($matches)->not->toBe([], "no CHECK found for {$table}.{$column}");
+
+        preg_match_all("/'([^']+)'/", $matches[1], $allowed);
+
+        $offered = array_keys(App\Support\Reference\Vocabulary::values($key));
+
+        foreach (array_diff($offered, $allowed[1]) as $extra) {
+            $problems[] = "{$key} offers '{$extra}', which {$table}.{$column} refuses";
+        }
+
+        foreach (array_diff($allowed[1], $offered) as $missing) {
+            $problems[] = "{$table}.{$column} allows '{$missing}', which {$key} does not list";
+        }
+    }
+
+    expect($problems)->toBe([]);
+});
+
+it('reads back a product of every type the schema allows', function (): void {
+    // `ProductType::from()` runs on every spec read. A legal row it cannot parse is a 500.
+    foreach (array_keys(App\Support\Reference\Vocabulary::values('product_type')) as $value) {
+        expect(App\Support\Calculators\ProductType::from($value)->label())->toBeString();
+    }
+});
+
+it('shows the fixed vocabularies on their own tab', function (): void {
+    $this->actingAs($this->admin)->get('/setup?tab=vocabularies')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('current', 'vocabularies')
+            ->has('vocabularies', 7)
+            ->has('vocabularies.0.why_fixed')
+            ->where('cards', []));
+});

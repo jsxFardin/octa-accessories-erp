@@ -8,9 +8,12 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, ratePerM } from '@/plugins/formatting';
+import { useConfirm } from '@/composables/useConfirm';
 import { can } from '@/plugins/permissions';
 
 defineProps({ lists: Object, filters: Object });
+
+const { confirm } = useConfirm();
 
 function rowActions(row) {
     return [
@@ -20,8 +23,12 @@ function rowActions(row) {
             label: 'Deactivate',
             tone: 'danger',
             hidden: !can('price_list.delete') || !row.is_active,
-            onSelect: () => {
-                if (window.confirm(`Deactivate ${row.code}? Quotations already priced from it keep their rates.`)) {
+            onSelect: async () => {
+                if (await confirm({
+                    title: `Deactivate ${row.code}?`,
+                    message: 'Quotations already priced from it keep their rates.',
+                    confirmLabel: 'Deactivate',
+                })) {
                     router.delete(`/price-lists/${row.id}`, { preserveScroll: true });
                 }
             },

@@ -33,10 +33,14 @@ class PermissionSeeder extends Seeder
         'audit_log' => ['Platform', []],
 
         // Master data
-        'item' => ['Master data', []],
+        // `import` sits only on the four flat lists a spreadsheet can state in full
+        // (App\Support\Import\ImportRegistry). It is separate from `create` because loading
+        // four hundred records in one upload is not the same act as adding one, and because
+        // it writes over records that already exist.
+        'item' => ['Master data', ['import']],
         'machine' => ['Master data', []],
-        'customer' => ['Master data', []],
-        'supplier' => ['Master data', ['approve']],
+        'customer' => ['Master data', ['import']],
+        'supplier' => ['Master data', ['approve', 'import']],
         'warehouse' => ['Master data', []],
         'uom' => ['Master data', []],
         'currency' => ['Master data', []],
@@ -48,7 +52,7 @@ class PermissionSeeder extends Seeder
         'reference_data' => ['Master data', []],
 
         // Engineering
-        'product' => ['Engineering', []],
+        'product' => ['Engineering', ['import']],
         'product_spec' => ['Engineering', ['make_current']],
         'artwork' => ['Engineering', ['submit', 'approve']],
         'bom' => ['Engineering', ['activate']],

@@ -9,6 +9,12 @@ const props = defineProps({
     type: { type: String, default: 'button' },
     disabled: { type: Boolean, default: false },
     loading: { type: Boolean, default: false },
+    /**
+     * Leaves the single-page application: a plain anchor rather than an Inertia visit. Print
+     * views are Blade, and asking Inertia to fetch one gets an HTML document it cannot mount.
+     */
+    external: { type: Boolean, default: false },
+    target: { type: String, default: null },
 });
 
 const VARIANTS = {
@@ -37,7 +43,10 @@ const isDisabled = computed(() => props.disabled || props.loading);
 </script>
 
 <template>
-    <Link v-if="href && !isDisabled" :href="href" :class="classes">
+    <a v-if="href && external && !isDisabled" :href="href" :target="target" :class="classes" rel="noopener">
+        <slot />
+    </a>
+    <Link v-else-if="href && !isDisabled" :href="href" :class="classes">
         <slot />
     </Link>
     <button v-else :type="type" :disabled="isDisabled" :class="classes">

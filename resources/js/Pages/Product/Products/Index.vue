@@ -4,16 +4,25 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import ExportDialog from '@/Components/Ui/ExportDialog.vue';
+import ImportDialog from '@/Components/Ui/ImportDialog.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
+import { useConfirm } from '@/composables/useConfirm';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
+const { confirm } = useConfirm();
+
 const props = defineProps({ products: Object, filters: Object, customers: Array, productTypes: Array });
 
-function remove(row) {
-    if (!confirm(`Archive ${row.code ?? row.name}? History is kept; it simply stops being offered.`)) return;
+async function remove(row) {
+    if (!await confirm({
+        title: `Archive ${row.code ?? row.name}?`,
+        message: 'History is kept; it simply stops being offered.',
+        confirmLabel: 'Archive',
+    })) return;
 
     router.delete(`/products/${row.id}`, { preserveScroll: true });
 }
@@ -51,6 +60,8 @@ const columns = [
         <template #subtitle>One product, one customer (P1) — with its current spec version</template>
 
         <template #actions>
+            <ImportDialog v-if="can('product.import')" resource="products" label="Products" />
+            <ExportDialog v-if="can('product.export')" resource="products" />
             <Button v-if="can('product.create')" variant="primary" href="/products/create">New product</Button>
         </template>
 

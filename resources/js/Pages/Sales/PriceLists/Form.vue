@@ -9,7 +9,8 @@ import FormField from '@/Components/Ui/FormField.vue';
 import LineItemsTable from '@/Components/Ui/LineItemsTable.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import UnsavedBar from '@/Components/Ui/UnsavedBar.vue';
+import FormFooter from '@/Components/Ui/FormFooter.vue';
+import FormPage from '@/Components/Ui/FormPage.vue';
 import { pcs } from '@/plugins/formatting';
 
 const props = defineProps({
@@ -87,86 +88,91 @@ const columns = [
         <template #title>{{ isEdit ? `Price list ${list.code}` : "New price list" }}</template>
         <template #subtitle>Agreed rates by quantity break, for one customer</template>
 
-        <template #actions>
-            <Button href="/price-lists">Cancel</Button>
-            <Button variant="primary" :loading="form.processing" :disabled="duplicateBreak" @click="submit">
-                {{ isEdit ? "Save changes" : "Create price list" }}
-            </Button>
-        </template>
+        <FormPage wide>
 
-        <div class="max-w-6xl space-y-4">
-            <Card title="Price list">
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <FormField label="Code" :error="form.errors.code" required>
-                        <TextInput v-model="form.code" placeholder="PL-NFJ-2026" />
-                    </FormField>
 
-                    <FormField label="Name" :error="form.errors.name" required>
-                        <TextInput v-model="form.name" />
-                    </FormField>
+            <div class="max-w-6xl space-y-4">
+                <Card title="Price list">
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <FormField label="Code" :error="form.errors.code" required>
+                            <TextInput v-model="form.code" placeholder="PL-NFJ-2026" />
+                        </FormField>
 
-                    <FormField label="Customer" :error="form.errors.customer_id" required>
-                        <SelectInput v-model="form.customer_id" placeholder="— select —" :options="customers" value-key="id" label-key="name" />
-                    </FormField>
+                        <FormField label="Name" :error="form.errors.name" required>
+                            <TextInput v-model="form.name" />
+                        </FormField>
 
-                    <FormField label="Currency" :error="form.errors.currency_id" required>
-                        <SelectInput v-model="form.currency_id" :placeholder="null" :options="currencies" value-key="id" label-key="code" />
-                    </FormField>
+                        <FormField label="Customer" :error="form.errors.customer_id" required>
+                            <SelectInput v-model="form.customer_id" placeholder="— select —" :options="customers" value-key="id" label-key="name" />
+                        </FormField>
 
-                    <FormField label="Valid from" :error="form.errors.valid_from" required>
-                        <DateInput v-model="form.valid_from" />
-                    </FormField>
+                        <FormField label="Currency" :error="form.errors.currency_id" required>
+                            <SelectInput v-model="form.currency_id" :placeholder="null" :options="currencies" value-key="id" label-key="code" />
+                        </FormField>
 
-                    <FormField label="Valid to" hint="Leave empty for open-ended." :error="form.errors.valid_to">
-                        <DateInput v-model="form.valid_to" />
-                    </FormField>
-                </div>
-            </Card>
+                        <FormField label="Valid from" :error="form.errors.valid_from" required>
+                            <DateInput v-model="form.valid_from" />
+                        </FormField>
 
-            <Card title="Rates" subtitle="One row per quantity break; the highest floor at or below the ordered quantity wins" :padded="false">
-                <div class="p-3">
-                    <LineItemsTable
-                        :columns="columns"
-                        :lines="form.lines"
-                        :errors="form.errors"
-                        add-label="Add break"
-                        empty="A price list needs at least one rate."
-                        @add="addLine"
-                        @remove="removeLine"
-                    >
-                        <template #cell:product_id="{ line }">
-                            <SelectInput
-                                v-model="line.product_id"
-                                placeholder="— product —"
-                                :options="availableProducts"
-                                value-key="id"
-                                label-key="code"
-                                hint-key="name"
-                            />
-                        </template>
+                        <FormField label="Valid to" hint="Leave empty for open-ended." :error="form.errors.valid_to">
+                            <DateInput v-model="form.valid_to" />
+                        </FormField>
+                    </div>
+                </Card>
 
-                        <template #cell:min_qty="{ line }">
-                            <TextInput v-model="line.min_qty" type="number" numeric min="0" />
-                        </template>
+                <Card title="Rates" subtitle="One row per quantity break; the highest floor at or below the ordered quantity wins" :padded="false">
+                    <div class="p-3">
+                        <LineItemsTable
+                            :columns="columns"
+                            :lines="form.lines"
+                            :errors="form.errors"
+                            add-label="Add break"
+                            empty="A price list needs at least one rate."
+                            @add="addLine"
+                            @remove="removeLine"
+                        >
+                            <template #cell:product_id="{ line }">
+                                <SelectInput
+                                    v-model="line.product_id"
+                                    placeholder="— product —"
+                                    :options="availableProducts"
+                                    value-key="id"
+                                    label-key="code"
+                                    hint-key="name"
+                                />
+                            </template>
 
-                        <template #cell:rate_per_m="{ line }">
-                            <TextInput v-model="line.rate_per_m" type="number" step="0.0001" numeric />
-                        </template>
+                            <template #cell:min_qty="{ line }">
+                                <TextInput cell v-model="line.min_qty" type="number" numeric min="0" />
+                            </template>
 
-                        <template #cell:description="{ line }">
-                            <TextInput v-model="line.description" placeholder="Optional note" />
-                        </template>
-                    </LineItemsTable>
+                            <template #cell:rate_per_m="{ line }">
+                                <TextInput cell v-model="line.rate_per_m" type="number" step="0.0001" numeric />
+                            </template>
 
-                    <p v-if="duplicateBreak" class="mt-2 text-xs text-rose-600">
-                        Two breaks for the same product start at the same quantity — the applicable rate
-                        would be ambiguous.
-                    </p>
-                    <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
-                </div>
-            </Card>
-        </div>
+                            <template #cell:description="{ line }">
+                                <TextInput cell v-model="line.description" placeholder="Optional note" />
+                            </template>
+                        </LineItemsTable>
 
-        <UnsavedBar :form="form" @save="submit" />
+                        <p v-if="duplicateBreak" class="mt-2 text-xs text-rose-600">
+                            Two breaks for the same product start at the same quantity — the applicable rate
+                            would be ambiguous.
+                        </p>
+                        <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
+                    </div>
+                </Card>
+            </div>
+
+        
+
+            <FormFooter
+                :form="form"
+                :disabled="duplicateBreak"
+                cancel-href="/price-lists"
+                :label="isEdit ? 'Save changes' : 'Create price list'"
+                @save="submit"
+            />
+        </FormPage>
     </AppLayout>
 </template>

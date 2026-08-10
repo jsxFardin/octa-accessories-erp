@@ -7,6 +7,7 @@ namespace App\Support\Reference\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\Audit\AuditLogger;
 use App\Support\Reference\ReferenceRegistry;
+use App\Support\Reference\Vocabulary;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,36 +26,120 @@ use Inertia\Response;
  */
 class ReferenceController extends Controller
 {
+    /** How many rows a hub card shows before it defers to the full screen. */
+    private const CARD_ROWS = 50;
+
     public function __construct(private readonly AuditLogger $audit) {}
 
-    /** The Setup hub — every lookup the user may open, grouped. */
+    /**
+     * The Setup hub: one tab per group, each tab a set of cards showing the list inline.
+     *
+     * Only the open tab's rows are loaded. Twenty-five lists with their rows and their
+     * reference options in one payload would be a slow screen that is 90% unread.
+     */
     public function hub(Request $request): Response
     {
-        $groups = [];
+        $tabs = [];
+        $visible = [];
 
         foreach (ReferenceRegistry::all() as $slug => $definition) {
             if (! $this->allows($request, $slug, 'view_any')) {
                 continue;
             }
 
-            $groups[$definition['group']][] = [
-                'slug' => $slug,
-                'label' => $definition['label'],
-                'icon' => $definition['icon'],
-                'description' => $definition['description'],
-                'count' => DB::table($definition['table'])->count(),
-            ];
+            $visible[$definition['group']][$slug] = $definition;
         }
 
-        $ordered = [];
-
         foreach (ReferenceRegistry::GROUPS as $key => $label) {
-            if (isset($groups[$key])) {
-                $ordered[] = ['key' => $key, 'label' => $label, 'items' => $groups[$key]];
+            if (isset($visible[$key])) {
+                $tabs[] = ['key' => $key, 'label' => $label, 'count' => count($visible[$key])];
             }
         }
 
-        return Inertia::render('Setup/Index', ['groups' => $ordered]);
+        // The fixed vocabularies get a tab of their own. Without it an administrator opens
+        // Setup, finds no list for "Product type", and reasonably concludes it is unfinished.
+        $tabs[] = ['key' => 'vocabularies', 'label' => 'Fixed vocabularies', 'count' => count(Vocabulary::all())];
+
+        // The vocabularies tab is always appended, so there is always a first tab to fall
+        // back to — even for a user who may read no list at all.
+        $current = (string) $request->query('tab', $tabs[0]['key']);
+
+        if ($current !== 'vocabularies' && ! isset($visible[$current])) {
+            $current = $tabs[0]['key'];
+        }
+
+        $cards = [];
+
+        foreach ($visible[$current] ?? [] as $slug => $definition) {
+            $cards[] = [
+                'slug' => $slug,
+                'label' => $definition['label'],
+                'singular' => $definition['singular'],
+                'icon' => $definition['icon'],
+                'description' => $definition['description'],
+                'fields' => $definition['fields'],
+                'options' => $this->referenceOptions($definition),
+                'total' => DB::table($definition['table'])->count(),
+                // Capped: a card is a working list, not a report. The full screen paginates.
+                'rows' => DB::table($definition['table'])
+                    ->orderBy($this->hubSortColumn($definition))
+                    ->limit(self::CARD_ROWS)
+                    ->get()
+                    ->map(fn (object $row): array => (array) $row)
+                    ->all(),
+                'display' => $this->displayFields($definition),
+                'can' => [
+                    'create' => $this->allows($request, $slug, 'create'),
+                    'update' => $this->allows($request, $slug, 'update'),
+                    'delete' => $this->allows($request, $slug, 'delete'),
+                ],
+            ];
+        }
+
+        return Inertia::render('Setup/Index', [
+            'tabs' => $tabs,
+            'current' => $current,
+            'cards' => $cards,
+            'vocabularies' => $current === 'vocabularies' ? array_values(Vocabulary::all()) : [],
+        ]);
+    }
+
+    /** @param array<string, mixed> $definition */
+    private function hubSortColumn(array $definition): string
+    {
+        $sort = ltrim((string) ($definition['defaultSort'] ?? ''), '-');
+        $columns = array_column($definition['fields'], 'name');
+
+        return in_array($sort, $columns, true) ? $sort : ($columns[0] ?? 'id');
+    }
+
+    /**
+     * What a card shows per row: a title, a subtitle and up to two badges. The full field set
+     * belongs in the form, not in a list someone is scanning.
+     *
+     * @param  array<string, mixed>  $definition
+     * @return array{title: string, subtitle: ?string, badges: list<string>}
+     */
+    private function displayFields(array $definition): array
+    {
+        $names = array_column($definition['fields'], 'name');
+        $byName = array_combine($names, $definition['fields']);
+
+        $title = in_array('code', $names, true) ? 'code' : ($names[0] ?? 'id');
+        $subtitle = in_array('name', $names, true) && $title !== 'name' ? 'name' : null;
+
+        $badges = array_values(array_filter(
+            $names,
+            fn (string $name): bool => $name !== $title
+                && $name !== $subtitle
+                && in_array($byName[$name]['type'], ['select', 'boolean'], true),
+        ));
+
+        return [
+            'title' => $title,
+            'subtitle' => $subtitle,
+            'badges' => array_slice($badges, 0, 2),
+        ];
     }
 
     public function index(Request $request, string $reference): Response
