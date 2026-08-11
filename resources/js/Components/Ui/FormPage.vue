@@ -10,11 +10,16 @@
  *
  * `wide` is the escape hatch for the two screens that genuinely need the room: a quotation with
  * a cost breakdown beside each line, and a GRN with landed-cost columns.
+ *
+ * `full` goes one step further and drops the cap entirely, for the screens that pair a line
+ * table with a rail beside it — there the width is spent on two columns of content, not on
+ * stretching a single input across the monitor.
  */
 defineProps({
     /** Section navigation is only worth its space past three groups. */
     sections: { type: Array, default: () => [] },
     wide: { type: Boolean, default: false },
+    full: { type: Boolean, default: false },
 });
 </script>
 
@@ -37,7 +42,7 @@ defineProps({
             </ul>
         </nav>
 
-        <div class="min-w-0 flex-1" :class="wide ? 'max-w-6xl' : 'max-w-3xl'">
+        <div class="min-w-0 flex-1" :class="full ? '' : wide ? 'max-w-6xl' : 'max-w-3xl'">
             <slot />
         </div>
     </div>

@@ -76,12 +76,11 @@ Every physical unit — yarn cone, ribbon roll, ink tin, plate, screen, WIP roll
 ## 5. Scope
 
 ### In scope (this specification)
-Master data · product & label specification · artwork versioning · sampling · CRM & sales (inquiry → quotation → sales order) · costing · BOM · procurement · inventory & lots · production planning & MRP · manufacturing execution · machines & downtime · quality & laboratory · compliance and chain of custody · packing, dispatch and own fleet · AR/AP-lite invoicing · reporting.
+Master data · product & label specification · artwork versioning · sampling · CRM & sales (inquiry → quotation → sales order) · costing · BOM · procurement · **trade finance, import and landed cost** · inventory & lots · production planning & MRP · manufacturing execution · machines & downtime · quality & laboratory · compliance and chain of custody · packing, dispatch and own fleet · AR/AP invoicing · **factory expenses** · reporting.
 
 ### Explicit non-goals (deferred, named here so scope is unambiguous)
 | Deferred | Why | Revisit |
 |---|---|---|
-| Full double-entry general ledger | Existing accounting package stays; ERP posts AR/AP subledgers and exports | Phase 4 |
 | Payroll & attendance | Separate system in place | Phase 4 |
 | Machine IoT / PLC counters | Manual operation logs first; instrument later once the data model is proven | Phase 4 |
 | AI forecasting / demand planning | Needs ≥ 12 months of clean historical data from this system | Phase 5 |

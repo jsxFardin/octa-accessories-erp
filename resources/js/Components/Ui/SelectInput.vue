@@ -25,8 +25,12 @@ const props = defineProps({
     labelKey: { type: String, default: 'label' },
     /** Secondary line under each option — a name beside a code, a customer beside an order. */
     hintKey: { type: String, default: null },
-    /** Below this many options the search box is hidden; it would only be in the way. */
-    searchThreshold: { type: Number, default: 7 },
+    /**
+     * Options needed before the filter box appears. Zero — always — because a list that is
+     * short today is long once a factory has been running a year, and a person who has learned
+     * to type into one dropdown should not find the next one silently refusing.
+     */
+    searchThreshold: { type: Number, default: 0 },
 });
 
 const inheritedError = inject('fieldError', null);
@@ -151,6 +155,9 @@ function onKeydown(event) {
         if (option) choose(option);
     } else if (event.key === 'Escape') {
         event.preventDefault();
+        // Stopped here: a slide-over listens for Escape too, and one press should shut the
+        // list, not the panel the list is being filled in.
+        event.stopPropagation();
         close();
         trigger.value?.focus();
     } else if (event.key === 'Tab') {
@@ -208,7 +215,7 @@ onUnmounted(() => {
             <div
                 v-if="open"
                 data-select-popover
-                class="fixed z-[60] overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg"
+                class="fixed z-[90] overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg"
                 :style="{ top: `${position.top}px`, left: `${position.left}px`, minWidth: `${Math.max(position.width, 180)}px` }"
             >
                 <div v-if="showSearch" class="border-b border-slate-100 p-1.5">
@@ -254,7 +261,9 @@ onUnmounted(() => {
                     </button>
 
                     <p v-if="filtered.length === 0" class="px-3 py-4 text-center text-xs text-ink-500">
-                        Nothing matches “{{ query }}”.
+                        <template v-if="query">Nothing matches “{{ query }}”.</template>
+                        <!-- An empty list is a missing lookup row, not a failed search. -->
+                        <template v-else>Nothing to choose from yet.</template>
                     </p>
                 </div>
             </div>

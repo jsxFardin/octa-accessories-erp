@@ -15,8 +15,8 @@ use InvalidArgumentException;
 final readonly class SpecInput
 {
     public function __construct(
-        public ProductType $productType,
-        public CutType $cutType,
+        public ProductTypeRule $productType,
+        public CutTypeRule $cutType,
         public float $labelWidthMm,
         public float $labelHeightMm,
         public float $webWidthMm,
@@ -64,13 +64,18 @@ final readonly class SpecInput
     /**
      * Build from a `product_specs` row (or any array with the same keys).
      *
+     * The two rules are passed in rather than looked up: this class stays free of the database
+     * so a costing dispute can be reproduced from numbers alone. Callers holding a row read
+     * them from the vocabulary tables (`Vocabulary::productType()`); a caller that passes
+     * neither gets neutral behaviour — no yarn, no ink, no sheets, no tool.
+     *
      * @param  array<string, mixed>  $spec
      */
-    public static function fromArray(array $spec): self
+    public static function fromArray(array $spec, ?ProductTypeRule $productType = null, ?CutTypeRule $cutType = null): self
     {
         return new self(
-            productType: ProductType::from((string) ($spec['product_type'] ?? 'woven')),
-            cutType: CutType::from((string) ($spec['cut_type'] ?? 'hot_cut')),
+            productType: $productType ?? ProductTypeRule::neutral((string) ($spec['product_type'] ?? 'other')),
+            cutType: $cutType ?? CutTypeRule::neutral((string) ($spec['cut_type'] ?? 'straight_cut')),
             labelWidthMm: (float) ($spec['label_width_mm'] ?? 0),
             labelHeightMm: (float) ($spec['label_height_mm'] ?? 0),
             webWidthMm: (float) ($spec['web_width_mm'] ?? 0),

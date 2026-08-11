@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
 
 const props = defineProps({
     meta: { type: Object, required: true },
@@ -43,13 +44,14 @@ const hasPages = computed(() => (props.meta.links?.length ?? 0) > 3);
 
             <label class="hidden items-center gap-1 text-ink-500 sm:flex">
                 Rows
-                <select
-                    class="rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
-                    :value="perPage"
-                    @change="setPerPage($event.target.value)"
-                >
-                    <option v-for="size in PER_PAGE" :key="size" :value="size">{{ size }}</option>
-                </select>
+                <!-- The same select as everywhere else, so the desk has one dropdown, not two. -->
+                <SelectInput
+                    class="w-20"
+                    :model-value="perPage"
+                    :options="PER_PAGE.map((size) => ({ value: size, label: String(size) }))"
+                    :placeholder="null"
+                    @update:model-value="setPerPage($event)"
+                />
             </label>
 
             <button

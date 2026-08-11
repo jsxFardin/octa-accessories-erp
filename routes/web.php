@@ -8,6 +8,7 @@ use App\Modules\Costing\Http\Controllers\CostSheetController;
 use App\Modules\Dispatch\Http\Controllers\DeliveryChallanController;
 use App\Modules\Dispatch\Http\Controllers\PackingListController;
 use App\Modules\Dispatch\Http\Controllers\TripController;
+use App\Modules\Finance\Http\Controllers\ExpenseController;
 use App\Modules\Finance\Http\Controllers\ReceiptController;
 use App\Modules\Finance\Http\Controllers\SalesInvoiceController;
 use App\Modules\Inventory\Http\Controllers\MaterialIssueController;
@@ -36,6 +37,8 @@ use App\Modules\Sales\Http\Controllers\InquiryController;
 use App\Modules\Sales\Http\Controllers\PriceListController;
 use App\Modules\Sales\Http\Controllers\QuotationController;
 use App\Modules\Sales\Http\Controllers\SalesOrderController;
+use App\Modules\Trade\Http\Controllers\ImportShipmentController;
+use App\Modules\Trade\Http\Controllers\LetterOfCreditController;
 use App\Support\Export\Http\Controllers\ExportController;
 use App\Support\Http\Controllers\BulkTransitionController;
 use App\Support\Http\LandingPage;
@@ -279,11 +282,68 @@ Route::middleware('auth')->group(function (): void {
     Route::get('trips', [TripController::class, 'index'])
         ->middleware('can:trip.access')->name('trips.index');
 
+    /*
+     * ---- Trade finance & import ------------------------------------------------------
+     * Raw material is imported (00-overview §2), so the cost of a kilo of yarn is the
+     * supplier's rate plus freight, duty and the C&F bill — none of which are known when the
+     * PO is raised. These screens carry the credit and the consignment between the two.
+     */
+    Route::resource('letters-of-credit', LetterOfCreditController::class)
+        ->parameters(['letters-of-credit' => 'letterOfCredit'])
+        ->except(['destroy'])
+        ->middlewareFor(['index', 'show'], 'can:letter_of_credit.view_any')
+        ->middlewareFor(['create', 'store'], 'can:letter_of_credit.create')
+        ->middlewareFor(['edit', 'update'], 'can:letter_of_credit.update');
+    Route::delete('letters-of-credit/{letterOfCredit}', [LetterOfCreditController::class, 'destroy'])
+        ->middleware('can:letter_of_credit.delete')->name('letters-of-credit.destroy');
+    Route::post('letters-of-credit/{letterOfCredit}/transition', [LetterOfCreditController::class, 'transition'])
+        ->middleware('can:letter_of_credit.open')->name('letters-of-credit.transition');
+    Route::post('letters-of-credit/{letterOfCredit}/amend', [LetterOfCreditController::class, 'amend'])
+        ->middleware('can:letter_of_credit.amend')->name('letters-of-credit.amend');
+    Route::post('letters-of-credit/{letterOfCredit}/orders', [LetterOfCreditController::class, 'attachOrder'])
+        ->middleware('can:letter_of_credit.update')->name('letters-of-credit.orders.attach');
+    Route::delete('letters-of-credit/{letterOfCredit}/orders/{poId}', [LetterOfCreditController::class, 'detachOrder'])
+        ->middleware('can:letter_of_credit.update')->name('letters-of-credit.orders.detach');
+
+    Route::resource('import-shipments', ImportShipmentController::class)
+        ->except(['destroy'])
+        ->middlewareFor(['index', 'show'], 'can:import_shipment.view_any')
+        ->middlewareFor(['create', 'store'], 'can:import_shipment.create')
+        ->middlewareFor(['edit', 'update'], 'can:import_shipment.update');
+    Route::delete('import-shipments/{importShipment}', [ImportShipmentController::class, 'destroy'])
+        ->middleware('can:import_shipment.delete')->name('import-shipments.destroy');
+    Route::post('import-shipments/{importShipment}/transition', [ImportShipmentController::class, 'transition'])
+        ->middleware('can:import_shipment.update')->name('import-shipments.transition');
+    Route::post('import-shipments/{importShipment}/costs', [ImportShipmentController::class, 'addCost'])
+        ->middleware('can:import_shipment.cost')->name('import-shipments.costs.store');
+    Route::delete('import-shipments/{importShipment}/costs/{cost}', [ImportShipmentController::class, 'removeCost'])
+        ->middleware('can:import_shipment.cost')->name('import-shipments.costs.destroy');
+    Route::post('import-shipments/{importShipment}/receipts', [ImportShipmentController::class, 'linkReceipt'])
+        ->middleware('can:import_shipment.update')->name('import-shipments.receipts.link');
+    Route::delete('import-shipments/{importShipment}/receipts/{grnId}', [ImportShipmentController::class, 'unlinkReceipt'])
+        ->middleware('can:import_shipment.update')->name('import-shipments.receipts.unlink');
+    // BR-36 — the button that turns a pile of bills into a lot cost. Its own permission:
+    // it rewrites inventory valuation.
+    Route::post('import-shipments/{importShipment}/allocate', [ImportShipmentController::class, 'allocate'])
+        ->middleware('can:import_shipment.allocate')->name('import-shipments.allocate');
+
     // ---- Money ---------------------------------------------------------------------
     Route::get('invoices', [SalesInvoiceController::class, 'index'])
         ->middleware('can:sales_invoice.view_any')->name('invoices.index');
     Route::get('receipts', [ReceiptController::class, 'index'])
         ->middleware('can:receipt.view_any')->name('receipts.index');
+
+    Route::resource('expenses', ExpenseController::class)
+        ->except(['show', 'destroy'])
+        ->middlewareFor('index', 'can:expense.view_any')
+        ->middlewareFor(['create', 'store'], 'can:expense.create')
+        ->middlewareFor(['edit', 'update'], 'can:expense.update');
+    Route::delete('expenses/{expense}', [ExpenseController::class, 'destroy'])
+        ->middleware('can:expense.delete')->name('expenses.destroy');
+    // Approval and payment are checked again inside — the route gate cannot express "approve
+    // needs expense.approve, pay needs expense.pay, and never your own document".
+    Route::post('expenses/{expense}/transition', [ExpenseController::class, 'transition'])
+        ->middleware('can:expense.view_any')->name('expenses.transition');
 
     /*
      * Bulk transitions. Every document still goes through its own state machine one at a

@@ -105,7 +105,15 @@ class PermissionSeeder extends Seeder
         'pod' => ['Fulfilment', ['create']],
         'export_document' => ['Fulfilment', []],
 
+        // Trade finance & import. Raw material is imported (00-overview §2), so the credit
+        // and the consignment are documents of their own, and `allocate` is separated from
+        // `update` because it rewrites inventory valuation (BR-36).
+        'letter_of_credit' => ['Supply', ['open', 'amend']],
+        'import_shipment' => ['Supply', ['cost', 'allocate']],
+
         // Money
+        'bank_account' => ['Money', []],
+        'expense' => ['Money', ['approve', 'pay']],
         'sales_invoice' => ['Money', ['issue', 'cancel']],
         'receipt' => ['Money', ['allocate']],
         'credit_note' => ['Money', ['approve']],

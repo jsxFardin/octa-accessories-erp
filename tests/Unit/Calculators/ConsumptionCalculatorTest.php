@@ -3,8 +3,6 @@
 declare(strict_types=1);
 
 use App\Support\Calculators\ConsumptionCalculator;
-use App\Support\Calculators\CutType;
-use App\Support\Calculators\ProductType;
 use App\Support\Calculators\RoutingStep;
 use App\Support\Calculators\SpecInput;
 
@@ -23,7 +21,7 @@ beforeEach(function (): void {
 /** A 40 × 20 mm satin woven care label on a 220 mm loom. */
 function wovenSpec(array $overrides = []): SpecInput
 {
-    return SpecInput::fromArray(array_merge([
+    return fixtureSpec(array_merge([
         'product_type' => 'woven',
         'cut_type' => 'ultrasonic',
         'label_width_mm' => 40,
@@ -57,11 +55,13 @@ it('br4: computes pitch and labels per metre from label height plus cut gap', fu
 });
 
 it('br4: applies the default cut gap for every cut type', function (): void {
-    expect(CutType::HotCut->defaultCutGapMm())->toBe(2.0)
-        ->and(CutType::Ultrasonic->defaultCutGapMm())->toBe(2.0)
-        ->and(CutType::Laser->defaultCutGapMm())->toBe(1.5)
-        ->and(CutType::DieCut->defaultCutGapMm())->toBe(3.0)
-        ->and(CutType::StraightCut->defaultCutGapMm())->toBe(1.0);
+    // The gaps are rows in `cut_types` now; VocabularySeedTest holds the database to these
+    // same figures.
+    expect(cutTypeRule('hot_cut')->defaultCutGapMm())->toBe(2.0)
+        ->and(cutTypeRule('ultrasonic')->defaultCutGapMm())->toBe(2.0)
+        ->and(cutTypeRule('laser')->defaultCutGapMm())->toBe(1.5)
+        ->and(cutTypeRule('die_cut')->defaultCutGapMm())->toBe(3.0)
+        ->and(cutTypeRule('straight_cut')->defaultCutGapMm())->toBe(1.0);
 });
 
 it('br4: a spec-level cut gap overrides the cut type default', function (): void {
@@ -165,11 +165,11 @@ it('br10: derives ink from coverage, printed area, ink lay and colour count', fu
 });
 
 it('br10: uses the process default ink lay unless the item master overrides it', function (): void {
-    expect(ProductType::Flexo->defaultInkLayGsm())->toBe(1.6)
-        ->and(ProductType::Screen->defaultInkLayGsm())->toBe(8.0)
-        ->and(ProductType::OffsetTag->defaultInkLayGsm())->toBe(1.1)
-        ->and(ProductType::HeatTransfer->defaultInkLayGsm())->toBe(12.0)
-        ->and(ProductType::Woven->defaultInkLayGsm())->toBeNull();
+    expect(productTypeRule('flexo')->defaultInkLayGsm())->toBe(1.6)
+        ->and(productTypeRule('screen')->defaultInkLayGsm())->toBe(8.0)
+        ->and(productTypeRule('offset_tag')->defaultInkLayGsm())->toBe(1.1)
+        ->and(productTypeRule('heat_transfer')->defaultInkLayGsm())->toBe(12.0)
+        ->and(productTypeRule('woven')->defaultInkLayGsm())->toBeNull();
 
     $override = wovenSpec(['product_type' => 'flexo', 'coverage_pct' => 35, 'ink_lay_gsm' => 2.4]);
 
@@ -177,7 +177,7 @@ it('br10: uses the process default ink lay unless the item master overrides it',
 });
 
 it('br11: imposes tags on a sheet and rounds sheets up', function (): void {
-    $spec = SpecInput::fromArray([
+    $spec = fixtureSpec([
         'product_type' => 'offset_tag',
         'cut_type' => 'die_cut',
         'label_width_mm' => 50,
@@ -198,7 +198,7 @@ it('br11: imposes tags on a sheet and rounds sheets up', function (): void {
 });
 
 it('br11: rejects a tag that does not fit the declared sheet', function (): void {
-    $spec = SpecInput::fromArray([
+    $spec = fixtureSpec([
         'product_type' => 'offset_tag',
         'cut_type' => 'die_cut',
         'label_width_mm' => 700,

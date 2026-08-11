@@ -53,10 +53,15 @@ onUnmounted(() => {
             leave-to-class="opacity-0"
         >
             <!--
-                Overlay stack: dropdowns and toasts 60, slide-overs and the palette 70, modals
-                75, confirmations 80. A modal opened from inside a slide-over — the import
-                guidelines — has to sit above the panel that opened it, and a confirmation has
-                to sit above both.
+                Overlay stack: slide-overs and the palette 70, modals 75, confirmations 80,
+                popovers 90, toasts 100. A modal opened from inside a slide-over — the import
+                guidelines — has to sit above the panel that opened it, and a confirmation above
+                both.
+
+                Popovers sit above every panel on purpose. They used to be at 60, below all of
+                them, so a select inside a slide-over opened its list *behind* the panel and the
+                click that should have picked an option landed on the backdrop and shut the
+                panel instead. A popover is always a child of the thing on top, whatever that is.
             -->
             <div v-if="open" class="fixed inset-0 z-[75] overflow-y-auto">
                 <div

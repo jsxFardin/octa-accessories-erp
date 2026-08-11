@@ -7,8 +7,8 @@ import {
     FileSpreadsheet, FileText, Filter, Gauge, Inbox, Info, Layers, LayoutDashboard, LogOut,
     Mail, MapPin, Menu, MoreVertical, Package, PackageCheck, PackageOpen, Pencil, Plus,
     Printer, Receipt, RefreshCw, Route, Ruler, Search, Send, Settings2, Shield, ShieldCheck,
-    ShoppingCart, SlidersHorizontal, Sparkles, Trash2, TriangleAlert, Truck, Upload, User,
-    Users, Warehouse, X,
+    Ship, ShoppingCart, SlidersHorizontal, Sparkles, Trash2, TriangleAlert, Truck, Upload,
+    User, Users, Warehouse, X,
 } from '@lucide/vue';
 
 /**
@@ -53,6 +53,7 @@ const REGISTRY = {
     trip: MapPin,
     invoice: Receipt,
     receipt: Banknote,
+    ship: Ship,
     users: User,
     roles: Shield,
     building: Building2,

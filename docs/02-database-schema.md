@@ -2,7 +2,7 @@
 
 Executable companion: **[02a-schema.sql](02a-schema.sql)** — the authoritative DDL. This document explains *why* the tables look the way they do. If the two disagree, the SQL wins.
 
-Target: **MySQL 8.0** (InnoDB, `utf8mb4`, `utf8mb4_0900_ai_ci`). **129 tables · 4 views**.
+Target: **MySQL 8.0** (InnoDB, `utf8mb4`, `utf8mb4_0900_ai_ci`). **146 tables · 4 views**.
 
 Minimum version is **8.0.16** — earlier releases parse `CHECK` constraints and silently ignore them, which would turn every invariant in §3 into a comment.
 
@@ -21,6 +21,7 @@ Minimum version is **8.0.16** — earlier releases parse `CHECK` constraints and
 | Timestamps | `DATETIME(3)` storing **UTC**, default `CURRENT_TIMESTAMP(3)` |
 | Dates | `DATE`, default `(CURRENT_DATE)` — the parentheses are required for expression defaults |
 | Status | `VARCHAR(n)` + `CHECK (... IN (...))`, never MySQL `ENUM` (AD-5) |
+| Vocabulary | `VARCHAR(n)` + `FOREIGN KEY` into a §1a lookup table — for lists an administrator maintains (product type, cut type, customer kind, inquiry source, order priority, product status, defect severity, QC disposition). A status is a lifecycle the code drives; a vocabulary is data, and its behaviour is columns on the row |
 | Short strings | `VARCHAR` sized to purpose (code 20–40, name 120–180, email 190) |
 | Long text | `TEXT` for notes/descriptions — keeps the InnoDB 65,535-byte row limit out of reach |
 | Soft delete | `deleted_at DATETIME(3)` on **master data only**; transactions are cancelled, not deleted |
@@ -40,6 +41,7 @@ Minimum version is **8.0.16** — earlier releases parse `CHECK` constraints and
 | § | Group | Tables | Notes |
 |---|---|---|---|
 | 1 | Platform | 9 | users, roles, permissions, audit, attachments, settings, numbering |
+| 1a | Vocabularies | 8 | product type, cut type, customer kind, inquiry source, order priority, product status, defect severity, QC disposition — editable in Setup, with the costing and QC behaviour as columns |
 | 2 | Organisation & master data | 28 | units, machines, warehouses, items, customers, suppliers, price lists |
 | 3 | Product / artwork / BOM / routing / tooling | 10 | the engineering core |
 | 4 | CRM & sales | 10 | inquiry → quotation → cost sheet → sales order |
@@ -312,6 +314,8 @@ mysql -u root erpspec < docs/02a-schema.sql
 ```
 
 A clean run proves every foreign key target exists and matches in type and signedness, every check constraint parses, every generated column expression is deterministic, and every view resolves. Run it in CI on any change to the DDL.
+
+The application itself no longer executes this file. Each statement in it has a migration of its own under `database/migrations/2026_01_02_*`, carrying the same DDL verbatim — so a change here is a change there too, and `SchemaInvariantsTest` fails the build if the document names an object no migration creates.
 
 Expected object counts:
 

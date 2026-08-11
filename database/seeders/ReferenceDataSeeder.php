@@ -18,6 +18,8 @@ class ReferenceDataSeeder extends Seeder
 {
     public function run(): void
     {
+        // First: every other lookup here carries a foreign key into one of them.
+        $this->vocabularies();
         $this->uoms();
         $this->currencies();
         $this->taxes();
@@ -26,6 +28,7 @@ class ReferenceDataSeeder extends Seeder
         $this->machineGroups();
         $this->warehouses();
         $this->itemCategories();
+        $this->expenseCategories();
         $this->routings();
         $this->aqlPlans();
         $this->labTests();
@@ -34,6 +37,87 @@ class ReferenceDataSeeder extends Seeder
         $this->certifications();
         $this->numberSequences();
         $this->settings();
+    }
+
+    /**
+     * The vocabularies (§1a) — the values, and the behaviour that used to be a `match` arm.
+     *
+     * A figure changed here changes what the calculators do on the next request: the ink lay
+     * of a flexo label (BR-10), the gap a laser cut adds (BR-4), whether a severity rejects a
+     * lot on its own (BR-30). That is the point of the tables existing.
+     */
+    private function vocabularies(): void
+    {
+        $this->upsert('product_types', 'code', [
+            ['code' => 'woven', 'name' => 'Woven label', 'consumes_yarn' => true, 'consumes_sheets' => false, 'default_ink_lay_gsm' => null, 'requires_tool_per_colour' => false, 'sort_order' => 10],
+            ['code' => 'flexo', 'name' => 'Flexo printed label', 'consumes_yarn' => false, 'consumes_sheets' => false, 'default_ink_lay_gsm' => 1.6, 'requires_tool_per_colour' => true, 'sort_order' => 20],
+            ['code' => 'screen', 'name' => 'Screen printed label', 'consumes_yarn' => false, 'consumes_sheets' => false, 'default_ink_lay_gsm' => 8.0, 'requires_tool_per_colour' => true, 'sort_order' => 30],
+            ['code' => 'heat_transfer', 'name' => 'Heat transfer label', 'consumes_yarn' => false, 'consumes_sheets' => false, 'default_ink_lay_gsm' => 12.0, 'requires_tool_per_colour' => true, 'sort_order' => 40],
+            ['code' => 'offset_tag', 'name' => 'Offset printed tag / ticket', 'consumes_yarn' => false, 'consumes_sheets' => true, 'default_ink_lay_gsm' => 1.1, 'requires_tool_per_colour' => true, 'sort_order' => 50],
+            ['code' => 'thermal', 'name' => 'Thermal printed label', 'consumes_yarn' => false, 'consumes_sheets' => false, 'default_ink_lay_gsm' => null, 'requires_tool_per_colour' => false, 'sort_order' => 60],
+            ['code' => 'ribbon', 'name' => 'Printed ribbon', 'consumes_yarn' => false, 'consumes_sheets' => false, 'default_ink_lay_gsm' => null, 'requires_tool_per_colour' => false, 'sort_order' => 70],
+            ['code' => 'tape', 'name' => 'Printed tape', 'consumes_yarn' => false, 'consumes_sheets' => false, 'default_ink_lay_gsm' => null, 'requires_tool_per_colour' => false, 'sort_order' => 80],
+            ['code' => 'other', 'name' => 'Other', 'consumes_yarn' => false, 'consumes_sheets' => false, 'default_ink_lay_gsm' => null, 'requires_tool_per_colour' => false, 'sort_order' => 90],
+        ]);
+
+        // BR-4 — the default gap a cut type adds to the label pitch.
+        $this->upsert('cut_types', 'code', [
+            ['code' => 'hot_cut', 'name' => 'Hot cut', 'default_cut_gap_mm' => 2.0, 'requires_tool' => false, 'sort_order' => 10],
+            ['code' => 'ultrasonic', 'name' => 'Ultrasonic cut', 'default_cut_gap_mm' => 2.0, 'requires_tool' => false, 'sort_order' => 20],
+            ['code' => 'laser', 'name' => 'Laser cut', 'default_cut_gap_mm' => 1.5, 'requires_tool' => false, 'sort_order' => 30],
+            ['code' => 'die_cut', 'name' => 'Die cut', 'default_cut_gap_mm' => 3.0, 'requires_tool' => true, 'sort_order' => 40],
+            ['code' => 'straight_cut', 'name' => 'Straight cut', 'default_cut_gap_mm' => 1.0, 'requires_tool' => false, 'sort_order' => 50],
+        ]);
+
+        $this->upsert('customer_kinds', 'code', [
+            ['code' => 'manufacturer', 'name' => 'Garment manufacturer', 'sort_order' => 10],
+            ['code' => 'brand', 'name' => 'Brand', 'sort_order' => 20],
+            ['code' => 'buying_house', 'name' => 'Buying house', 'sort_order' => 30],
+            ['code' => 'trader', 'name' => 'Trader', 'sort_order' => 40],
+        ]);
+
+        $this->upsert('inquiry_sources', 'code', [
+            ['code' => 'email', 'name' => 'Email', 'sort_order' => 10],
+            ['code' => 'phone', 'name' => 'Phone', 'sort_order' => 20],
+            ['code' => 'visit', 'name' => 'Visit', 'sort_order' => 30],
+            ['code' => 'buying_house', 'name' => 'Buying house', 'sort_order' => 40],
+            ['code' => 'agent', 'name' => 'Agent', 'sort_order' => 50],
+            ['code' => 'portal', 'name' => 'Customer portal', 'sort_order' => 60],
+            ['code' => 'repeat', 'name' => 'Repeat order', 'sort_order' => 70],
+        ]);
+
+        // `rank` is what the planning board sorts on, so a priority inserted between two
+        // existing ones needs a number rather than a release.
+        $this->upsert('order_priorities', 'code', [
+            ['code' => 'low', 'name' => 'Low', 'priority_rank' => 20, 'sort_order' => 10],
+            ['code' => 'normal', 'name' => 'Normal', 'priority_rank' => 50, 'sort_order' => 20],
+            ['code' => 'high', 'name' => 'High', 'priority_rank' => 70, 'sort_order' => 30],
+            ['code' => 'urgent', 'name' => 'Urgent', 'priority_rank' => 90, 'sort_order' => 40],
+        ]);
+
+        $this->upsert('product_statuses', 'code', [
+            ['code' => 'development', 'name' => 'Development', 'allows_ordering' => false, 'sort_order' => 10],
+            ['code' => 'active', 'name' => 'Active', 'allows_ordering' => true, 'sort_order' => 20],
+            ['code' => 'on_hold', 'name' => 'On hold', 'allows_ordering' => false, 'sort_order' => 30],
+            ['code' => 'discontinued', 'name' => 'Discontinued', 'allows_ordering' => false, 'sort_order' => 40],
+        ]);
+
+        // BR-30 / BR-31 — one critical rejects the lot; majors count against the accept
+        // number; minors are recorded and do neither.
+        $this->upsert('defect_severities', 'code', [
+            ['code' => 'critical', 'name' => 'Critical — rejects the lot on its own', 'rejects_lot' => true, 'counts_toward_aql' => true, 'sort_order' => 10],
+            ['code' => 'major', 'name' => 'Major — counted against the accept number', 'rejects_lot' => false, 'counts_toward_aql' => true, 'sort_order' => 20],
+            ['code' => 'minor', 'name' => 'Minor — recorded, does not reject', 'rejects_lot' => false, 'counts_toward_aql' => false, 'sort_order' => 30],
+        ]);
+
+        // BR-33 — each disposition's downstream behaviour, as flags.
+        $this->upsert('qc_dispositions', 'code', [
+            ['code' => 'rework', 'name' => 'Rework — back to an operation', 'returns_to_operation' => true, 'requires_customer_evidence' => false, 'regrades_stock' => false, 'writes_off_stock' => false, 'sort_order' => 10],
+            ['code' => 'concession', 'name' => 'Concession — customer accepted', 'returns_to_operation' => false, 'requires_customer_evidence' => true, 'regrades_stock' => false, 'writes_off_stock' => false, 'sort_order' => 20],
+            ['code' => 'downgrade', 'name' => 'Downgrade — second quality', 'returns_to_operation' => false, 'requires_customer_evidence' => false, 'regrades_stock' => true, 'writes_off_stock' => false, 'sort_order' => 30],
+            ['code' => 'scrap', 'name' => 'Scrap — written off', 'returns_to_operation' => false, 'requires_customer_evidence' => false, 'regrades_stock' => false, 'writes_off_stock' => true, 'sort_order' => 40],
+            ['code' => 'release', 'name' => 'Release — accepted as it stands', 'returns_to_operation' => false, 'requires_customer_evidence' => false, 'regrades_stock' => false, 'writes_off_stock' => false, 'sort_order' => 50],
+        ]);
     }
 
     /** BR-2 — base UoM per item class, plus the units those classes are transacted in. */
@@ -202,6 +286,29 @@ class ReferenceDataSeeder extends Seeder
             ['code' => 'TOOLSTK', 'name' => 'Plate & screen stock', 'item_class' => 'tool_stock'],
             ['code' => 'PACKMAT', 'name' => 'Polybags, cartons, string', 'item_class' => 'packing'],
             ['code' => 'SPARE', 'name' => 'Machine spares', 'item_class' => 'spare'],
+        ]);
+    }
+
+    /**
+     * The spend categories a label factory actually has. Import charges are their own kind:
+     * they are the ones that end up inside a lot's cost rather than in the month's overhead.
+     */
+    private function expenseCategories(): void
+    {
+        $this->upsert('expense_categories', 'code', [
+            ['code' => 'FUEL', 'name' => 'Generator fuel & gas', 'kind' => 'factory'],
+            ['code' => 'UTIL', 'name' => 'Electricity & water', 'kind' => 'factory'],
+            ['code' => 'MAINT', 'name' => 'Repairs & maintenance', 'kind' => 'factory'],
+            ['code' => 'CONSUM', 'name' => 'Factory consumables', 'kind' => 'factory'],
+            ['code' => 'TRANSP', 'name' => 'Local transport & courier', 'kind' => 'factory'],
+            ['code' => 'CNF', 'name' => 'C&F agent charges', 'kind' => 'import'],
+            ['code' => 'PORT', 'name' => 'Port & handling charges', 'kind' => 'import'],
+            ['code' => 'DUTY', 'name' => 'Customs duty & taxes', 'kind' => 'import'],
+            ['code' => 'BANKCH', 'name' => 'Bank charges & LC commission', 'kind' => 'financial'],
+            ['code' => 'OFFICE', 'name' => 'Office & stationery', 'kind' => 'admin'],
+            ['code' => 'TRAVEL', 'name' => 'Travel & entertainment', 'kind' => 'admin'],
+            ['code' => 'AUDIT', 'name' => 'Certification & audit fees', 'kind' => 'admin'],
+            ['code' => 'MKTG', 'name' => 'Sampling & marketing', 'kind' => 'selling'],
         ]);
     }
 
@@ -446,6 +553,9 @@ class ReferenceDataSeeder extends Seeder
             'receipt' => ['RCT', 5],
             'payment' => ['PAY', 5],
             'supplier_bill' => ['SB', 5],
+            'letter_of_credit' => ['LC', 5],
+            'import_shipment' => ['IMP', 5],
+            'expense' => ['EXP', 5],
             'test_report' => ['LAB', 5],
             'qc_inspection' => ['QC', 5],
             'ncr' => ['NCR', 5],

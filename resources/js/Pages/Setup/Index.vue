@@ -25,8 +25,6 @@ const props = defineProps({
     tabs: { type: Array, default: () => [] },
     current: { type: String, required: true },
     cards: { type: Array, default: () => [] },
-    /** Read-only: dropdowns whose values are code rather than rows. */
-    vocabularies: { type: Array, default: () => [] },
 });
 
 const tabLinks = computed(() =>
@@ -140,59 +138,7 @@ function badgeFor(card, row, name) {
         <div class="space-y-4">
             <Tabs :tabs="tabLinks" :current="current" />
 
-            <!--
-                Fixed vocabularies. Shown rather than hidden: "why can I not add a product
-                type?" is a fair question, and the answer belongs on the screen that prompted it.
-            -->
-            <div v-if="current === 'vocabularies'" class="space-y-4">
-                <p class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-ink-600">
-                    These lists are part of the software, not data. Each value has behaviour attached to
-                    it in code, and the database refuses anything outside the list — so they are shown
-                    here rather than being editable. Changing one is a development change with a test,
-                    not a settings change.
-                </p>
-
-                <div class="grid items-start gap-4 lg:grid-cols-2">
-                    <section
-                        v-for="vocabulary in vocabularies"
-                        :key="vocabulary.column"
-                        class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
-                    >
-                        <header class="border-b border-slate-200 px-3 py-2.5">
-                            <h2 class="flex items-center gap-2 text-sm font-semibold text-ink-900">
-                                <Icon name="sliders" size="size-4" class="text-ink-400" />
-                                {{ vocabulary.label }}
-                                <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] tnum text-ink-600">
-                                    {{ Object.keys(vocabulary.values).length }}
-                                </span>
-                            </h2>
-                            <p class="mt-0.5 font-mono text-[10px] text-ink-400">{{ vocabulary.column }}</p>
-                        </header>
-
-                        <ul class="divide-y divide-slate-100">
-                            <li
-                                v-for="(label, value) in vocabulary.values"
-                                :key="value"
-                                class="flex items-baseline gap-2 px-3 py-1.5"
-                            >
-                                <code class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-ink-600">
-                                    {{ value }}
-                                </code>
-                                <span class="text-sm text-ink-800">{{ label }}</span>
-                            </li>
-                        </ul>
-
-                        <footer class="space-y-1 border-t border-slate-100 bg-slate-50/70 px-3 py-2">
-                            <p class="text-[11px] text-ink-600">
-                                <span class="font-medium">Used by:</span> {{ vocabulary.used_for }}
-                            </p>
-                            <p class="text-[11px] leading-relaxed text-ink-500">{{ vocabulary.why_fixed }}</p>
-                        </footer>
-                    </section>
-                </div>
-            </div>
-
-            <div v-else class="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            <div class="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
                 <section
                     v-for="card in cards"
                     :key="card.slug"
@@ -282,7 +228,7 @@ function badgeFor(card, row, name) {
                 </section>
             </div>
 
-            <p v-if="cards.length === 0 && current !== 'vocabularies'" class="rounded-lg border border-slate-200 bg-white px-4 py-10 text-center text-sm text-ink-500">
+            <p v-if="cards.length === 0" class="rounded-lg border border-slate-200 bg-white px-4 py-10 text-center text-sm text-ink-500">
                 You do not have access to any list in this group.
             </p>
         </div>

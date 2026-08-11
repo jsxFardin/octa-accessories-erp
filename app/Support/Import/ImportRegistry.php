@@ -8,7 +8,6 @@ use App\Modules\MasterData\Models\Customer;
 use App\Modules\MasterData\Models\Item;
 use App\Modules\MasterData\Models\Supplier;
 use App\Modules\Product\Models\Product;
-use App\Support\Calculators\ProductType;
 use App\Support\Reference\Vocabulary;
 
 /**
@@ -70,7 +69,7 @@ class ImportRegistry
                     ],
                     'kind' => [
                         'type' => 'select', 'example' => 'brand', 'default' => 'manufacturer',
-                        'options' => array_keys(Vocabulary::values('customer_kind')),
+                        'options' => Vocabulary::codes('customer_kind'),
                         'description' => 'Who is on the other side of the order',
                     ],
                     'email' => [
@@ -326,7 +325,7 @@ class ImportRegistry
                     ],
                     'product_type' => [
                         'type' => 'select', 'required' => true, 'example' => 'woven',
-                        'options' => array_column(ProductType::cases(), 'value'),
+                        'options' => Vocabulary::codes('product_type'),
                         'description' => 'Manufacturing family',
                     ],
                     'customer_style_ref' => [
@@ -336,7 +335,7 @@ class ImportRegistry
                     ],
                     'status' => [
                         'type' => 'select', 'example' => 'active', 'default' => 'development',
-                        'options' => array_keys(Vocabulary::values('product_status')),
+                        'options' => Vocabulary::codes('product_status'),
                         'description' => 'Lifecycle stage. Only an active product may be ordered.',
                     ],
                     'is_running_programme' => [

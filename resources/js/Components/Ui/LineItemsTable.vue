@@ -30,6 +30,17 @@ defineProps({
 });
 
 const emit = defineEmits(['add', 'remove']);
+
+/**
+ * The server names the line in the message — "The line 3 quantity field is required" — because
+ * that message is also read on its own, in a toast or a log. Inside the table the row number is
+ * already in the first column, so the prefix is dropped here rather than sent twice.
+ */
+function cellError(index, key, errors) {
+    const message = errors[`lines.${index}.${key}`];
+
+    return message?.replace(/\b(line|operation|item|count|allocation|carton|row) \d+ /i, '');
+}
 </script>
 
 <template>
@@ -70,8 +81,8 @@ const emit = defineEmits(['add', 'remove']);
                         <td v-for="column in columns" :key="column.key" class="px-1.5 py-1.5">
                             <slot :name="`cell:${column.key}`" :line="line" :index="index" />
 
-                            <p v-if="errors[`lines.${index}.${column.key}`]" class="mt-1 text-[11px] text-rose-600">
-                                {{ errors[`lines.${index}.${column.key}`] }}
+                            <p v-if="cellError(index, column.key, errors)" class="mt-1 text-[11px] text-rose-600">
+                                {{ cellError(index, column.key, errors) }}
                             </p>
                         </td>
 

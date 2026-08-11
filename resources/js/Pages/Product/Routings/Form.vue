@@ -9,7 +9,7 @@ import LineItemsTable from '@/Components/Ui/LineItemsTable.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
-import FormPage from '@/Components/Ui/FormPage.vue';
+import FormLayout from '@/Components/Ui/FormLayout.vue';
 
 const props = defineProps({
     routing: { type: Object, default: null },
@@ -93,137 +93,168 @@ const columns = [
         <template #title>{{ isEdit ? `Routing ${routing.code}` : 'New routing' }}</template>
         <template #subtitle>Operations execute in the order listed here (J2)</template>
 
-        <FormPage wide>
+        <FormLayout @submit="submit">
 
+            <Card title="Routing">
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                    <FormField label="Code" :error="form.errors.code" required>
+                        <TextInput v-model="form.code" placeholder="RT-WOVEN-2" />
+                    </FormField>
 
-            <form class="space-y-4" @submit.prevent="submit">
-                <Card title="Routing">
-                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                        <FormField label="Code" :error="form.errors.code" required>
-                            <TextInput v-model="form.code" placeholder="RT-WOVEN-2" />
-                        </FormField>
+                    <FormField label="Name" :error="form.errors.name" required>
+                        <TextInput v-model="form.name" />
+                    </FormField>
 
-                        <FormField label="Name" :error="form.errors.name" required>
-                            <TextInput v-model="form.name" />
-                        </FormField>
+                    <FormField label="Product type" :error="form.errors.product_type" required>
+                        <SelectInput v-model="form.product_type" placeholder="— select —" :options="productTypes" />
+                    </FormField>
 
-                        <FormField label="Product type" :error="form.errors.product_type" required>
-                            <SelectInput v-model="form.product_type" placeholder="— select —" :options="productTypes" />
-                        </FormField>
+                    <FormField
+                        label="Max lot size"
+                        rule="BR-28"
+                        hint="A larger order splits into several job cards."
+                        :error="form.errors.max_lot_size"
+                    >
+                        <TextInput v-model="form.max_lot_size" type="number" numeric />
+                    </FormField>
 
-                        <FormField
-                            label="Max lot size"
-                            rule="BR-28"
-                            hint="A larger order splits into several job cards."
-                            :error="form.errors.max_lot_size"
-                        >
-                            <TextInput v-model="form.max_lot_size" type="number" numeric />
-                        </FormField>
+                    <div class="space-y-1 pt-5">
+                        <label class="flex items-center gap-2 text-sm text-ink-700">
+                            <input v-model="form.is_default" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                            Default for this type
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-ink-700">
+                            <input v-model="form.is_active" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                            Active
+                        </label>
+                    </div>
+                </div>
+            </Card>
 
-                        <div class="space-y-1 pt-5">
-                            <label class="flex items-center gap-2 text-sm text-ink-700">
-                                <input v-model="form.is_default" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
-                                Default for this type
-                            </label>
-                            <label class="flex items-center gap-2 text-sm text-ink-700">
-                                <input v-model="form.is_active" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
-                                Active
-                            </label>
+            <Card title="Operations" rule="BR-8 · BR-16" :padded="false">
+                <div class="p-3">
+                    <LineItemsTable
+                        :columns="columns"
+                        :lines="form.operations"
+                        :errors="form.errors"
+                        add-label="Add operation"
+                        empty="A routing needs at least one operation."
+                        @add="addOperation"
+                        @remove="removeOperation"
+                    >
+                        <template #cell:operation="{ line }">
+                            <div class="space-y-1">
+                                <TextInput cell v-model="line.code" placeholder="weave" />
+                                <TextInput cell v-model="line.name" placeholder="Weaving" />
+                            </div>
+                        </template>
+
+                        <template #cell:machine_group_id="{ line }">
+                            <SelectInput v-model="line.machine_group_id" :options="machineGroups" value-key="id" label-key="name" />
+                        </template>
+
+                        <template #cell:std_rate_per_hour="{ line }">
+                            <TextInput cell v-model="line.std_rate_per_hour" type="number" step="0.000001" numeric />
+                        </template>
+
+                        <template #cell:setup="{ line }">
+                            <div class="space-y-1">
+                                <TextInput cell v-model="line.setup_minutes" type="number" step="0.01" placeholder="Setup minutes" numeric />
+                                <TextInput cell v-model="line.setup_qty" type="number" step="0.000001" placeholder="Make-ready metres" numeric />
+                            </div>
+                        </template>
+
+                        <template #cell:wastage_pct="{ line }">
+                            <TextInput cell v-model="line.wastage_pct" type="number" step="0.01" numeric />
+                        </template>
+
+                        <template #cell:manning_level="{ line }">
+                            <TextInput cell v-model="line.manning_level" type="number" step="0.01" numeric />
+                        </template>
+
+                        <template #cell:flags="{ line }">
+                            <div class="space-y-1 text-xs">
+                                <!-- The flag that decides whether this step's wastage counts at all. -->
+                                <label class="flex items-center gap-1.5 text-ink-700">
+                                    <input v-model="line.consumes_web" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                    Consumes web
+                                </label>
+                                <label class="flex items-center gap-1.5 text-ink-700">
+                                    <input v-model="line.allow_parallel" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                    May run in parallel
+                                </label>
+                                <label class="flex items-center gap-1.5 text-ink-700">
+                                    <input v-model="line.requires_qc" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                    Requires QC
+                                </label>
+                            </div>
+                        </template>
+
+                        <template #rail>
+                <Card title="Routing" rule="BR-8 · BR-16">
+                    <dl class="space-y-2.5 text-sm">
+                        <div class="flex items-baseline justify-between gap-3">
+                            <dt class="text-xs text-ink-500">Operations</dt>
+                            <dd class="tnum text-ink-900">{{ form.operations.length }}</dd>
                         </div>
-                    </div>
+
+                        <div class="flex items-baseline justify-between gap-3">
+                            <dt class="text-xs text-ink-500">Web-consuming</dt>
+                            <dd class="tnum text-ink-900">
+                                {{ form.operations.filter((operation) => operation.consumes_web).length }}
+                            </dd>
+                        </div>
+
+                        <div class="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-2.5">
+                            <dt class="text-xs text-ink-500">Additive wastage</dt>
+                            <dd class="text-base font-semibold tnum text-ink-900">{{ totalWastage.toFixed(2) }}%</dd>
+                        </div>
+
+                        <div class="flex items-baseline justify-between gap-3">
+                            <dt class="text-xs text-ink-500">Make-ready</dt>
+                            <dd class="tnum text-ink-900">{{ totalSetup }} m</dd>
+                        </div>
+                    </dl>
+
+                    <p class="mt-3 text-[11px] leading-relaxed text-ink-500">
+                        Only web-consuming operations count towards either figure — packing and QC
+                        handle the labels, they do not eat ribbon.
+                    </p>
                 </Card>
+            </template>
 
-                <Card title="Operations" rule="BR-8 · BR-16" :padded="false">
-                    <div class="p-3">
-                        <LineItemsTable
-                            :columns="columns"
-                            :lines="form.operations"
-                            :errors="form.errors"
-                            add-label="Add operation"
-                            empty="A routing needs at least one operation."
-                            @add="addOperation"
-                            @remove="removeOperation"
-                        >
-                            <template #cell:operation="{ line }">
-                                <div class="space-y-1">
-                                    <TextInput cell v-model="line.code" placeholder="weave" />
-                                    <TextInput cell v-model="line.name" placeholder="Weaving" />
-                                </div>
-                            </template>
+            <template #footer>
+                            <tr>
+                                <td colspan="4" class="px-3 py-2 text-right text-xs text-ink-700">
+                                    Additive wastage across web-consuming operations
+                                </td>
+                                <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
+                                    {{ totalWastage.toFixed(2) }}%
+                                </td>
+                                <td colspan="3" class="px-2 py-2 text-xs text-ink-500">
+                                    + {{ totalSetup }} m make-ready
+                                </td>
+                            </tr>
+                        </template>
+                    </LineItemsTable>
 
-                            <template #cell:machine_group_id="{ line }">
-                                <SelectInput v-model="line.machine_group_id" :options="machineGroups" value-key="id" label-key="name" />
-                            </template>
+                    <p v-if="form.errors.operations" class="mt-2 text-xs text-rose-600">{{ form.errors.operations }}</p>
 
-                            <template #cell:std_rate_per_hour="{ line }">
-                                <TextInput cell v-model="line.std_rate_per_hour" type="number" step="0.000001" numeric />
-                            </template>
+                    <p class="mt-2 text-xs text-ink-500">
+                        Manning level is operators per machine — a loom watched one-in-four is 0.25,
+                        a screen table needing two people is 2.0 (BR-17).
+                    </p>
+                </div>
+            </Card>
 
-                            <template #cell:setup="{ line }">
-                                <div class="space-y-1">
-                                    <TextInput cell v-model="line.setup_minutes" type="number" step="0.01" placeholder="Setup minutes" numeric />
-                                    <TextInput cell v-model="line.setup_qty" type="number" step="0.000001" placeholder="Make-ready metres" numeric />
-                                </div>
-                            </template>
-
-                            <template #cell:wastage_pct="{ line }">
-                                <TextInput cell v-model="line.wastage_pct" type="number" step="0.01" numeric />
-                            </template>
-
-                            <template #cell:manning_level="{ line }">
-                                <TextInput cell v-model="line.manning_level" type="number" step="0.01" numeric />
-                            </template>
-
-                            <template #cell:flags="{ line }">
-                                <div class="space-y-1 text-xs">
-                                    <!-- The flag that decides whether this step's wastage counts at all. -->
-                                    <label class="flex items-center gap-1.5 text-ink-700">
-                                        <input v-model="line.consumes_web" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
-                                        Consumes web
-                                    </label>
-                                    <label class="flex items-center gap-1.5 text-ink-700">
-                                        <input v-model="line.allow_parallel" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
-                                        May run in parallel
-                                    </label>
-                                    <label class="flex items-center gap-1.5 text-ink-700">
-                                        <input v-model="line.requires_qc" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
-                                        Requires QC
-                                    </label>
-                                </div>
-                            </template>
-
-                            <template #footer>
-                                <tr>
-                                    <td colspan="4" class="px-3 py-2 text-right text-xs text-ink-700">
-                                        Additive wastage across web-consuming operations
-                                    </td>
-                                    <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
-                                        {{ totalWastage.toFixed(2) }}%
-                                    </td>
-                                    <td colspan="3" class="px-2 py-2 text-xs text-ink-500">
-                                        + {{ totalSetup }} m make-ready
-                                    </td>
-                                </tr>
-                            </template>
-                        </LineItemsTable>
-
-                        <p v-if="form.errors.operations" class="mt-2 text-xs text-rose-600">{{ form.errors.operations }}</p>
-
-                        <p class="mt-2 text-xs text-ink-500">
-                            Manning level is operators per machine — a loom watched one-in-four is 0.25,
-                            a screen table needing two people is 2.0 (BR-17).
-                        </p>
-                    </div>
-                </Card>
-            </form>
-        
-
-            <FormFooter
-                :form="form"
-                cancel-href="/routings"
-                :label="isEdit ? 'Save changes' : 'Create routing'"
-                @save="submit"
-            />
-        </FormPage>
+            <template #footer>
+                <FormFooter
+                    :form="form"
+                    cancel-href="/routings"
+                    :label="isEdit ? 'Save changes' : 'Create routing'"
+                    @save="submit"
+                />
+            </template>
+        </FormLayout>
     </AppLayout>
 </template>

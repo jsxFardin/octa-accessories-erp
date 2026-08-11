@@ -154,6 +154,117 @@ CREATE TABLE comments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================================
+-- 1a. VOCABULARIES
+--
+-- The dropdowns that used to be enums in PHP. Each one is a table an
+-- administrator can add to, rename and retire, and the behaviour that used
+-- to live in a `match` expression lives here as columns: whether a product
+-- type consumes yarn (BR-9) or sheets (BR-11), the ink lay it defaults to
+-- (BR-10), the tools a colour costs (BR-13), the cut gap a cut type adds
+-- (BR-4), what a QC disposition does to the lot (BR-33).
+--
+-- The columns that carry these values are VARCHAR codes with a foreign key
+-- to `code` rather than a CHECK constraint: same refusal of a value that
+-- does not exist, without a schema change to add one.
+--
+-- A row added through Setup gets neutral behaviour — no yarn, no ink, no
+-- sheets, no tool — which is the conservative default for a type the
+-- costing rules have never seen. Change the flags and the calculators
+-- follow immediately.
+-- =====================================================================
+
+CREATE TABLE product_types (
+    id                       BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code                     VARCHAR(20)  NOT NULL,
+    name                     VARCHAR(120) NOT NULL,
+    consumes_yarn            BOOLEAN NOT NULL DEFAULT FALSE,     -- BR-9
+    consumes_sheets          BOOLEAN NOT NULL DEFAULT FALSE,     -- BR-11
+    default_ink_lay_gsm      DECIMAL(9,4),                       -- BR-10, NULL = consumes no ink
+    requires_tool_per_colour BOOLEAN NOT NULL DEFAULT FALSE,     -- BR-13
+    sort_order               SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active                BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE KEY product_types_code_uq (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE cut_types (
+    id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code               VARCHAR(20)  NOT NULL,
+    name               VARCHAR(120) NOT NULL,
+    default_cut_gap_mm DECIMAL(9,4) NOT NULL DEFAULT 0,          -- BR-4
+    requires_tool      BOOLEAN NOT NULL DEFAULT FALSE,           -- BR-13
+    sort_order         SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active          BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE KEY cut_types_code_uq (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE customer_kinds (
+    id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code       VARCHAR(20)  NOT NULL,
+    name       VARCHAR(120) NOT NULL,
+    sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE KEY customer_kinds_code_uq (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE inquiry_sources (
+    id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code       VARCHAR(20)  NOT NULL,
+    name       VARCHAR(120) NOT NULL,
+    sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE KEY inquiry_sources_code_uq (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE order_priorities (
+    id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code           VARCHAR(10)  NOT NULL,
+    name           VARCHAR(120) NOT NULL,
+    -- The planning board sorts on this, not on the code: a new priority
+    -- between normal and high needs a rank, not a release.
+    priority_rank  SMALLINT UNSIGNED NOT NULL DEFAULT 50,
+    sort_order     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE KEY order_priorities_code_uq (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE product_statuses (
+    id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code            VARCHAR(20)  NOT NULL,
+    name            VARCHAR(120) NOT NULL,
+    -- Only a status that allows ordering may appear on a new order line;
+    -- the rest stay readable on the documents that already used them.
+    allows_ordering BOOLEAN NOT NULL DEFAULT FALSE,
+    sort_order      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE KEY product_statuses_code_uq (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE defect_severities (
+    id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code             VARCHAR(10)  NOT NULL,
+    name             VARCHAR(120) NOT NULL,
+    rejects_lot      BOOLEAN NOT NULL DEFAULT FALSE,             -- BR-30
+    counts_toward_aql BOOLEAN NOT NULL DEFAULT FALSE,            -- BR-31
+    sort_order       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active        BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE KEY defect_severities_code_uq (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE qc_dispositions (
+    id                        BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code                      VARCHAR(20)  NOT NULL,
+    name                      VARCHAR(120) NOT NULL,
+    -- BR-33, as flags rather than a name the code switches on.
+    returns_to_operation      BOOLEAN NOT NULL DEFAULT FALSE,
+    requires_customer_evidence BOOLEAN NOT NULL DEFAULT FALSE,
+    regrades_stock            BOOLEAN NOT NULL DEFAULT FALSE,
+    writes_off_stock          BOOLEAN NOT NULL DEFAULT FALSE,
+    sort_order                SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active                 BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE KEY qc_dispositions_code_uq (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================================
 -- 2. ORGANISATION & MASTER DATA
 -- =====================================================================
 
@@ -498,7 +609,7 @@ CREATE TABLE customers (
     CONSTRAINT customers_agent_fk    FOREIGN KEY (agent_id)        REFERENCES agents(id),
     CONSTRAINT customers_currency_fk FOREIGN KEY (currency_id)     REFERENCES currencies(id),
     CONSTRAINT customers_term_fk     FOREIGN KEY (payment_term_id) REFERENCES payment_terms(id),
-    CONSTRAINT customers_kind_chk CHECK (kind IN ('manufacturer','brand','buying_house','trader'))
+    CONSTRAINT customers_kind_fk FOREIGN KEY (kind) REFERENCES customer_kinds(code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE customer_contacts (
@@ -589,7 +700,7 @@ CREATE TABLE routings (
     is_default   BOOLEAN NOT NULL DEFAULT FALSE,
     is_active    BOOLEAN NOT NULL DEFAULT TRUE,
     UNIQUE KEY routings_code_uq (code),
-    CONSTRAINT routings_type_chk CHECK (product_type IN ('woven','flexo','screen','heat_transfer','offset_tag','thermal','ribbon','tape','other'))
+    CONSTRAINT routings_type_fk FOREIGN KEY (product_type) REFERENCES product_types(code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE routing_operations (
@@ -643,8 +754,8 @@ CREATE TABLE products (
     CONSTRAINT products_brand_fk    FOREIGN KEY (brand_id)    REFERENCES brands(id),
     CONSTRAINT products_routing_fk  FOREIGN KEY (routing_id)  REFERENCES routings(id),
     CONSTRAINT products_creator_fk  FOREIGN KEY (created_by)  REFERENCES users(id),
-    CONSTRAINT products_type_chk   CHECK (product_type IN ('woven','flexo','screen','heat_transfer','offset_tag','thermal','ribbon','tape','other')),
-    CONSTRAINT products_status_chk CHECK (status IN ('development','active','on_hold','discontinued'))
+    CONSTRAINT products_type_fk   FOREIGN KEY (product_type) REFERENCES product_types(code),
+    CONSTRAINT products_status_fk FOREIGN KEY (status)       REFERENCES product_statuses(code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE price_list_lines
@@ -701,7 +812,7 @@ CREATE TABLE product_specs (
     CONSTRAINT product_specs_warp_chk    CHECK (warp_ratio > 0 AND warp_ratio < 1),
     CONSTRAINT product_specs_colours_chk CHECK (colours >= 1),
     CONSTRAINT product_specs_bundle_chk  CHECK (bundle_size > 0 AND bundles_per_carton > 0),
-    CONSTRAINT product_specs_cut_chk     CHECK (cut_type  IS NULL OR cut_type  IN ('hot_cut','ultrasonic','laser','die_cut','straight_cut')),
+    CONSTRAINT product_specs_cut_fk      FOREIGN KEY (cut_type) REFERENCES cut_types(code),
     CONSTRAINT product_specs_fold_chk    CHECK (fold_type IS NULL OR fold_type IN ('flat','centre_fold','end_fold','loop','mitre','manhattan','book_cover'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -845,7 +956,7 @@ CREATE TABLE inquiries (
     CONSTRAINT inquiries_brand_fk    FOREIGN KEY (brand_id)            REFERENCES brands(id),
     CONSTRAINT inquiries_merch_fk    FOREIGN KEY (merchandiser_id)     REFERENCES employees(id),
     CONSTRAINT inquiries_creator_fk  FOREIGN KEY (created_by)          REFERENCES users(id),
-    CONSTRAINT inquiries_source_chk CHECK (source IS NULL OR source IN ('email','phone','visit','portal','agent','repeat')),
+    CONSTRAINT inquiries_source_fk FOREIGN KEY (source) REFERENCES inquiry_sources(code),
     CONSTRAINT inquiries_status_chk CHECK (status IN ('draft','open','quoted','won','lost','cancelled'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -864,7 +975,7 @@ CREATE TABLE inquiry_lines (
     CONSTRAINT inquiry_lines_inquiry_fk FOREIGN KEY (inquiry_id) REFERENCES inquiries(id) ON DELETE CASCADE,
     CONSTRAINT inquiry_lines_product_fk FOREIGN KEY (product_id) REFERENCES products(id),
     CONSTRAINT inquiry_lines_qty_chk  CHECK (qty > 0),
-    CONSTRAINT inquiry_lines_type_chk CHECK (product_type IS NULL OR product_type IN ('woven','flexo','screen','heat_transfer','offset_tag','thermal','ribbon','tape','other'))
+    CONSTRAINT inquiry_lines_type_fk FOREIGN KEY (product_type) REFERENCES product_types(code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE quotations (
@@ -1038,7 +1149,7 @@ CREATE TABLE sales_orders (
     CONSTRAINT sales_orders_merch_fk     FOREIGN KEY (merchandiser_id)     REFERENCES employees(id),
     CONSTRAINT sales_orders_unit_fk      FOREIGN KEY (factory_unit_id)     REFERENCES factory_units(id),
     CONSTRAINT sales_orders_creator_fk   FOREIGN KEY (created_by)          REFERENCES users(id),
-    CONSTRAINT sales_orders_priority_chk CHECK (priority IN ('low','normal','high','urgent')),
+    CONSTRAINT sales_orders_priority_fk FOREIGN KEY (priority) REFERENCES order_priorities(code),
     CONSTRAINT sales_orders_status_chk   CHECK (status IN ('draft','credit_hold','confirmed','in_production','partially_delivered','delivered','closed','cancelled'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -2136,7 +2247,7 @@ CREATE TABLE defects (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     UNIQUE KEY defects_code_uq (code),
     CONSTRAINT defects_process_chk  CHECK (process IS NULL OR process IN ('weaving','printing','cutting','folding','packing','material','general')),
-    CONSTRAINT defects_severity_chk CHECK (severity IN ('critical','major','minor'))
+    CONSTRAINT defects_severity_fk FOREIGN KEY (severity) REFERENCES defect_severities(code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE aql_plans (
@@ -2197,7 +2308,7 @@ CREATE TABLE qc_inspections (
     CONSTRAINT qc_inspections_creator_fk   FOREIGN KEY (created_by)            REFERENCES users(id),
     CONSTRAINT qc_inspections_stage_chk  CHECK (stage IN ('incoming','in_process','final','pre_shipment','customer')),
     CONSTRAINT qc_inspections_result_chk CHECK (result IN ('pending','accepted','rejected','accepted_with_concession')),
-    CONSTRAINT qc_inspections_disp_chk   CHECK (disposition IS NULL OR disposition IN ('rework','concession','downgrade','scrap','release')),
+    CONSTRAINT qc_inspections_disp_fk    FOREIGN KEY (disposition) REFERENCES qc_dispositions(code),
     -- QC2 / BR-33: a rejected lot may never leave QC without a disposition
     CONSTRAINT qc_inspections_rejected_chk CHECK (result <> 'rejected' OR disposition IS NOT NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -2322,7 +2433,7 @@ CREATE TABLE ncrs (
     CONSTRAINT ncrs_raiser_fk   FOREIGN KEY (raised_by)        REFERENCES users(id),
     CONSTRAINT ncrs_owner_fk    FOREIGN KEY (owner_id)         REFERENCES users(id),
     CONSTRAINT ncrs_source_chk   CHECK (source IN ('incoming','in_process','final','customer_complaint','audit','lab')),
-    CONSTRAINT ncrs_severity_chk CHECK (severity IN ('critical','major','minor')),
+    CONSTRAINT ncrs_severity_fk FOREIGN KEY (severity) REFERENCES defect_severities(code),
     CONSTRAINT ncrs_status_chk   CHECK (status IN ('open','investigating','action_taken','verified','closed'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -2379,7 +2490,8 @@ CREATE TABLE certification_scopes (
     KEY certification_scopes_cert_idx (certification_id),
     KEY certification_scopes_category_idx (item_category_id),
     CONSTRAINT certification_scopes_cert_fk     FOREIGN KEY (certification_id) REFERENCES certifications(id) ON DELETE CASCADE,
-    CONSTRAINT certification_scopes_category_fk FOREIGN KEY (item_category_id) REFERENCES item_categories(id)
+    CONSTRAINT certification_scopes_category_fk FOREIGN KEY (item_category_id) REFERENCES item_categories(id),
+    CONSTRAINT certification_scopes_type_fk     FOREIGN KEY (product_type)     REFERENCES product_types(code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE coc_transactions (
@@ -2843,6 +2955,287 @@ CREATE TABLE payment_allocations (
     CONSTRAINT payment_allocations_bill_fk    FOREIGN KEY (supplier_bill_id) REFERENCES supplier_bills(id),
     CONSTRAINT payment_allocations_amount_chk CHECK (amount > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================================
+-- 13a. TRADE FINANCE, IMPORT & EXPENSES
+--
+-- Yarn, ribbon and ink are imported (00-overview §2), which means the cost
+-- of a kilo of yarn is not the supplier's rate: it is that rate plus
+-- freight, insurance, duty, C&F and bank charges, and none of those are
+-- known on the day the PO is raised. These tables carry the documents
+-- between the order and the true cost — the letter of credit, the
+-- shipment, the costs against it — and end by writing the landed rate onto
+-- the GRN line and the lot (BR-36).
+--
+-- `expenses` is the general factory expense document. It shares the
+-- approval shape of the other money documents and is deliberately separate
+-- from `import_costs`: an expense is something somebody pays for, an
+-- import cost is something a shipment carries.
+-- =====================================================================
+
+CREATE TABLE bank_accounts (
+    id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code        VARCHAR(20)  NOT NULL,
+    name        VARCHAR(120) NOT NULL,
+    bank_name   VARCHAR(120) NOT NULL,
+    branch      VARCHAR(120),
+    account_no  VARCHAR(60),
+    swift_code  VARCHAR(20),
+    currency_id BIGINT UNSIGNED NOT NULL,
+    kind        VARCHAR(20) NOT NULL DEFAULT 'current',
+    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    UNIQUE KEY bank_accounts_code_uq (code),
+    KEY bank_accounts_currency_idx (currency_id),
+    CONSTRAINT bank_accounts_currency_fk FOREIGN KEY (currency_id) REFERENCES currencies(id),
+    CONSTRAINT bank_accounts_kind_chk CHECK (kind IN ('current','od','lc','cash','fc'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE expense_categories (
+    id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code       VARCHAR(20)  NOT NULL,
+    name       VARCHAR(120) NOT NULL,
+    kind       VARCHAR(20) NOT NULL DEFAULT 'factory',
+    is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    UNIQUE KEY expense_categories_code_uq (code),
+    CONSTRAINT expense_categories_kind_chk CHECK (kind IN ('factory','admin','selling','financial','import'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- The credit itself. `number` is ours (BR-34); `lc_no` is the bank's, and
+-- only exists once the LC is actually opened.
+CREATE TABLE letters_of_credit (
+    id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    number             VARCHAR(30),
+    lc_no              VARCHAR(60),
+    kind               VARCHAR(20) NOT NULL DEFAULT 'sight',
+    supplier_id        BIGINT UNSIGNED NOT NULL,
+    bank_account_id    BIGINT UNSIGNED,
+    currency_id        BIGINT UNSIGNED NOT NULL,
+    exchange_rate      DECIMAL(18,8) NOT NULL DEFAULT 1,
+    amount             DECIMAL(18,4) NOT NULL DEFAULT 0,
+    tolerance_pct      DECIMAL(9,4)  NOT NULL DEFAULT 0,
+    margin_pct         DECIMAL(9,4)  NOT NULL DEFAULT 0,
+    tenor_days         SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    charges_amount     DECIMAL(18,4) NOT NULL DEFAULT 0,
+    applied_on         DATE,
+    issued_on          DATE,
+    expiry_date        DATE,
+    last_shipment_date DATE,
+    incoterm           VARCHAR(20),
+    port_of_loading    VARCHAR(80),
+    port_of_discharge  VARCHAR(80),
+    status             VARCHAR(25) NOT NULL DEFAULT 'draft',
+    remarks            VARCHAR(500),
+    created_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    created_by         BIGINT UNSIGNED,
+    UNIQUE KEY letters_of_credit_number_uq (number),
+    KEY letters_of_credit_supplier_idx (supplier_id, status),
+    KEY letters_of_credit_expiry_idx (status, expiry_date),
+    KEY letters_of_credit_bank_idx (bank_account_id),
+    KEY letters_of_credit_currency_idx (currency_id),
+    KEY letters_of_credit_creator_idx (created_by),
+    CONSTRAINT letters_of_credit_supplier_fk FOREIGN KEY (supplier_id)     REFERENCES suppliers(id),
+    CONSTRAINT letters_of_credit_bank_fk     FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id),
+    CONSTRAINT letters_of_credit_currency_fk FOREIGN KEY (currency_id)     REFERENCES currencies(id),
+    CONSTRAINT letters_of_credit_creator_fk  FOREIGN KEY (created_by)      REFERENCES users(id),
+    CONSTRAINT letters_of_credit_kind_chk   CHECK (kind IN ('sight','usance','back_to_back','tt','da','dp')),
+    CONSTRAINT letters_of_credit_status_chk CHECK (status IN ('draft','applied','opened','shipped','retired','closed','cancelled')),
+    CONSTRAINT letters_of_credit_amount_chk CHECK (amount >= 0),
+    -- The bank will not accept a shipment date past expiry, so neither do we.
+    CONSTRAINT letters_of_credit_dates_chk CHECK (
+        expiry_date IS NULL OR last_shipment_date IS NULL OR last_shipment_date <= expiry_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- One LC commonly covers several POs to the same supplier.
+CREATE TABLE lc_purchase_orders (
+    id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    lc_id          BIGINT UNSIGNED NOT NULL,
+    po_id          BIGINT UNSIGNED NOT NULL,
+    covered_amount DECIMAL(18,4) NOT NULL DEFAULT 0,
+    UNIQUE KEY lc_purchase_orders_uq (lc_id, po_id),
+    KEY lc_purchase_orders_po_idx (po_id),
+    CONSTRAINT lc_purchase_orders_lc_fk FOREIGN KEY (lc_id) REFERENCES letters_of_credit(id) ON DELETE CASCADE,
+    CONSTRAINT lc_purchase_orders_po_fk FOREIGN KEY (po_id) REFERENCES purchase_orders(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Amendments are appended, never edited into the LC: what the bank charged
+-- for and when the date moved is the whole point of the record.
+CREATE TABLE lc_amendments (
+    id                      BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    lc_id                   BIGINT UNSIGNED NOT NULL,
+    amendment_no            SMALLINT UNSIGNED NOT NULL,
+    amended_on              DATE NOT NULL DEFAULT (CURRENT_DATE),
+    amount_delta            DECIMAL(18,4) NOT NULL DEFAULT 0,
+    new_expiry_date         DATE,
+    new_last_shipment_date  DATE,
+    charges_amount          DECIMAL(18,4) NOT NULL DEFAULT 0,
+    narrative               VARCHAR(500),
+    created_at              DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    created_by              BIGINT UNSIGNED,
+    UNIQUE KEY lc_amendments_uq (lc_id, amendment_no),
+    KEY lc_amendments_creator_idx (created_by),
+    CONSTRAINT lc_amendments_lc_fk      FOREIGN KEY (lc_id)      REFERENCES letters_of_credit(id) ON DELETE CASCADE,
+    CONSTRAINT lc_amendments_creator_fk FOREIGN KEY (created_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE import_shipments (
+    id                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    number            VARCHAR(30),
+    lc_id             BIGINT UNSIGNED,
+    supplier_id       BIGINT UNSIGNED NOT NULL,
+    invoice_no        VARCHAR(60),
+    invoice_date      DATE,
+    transport_doc_no  VARCHAR(60),
+    mode              VARCHAR(20) NOT NULL DEFAULT 'sea',
+    carrier           VARCHAR(120),
+    etd               DATE,
+    eta               DATE,
+    arrived_on        DATE,
+    cleared_on        DATE,
+    bill_of_entry     VARCHAR(60),
+    be_date           DATE,
+    port_of_loading   VARCHAR(80),
+    port_of_discharge VARCHAR(80),
+    incoterm          VARCHAR(20),
+    currency_id       BIGINT UNSIGNED NOT NULL,
+    exchange_rate     DECIMAL(18,8) NOT NULL DEFAULT 1,
+    goods_value       DECIMAL(18,4) NOT NULL DEFAULT 0,
+    cost_total        DECIMAL(18,4) NOT NULL DEFAULT 0,
+    allocated_amount  DECIMAL(18,4) NOT NULL DEFAULT 0,
+    status            VARCHAR(25) NOT NULL DEFAULT 'draft',
+    remarks           VARCHAR(500),
+    created_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    created_by        BIGINT UNSIGNED,
+    UNIQUE KEY import_shipments_number_uq (number),
+    KEY import_shipments_supplier_idx (supplier_id, status),
+    KEY import_shipments_lc_idx (lc_id),
+    KEY import_shipments_eta_idx (status, eta),
+    KEY import_shipments_currency_idx (currency_id),
+    KEY import_shipments_creator_idx (created_by),
+    CONSTRAINT import_shipments_lc_fk       FOREIGN KEY (lc_id)       REFERENCES letters_of_credit(id),
+    CONSTRAINT import_shipments_supplier_fk FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+    CONSTRAINT import_shipments_currency_fk FOREIGN KEY (currency_id) REFERENCES currencies(id),
+    CONSTRAINT import_shipments_creator_fk  FOREIGN KEY (created_by)  REFERENCES users(id),
+    CONSTRAINT import_shipments_mode_chk   CHECK (mode IN ('sea','air','road','rail','courier')),
+    CONSTRAINT import_shipments_status_chk CHECK (status IN ('draft','in_transit','arrived','cleared','costed','closed','cancelled'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE expenses (
+    id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    number              VARCHAR(30),
+    expense_date        DATE NOT NULL DEFAULT (CURRENT_DATE),
+    expense_category_id BIGINT UNSIGNED NOT NULL,
+    factory_unit_id     BIGINT UNSIGNED,
+    department_id       BIGINT UNSIGNED,
+    supplier_id         BIGINT UNSIGNED,
+    import_shipment_id  BIGINT UNSIGNED,
+    payee               VARCHAR(180) NOT NULL,
+    description         VARCHAR(500),
+    currency_id         BIGINT UNSIGNED NOT NULL,
+    exchange_rate       DECIMAL(18,8) NOT NULL DEFAULT 1,
+    amount              DECIMAL(18,4) NOT NULL,
+    tax_amount          DECIMAL(18,4) NOT NULL DEFAULT 0,
+    total               DECIMAL(18,4) NOT NULL DEFAULT 0,
+    method              VARCHAR(20) NOT NULL DEFAULT 'cash',
+    bank_account_id     BIGINT UNSIGNED,
+    reference_no        VARCHAR(80),
+    status              VARCHAR(20) NOT NULL DEFAULT 'draft',
+    approved_by         BIGINT UNSIGNED,
+    approved_at         DATETIME(3),
+    paid_on             DATE,
+    created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    created_by          BIGINT UNSIGNED,
+    UNIQUE KEY expenses_number_uq (number),
+    KEY expenses_date_idx (expense_date, status),
+    KEY expenses_category_idx (expense_category_id, expense_date),
+    KEY expenses_unit_idx (factory_unit_id),
+    KEY expenses_department_idx (department_id),
+    KEY expenses_supplier_idx (supplier_id),
+    KEY expenses_shipment_idx (import_shipment_id),
+    KEY expenses_currency_idx (currency_id),
+    KEY expenses_bank_idx (bank_account_id),
+    KEY expenses_approver_idx (approved_by),
+    KEY expenses_creator_idx (created_by),
+    CONSTRAINT expenses_category_fk FOREIGN KEY (expense_category_id) REFERENCES expense_categories(id),
+    CONSTRAINT expenses_unit_fk     FOREIGN KEY (factory_unit_id)     REFERENCES factory_units(id),
+    CONSTRAINT expenses_dept_fk     FOREIGN KEY (department_id)       REFERENCES departments(id),
+    CONSTRAINT expenses_supplier_fk FOREIGN KEY (supplier_id)         REFERENCES suppliers(id),
+    CONSTRAINT expenses_shipment_fk FOREIGN KEY (import_shipment_id)  REFERENCES import_shipments(id),
+    CONSTRAINT expenses_currency_fk FOREIGN KEY (currency_id)         REFERENCES currencies(id),
+    CONSTRAINT expenses_bank_fk     FOREIGN KEY (bank_account_id)     REFERENCES bank_accounts(id),
+    CONSTRAINT expenses_approver_fk FOREIGN KEY (approved_by)         REFERENCES users(id),
+    CONSTRAINT expenses_creator_fk  FOREIGN KEY (created_by)          REFERENCES users(id),
+    CONSTRAINT expenses_method_chk CHECK (method IN ('cash','cheque','bank_transfer','card','adjustment')),
+    CONSTRAINT expenses_status_chk CHECK (status IN ('draft','pending_approval','approved','paid','cancelled')),
+    CONSTRAINT expenses_amount_chk CHECK (amount > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- What a shipment costs beyond the goods. `is_allocable` separates the
+-- costs that belong in inventory (freight, duty, C&F) from the ones that
+-- do not (a demurrage penalty is a period cost, not part of a kilo of yarn).
+CREATE TABLE import_costs (
+    id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    shipment_id   BIGINT UNSIGNED NOT NULL,
+    cost_type     VARCHAR(30) NOT NULL,
+    description   VARCHAR(180),
+    supplier_id   BIGINT UNSIGNED,
+    expense_id    BIGINT UNSIGNED,
+    reference_no  VARCHAR(80),
+    incurred_on   DATE NOT NULL DEFAULT (CURRENT_DATE),
+    currency_id   BIGINT UNSIGNED NOT NULL,
+    exchange_rate DECIMAL(18,8) NOT NULL DEFAULT 1,
+    amount        DECIMAL(18,4) NOT NULL,
+    base_amount   DECIMAL(18,4) NOT NULL DEFAULT 0,
+    is_allocable  BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    created_by    BIGINT UNSIGNED,
+    KEY import_costs_shipment_idx (shipment_id, cost_type),
+    KEY import_costs_supplier_idx (supplier_id),
+    KEY import_costs_expense_idx (expense_id),
+    KEY import_costs_currency_idx (currency_id),
+    KEY import_costs_creator_idx (created_by),
+    CONSTRAINT import_costs_shipment_fk FOREIGN KEY (shipment_id) REFERENCES import_shipments(id) ON DELETE CASCADE,
+    CONSTRAINT import_costs_supplier_fk FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+    CONSTRAINT import_costs_expense_fk  FOREIGN KEY (expense_id)  REFERENCES expenses(id),
+    CONSTRAINT import_costs_currency_fk FOREIGN KEY (currency_id) REFERENCES currencies(id),
+    CONSTRAINT import_costs_creator_fk  FOREIGN KEY (created_by)  REFERENCES users(id),
+    CONSTRAINT import_costs_type_chk CHECK (cost_type IN (
+        'freight','insurance','duty','vat','advance_income_tax','c_and_f','port',
+        'inland_transport','bank_charge','lc_commission','inspection','demurrage','other')),
+    CONSTRAINT import_costs_amount_chk CHECK (amount <> 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- The audit of BR-36: which cost, spread over which GRN line, on what
+-- basis, for how much. Re-running an allocation replaces these rows, so
+-- the arithmetic behind a lot's unit cost can always be shown.
+CREATE TABLE landed_cost_allocations (
+    id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    shipment_id    BIGINT UNSIGNED NOT NULL,
+    import_cost_id BIGINT UNSIGNED NOT NULL,
+    grn_line_id    BIGINT UNSIGNED NOT NULL,
+    stock_lot_id   BIGINT UNSIGNED,
+    basis          VARCHAR(20) NOT NULL DEFAULT 'value',
+    basis_value    DECIMAL(18,6) NOT NULL DEFAULT 0,
+    amount         DECIMAL(18,4) NOT NULL,
+    allocated_at   DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    UNIQUE KEY landed_cost_allocations_uq (import_cost_id, grn_line_id),
+    KEY landed_cost_allocations_shipment_idx (shipment_id),
+    KEY landed_cost_allocations_grnline_idx (grn_line_id),
+    KEY landed_cost_allocations_lot_idx (stock_lot_id),
+    CONSTRAINT landed_cost_allocations_shipment_fk FOREIGN KEY (shipment_id)    REFERENCES import_shipments(id) ON DELETE CASCADE,
+    CONSTRAINT landed_cost_allocations_cost_fk     FOREIGN KEY (import_cost_id) REFERENCES import_costs(id) ON DELETE CASCADE,
+    CONSTRAINT landed_cost_allocations_grnline_fk  FOREIGN KEY (grn_line_id)    REFERENCES grn_lines(id),
+    CONSTRAINT landed_cost_allocations_lot_fk      FOREIGN KEY (stock_lot_id)   REFERENCES stock_lots(id),
+    CONSTRAINT landed_cost_allocations_basis_chk CHECK (basis IN ('value','qty'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- A GRN that came off a shipment carries the link, so the allocation knows
+-- which receipts share the freight bill.
+ALTER TABLE grns
+    ADD COLUMN import_shipment_id BIGINT UNSIGNED AFTER po_id,
+    ADD KEY grns_shipment_idx (import_shipment_id),
+    ADD CONSTRAINT grns_shipment_fk FOREIGN KEY (import_shipment_id) REFERENCES import_shipments(id);
 
 -- =====================================================================
 -- 14. DERIVED OBJECTS

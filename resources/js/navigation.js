@@ -64,6 +64,18 @@ export const navigation = [
             { label: 'Purchase orders', href: '/purchase-orders', icon: 'purchase-order', permissions: ['purchase_order.view_any'] },
             { label: 'Goods receipts', href: '/grns', icon: 'goods-receipt', permissions: ['grn.view_any'] },
             { label: 'Suppliers', href: '/suppliers', icon: 'supplier', permissions: ['supplier.view_any'] },
+            {
+                // Import is one file followed through three documents — the credit, the
+                // consignment, the costs — so it is one row with a tab strip, not three rows.
+                label: 'Import',
+                href: '/import-shipments',
+                icon: 'ship',
+                permissions: ['import_shipment.view_any', 'letter_of_credit.view_any'],
+                children: [
+                    { label: 'Shipments', href: '/import-shipments', permissions: ['import_shipment.view_any'] },
+                    { label: 'Letters of credit', href: '/letters-of-credit', permissions: ['letter_of_credit.view_any'] },
+                ],
+            },
         ],
     },
     {
@@ -131,10 +143,11 @@ export const navigation = [
                 label: 'Money',
                 href: '/invoices',
                 icon: 'invoice',
-                permissions: ['sales_invoice.view_any', 'receipt.view_any'],
+                permissions: ['sales_invoice.view_any', 'receipt.view_any', 'expense.view_any'],
                 children: [
                     { label: 'Invoices', href: '/invoices', permissions: ['sales_invoice.view_any'] },
                     { label: 'Receipts', href: '/receipts', permissions: ['receipt.view_any'] },
+                    { label: 'Expenses', href: '/expenses', permissions: ['expense.view_any'] },
                 ],
             },
         ],

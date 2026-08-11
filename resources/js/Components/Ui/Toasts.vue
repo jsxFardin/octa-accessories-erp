@@ -34,7 +34,7 @@ watch(toasts, (value) => {
 </script>
 
 <template>
-    <div class="pointer-events-none fixed top-4 right-4 z-[60] flex w-full max-w-sm flex-col gap-2">
+    <div class="pointer-events-none fixed top-4 right-4 z-[100] flex w-full max-w-sm flex-col gap-2">
         <TransitionGroup
             enter-active-class="transition duration-200"
             enter-from-class="translate-x-4 opacity-0"

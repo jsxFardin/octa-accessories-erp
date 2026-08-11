@@ -149,6 +149,30 @@ it('cannot book more output from an operation than was handed to it', function (
     expect(DB::select($sql, ['job_card_operations_output_chk']))->toHaveCount(1);
 });
 
+it('has a migration behind every object the schema document declares', function (): void {
+    // The DDL now lives in one migration per table (database/migrations/2026_01_02_*), while
+    // docs/02a-schema.sql stays the document the auditors read. Nothing keeps the two in step
+    // automatically, so this is the guard: a table added to the document and not to a
+    // migration fails here rather than in production.
+    $script = App\Support\Schema\SqlScript::fromFile(base_path('docs/02a-schema.sql'));
+
+    $schema = DB::getDatabaseName();
+
+    // Aliased: MySQL returns these columns upper-cased, which `pluck('table_name')` misses.
+    $tables = array_column(
+        DB::select('SELECT table_name AS name FROM information_schema.tables WHERE table_schema = ?', [$schema]),
+        'name',
+    );
+
+    $views = array_column(
+        DB::select('SELECT table_name AS name FROM information_schema.views WHERE table_schema = ?', [$schema]),
+        'name',
+    );
+
+    expect(array_diff($script->tables(), $tables))->toBe([])
+        ->and(array_diff($script->views(), $views))->toBe([]);
+});
+
 it('loads every object the specification promises', function (): void {
     $schema = DB::getDatabaseName();
 
@@ -167,10 +191,14 @@ it('loads every object the specification promises', function (): void {
         ->where('constraint_schema', $schema)
         ->count();
 
-    // 129 ERP tables plus the framework's own (migrations, sessions, password resets, cache,
-    // cache_locks, jobs, job_batches, failed_jobs).
-    expect($tables)->toBe(137)
+    // 146 ERP tables plus the framework's own (migrations, sessions, password resets, cache,
+    // cache_locks, jobs, job_batches, failed_jobs). The ERP count rose by nine with §13a —
+    // trade finance, import and expenses — and by eight with §1a, the vocabularies.
+    //
+    // Those eight moved eleven CHECK constraints onto twelve foreign keys: the list a column
+    // accepts is a table now, not a constraint body.
+    expect($tables)->toBe(154)
         ->and($views)->toBe(4)
-        ->and($foreignKeys)->toBe(364)
-        ->and($checks)->toBe(165);
+        ->and($foreignKeys)->toBe(408)
+        ->and($checks)->toBe(168);
 });

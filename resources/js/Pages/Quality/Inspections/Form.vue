@@ -9,7 +9,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
-import FormPage from '@/Components/Ui/FormPage.vue';
+import FormLayout from '@/Components/Ui/FormLayout.vue';
 import { pcs, titleCase } from '@/plugins/formatting';
 
 const props = defineProps({
@@ -125,184 +125,185 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
         <template #title>New inspection</template>
         <template #subtitle>The verdict is computed, never typed (BR-30)</template>
 
-        <FormPage>
+        <FormLayout @submit="submit">
 
+            <Card title="What is being inspected">
+                <div class="grid gap-3 sm:grid-cols-3">
+                    <FormField label="Job card" :error="form.errors.job_card_id">
+                        <SelectInput
+                            v-model="form.job_card_id"
+                            placeholder="— select —"
+                            :options="jobCards"
+                            value-key="id"
+                            label-key="number"
+                        />
+                    </FormField>
 
-            <div class="grid max-w-6xl gap-4 lg:grid-cols-3">
-                <div class="space-y-4 lg:col-span-2">
-                    <Card title="What is being inspected">
-                        <div class="grid gap-3 sm:grid-cols-3">
-                            <FormField label="Job card" :error="form.errors.job_card_id">
-                                <SelectInput
-                                    v-model="form.job_card_id"
-                                    placeholder="— select —"
-                                    :options="jobCards"
-                                    value-key="id"
-                                    label-key="number"
-                                />
-                            </FormField>
+                    <FormField label="Stage" :error="form.errors.stage" required>
+                        <SelectInput
+                            v-model="form.stage"
+                            :placeholder="null"
+                            :options="[
+                                { value: 'incoming', label: 'Incoming' },
+                                { value: 'in_process', label: 'In process' },
+                                { value: 'final', label: 'Final' },
+                                { value: 'pre_dispatch', label: 'Pre-dispatch' },
+                            ]"
+                        />
+                    </FormField>
 
-                            <FormField label="Stage" :error="form.errors.stage" required>
-                                <SelectInput
-                                    v-model="form.stage"
-                                    :placeholder="null"
-                                    :options="[
-                                        { value: 'incoming', label: 'Incoming' },
-                                        { value: 'in_process', label: 'In process' },
-                                        { value: 'final', label: 'Final' },
-                                        { value: 'pre_dispatch', label: 'Pre-dispatch' },
-                                    ]"
-                                />
-                            </FormField>
-
-                            <FormField label="Lot size (pieces)" :error="form.errors.lot_size" required>
-                                <TextInput v-model="form.lot_size" type="number" numeric min="1" />
-                            </FormField>
-                        </div>
-                    </Card>
-
-                    <Card title="Defects found" rule="BR-31" subtitle="Tap to count; the severity totals follow" :padded="false">
-                        <div class="divide-y divide-slate-100">
-                            <div
-                                v-for="defect in defects"
-                                :key="defect.id"
-                                class="flex items-center gap-3 px-3 py-2"
-                                :class="defectCount(defect.id) > 0 && 'bg-amber-50/40'"
-                            >
-                                <Badge :tone="severityTone[defect.severity]" :label="defect.severity" />
-
-                                <div class="min-w-0 flex-1">
-                                    <p class="truncate text-sm text-ink-800">{{ defect.name }}</p>
-                                    <p class="text-[10px] text-ink-400">{{ defect.code }} · {{ titleCase(defect.process) }}</p>
-                                </div>
-
-                                <div class="flex items-center gap-1">
-                                    <button
-                                        class="size-7 rounded-md border border-slate-300 text-ink-700 transition hover:bg-slate-100 disabled:opacity-30"
-                                        :disabled="defectCount(defect.id) === 0"
-                                        :aria-label="`One fewer ${defect.name}`"
-                                        @click="bump(defect, -1)"
-                                    >
-                                        −
-                                    </button>
-                                    <span class="w-8 text-center text-sm font-semibold tnum text-ink-900">
-                                        {{ defectCount(defect.id) }}
-                                    </span>
-                                    <button
-                                        class="size-7 rounded-md border border-slate-300 text-ink-700 transition hover:bg-slate-100"
-                                        :aria-label="`One more ${defect.name}`"
-                                        @click="bump(defect, 1)"
-                                    >
-                                        +
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
+                    <FormField label="Lot size (pieces)" :error="form.errors.lot_size" required>
+                        <TextInput v-model="form.lot_size" type="number" numeric min="1" />
+                    </FormField>
                 </div>
+            </Card>
 
-                <div class="space-y-4">
-                    <!-- The plan, resolved live so the inspector knows the numbers before counting. -->
-                    <Card title="Sampling plan" rule="BR-30" subtitle="ISO 2859-1, Level II, AQL 2.5">
-                        <div v-if="plan" class="space-y-3">
-                            <dl class="grid grid-cols-3 gap-2 text-center">
-                                <div class="rounded-md bg-slate-50 py-2">
-                                    <dt class="text-[10px] text-ink-500">Sample</dt>
-                                    <dd class="text-lg font-semibold tnum text-ink-900">{{ pcs(plan.sample_size) }}</dd>
-                                </div>
-                                <div class="rounded-md bg-emerald-50 py-2">
-                                    <dt class="text-[10px] text-emerald-700">Accept ≤</dt>
-                                    <dd class="text-lg font-semibold tnum text-emerald-800">{{ plan.accept_number }}</dd>
-                                </div>
-                                <div class="rounded-md bg-rose-50 py-2">
-                                    <dt class="text-[10px] text-rose-700">Reject ≥</dt>
-                                    <dd class="text-lg font-semibold tnum text-rose-800">{{ plan.reject_number }}</dd>
-                                </div>
-                            </dl>
+            <Card title="Defects found" rule="BR-31" subtitle="Tap to count; the severity totals follow" :padded="false">
+                <div class="divide-y divide-slate-100">
+                    <div
+                        v-for="defect in defects"
+                        :key="defect.id"
+                        class="flex items-center gap-3 px-3 py-2"
+                        :class="defectCount(defect.id) > 0 && 'bg-amber-50/40'"
+                    >
+                        <Badge :tone="severityTone[defect.severity]" :label="defect.severity" />
 
-                            <p v-if="plan.whole_lot" class="text-xs text-ink-500">
-                                Below the smallest band — the whole lot is inspected.
-                            </p>
-
-                            <div class="grid grid-cols-3 gap-2 text-center text-sm">
-                                <div>
-                                    <p class="text-[10px] text-ink-500">Critical</p>
-                                    <p class="font-semibold tnum text-rose-600">{{ form.critical_found }}</p>
-                                </div>
-                                <div>
-                                    <p class="text-[10px] text-ink-500">Major</p>
-                                    <p class="font-semibold tnum text-ink-900">{{ form.major_found }}</p>
-                                </div>
-                                <div>
-                                    <p class="text-[10px] text-ink-500">DHU</p>
-                                    <p class="font-semibold tnum text-ink-900">{{ dhu }}</p>
-                                </div>
-                            </div>
-
-                            <div
-                                class="rounded-md px-3 py-2 text-center"
-                                :class="verdict === 'rejected' ? 'bg-rose-100 text-rose-900' : 'bg-emerald-100 text-emerald-900'"
-                            >
-                                <p class="text-[10px] tracking-wider uppercase">Computed verdict</p>
-                                <p class="text-lg font-bold">{{ verdict === 'rejected' ? 'REJECTED' : 'ACCEPTED' }}</p>
-                            </div>
-
-                            <p v-if="Number(form.critical_found) >= 1" class="text-xs text-rose-700">
-                                A single critical defect rejects the lot regardless of the plan.
-                            </p>
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm text-ink-800">{{ defect.name }}</p>
+                            <p class="text-[10px] text-ink-400">{{ defect.code }} · {{ titleCase(defect.process) }}</p>
                         </div>
 
-                        <p v-else class="text-sm text-ink-500">Enter a lot size to resolve the plan.</p>
-                    </Card>
-
-                    <!-- BR-33 / QC2: the database refuses a rejection with no disposition. -->
-                    <Card v-if="needsDisposition" title="Disposition" rule="BR-33 · QC2">
-                        <div class="space-y-3">
-                            <p class="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-900">
-                                No lot leaves QC without a disposition. Exactly one of rework, concession,
-                                downgrade or scrap.
-                            </p>
-
-                            <FormField label="Disposition" :error="form.errors.disposition" required>
-                                <SelectInput
-                                    v-model="form.disposition"
-                                    placeholder="— select —"
-                                    :options="[
-                                        { value: 'rework', label: 'Rework — back to an operation' },
-                                        { value: 'concession', label: 'Concession — customer accepted' },
-                                        { value: 'downgrade', label: 'Downgrade — second quality' },
-                                        { value: 'scrap', label: 'Scrap — written off' },
-                                    ]"
-                                />
-                            </FormField>
-
-                            <FormField
-                                v-if="form.disposition === 'concession'"
-                                label="Customer approval reference"
-                                hint="A concession without evidence is the first thing a brand disputes."
-                                :error="form.errors.disposition_ref"
+                        <div class="flex items-center gap-1">
+                            <button
+                                class="size-7 rounded-md border border-slate-300 text-ink-700 transition hover:bg-slate-100 disabled:opacity-30"
+                                :disabled="defectCount(defect.id) === 0"
+                                :aria-label="`One fewer ${defect.name}`"
+                                @click="bump(defect, -1)"
                             >
-                                <TextInput v-model="form.disposition_ref" />
-                            </FormField>
+                                −
+                            </button>
+                            <span class="w-8 text-center text-sm font-semibold tnum text-ink-900">
+                                {{ defectCount(defect.id) }}
+                            </span>
+                            <button
+                                class="size-7 rounded-md border border-slate-300 text-ink-700 transition hover:bg-slate-100"
+                                :aria-label="`One more ${defect.name}`"
+                                @click="bump(defect, 1)"
+                            >
+                                +
+                            </button>
                         </div>
-                    </Card>
+                    </div>
+                </div>
+            </Card>
 
-                    <Card title="Remarks">
-                        <FormField :error="form.errors.remarks">
-                            <textarea v-model="form.remarks" rows="3" class="form-textarea" />
+            <template #rail>
+                <!-- The plan, resolved live so the inspector knows the numbers before counting. -->
+                <Card title="Sampling plan" rule="BR-30" subtitle="ISO 2859-1, Level II, AQL 2.5">
+                    <div v-if="plan" class="space-y-3">
+                        <dl class="grid grid-cols-3 gap-2 text-center">
+                            <div class="rounded-md bg-slate-50 py-2">
+                                <dt class="text-[10px] text-ink-500">Sample</dt>
+                                <dd class="text-lg font-semibold tnum text-ink-900">{{ pcs(plan.sample_size) }}</dd>
+                            </div>
+                            <div class="rounded-md bg-emerald-50 py-2">
+                                <dt class="text-[10px] text-emerald-700">Accept ≤</dt>
+                                <dd class="text-lg font-semibold tnum text-emerald-800">{{ plan.accept_number }}</dd>
+                            </div>
+                            <div class="rounded-md bg-rose-50 py-2">
+                                <dt class="text-[10px] text-rose-700">Reject ≥</dt>
+                                <dd class="text-lg font-semibold tnum text-rose-800">{{ plan.reject_number }}</dd>
+                            </div>
+                        </dl>
+
+                        <p v-if="plan.whole_lot" class="text-xs text-ink-500">
+                            Below the smallest band — the whole lot is inspected.
+                        </p>
+
+                        <div class="grid grid-cols-3 gap-2 text-center text-sm">
+                            <div>
+                                <p class="text-[10px] text-ink-500">Critical</p>
+                                <p class="font-semibold tnum text-rose-600">{{ form.critical_found }}</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] text-ink-500">Major</p>
+                                <p class="font-semibold tnum text-ink-900">{{ form.major_found }}</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] text-ink-500">DHU</p>
+                                <p class="font-semibold tnum text-ink-900">{{ dhu }}</p>
+                            </div>
+                        </div>
+
+                        <div
+                            class="rounded-md px-3 py-2 text-center"
+                            :class="verdict === 'rejected' ? 'bg-rose-100 text-rose-900' : 'bg-emerald-100 text-emerald-900'"
+                        >
+                            <p class="text-[10px] tracking-wider uppercase">Computed verdict</p>
+                            <p class="text-lg font-bold">{{ verdict === 'rejected' ? 'REJECTED' : 'ACCEPTED' }}</p>
+                        </div>
+
+                        <p v-if="Number(form.critical_found) >= 1" class="text-xs text-rose-700">
+                            A single critical defect rejects the lot regardless of the plan.
+                        </p>
+                    </div>
+
+                    <p v-else class="text-sm text-ink-500">Enter a lot size to resolve the plan.</p>
+                </Card>
+
+                <!-- BR-33 / QC2: the database refuses a rejection with no disposition. -->
+                <Card v-if="needsDisposition" title="Disposition" rule="BR-33 · QC2">
+                    <div class="space-y-3">
+                        <p class="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-900">
+                            No lot leaves QC without a disposition. Exactly one of rework, concession,
+                            downgrade or scrap.
+                        </p>
+
+                        <FormField label="Disposition" :error="form.errors.disposition" required>
+                            <SelectInput
+                                v-model="form.disposition"
+                                placeholder="— select —"
+                                :options="[
+                                    { value: 'rework', label: 'Rework — back to an operation' },
+                                    { value: 'concession', label: 'Concession — customer accepted' },
+                                    { value: 'downgrade', label: 'Downgrade — second quality' },
+                                    { value: 'scrap', label: 'Scrap — written off' },
+                                ]"
+                            />
                         </FormField>
-                    </Card>
-                </div>
-            </div>
-        
 
-            <FormFooter
-                :form="form"
-                :disabled="!form.lot_size || (needsDisposition && !form.disposition)"
-                cancel-href="/qc-inspections"
-                :label="'Record inspection'"
-                @save="submit"
-            />
-        </FormPage>
+                        <FormField
+                            v-if="form.disposition === 'concession'"
+                            label="Customer approval reference"
+                            hint="A concession without evidence is the first thing a brand disputes."
+                            :error="form.errors.disposition_ref"
+                        >
+                            <TextInput v-model="form.disposition_ref" />
+                        </FormField>
+                    </div>
+                </Card>
+
+                <Card title="Remarks">
+                    <FormField :error="form.errors.remarks">
+                        <textarea
+                            v-model="form.remarks"
+                            rows="6"
+                            class="form-textarea"
+                            placeholder="What the inspector saw that the counts do not say."
+                        />
+                    </FormField>
+                </Card>
+            </template>
+
+            <template #footer>
+                <FormFooter
+                    :form="form"
+                    :disabled="!form.lot_size || (needsDisposition && !form.disposition)"
+                    cancel-href="/qc-inspections"
+                    :label="'Record inspection'"
+                    @save="submit"
+                />
+            </template>
+        </FormLayout>
     </AppLayout>
 </template>

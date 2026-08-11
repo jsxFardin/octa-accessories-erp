@@ -14,7 +14,7 @@ beforeEach(function (): void {
 
 function costSpec(array $overrides = []): SpecInput
 {
-    return SpecInput::fromArray(array_merge([
+    return fixtureSpec(array_merge([
         'product_type' => 'woven',
         'cut_type' => 'ultrasonic',
         'label_width_mm' => 40,

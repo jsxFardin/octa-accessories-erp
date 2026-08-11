@@ -202,8 +202,8 @@ it('serves one tab per group, with only that tab loaded', function (): void {
         ->assertInertia(fn ($page) => $page
             ->component('Setup/Index')
             ->where('current', 'quality')
-            // One tab per group, plus the read-only vocabularies tab.
-            ->has('tabs', count(ReferenceRegistry::GROUPS) + 1)
+            // One tab per group. Nothing is read-only any more, so there is no extra tab.
+            ->has('tabs', count(ReferenceRegistry::GROUPS))
             ->has('cards', 4)                       // defects, AQL plans, certifications, scopes
             ->has('cards.0.rows')
             ->has('cards.0.fields')
@@ -227,70 +227,112 @@ it('shows a card only to a user who may read that list', function (): void {
     expect($tabs)->not->toContain('people');
 });
 
-// --- Fixed vocabularies ------------------------------------------------------------------
+// --- Vocabularies ------------------------------------------------------------------------
 
-it('lists a vocabulary the database would actually accept', function (): void {
-    // The point of the registry is that the screen and the constraint agree. An option the
-    // CHECK refuses is a 500; a value the CHECK allows but the registry omits is a row nobody
-    // can read back — which is exactly how `products.product_type` came to admit 'ribbon',
-    // 'tape' and 'other' while the PHP enum knew six values and threw on the rest.
-    $schema = (string) file_get_contents(base_path('docs/02a-schema.sql'));
-    $problems = [];
-
+it('backs every vocabulary column with a foreign key rather than a check constraint', function (): void {
+    // The screen and the database have to agree on what a column accepts. They used to agree
+    // by repetition — a CHECK constraint in the DDL, the same list in a PHP enum — and drifted
+    // (`products.product_type` admitted 'ribbon' while the enum knew six values). A foreign
+    // key removes the second copy: the vocabulary table *is* the list.
     $columns = [
-        'product_type' => ['products', 'product_type'],
-        'cut_type' => ['product_specs', 'cut_type'],
-        'customer_kind' => ['customers', 'kind'],
-        'order_priority' => ['sales_orders', 'priority'],
-        'product_status' => ['products', 'status'],
-        'defect_severity' => ['defects', 'severity'],
-        'qc_disposition' => ['qc_inspections', 'disposition'],
+        ['customers', 'kind', 'customer_kinds'],
+        ['routings', 'product_type', 'product_types'],
+        ['products', 'product_type', 'product_types'],
+        ['products', 'status', 'product_statuses'],
+        ['product_specs', 'cut_type', 'cut_types'],
+        ['inquiries', 'source', 'inquiry_sources'],
+        ['inquiry_lines', 'product_type', 'product_types'],
+        ['sales_orders', 'priority', 'order_priorities'],
+        ['defects', 'severity', 'defect_severities'],
+        ['qc_inspections', 'disposition', 'qc_dispositions'],
+        ['ncrs', 'severity', 'defect_severities'],
     ];
 
-    foreach ($columns as $key => [$table, $column]) {
-        preg_match(
-            '/CREATE TABLE '.preg_quote($table, '/').'\s*\((.*?)\n\)\s*ENGINE/s',
-            $schema,
-            $block,
+    $problems = [];
+
+    foreach ($columns as [$table, $column, $references]) {
+        $found = DB::select(
+            'SELECT referenced_table_name AS target FROM information_schema.key_column_usage
+             WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?
+               AND referenced_table_name IS NOT NULL',
+            [$table, $column],
         );
 
-        preg_match(
-            '/CHECK \([^)]*\b'.preg_quote($column, '/').'\b[^)]*IN \(([^)]*)\)/i',
-            $block[1] ?? '',
-            $matches,
-        );
-
-        expect($matches)->not->toBe([], "no CHECK found for {$table}.{$column}");
-
-        preg_match_all("/'([^']+)'/", $matches[1], $allowed);
-
-        $offered = array_keys(App\Support\Reference\Vocabulary::values($key));
-
-        foreach (array_diff($offered, $allowed[1]) as $extra) {
-            $problems[] = "{$key} offers '{$extra}', which {$table}.{$column} refuses";
-        }
-
-        foreach (array_diff($allowed[1], $offered) as $missing) {
-            $problems[] = "{$table}.{$column} allows '{$missing}', which {$key} does not list";
+        if (array_column($found, 'target') !== [$references]) {
+            $problems[] = "{$table}.{$column} does not point at {$references}";
         }
     }
 
     expect($problems)->toBe([]);
 });
 
-it('reads back a product of every type the schema allows', function (): void {
-    // `ProductType::from()` runs on every spec read. A legal row it cannot parse is a 500.
-    foreach (array_keys(App\Support\Reference\Vocabulary::values('product_type')) as $value) {
-        expect(App\Support\Calculators\ProductType::from($value)->label())->toBeString();
+it('seeds the behaviour the calculators are tested against', function (): void {
+    // The unit tests state BR-9, BR-10, BR-11 and BR-13 as constants (tests/Pest.php); these
+    // are the rows they stand for. Edit the seeder without the rules and this fails here
+    // rather than in a cost sheet.
+    foreach (PRODUCT_TYPE_FIXTURES as $code => [$yarn, $sheets, $ink, $tool]) {
+        $rule = App\Support\Reference\Vocabulary::productType($code);
+
+        expect($rule->consumesYarn())->toBe($yarn, "{$code}: consumes_yarn")
+            ->and($rule->consumesSheets())->toBe($sheets, "{$code}: consumes_sheets")
+            ->and($rule->defaultInkLayGsm())->toBe($ink, "{$code}: default_ink_lay_gsm")
+            ->and($rule->requiresToolPerColour())->toBe($tool, "{$code}: requires_tool_per_colour");
+    }
+
+    foreach (CUT_TYPE_FIXTURES as $code => [$gap, $tool]) {
+        $rule = App\Support\Reference\Vocabulary::cutType($code);
+
+        expect($rule->defaultCutGapMm())->toBe($gap, "{$code}: default_cut_gap_mm")
+            ->and($rule->requiresTool())->toBe($tool, "{$code}: requires_tool");
     }
 });
 
-it('shows the fixed vocabularies on their own tab', function (): void {
+it('edits a vocabulary like any other list', function (): void {
+    $this->actingAs($this->admin)->post('/setup/product-types', [
+        'code' => 'embroidered',
+        'name' => 'Embroidered badge',
+        'consumes_yarn' => true,
+        'consumes_sheets' => false,
+        'default_ink_lay_gsm' => null,
+        'requires_tool_per_colour' => false,
+        'sort_order' => 100,
+        'is_active' => true,
+    ])->assertRedirect();
+
+    App\Support\Reference\Vocabulary::flush();
+
+    expect(App\Support\Reference\Vocabulary::codes('product_type'))->toContain('embroidered')
+        ->and(App\Support\Reference\Vocabulary::productType('embroidered')->consumesYarn())->toBeTrue();
+
+    // And the column accepts it, which is the whole point of the foreign key.
+    $customerId = DB::table('customers')->insertGetId([
+        'code' => 'VOC-1', 'name' => 'Vocabulary customer', 'kind' => 'brand', 'created_at' => now(),
+    ]);
+
+    DB::table('products')->insert([
+        'customer_id' => $customerId,
+        'routing_id' => DB::table('routings')->where('code', 'RT-WOVEN')->value('id'),
+        'code' => 'VOC-PRD-1',
+        'name' => 'Embroidered badge',
+        'product_type' => 'embroidered',
+        'status' => 'development',
+        'created_at' => now(),
+    ]);
+
+    expect(DB::table('products')->where('code', 'VOC-PRD-1')->exists())->toBeTrue();
+});
+
+it('still refuses a value no vocabulary row carries', function (): void {
+    expect(fn () => DB::table('customers')->insert([
+        'code' => 'VOC-2', 'name' => 'Unknown kind', 'kind' => 'space_agency', 'created_at' => now(),
+    ]))->toThrow(Illuminate\Database\QueryException::class);
+});
+
+it('shows the vocabularies as editable cards in Setup', function (): void {
     $this->actingAs($this->admin)->get('/setup?tab=vocabularies')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('current', 'vocabularies')
-            ->has('vocabularies', 7)
-            ->has('vocabularies.0.why_fixed')
-            ->where('cards', []));
+            ->has('cards', 8)
+            ->where('cards.0.can.update', true));
 });

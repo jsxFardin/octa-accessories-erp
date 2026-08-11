@@ -7,9 +7,9 @@ namespace App\Modules\Sales\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Customer;
 use App\Modules\Sales\Models\Inquiry;
-use App\Support\Calculators\ProductType;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
+use App\Support\Reference\Vocabulary;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -58,10 +58,8 @@ class InquiryController extends Controller
         return Inertia::render('Sales/Inquiries/Form', [
             'inquiry' => null,
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
-            'productTypes' => array_map(
-                fn (ProductType $t): array => ['value' => $t->value, 'label' => $t->label()],
-                ProductType::cases(),
-            ),
+            'productTypes' => Vocabulary::options('product_type'),
+            'sources' => Vocabulary::options('inquiry_source'),
         ]);
     }
 
@@ -125,10 +123,8 @@ class InquiryController extends Controller
                 ]))->all(),
             ],
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
-            'productTypes' => array_map(
-                fn (ProductType $t): array => ['value' => $t->value, 'label' => $t->label()],
-                ProductType::cases(),
-            ),
+            'productTypes' => Vocabulary::options('product_type'),
+            'sources' => Vocabulary::options('inquiry_source'),
         ]);
     }
 
@@ -183,12 +179,12 @@ class InquiryController extends Controller
             'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
             'inquiry_date' => ['required', 'date'],
             'required_by' => ['nullable', 'date', 'after_or_equal:inquiry_date'],
-            'source' => ['nullable', 'string', 'max:20'],
+            'source' => ['nullable', Rule::in(Vocabulary::codes('inquiry_source'))],
             'notes' => ['nullable', 'string'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
             'lines.*.description' => ['required', 'string', 'max:255'],
-            'lines.*.product_type' => ['nullable', 'string', 'max:20'],
+            'lines.*.product_type' => ['nullable', Rule::in(Vocabulary::codes('product_type'))],
             'lines.*.qty' => ['required', 'numeric', 'gt:0'],
             'lines.*.target_rate_per_m' => ['nullable', 'numeric', 'min:0'],
             'lines.*.notes' => ['nullable', 'string', 'max:255'],

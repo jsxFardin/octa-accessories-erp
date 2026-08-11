@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\Audit\Auditable;
 use App\Support\Calculators\ConsumptionCalculator;
 use App\Support\Calculators\SpecInput;
+use App\Support\Reference\Vocabulary;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -143,8 +144,10 @@ class ProductSpec extends Model
      */
     public function toCalculatorInput(?string $productType = null): SpecInput
     {
+        $type = $productType ?? $this->product->product_type;
+
         return SpecInput::fromArray([
-            'product_type' => $productType ?? $this->product->product_type,
+            'product_type' => $type,
             'cut_type' => $this->cut_type ?? 'hot_cut',
             'label_width_mm' => $this->label_width_mm,
             'label_height_mm' => $this->label_height_mm,
@@ -161,7 +164,7 @@ class ProductSpec extends Model
             'bundles_per_carton' => $this->bundles_per_carton,
             'sheet_length_mm' => $this->attributes['sheet_length_mm'] ?? 0,
             'sheet_width_mm' => $this->attributes['sheet_width_mm'] ?? 0,
-        ]);
+        ], Vocabulary::productType($type), Vocabulary::cutType($this->cut_type));
     }
 
     /**

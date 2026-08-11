@@ -7,7 +7,6 @@ namespace App\Support\Reference\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\Audit\AuditLogger;
 use App\Support\Reference\ReferenceRegistry;
-use App\Support\Reference\Vocabulary;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,16 +55,13 @@ class ReferenceController extends Controller
             }
         }
 
-        // The fixed vocabularies get a tab of their own. Without it an administrator opens
-        // Setup, finds no list for "Product type", and reasonably concludes it is unfinished.
-        $tabs[] = ['key' => 'vocabularies', 'label' => 'Fixed vocabularies', 'count' => count(Vocabulary::all())];
+        // Every list is editable now — product type and cut type included, since the rules
+        // behind them are columns rather than `match` arms. A user who may read no list at
+        // all gets no tabs, and the hub says so rather than opening on a tab that is not there.
+        $current = (string) $request->query('tab', $tabs[0]['key'] ?? '');
 
-        // The vocabularies tab is always appended, so there is always a first tab to fall
-        // back to — even for a user who may read no list at all.
-        $current = (string) $request->query('tab', $tabs[0]['key']);
-
-        if ($current !== 'vocabularies' && ! isset($visible[$current])) {
-            $current = $tabs[0]['key'];
+        if (! isset($visible[$current])) {
+            $current = $tabs[0]['key'] ?? '';
         }
 
         $cards = [];
@@ -100,7 +96,6 @@ class ReferenceController extends Controller
             'tabs' => $tabs,
             'current' => $current,
             'cards' => $cards,
-            'vocabularies' => $current === 'vocabularies' ? array_values(Vocabulary::all()) : [],
         ]);
     }
 

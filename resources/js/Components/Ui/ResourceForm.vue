@@ -4,7 +4,7 @@ import { useForm } from '@inertiajs/vue3';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
-import FormPage from '@/Components/Ui/FormPage.vue';
+import FormLayout from '@/Components/Ui/FormLayout.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 
@@ -46,8 +46,14 @@ function submit() {
 </script>
 
 <template>
-    <FormPage :sections="sections.map((section) => section.title)">
-        <form class="space-y-4" @submit.prevent="submit">
+    <FormLayout @submit="submit">
+        <!--
+            Cards flow two-across on a wide screen rather than stacking down the middle of one.
+            A master-data record is a handful of short sections; stacked, half of them sat below
+            the fold with 1,000px of empty page beside them. The fields inside each card stay at
+            two columns — a code in a 700px input is not easier to read, only wider.
+        -->
+        <div class="grid items-start gap-4 xl:grid-cols-2">
             <Card
                 v-for="section in sections"
                 :id="section.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')"
@@ -55,12 +61,8 @@ function submit() {
                 :title="section.title"
                 :subtitle="section.description"
                 :rule="section.rule"
+                :class="section.span === 'full' ? 'xl:col-span-2' : ''"
             >
-                <!--
-                    Two columns, not three. A form field wants to be about 360px: wide enough
-                    for a customer name, narrow enough that the label and the caret are in one
-                    glance.
-                -->
                 <div class="grid gap-x-4 gap-y-3 sm:grid-cols-2">
                     <FormField
                         v-for="field in section.fields"
@@ -72,6 +74,7 @@ function submit() {
                         :error="form.errors[field.key]"
                         :class="field.span === 'full' ? 'sm:col-span-2' : ''"
                     >
+                        <!-- A checkbox aligns to the 36px control row so the grid stays level. -->
                         <label v-if="field.type === 'checkbox'" class="flex h-9 items-center gap-2 text-sm text-ink-700">
                             <input v-model="form[field.key]" type="checkbox" class="rounded border-slate-300">
                             {{ field.checkboxLabel ?? 'Yes' }}
@@ -102,13 +105,13 @@ function submit() {
                             :numeric="field.type === 'number'"
                             :error="form.errors[field.key]"
                         />
-
-                        <!-- A checkbox aligns to the 36px control row so the grid stays level. -->
                     </FormField>
                 </div>
             </Card>
+        </div>
 
+        <template #footer>
             <FormFooter :form="form" :label="submitLabel" :cancel-href="cancelHref" @save="submit" />
-        </form>
-    </FormPage>
+        </template>
+    </FormLayout>
 </template>

@@ -8,9 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\ProductSpec;
 use App\Support\Calculators\ConsumptionCalculator;
-use App\Support\Calculators\CutType;
-use App\Support\Calculators\ProductType;
 use App\Support\Calculators\SpecInput;
+use App\Support\Reference\Vocabulary;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -73,8 +72,8 @@ class ProductSpecController extends Controller
     public function preview(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'product_type' => ['required', Rule::in(array_column(ProductType::cases(), 'value'))],
-            'cut_type' => ['nullable', Rule::in(array_column(CutType::cases(), 'value'))],
+            'product_type' => ['required', Rule::in(Vocabulary::codes('product_type'))],
+            'cut_type' => ['nullable', Rule::in(Vocabulary::codes('cut_type'))],
             'label_width_mm' => ['required', 'numeric', 'gt:0'],
             'label_height_mm' => ['required', 'numeric', 'gt:0'],
             'web_width_mm' => ['nullable', 'numeric', 'min:0'],
@@ -93,7 +92,11 @@ class ProductSpecController extends Controller
         ]);
 
         try {
-            $spec = SpecInput::fromArray($data);
+            $spec = SpecInput::fromArray(
+                $data,
+                Vocabulary::productType($data['product_type']),
+                Vocabulary::cutType($data['cut_type'] ?? null),
+            );
 
             $geometry = [
                 'pitch_mm' => round($this->consumption->pitchMm($spec), 2),
@@ -142,7 +145,7 @@ class ProductSpecController extends Controller
             'colour_list.*.name' => ['required', 'string', 'max:60'],
             'colour_list.*.pantone' => ['nullable', 'string', 'max:30'],
             'colour_list.*.weight_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'cut_type' => ['nullable', Rule::in(array_column(CutType::cases(), 'value'))],
+            'cut_type' => ['nullable', Rule::in(Vocabulary::codes('cut_type'))],
             'fold_type' => ['nullable', Rule::in(['flat', 'centre_fold', 'end_fold', 'loop', 'mitre', 'manhattan', 'book_cover'])],
             'finish' => ['nullable', 'string', 'max:120'],
             'coverage_pct' => ['numeric', 'min:0', 'max:100'],
@@ -161,10 +164,11 @@ class ProductSpecController extends Controller
         $ends = $data['ends'] ?? null;
 
         if ($ends === null && ! empty($data['web_width_mm'])) {
-            $suggested = $this->consumption->suggestedEnds(SpecInput::fromArray([
-                ...$data,
-                'product_type' => $product->product_type,
-            ]));
+            $suggested = $this->consumption->suggestedEnds(SpecInput::fromArray(
+                [...$data, 'product_type' => $product->product_type],
+                Vocabulary::productType($product->product_type),
+                Vocabulary::cutType($data['cut_type'] ?? null),
+            ));
 
             if ($suggested < 1) {
                 throw ValidationException::withMessages([

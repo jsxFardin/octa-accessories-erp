@@ -69,6 +69,8 @@ function onDocumentClick(event) {
 
 function onKeydown(event) {
     if (event.key === 'Escape') {
+        // Closes the menu only — a panel behind it keeps its own Escape.
+        event.stopPropagation();
         open.value = false;
     }
 }
@@ -121,7 +123,7 @@ onUnmounted(() => {
                     v-if="open"
                     data-dropdown-menu
                     role="menu"
-                    class="fixed z-[60] w-44 origin-top-right rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                    class="fixed z-[90] w-44 origin-top-right rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
                     :style="{ top: `${position.top}px`, left: `${position.left}px` }"
                 >
                     <button

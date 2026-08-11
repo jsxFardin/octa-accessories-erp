@@ -11,7 +11,7 @@ import LineItemsTable from '@/Components/Ui/LineItemsTable.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
-import FormPage from '@/Components/Ui/FormPage.vue';
+import FormLayout from '@/Components/Ui/FormLayout.vue';
 import { money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 
 const props = defineProps({
@@ -141,6 +141,14 @@ const belowFloor = computed(() =>
     form.lines.some((line) => Number(line.margin_pct) < Number(props.marginFloorPct)),
 );
 
+const filledLines = computed(() => form.lines.filter((line) => line.product_id || line.qty).length);
+
+const totalQty = computed(() => form.lines.reduce((sum, line) => sum + (Number(line.qty) || 0), 0));
+
+const selectedCustomer = computed(
+    () => props.customers.find((customer) => String(customer.id) === String(form.customer_id)) ?? null,
+);
+
 function submit() {
     isEdit.value
         ? form.put(`/quotations/${props.quotation.id}`)
@@ -166,220 +174,271 @@ const columns = [
         </template>
         <template #subtitle>Each line is priced by the cost sheet, not typed by hand</template>
 
-        <FormPage wide>
+        <FormLayout @submit="submit">
 
+            <Card title="Header">
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                    <FormField label="Customer" :error="form.errors.customer_id" required>
+                        <SelectInput
+                            v-model="form.customer_id"
+                            placeholder="— select —"
+                            :options="customers"
+                            value-key="id"
+                            label-key="name"
+                        />
+                    </FormField>
 
-            <form class="space-y-4" @submit.prevent="submit">
-                <Card title="Header">
-                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                        <FormField label="Customer" :error="form.errors.customer_id" required>
+                    <FormField label="Quotation date" :error="form.errors.quotation_date" required>
+                        <DateInput v-model="form.quotation_date" />
+                    </FormField>
+
+                    <FormField label="Valid until" :error="form.errors.valid_until">
+                        <DateInput v-model="form.valid_until" />
+                    </FormField>
+
+                    <FormField label="Currency" :error="form.errors.currency_id" required>
+                        <SelectInput
+                            v-model="form.currency_id"
+                            :placeholder="null"
+                            :options="currencies"
+                            value-key="id"
+                            label-key="code"
+                        />
+                    </FormField>
+
+                    <FormField
+                        label="Exchange rate"
+                        rule="BR-22"
+                        hint="Snapshotted on send; a reprint never re-reads it."
+                        :error="form.errors.exchange_rate"
+                        required
+                    >
+                        <TextInput v-model="form.exchange_rate" type="number" step="0.000001" numeric />
+                    </FormField>
+                </div>
+            </Card>
+
+            <Card title="Lines" rule="BR-20" :padded="false">
+                <div class="p-3">
+                    <LineItemsTable
+                        :columns="columns"
+                        :lines="form.lines"
+                        :errors="form.errors"
+                        add-label="Add line"
+                        empty="No lines yet"
+                    empty-hint="Add a product and a quantity — the rate is computed from a cost sheet (BR-14…BR-22), never typed by hand."
+                        @add="addLine"
+                        @remove="removeLine"
+                    >
+                        <template #cell:product_id="{ line, index }">
                             <SelectInput
-                                v-model="form.customer_id"
-                                placeholder="— select —"
-                                :options="customers"
-                                value-key="id"
-                                label-key="name"
-                            />
-                        </FormField>
-
-                        <FormField label="Quotation date" :error="form.errors.quotation_date" required>
-                            <DateInput v-model="form.quotation_date" />
-                        </FormField>
-
-                        <FormField label="Valid until" :error="form.errors.valid_until">
-                            <DateInput v-model="form.valid_until" />
-                        </FormField>
-
-                        <FormField label="Currency" :error="form.errors.currency_id" required>
-                            <SelectInput
-                                v-model="form.currency_id"
-                                :placeholder="null"
-                                :options="currencies"
+                                v-model="line.product_id"
+                                placeholder="— product —"
+                                :options="availableProducts"
                                 value-key="id"
                                 label-key="code"
                             />
-                        </FormField>
+                            <p v-if="line.product_id" class="mt-1 truncate text-[11px] text-ink-500">
+                                {{ availableProducts.find((p) => p.id === Number(line.product_id))?.name }}
+                            </p>
+                            <p v-if="sheets[index]?.error" class="mt-1 text-[11px] text-rose-600">
+                                {{ sheets[index].error }}
+                            </p>
+                        </template>
 
-                        <FormField
-                            label="Exchange rate"
-                            rule="BR-22"
-                            hint="Snapshotted on send; a reprint never re-reads it."
-                            :error="form.errors.exchange_rate"
-                            required
-                        >
-                            <TextInput v-model="form.exchange_rate" type="number" step="0.000001" numeric />
-                        </FormField>
-                    </div>
-                </Card>
+                        <template #cell:description="{ line }">
+                            <TextInput cell v-model="line.description" placeholder="As it should read on the quotation" />
+                        </template>
 
-                <Card title="Lines" rule="BR-20" :padded="false">
-                    <div class="p-3">
-                        <LineItemsTable
-                            :columns="columns"
-                            :lines="form.lines"
-                            :errors="form.errors"
-                            add-label="Add line"
-                            empty="No lines yet"
-                        empty-hint="Add a product and a quantity — the rate is computed from a cost sheet (BR-14…BR-22), never typed by hand."
-                            @add="addLine"
-                            @remove="removeLine"
-                        >
-                            <template #cell:product_id="{ line, index }">
-                                <SelectInput
-                                    v-model="line.product_id"
-                                    placeholder="— product —"
-                                    :options="availableProducts"
-                                    value-key="id"
-                                    label-key="code"
-                                />
-                                <p v-if="line.product_id" class="mt-1 truncate text-[11px] text-ink-500">
-                                    {{ availableProducts.find((p) => p.id === Number(line.product_id))?.name }}
-                                </p>
-                                <p v-if="sheets[index]?.error" class="mt-1 text-[11px] text-rose-600">
-                                    {{ sheets[index].error }}
-                                </p>
-                            </template>
+                        <template #cell:qty="{ line }">
+                            <TextInput cell v-model="line.qty" type="number" numeric min="1" />
+                        </template>
 
-                            <template #cell:description="{ line }">
-                                <TextInput cell v-model="line.description" placeholder="As it should read on the quotation" />
-                            </template>
+                        <template #cell:margin_pct="{ line }">
+                            <TextInput cell v-model="line.margin_pct" type="number" step="0.01" numeric />
+                            <p
+                                v-if="Number(line.margin_pct) < Number(marginFloorPct)"
+                                class="mt-1 text-[11px] text-amber-700"
+                            >
+                                below {{ marginFloorPct }}% floor
+                            </p>
+                        </template>
 
-                            <template #cell:qty="{ line }">
-                                <TextInput cell v-model="line.qty" type="number" numeric min="1" />
-                            </template>
+                        <template #cell:rate_per_m="{ line, index }">
+                            <div class="text-right">
+                                <span v-if="pending[index]" class="text-xs text-ink-400">pricing…</span>
+                                <span v-else class="text-sm font-semibold tnum text-ink-900">
+                                    {{ line.rate_per_m ? ratePerM(line.rate_per_m) : '—' }}
+                                </span>
+                                <p class="text-[10px] text-ink-400">computed</p>
+                            </div>
+                        </template>
 
-                            <template #cell:margin_pct="{ line }">
-                                <TextInput cell v-model="line.margin_pct" type="number" step="0.01" numeric />
-                                <p
-                                    v-if="Number(line.margin_pct) < Number(marginFloorPct)"
-                                    class="mt-1 text-[11px] text-amber-700"
-                                >
-                                    below {{ marginFloorPct }}% floor
-                                </p>
-                            </template>
+                        <template #cell:line_total="{ line }">
+                            <span class="text-sm tnum text-ink-800">{{ money(lineTotal(line)) }}</span>
+                        </template>
 
-                            <template #cell:rate_per_m="{ line, index }">
-                                <div class="text-right">
-                                    <span v-if="pending[index]" class="text-xs text-ink-400">pricing…</span>
-                                    <span v-else class="text-sm font-semibold tnum text-ink-900">
-                                        {{ line.rate_per_m ? ratePerM(line.rate_per_m) : '—' }}
-                                    </span>
-                                    <p class="text-[10px] text-ink-400">computed</p>
-                                </div>
-                            </template>
+                        <template #footer>
+                            <tr>
+                                <td colspan="5" class="px-3 py-2 text-right text-xs text-ink-700">Subtotal</td>
+                                <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
+                                    {{ money(subtotal, currencyCode) }}
+                                </td>
+                                <td />
+                            </tr>
+                        </template>
+                    </LineItemsTable>
 
-                            <template #cell:line_total="{ line }">
-                                <span class="text-sm tnum text-ink-800">{{ money(lineTotal(line)) }}</span>
-                            </template>
+                    <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
 
-                            <template #footer>
+                    <p v-if="belowFloor" class="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        A line is priced below the {{ marginFloorPct }}% margin floor. Sending this
+                        quotation needs the <span class="font-mono">cost_sheet.override_margin</span> permission.
+                    </p>
+                </div>
+            </Card>
+
+            <!-- The cost breakdown behind whichever line is priced, with its rule references. -->
+            <Card
+                v-for="(sheet, index) in sheets"
+                :key="`sheet-${index}`"
+                v-show="sheet.sheet"
+                :title="`Line ${Number(index) + 1} — cost breakdown`"
+                rule="BR-14 … BR-22"
+                :padded="false"
+            >
+                <div v-if="sheet.sheet" class="grid gap-0 lg:grid-cols-3">
+                    <div class="lg:col-span-2">
+                        <table class="min-w-full text-xs">
+                            <thead class="bg-slate-50 text-ink-700">
                                 <tr>
-                                    <td colspan="5" class="px-3 py-2 text-right text-xs text-ink-700">Subtotal</td>
-                                    <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
-                                        {{ money(subtotal, currencyCode) }}
-                                    </td>
-                                    <td />
+                                    <th class="px-3 py-1.5 text-left">Cost type</th>
+                                    <th class="px-3 py-1.5 text-right">Qty</th>
+                                    <th class="px-3 py-1.5 text-right">Rate</th>
+                                    <th class="px-3 py-1.5 text-right">Amount</th>
+                                    <th class="px-3 py-1.5 text-left">Rule</th>
                                 </tr>
-                            </template>
-                        </LineItemsTable>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="cl in sheet.sheet.lines" :key="cl.seq">
+                                    <td class="px-3 py-1.5 font-medium text-ink-800">{{ titleCase(cl.cost_type) }}</td>
+                                    <td class="px-3 py-1.5 text-right tnum">{{ qty(cl.qty) }}</td>
+                                    <td class="px-3 py-1.5 text-right tnum">{{ Number(cl.rate).toFixed(4) }}</td>
+                                    <td class="px-3 py-1.5 text-right font-medium tnum">{{ money(cl.amount) }}</td>
+                                    <td class="px-3 py-1.5">
+                                        <span class="rounded bg-slate-100 px-1 font-mono text-[10px] text-ink-700">
+                                            {{ cl.formula_ref }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
 
-                        <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
+                    <div class="border-t border-slate-200 p-3 text-sm lg:border-t-0 lg:border-l">
+                        <dl class="space-y-1.5">
+                            <div class="flex justify-between">
+                                <dt class="text-ink-500">Gross metres</dt>
+                                <dd class="tnum">{{ qty(sheet.sheet.lines.find((l) => l.cost_type === 'material_ribbon')?.qty ?? 0) }}</dd>
+                            </div>
+                            <div class="flex justify-between">
+                                <dt class="text-ink-500">Total cost</dt>
+                                <dd class="tnum font-medium">{{ money(sheet.sheet.total_cost) }}</dd>
+                            </div>
+                            <div class="flex justify-between">
+                                <dt class="text-ink-500">Unit cost</dt>
+                                <dd class="tnum">{{ Number(sheet.sheet.unit_cost).toFixed(6) }}</dd>
+                            </div>
+                            <div class="flex justify-between rounded bg-brand-50 px-2 py-1">
+                                <dt class="font-semibold text-brand-900">Rate / M</dt>
+                                <dd class="tnum font-semibold text-brand-900">
+                                    {{ ratePerM(sheet.sheet.rate_per_m_in_currency) }}
+                                </dd>
+                            </div>
+                        </dl>
 
-                        <p v-if="belowFloor" class="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                            A line is priced below the {{ marginFloorPct }}% margin floor. Sending this
-                            quotation needs the <span class="font-mono">cost_sheet.override_margin</span> permission.
+                        <p class="mt-2 text-[11px] text-ink-500">
+                            Margin is applied on price — unit cost × 1000 ÷ (1 − margin) — not on cost.
+                        </p>
+
+                        <p
+                            v-for="warning in sheet.warnings"
+                            :key="warning"
+                            class="mt-2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-900"
+                        >
+                            {{ warning }}
                         </p>
                     </div>
-                </Card>
+                </div>
+            </Card>
 
-                <!-- The cost breakdown behind whichever line is priced, with its rule references. -->
-                <Card
-                    v-for="(sheet, index) in sheets"
-                    :key="`sheet-${index}`"
-                    v-show="sheet.sheet"
-                    :title="`Line ${Number(index) + 1} — cost breakdown`"
-                    rule="BR-14 … BR-22"
-                    :padded="false"
-                >
-                    <div v-if="sheet.sheet" class="grid gap-0 lg:grid-cols-3">
-                        <div class="lg:col-span-2">
-                            <table class="min-w-full text-xs">
-                                <thead class="bg-slate-50 text-ink-700">
-                                    <tr>
-                                        <th class="px-3 py-1.5 text-left">Cost type</th>
-                                        <th class="px-3 py-1.5 text-right">Qty</th>
-                                        <th class="px-3 py-1.5 text-right">Rate</th>
-                                        <th class="px-3 py-1.5 text-right">Amount</th>
-                                        <th class="px-3 py-1.5 text-left">Rule</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-100">
-                                    <tr v-for="cl in sheet.sheet.lines" :key="cl.seq">
-                                        <td class="px-3 py-1.5 font-medium text-ink-800">{{ titleCase(cl.cost_type) }}</td>
-                                        <td class="px-3 py-1.5 text-right tnum">{{ qty(cl.qty) }}</td>
-                                        <td class="px-3 py-1.5 text-right tnum">{{ Number(cl.rate).toFixed(4) }}</td>
-                                        <td class="px-3 py-1.5 text-right font-medium tnum">{{ money(cl.amount) }}</td>
-                                        <td class="px-3 py-1.5">
-                                            <span class="rounded bg-slate-100 px-1 font-mono text-[10px] text-ink-700">
-                                                {{ cl.formula_ref }}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+            <template #rail>
+                <Card title="Quotation">
+                    <dl class="space-y-2.5 text-sm">
+                        <div class="flex items-baseline justify-between gap-3">
+                            <dt class="text-xs text-ink-500">Customer</dt>
+                            <dd class="min-w-0 truncate text-right" :class="selectedCustomer ? 'text-ink-900' : 'text-ink-400'">
+                                {{ selectedCustomer?.name ?? 'Not chosen' }}
+                            </dd>
                         </div>
 
-                        <div class="border-t border-slate-200 p-3 text-sm lg:border-t-0 lg:border-l">
-                            <dl class="space-y-1.5">
-                                <div class="flex justify-between">
-                                    <dt class="text-ink-500">Gross metres</dt>
-                                    <dd class="tnum">{{ qty(sheet.sheet.lines.find((l) => l.cost_type === 'material_ribbon')?.qty ?? 0) }}</dd>
-                                </div>
-                                <div class="flex justify-between">
-                                    <dt class="text-ink-500">Total cost</dt>
-                                    <dd class="tnum font-medium">{{ money(sheet.sheet.total_cost) }}</dd>
-                                </div>
-                                <div class="flex justify-between">
-                                    <dt class="text-ink-500">Unit cost</dt>
-                                    <dd class="tnum">{{ Number(sheet.sheet.unit_cost).toFixed(6) }}</dd>
-                                </div>
-                                <div class="flex justify-between rounded bg-brand-50 px-2 py-1">
-                                    <dt class="font-semibold text-brand-900">Rate / M</dt>
-                                    <dd class="tnum font-semibold text-brand-900">
-                                        {{ ratePerM(sheet.sheet.rate_per_m_in_currency) }}
-                                    </dd>
-                                </div>
-                            </dl>
-
-                            <p class="mt-2 text-[11px] text-ink-500">
-                                Margin is applied on price — unit cost × 1000 ÷ (1 − margin) — not on cost.
-                            </p>
-
-                            <p
-                                v-for="warning in sheet.warnings"
-                                :key="warning"
-                                class="mt-2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-900"
-                            >
-                                {{ warning }}
-                            </p>
+                        <div class="flex items-baseline justify-between gap-3">
+                            <dt class="text-xs text-ink-500">Valid until</dt>
+                            <dd class="text-right" :class="form.valid_until ? 'text-ink-900' : 'text-ink-400'">
+                                {{ form.valid_until || 'Open' }}
+                            </dd>
                         </div>
-                    </div>
+
+                        <div class="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-2.5">
+                            <dt class="text-xs text-ink-500">Lines</dt>
+                            <dd class="tnum text-ink-900">{{ filledLines }}</dd>
+                        </div>
+
+                        <div class="flex items-baseline justify-between gap-3">
+                            <dt class="text-xs text-ink-500">Quantity</dt>
+                            <dd class="tnum text-ink-900">{{ pcs(totalQty) }} pcs</dd>
+                        </div>
+
+                        <div class="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-2.5">
+                            <dt class="text-xs text-ink-500">Quoted value</dt>
+                            <dd class="text-base font-semibold tnum text-ink-900">
+                                {{ money(subtotal, currencyCode) }}
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <!-- The margin floor is the one thing a merchandiser is asked about after
+                         sending; it belongs where the total is, not only on the line. -->
+                    <p
+                        v-if="belowFloor"
+                        class="mt-3 rounded bg-amber-50 px-2 py-1.5 text-[11px] leading-relaxed text-amber-900"
+                    >
+                        A line is priced below the {{ marginFloorPct }}% margin floor. Sending it needs
+                        an approval.
+                    </p>
                 </Card>
 
                 <Card title="Terms">
                     <FormField :error="form.errors.terms">
-                        <textarea v-model="form.terms" rows="3" class="form-textarea" />
+                        <textarea
+                            v-model="form.terms"
+                            rows="8"
+                            class="form-textarea"
+                            placeholder="Payment, delivery, validity — whatever this customer has agreed."
+                        />
                     </FormField>
                 </Card>
-            </form>
-        
+            </template>
 
-            <FormFooter
-                :form="form"
-                cancel-href="/quotations"
-                :label="isEdit ? 'Save changes' : 'Save draft'"
-                @save="submit"
-            />
-        </FormPage>
+            <template #footer>
+                <FormFooter
+                    :form="form"
+                    cancel-href="/quotations"
+                    :summary="`${filledLines} ${filledLines === 1 ? 'line' : 'lines'} · ${money(subtotal, currencyCode)}`"
+                    :label="isEdit ? 'Save changes' : 'Save draft'"
+                    @save="submit"
+                />
+            </template>
+        </FormLayout>
     </AppLayout>
 </template>

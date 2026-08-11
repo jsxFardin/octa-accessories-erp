@@ -7,11 +7,13 @@ namespace App\Providers;
 use App\Models\User;
 use App\Support\Scoping\PortalContext;
 use App\Support\Settings\Settings;
+use App\Support\Validation\DocumentValidator;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -31,6 +33,17 @@ class AppServiceProvider extends ServiceProvider
         Model::unguard(false);
 
         Vite::prefetch(concurrency: 3);
+
+        /*
+         * Validation messages name the field the way the form labels it, and a line-item error
+         * says which line. Without this a blank quotation returns "The lines.0.product_id field
+         * is required" four times per row.
+         */
+        Validator::resolver(
+            fn ($translator, $data, $rules, $messages, $attributes) => new DocumentValidator(
+                $translator, $data, $rules, $messages, $attributes,
+            ),
+        );
 
         /*
          * Every `can:` check in the application resolves here. Permission-based, never

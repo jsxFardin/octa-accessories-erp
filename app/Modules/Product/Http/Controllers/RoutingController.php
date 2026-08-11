@@ -7,8 +7,8 @@ namespace App\Modules\Product\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\MachineGroup;
 use App\Modules\Product\Models\Routing;
-use App\Support\Calculators\ProductType;
 use App\Support\Http\ListsResources;
+use App\Support\Reference\Vocabulary;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -130,7 +130,7 @@ class RoutingController extends Controller
         return $request->validate([
             'code' => ['required', 'string', 'max:30', Rule::unique('routings', 'code')->ignore($routing?->id)],
             'name' => ['required', 'string', 'max:120'],
-            'product_type' => ['required', Rule::in(array_column(ProductType::cases(), 'value'))],
+            'product_type' => ['required', Rule::in(Vocabulary::codes('product_type'))],
             'max_lot_size' => ['nullable', 'numeric', 'gt:0'],
             'is_default' => ['boolean'],
             'is_active' => ['boolean'],
@@ -179,10 +179,7 @@ class RoutingController extends Controller
     {
         return [
             'machineGroups' => MachineGroup::query()->orderBy('code')->get(['id', 'code', 'name', 'process_type']),
-            'productTypes' => array_map(
-                fn (ProductType $type): array => ['value' => $type->value, 'label' => $type->label()],
-                ProductType::cases(),
-            ),
+            'productTypes' => Vocabulary::options('product_type'),
         ];
     }
 }

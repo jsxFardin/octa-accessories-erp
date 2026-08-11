@@ -120,7 +120,11 @@ function clear() {
 }
 
 function onKeydown(event) {
-    if (event.key === 'Escape') open.value = false;
+    if (event.key === 'Escape') {
+        // The calendar closes; the slide-over or modal behind it does not.
+        event.stopPropagation();
+        open.value = false;
+    }
     if (event.key === 'ArrowDown' && !open.value) show();
 }
 
@@ -183,7 +187,7 @@ onUnmounted(() => {
             <div
                 v-if="open"
                 data-date-popover
-                class="fixed z-[60] w-[260px] rounded-md border border-slate-200 bg-white p-2 shadow-lg"
+                class="fixed z-[90] w-[260px] rounded-md border border-slate-200 bg-white p-2 shadow-lg"
                 :style="{ top: `${position.top}px`, left: `${position.left}px` }"
             >
                 <div class="flex items-center justify-between px-1 pb-2">

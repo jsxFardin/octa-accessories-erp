@@ -8,7 +8,8 @@ use App\Models\User;
 use App\Modules\MasterData\Models\Brand;
 use App\Modules\MasterData\Models\Customer;
 use App\Support\Audit\Auditable;
-use App\Support\Calculators\ProductType;
+use App\Support\Calculators\ProductTypeRule;
+use App\Support\Reference\Vocabulary;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -137,9 +138,10 @@ class Product extends Model
         return $this->hasOne(Bom::class)->where('status', Bom::ACTIVE);
     }
 
-    public function type(): ProductType
+    /** BR-9 · BR-10 · BR-11 · BR-13 — the costing behaviour configured for this type. */
+    public function type(): ProductTypeRule
     {
-        return ProductType::from($this->product_type);
+        return Vocabulary::productType($this->product_type);
     }
 
     /**

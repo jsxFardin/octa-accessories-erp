@@ -4,172 +4,175 @@ declare(strict_types=1);
 
 namespace App\Support\Reference;
 
-use App\Support\Calculators\CutType;
-use App\Support\Calculators\ProductType;
+use App\Support\Calculators\CutTypeRule;
+use App\Support\Calculators\ProductTypeRule;
+use Illuminate\Support\Facades\DB;
 
 /**
- * The fixed vocabularies: dropdowns whose values are code, not data.
+ * The vocabularies — the dropdowns that used to be PHP enums behind CHECK constraints.
  *
- * A product type is not a lookup row. `ProductType::consumesYarn()` decides whether BR-9 runs
- * at all, `consumesSheets()` switches BR-11 from metres to sheets, and `requiresToolPerColour()`
- * drives BR-13. Adding "embroidered badge" through a screen would produce a product the
- * consumption calculator has no rule for — and the database would refuse the row anyway,
- * because every one of these columns carries a CHECK constraint.
+ * They are tables now (docs/02a-schema.sql §1a), edited in Setup like every other lookup, and
+ * the behaviour that decided BR-4, BR-9, BR-10, BR-11, BR-13 and BR-33 is columns on those
+ * rows rather than `match` arms. This class is the one place that reads them, so a screen
+ * stops hardcoding "Garment manufacturer" in one place and "Manufacturer" in another.
  *
- * So they stay in code. What was missing was any way to *see* them: an administrator opened
- * Setup, found no list for "Product type", and reasonably concluded something was unfinished.
- * This registry backs a read-only tab that shows each vocabulary, where it is used, and what
- * changing it would actually take.
- *
- * It is also the single source of the labels, so a screen no longer hardcodes
- * "Garment manufacturer" in one place and "Manufacturer" in another.
+ * Rows are memoised per request: a cost sheet prices twenty lines and each one asks for the
+ * same product type.
  */
 class Vocabulary
 {
     /**
-     * @return array<string, array{
-     *     label: string,
-     *     column: string,
-     *     used_for: string,
-     *     why_fixed: string,
-     *     values: array<string, string>
-     * }>
+     * The table behind each key.
+     *
+     * @var array<string, string>
      */
-    public static function all(): array
+    public const TABLES = [
+        'product_type' => 'product_types',
+        'cut_type' => 'cut_types',
+        'customer_kind' => 'customer_kinds',
+        'inquiry_source' => 'inquiry_sources',
+        'order_priority' => 'order_priorities',
+        'product_status' => 'product_statuses',
+        'defect_severity' => 'defect_severities',
+        'qc_disposition' => 'qc_dispositions',
+    ];
+
+    /** @var array<string, list<array<string, mixed>>> */
+    private static array $cache = [];
+
+    /**
+     * Every row of a vocabulary, active first-class citizens only, in display order.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function rows(string $key, bool $activeOnly = true): array
     {
-        return [
-            'product_type' => [
-                'label' => 'Product type',
-                'column' => 'products.product_type',
-                'used_for' => 'Products, inquiry lines, routings, certification scopes',
-                'why_fixed' => 'Each type has its own consumption rule in code — whether it consumes yarn (BR-9), '
-                    .'is quoted in sheets rather than metres (BR-11), and how many tools a colour needs (BR-13). '
-                    .'A new type would be a product nothing knows how to cost.',
-                'values' => self::productTypes(),
-            ],
+        $table = self::TABLES[$key] ?? null;
 
-            'cut_type' => [
-                'label' => 'Cut type',
-                'column' => 'product_specs.cut_type',
-                'used_for' => 'Product specifications',
-                'why_fixed' => 'The cut gap per type is a setting (Settings → Business rules), but the list itself '
-                    .'is fixed: BR-4 adds that gap to the label pitch, and a cut type with no gap has no pitch.',
-                'values' => self::cutTypes(),
-            ],
+        if ($table === null) {
+            return [];
+        }
 
-            'customer_kind' => [
-                'label' => 'Customer kind',
-                'column' => 'customers.kind',
-                'used_for' => 'Customers',
-                'why_fixed' => 'A CHECK constraint on the column. The four kinds describe who is on the other side '
-                    .'of the order, which reporting groups by.',
-                'values' => [
-                    'manufacturer' => 'Garment manufacturer',
-                    'brand' => 'Brand',
-                    'buying_house' => 'Buying house',
-                    'trader' => 'Trader',
-                ],
-            ],
+        self::$cache[$table] ??= DB::table($table)
+            ->orderBy('sort_order')
+            ->orderBy('code')
+            ->get()
+            ->map(fn (object $row): array => (array) $row)
+            ->all();
 
-            'order_priority' => [
-                'label' => 'Order priority',
-                'column' => 'sales_orders.priority',
-                'used_for' => 'Sales orders, planning board ordering',
-                'why_fixed' => 'Four levels the planning board sorts by. More levels would not make a queue clearer.',
-                'values' => [
-                    'low' => 'Low',
-                    'normal' => 'Normal',
-                    'high' => 'High',
-                    'urgent' => 'Urgent',
-                ],
-            ],
+        if (! $activeOnly) {
+            return self::$cache[$table];
+        }
 
-            'product_status' => [
-                'label' => 'Product status',
-                'column' => 'products.status',
-                'used_for' => 'Products',
-                'why_fixed' => 'A lifecycle, not a list: only an active product may be ordered, and a discontinued '
-                    .'one stays visible on the orders that already used it.',
-                'values' => [
-                    'development' => 'Development',
-                    'active' => 'Active',
-                    'on_hold' => 'On hold',
-                    'discontinued' => 'Discontinued',
-                ],
-            ],
-
-            'defect_severity' => [
-                'label' => 'Defect severity',
-                'column' => 'defects.severity',
-                'used_for' => 'Defect codes, QC inspections',
-                'why_fixed' => 'The verdict depends on it: one critical defect rejects a lot outright, majors are '
-                    .'counted against the AQL accept number, minors are recorded (BR-30, BR-31). '
-                    .'The defect codes themselves are editable in Setup → Quality.',
-                'values' => [
-                    'critical' => 'Critical — rejects the lot on its own',
-                    'major' => 'Major — counted against the accept number',
-                    'minor' => 'Minor — recorded, does not reject',
-                ],
-            ],
-
-            'qc_disposition' => [
-                'label' => 'QC disposition',
-                'column' => 'qc_inspections.disposition',
-                'used_for' => 'QC inspections',
-                'why_fixed' => 'BR-33 — each disposition has different downstream behaviour: rework returns to an '
-                    .'operation, concession needs customer evidence, downgrade re-grades the stock, scrap writes it off.',
-                'values' => [
-                    'rework' => 'Rework — back to an operation',
-                    'concession' => 'Concession — customer accepted',
-                    'downgrade' => 'Downgrade — second quality',
-                    'scrap' => 'Scrap — written off',
-                    'release' => 'Release — accepted as it stands',
-                ],
-            ],
-        ];
-    }
-
-    /** @return array<string, string> */
-    public static function values(string $key): array
-    {
-        return self::all()[$key]['values'] ?? [];
+        return array_values(array_filter(
+            self::$cache[$table],
+            fn (array $row): bool => (bool) ($row['is_active'] ?? true),
+        ));
     }
 
     /**
-     * As a `SelectInput` expects them, so a screen stops hardcoding its own wording.
+     * A single row by code, active or not — a document written last year may carry a value
+     * that has since been retired, and it still has to render.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function row(string $key, ?string $code): ?array
+    {
+        if ($code === null || $code === '') {
+            return null;
+        }
+
+        foreach (self::rows($key, activeOnly: false) as $row) {
+            if ((string) $row['code'] === $code) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /** @return array<string, string> code => name */
+    public static function values(string $key): array
+    {
+        $values = [];
+
+        foreach (self::rows($key) as $row) {
+            $values[(string) $row['code']] = (string) $row['name'];
+        }
+
+        return $values;
+    }
+
+    /**
+     * As a `SelectInput` expects them.
      *
      * @return list<array{value: string, label: string}>
      */
     public static function options(string $key): array
     {
         return array_map(
-            fn (string $value, string $label): array => ['value' => $value, 'label' => $label],
-            array_keys(self::values($key)),
-            array_values(self::values($key)),
+            fn (array $row): array => ['value' => (string) $row['code'], 'label' => (string) $row['name']],
+            self::rows($key),
         );
     }
 
-    /** @return array<string, string> */
-    private static function productTypes(): array
+    /**
+     * For `Rule::in()`. Retired codes are excluded: a form must not offer one, while a stored
+     * document keeps rendering it.
+     *
+     * @return list<string>
+     */
+    public static function codes(string $key): array
     {
-        $values = [];
-
-        foreach (ProductType::cases() as $case) {
-            $values[$case->value] = $case->label();
-        }
-
-        return $values;
+        return array_map(fn (array $row): string => (string) $row['code'], self::rows($key));
     }
 
-    /** @return array<string, string> */
-    private static function cutTypes(): array
+    public static function label(string $key, ?string $code): ?string
     {
-        $values = [];
+        $row = self::row($key, $code);
 
-        foreach (CutType::cases() as $case) {
-            $values[$case->value] = ucfirst(str_replace('_', ' ', $case->value));
+        return $row === null ? $code : (string) $row['name'];
+    }
+
+    /** BR-9 · BR-10 · BR-11 · BR-13 — the costing behaviour of one product type. */
+    public static function productType(?string $code): ProductTypeRule
+    {
+        $row = self::row('product_type', $code);
+
+        if ($row === null) {
+            return ProductTypeRule::neutral($code ?? 'other');
         }
 
-        return $values;
+        return new ProductTypeRule(
+            code: (string) $row['code'],
+            label: (string) $row['name'],
+            consumesYarn: (bool) $row['consumes_yarn'],
+            consumesSheets: (bool) $row['consumes_sheets'],
+            defaultInkLayGsm: $row['default_ink_lay_gsm'] === null ? null : (float) $row['default_ink_lay_gsm'],
+            requiresToolPerColour: (bool) $row['requires_tool_per_colour'],
+        );
+    }
+
+    /** BR-4 · BR-13 — the cut gap and tooling of one cut type. */
+    public static function cutType(?string $code): CutTypeRule
+    {
+        $row = self::row('cut_type', $code);
+
+        if ($row === null) {
+            return CutTypeRule::neutral($code ?? 'straight_cut');
+        }
+
+        return new CutTypeRule(
+            code: (string) $row['code'],
+            label: (string) $row['name'],
+            defaultCutGapMm: (float) $row['default_cut_gap_mm'],
+            requiresTool: (bool) $row['requires_tool'],
+        );
+    }
+
+    /** Between requests in a queue worker, and after Setup writes a row. */
+    public static function flush(): void
+    {
+        self::$cache = [];
     }
 }

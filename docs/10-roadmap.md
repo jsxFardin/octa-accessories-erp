@@ -27,7 +27,7 @@ That is one complete order, end to end, in the system. Everything else — fleet
 | Auth & RBAC | Login, MFA, password policy; roles, permissions, seeder generated from [06-rbac](06-rbac.md); permission middleware on every route |
 | Platform services | `number_sequences` allocator (BR-34), audit log observer, attachment handling, state machine base class, settings |
 | Shell UI | `AppLayout`, navigation, `Ui/` component set, table/filter/pagination pattern, toast, confirm dialog |
-| Migrations | Full schema from [02a-schema.sql](02a-schema.sql) as Laravel migrations, plus factories |
+| Migrations | Full schema from [02a-schema.sql](02a-schema.sql) as Laravel migrations — one per table, view and deferred foreign key — plus factories |
 
 **Exit criteria:** a user can log in, see an empty dashboard, and CI is green including the schema load.
 

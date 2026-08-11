@@ -9,8 +9,6 @@ use App\Modules\MasterData\Models\Brand;
 use App\Modules\MasterData\Models\Customer;
 use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\Routing;
-use App\Support\Calculators\CutType;
-use App\Support\Calculators\ProductType;
 use App\Support\Http\ListsResources;
 use App\Support\Reference\Vocabulary;
 use Illuminate\Http\RedirectResponse;
@@ -52,7 +50,7 @@ class ProductController extends Controller
             ),
             'filters' => $this->listingFilters($request, ['customer', 'type', 'status']),
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'name']),
-            'productTypes' => $this->productTypes(),
+            'productTypes' => Vocabulary::options('product_type'),
         ]);
     }
 
@@ -170,7 +168,7 @@ class ProductController extends Controller
             'code' => ['required', 'string', 'max:40', Rule::unique('products', 'code')->ignore($product?->id)],
             'name' => ['required', 'string', 'max:180'],
             'customer_style_ref' => ['nullable', 'string', 'max:80'],
-            'product_type' => ['required', Rule::in(array_column(ProductType::cases(), 'value'))],
+            'product_type' => ['required', Rule::in(Vocabulary::codes('product_type'))],
             'is_running_programme' => ['boolean'],
             // BR-15 — a running programme amortises tooling over the annual forecast.
             'annual_forecast_qty' => ['nullable', 'numeric', 'min:0', 'required_if:is_running_programme,true'],
@@ -186,25 +184,17 @@ class ProductController extends Controller
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
             'brands' => Brand::query()->orderBy('name')->get(['id', 'name', 'customer_id']),
             'routings' => Routing::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name', 'product_type', 'max_lot_size']),
-            'productTypes' => $this->productTypes(),
+            'productTypes' => Vocabulary::options('product_type'),
             'statuses' => Vocabulary::options('product_status'),
+            // The gap travels with the option so the spec form can prefill it (BR-4).
             'cutTypes' => array_map(
-                fn (CutType $type): array => [
-                    'value' => $type->value,
-                    'label' => $type->label(),
-                    'default_cut_gap_mm' => $type->defaultCutGapMm(),
+                fn (array $row): array => [
+                    'value' => (string) $row['code'],
+                    'label' => (string) $row['name'],
+                    'default_cut_gap_mm' => (float) $row['default_cut_gap_mm'],
                 ],
-                CutType::cases(),
+                Vocabulary::rows('cut_type'),
             ),
         ];
-    }
-
-    /** @return list<array{value: string, label: string}> */
-    private function productTypes(): array
-    {
-        return array_map(
-            fn (ProductType $type): array => ['value' => $type->value, 'label' => $type->label()],
-            ProductType::cases(),
-        );
     }
 }

@@ -40,6 +40,7 @@ class ReferenceRegistry
         'inventory' => 'Inventory',
         'production' => 'Production',
         'quality' => 'Quality',
+        'vocabularies' => 'Vocabularies',
     ];
 
     /**
@@ -270,6 +271,45 @@ class ReferenceRegistry
                 'defaultSort' => 'from_uom_id',
             ],
 
+            'bank-accounts' => [
+                'table' => 'bank_accounts',
+                'group' => 'measurement',
+                'label' => 'Bank accounts',
+                'singular' => 'bank account',
+                'icon' => 'card',
+                'permission' => 'bank_account',
+                'description' => 'The accounts an LC is opened against and an expense is paid from. Named once here rather than typed onto each document.',
+                'searchable' => ['code', 'name', 'bank_name', 'account_no'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'bank_name', 'label' => 'Bank', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'branch', 'label' => 'Branch', 'type' => 'text', 'rules' => ['nullable', 'string', 'max:120']],
+                    ['name' => 'account_no', 'label' => 'Account number', 'type' => 'text', 'rules' => ['nullable', 'string', 'max:60']],
+                    ['name' => 'swift_code', 'label' => 'SWIFT', 'type' => 'text', 'rules' => ['nullable', 'string', 'max:20']],
+                    ['name' => 'currency_id', 'label' => 'Currency', 'type' => 'reference', 'reference' => 'currencies', 'rules' => ['required', 'integer', 'exists:currencies,id']],
+                    ['name' => 'kind', 'label' => 'Kind', 'type' => 'select', 'options' => ['current', 'od', 'lc', 'cash', 'fc']],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+            ],
+
+            'expense-categories' => [
+                'table' => 'expense_categories',
+                'group' => 'measurement',
+                'label' => 'Expense categories',
+                'singular' => 'expense category',
+                'icon' => 'receipt',
+                'permission' => 'expense',
+                'description' => 'What an expense is for. Chosen, never typed — otherwise "generator fuel" is also "Generator Fuel" and "fuel-generator", and the quarter cannot be summed.',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'kind', 'label' => 'Kind', 'type' => 'select', 'options' => ['factory', 'admin', 'selling', 'financial', 'import']],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+            ],
+
             'currencies' => [
                 'table' => 'currencies',
                 'group' => 'measurement',
@@ -448,7 +488,7 @@ class ReferenceRegistry
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
                     ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
-                    ['name' => 'severity', 'label' => 'Severity', 'type' => 'select', 'options' => ['critical', 'major', 'minor']],
+                    ['name' => 'severity', 'label' => 'Severity', 'type' => 'select', 'options' => Vocabulary::codes('defect_severity')],
                     ['name' => 'process', 'label' => 'Process', 'type' => 'select', 'options' => ['weaving', 'printing', 'cutting', 'folding', 'packing', 'material', 'general'], 'rules' => ['nullable']],
                     ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
                 ],
@@ -511,13 +551,169 @@ class ReferenceRegistry
                 'searchable' => [],
                 'fields' => [
                     ['name' => 'certification_id', 'label' => 'Certificate', 'type' => 'reference', 'reference' => 'certifications', 'referenceLabel' => 'certificate_no', 'rules' => ['required', 'integer', 'exists:certifications,id']],
-                    ['name' => 'product_type', 'label' => 'Product type', 'type' => 'select', 'options' => ['woven', 'flexo', 'screen', 'heat_transfer', 'offset_tag', 'thermal'], 'rules' => ['nullable']],
+                    ['name' => 'product_type', 'label' => 'Product type', 'type' => 'select', 'options' => Vocabulary::codes('product_type'), 'rules' => ['nullable']],
                     ['name' => 'item_category_id', 'label' => 'Item category', 'type' => 'reference', 'reference' => 'item_categories', 'rules' => ['nullable', 'integer', 'exists:item_categories,id']],
                     ['name' => 'min_claim_pct', 'label' => 'Minimum claim', 'unit' => '%', 'type' => 'decimal', 'rules' => ['nullable', 'numeric', 'min:0', 'max:100']],
                     ['name' => 'labelled_claim_pct', 'label' => 'Labelled claim', 'unit' => '%', 'type' => 'decimal', 'rules' => ['nullable', 'numeric', 'min:0', 'max:100']],
                     ['name' => 'max_conversion_factor', 'label' => 'Max conversion', 'type' => 'decimal', 'step' => '0.0001', 'rules' => ['nullable', 'numeric', 'gt:0'], 'hint' => 'Output may not exceed certified input times this factor.'],
                 ],
                 'defaultSort' => 'certification_id',
+            ],
+
+            // --- Vocabularies ---------------------------------------------------------
+            // The lists that were PHP enums until the behaviour behind them became columns
+            // (docs/02a-schema.sql §1a). Editing a flag here changes what the calculators do
+            // on the next request, which is why each field says which rule it feeds.
+            'product-types' => [
+                'table' => 'product_types',
+                'group' => 'vocabularies',
+                'label' => 'Product types',
+                'singular' => 'product type',
+                'icon' => 'product',
+                'description' => 'What the factory makes. The flags are the costing rules: whether the type consumes yarn (BR-9) or sheets (BR-11), the ink it lays down (BR-10), and the tools a colour costs (BR-13).',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true, 'hint' => 'Stored on every product and inquiry line. Changing it rewrites nothing — retire the row instead.'],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'consumes_yarn', 'label' => 'Consumes yarn', 'type' => 'boolean', 'rule' => 'BR-9', 'default' => false, 'hint' => 'Woven only — the rest print onto a pre-made web.'],
+                    ['name' => 'consumes_sheets', 'label' => 'Quoted in sheets', 'type' => 'boolean', 'rule' => 'BR-11', 'default' => false],
+                    ['name' => 'default_ink_lay_gsm', 'label' => 'Default ink lay', 'unit' => 'g/m²', 'type' => 'decimal', 'rule' => 'BR-10', 'rules' => ['nullable', 'numeric', 'min:0'], 'hint' => 'Blank means the process lays no ink. The item master may override it.'],
+                    ['name' => 'requires_tool_per_colour', 'label' => 'One tool per colour', 'type' => 'boolean', 'rule' => 'BR-13', 'default' => false],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true, 'hint' => 'A retired type stays readable on the products that already use it; it is only kept out of the dropdowns.'],
+                ],
+                'defaultSort' => 'sort_order',
+            ],
+
+            'cut-types' => [
+                'table' => 'cut_types',
+                'group' => 'vocabularies',
+                'label' => 'Cut types',
+                'singular' => 'cut type',
+                'icon' => 'product',
+                'description' => 'BR-4 — the gap each cutting method adds to the label pitch, and whether it needs a die. A product spec may still override the gap.',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'default_cut_gap_mm', 'label' => 'Default cut gap', 'unit' => 'mm', 'type' => 'decimal', 'rule' => 'BR-4', 'rules' => ['required', 'numeric', 'min:0'], 'default' => 0],
+                    ['name' => 'requires_tool', 'label' => 'Needs a die', 'type' => 'boolean', 'rule' => 'BR-13', 'default' => false],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+                'defaultSort' => 'sort_order',
+            ],
+
+            'customer-kinds' => [
+                'table' => 'customer_kinds',
+                'group' => 'vocabularies',
+                'label' => 'Customer kinds',
+                'singular' => 'customer kind',
+                'icon' => 'customers',
+                'description' => 'Who is on the other side of the order. Reporting groups by it.',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+                'defaultSort' => 'sort_order',
+            ],
+
+            'inquiry-sources' => [
+                'table' => 'inquiry_sources',
+                'group' => 'vocabularies',
+                'label' => 'Inquiry sources',
+                'singular' => 'inquiry source',
+                'icon' => 'inbox',
+                'description' => 'Where an inquiry came from — the answer to "which channel is worth the merchandiser’s morning".',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+                'defaultSort' => 'sort_order',
+            ],
+
+            'order-priorities' => [
+                'table' => 'order_priorities',
+                'group' => 'vocabularies',
+                'label' => 'Order priorities',
+                'singular' => 'priority',
+                'icon' => 'order',
+                'description' => 'The planning board sorts on the rank, not on the name — a priority inserted between two existing ones needs a number, not a release.',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:10'], 'unique' => true],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'priority_rank', 'label' => 'Rank', 'type' => 'number', 'rules' => ['required', 'integer', 'min:0', 'max:999'], 'default' => 50, 'hint' => 'Higher runs first on the planning board.'],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+                'defaultSort' => 'sort_order',
+            ],
+
+            'product-statuses' => [
+                'table' => 'product_statuses',
+                'group' => 'vocabularies',
+                'label' => 'Product statuses',
+                'singular' => 'product status',
+                'icon' => 'product',
+                'description' => 'A lifecycle rather than a list: only a status that allows ordering may appear on a new order line, and the others stay readable on the documents that already used them.',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'allows_ordering', 'label' => 'May be ordered', 'type' => 'boolean', 'default' => false],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+                'defaultSort' => 'sort_order',
+            ],
+
+            'defect-severities' => [
+                'table' => 'defect_severities',
+                'group' => 'vocabularies',
+                'label' => 'Defect severities',
+                'singular' => 'severity',
+                'icon' => 'inspection',
+                'permission' => 'qc_inspection',
+                'description' => 'BR-30, BR-31 — the verdict depends on these two flags: one lot-rejecting defect fails the lot outright, the rest are counted against the AQL accept number or merely recorded.',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:10'], 'unique' => true],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'rejects_lot', 'label' => 'Rejects the lot alone', 'type' => 'boolean', 'rule' => 'BR-30', 'default' => false],
+                    ['name' => 'counts_toward_aql', 'label' => 'Counts against the accept number', 'type' => 'boolean', 'rule' => 'BR-31', 'default' => false],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+                'defaultSort' => 'sort_order',
+            ],
+
+            'qc-dispositions' => [
+                'table' => 'qc_dispositions',
+                'group' => 'vocabularies',
+                'label' => 'QC dispositions',
+                'singular' => 'disposition',
+                'icon' => 'inspection',
+                'permission' => 'qc_inspection',
+                'description' => 'BR-33 — what happens to a lot that did not pass. The flags are the behaviour: back to an operation, held for customer evidence, re-graded, or written off.',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'returns_to_operation', 'label' => 'Back to an operation', 'type' => 'boolean', 'default' => false],
+                    ['name' => 'requires_customer_evidence', 'label' => 'Needs customer evidence', 'type' => 'boolean', 'default' => false],
+                    ['name' => 'regrades_stock', 'label' => 'Re-grades the stock', 'type' => 'boolean', 'default' => false],
+                    ['name' => 'writes_off_stock', 'label' => 'Writes the stock off', 'type' => 'boolean', 'default' => false],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+                'defaultSort' => 'sort_order',
             ],
         ];
     }

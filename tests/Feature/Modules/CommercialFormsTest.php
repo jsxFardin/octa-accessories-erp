@@ -407,3 +407,25 @@ it('will not duplicate for someone who may not raise a quotation', function (): 
 
     $this->actingAs($operator)->post("/quotations/{$quotation->id}/duplicate")->assertForbidden();
 });
+
+it('names the field and the line in a validation message', function (): void {
+    // "The lines.0.product_id field is required" names a row the user cannot see (line 1 is
+    // index 0) and a column nobody typed. Every message in the application goes through
+    // DocumentValidator, so this holds the wording for all of them.
+    $response = $this->actingAs($this->merchandiser)->post('/inquiries', [
+        'inquiry_date' => now()->toDateString(),
+        'lines' => [
+            ['description' => '', 'qty' => ''],
+            ['description' => 'Second line', 'qty' => 0],
+        ],
+    ]);
+
+    $response->assertRedirect()->assertSessionHasErrors();
+
+    $messages = session('errors')->getBag('default')->getMessages();
+
+    expect($messages['customer_id'][0])->toBe('The customer field is required.')
+        ->and($messages['lines.0.description'][0])->toBe('The line 1 description field is required.')
+        ->and($messages['lines.0.qty'][0])->toBe('The line 1 quantity field is required.')
+        ->and($messages['lines.1.qty'][0])->toContain('line 2 quantity');
+});

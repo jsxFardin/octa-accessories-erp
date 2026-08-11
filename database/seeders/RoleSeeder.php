@@ -48,7 +48,7 @@ class RoleSeeder extends Seeder
             'grants' => [
                 'user.*', 'role.*', 'setting.*', 'number_sequence.*', 'audit_log.*', 'employee.*',
                 'item.*', 'machine.*', 'customer.*', 'supplier.*', 'warehouse.*', 'uom.*',
-                'currency.*', 'tax.*', 'reference_data.*', 'report:read',
+                'currency.*', 'tax.*', 'reference_data.*', 'bank_account.*', 'report:read',
             ],
         ],
 
@@ -203,6 +203,11 @@ class RoleSeeder extends Seeder
                 'supplier.view_any', 'supplier.view', 'supplier.create', 'supplier.update',
                 'supplier.export',
                 'item.*', 'supplier_bill.*', 'stock_lot:read', 'report.*',
+                // Raises the credit and keeps the shipment file; opening and amending an LC
+                // costs bank charges and is the manager's call.
+                'letter_of_credit.view_any', 'letter_of_credit.view', 'letter_of_credit.create',
+                'letter_of_credit.update', 'letter_of_credit.export',
+                'import_shipment.*',
             ],
         ],
 
@@ -213,6 +218,7 @@ class RoleSeeder extends Seeder
                 'purchase_requisition.*', 'rfq.*', 'purchase_order.*', 'grn.*',
                 'supplier.*', 'supplier.approve', 'item.*', 'supplier_bill.*',
                 'purchase_order.approve', 'stock_lot:read', 'report.*',
+                'letter_of_credit.*', 'import_shipment.*',
             ],
         ],
 
@@ -239,6 +245,11 @@ class RoleSeeder extends Seeder
                 'customer.*', 'supplier.*',
                 'sales_order:read', 'delivery_challan:read', 'purchase_order:read', 'grn:read',
                 'audit_log:read', 'report.*',
+                'expense.*', 'expense.approve', 'expense.pay', 'bank_account.*',
+                // Accounts enter the C&F and freight bills and push them into stock; the
+                // shipment file itself belongs to purchasing.
+                'letter_of_credit:read', 'import_shipment:read',
+                'import_shipment.cost', 'import_shipment.allocate',
             ],
         ],
 
