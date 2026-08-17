@@ -59,9 +59,11 @@ class SalesOrderStateMachine extends StateMachine
         return [
             'confirmed' => 'sales_order.confirm',
             'credit_hold' => 'sales_order.confirm',
-            'in_production' => 'sales_order.update',
-            'partially_delivered' => 'sales_order.update',
-            'delivered' => 'sales_order.update',
+            // Progress targets carry their own narrow permission (P0-4.3): fulfilment roles
+            // advance an order's status without holding the right to edit its lines.
+            'in_production' => 'sales_order.progress',
+            'partially_delivered' => 'sales_order.progress',
+            'delivered' => 'sales_order.progress',
             'closed' => 'sales_order.close',
             'cancelled' => 'sales_order.cancel',
         ];

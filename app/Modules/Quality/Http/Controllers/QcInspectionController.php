@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace App\Modules\Quality\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Manufacturing\Models\JobCard;
+use App\Modules\Manufacturing\Models\JobCardOperation;
+use App\Modules\Manufacturing\Services\FgReceiptService;
+use App\Modules\Manufacturing\States\JobCardStateMachine;
 use App\Modules\Quality\Models\QcInspection;
 use App\Support\Calculators\AqlResolver;
 use App\Support\Http\ListsResources;
@@ -30,6 +34,8 @@ class QcInspectionController extends Controller
     public function __construct(
         private readonly AqlResolver $aql,
         private readonly NumberAllocator $numbers,
+        private readonly FgReceiptService $fgReceipts,
+        private readonly JobCardStateMachine $jobCards,
     ) {}
 
     public function index(Request $request): Response
@@ -83,7 +89,9 @@ class QcInspectionController extends Controller
             'job_card_id' => ['nullable', 'integer', 'exists:job_cards,id'],
             'lot_id' => ['nullable', 'integer', 'exists:stock_lots,id'],
             'grn_line_id' => ['nullable', 'integer', 'exists:grn_lines,id'],
-            'stage' => ['required', Rule::in(['incoming', 'in_process', 'final', 'pre_dispatch'])],
+            // Stage vocabulary must match `qc_inspections_stage_chk` — the CHECK constraint is
+            // the canonical list. `pre_dispatch` was a drift that the database rejected mid-save.
+            'stage' => ['required', Rule::in(['incoming', 'in_process', 'final', 'pre_shipment'])],
             'lot_size' => ['required', 'integer', 'min:1'],
             'major_found' => ['integer', 'min:0'],
             'minor_found' => ['integer', 'min:0'],
@@ -158,6 +166,21 @@ class QcInspectionController extends Controller
                 ]);
             }
 
+            // P0-3 — an accepted *final* verdict releases this job's quarantined FG lots.
+            // A status flip, not a movement: the pieces never moved, so the ledger is silent.
+            // Reject-grade receipts stay quarantined inside releaseForJob.
+            if ($inspection->stage === 'final'
+                && in_array($inspection->result, ['accepted', 'accepted_with_concession'], true)
+                && $inspection->job_card_id !== null) {
+                $this->fgReceipts->releaseForJob((int) $inspection->job_card_id);
+            }
+
+            // P1-3 — a rejection is a controlled event, not a note: raise the NCR, freeze the
+            // rejected batch's FG, and — on a rework disposition — put the job back on the floor.
+            if ($inspection->result === 'rejected') {
+                $this->onRejected($inspection, $request);
+            }
+
             return $inspection;
         });
 
@@ -173,6 +196,72 @@ class QcInspectionController extends Controller
                     strtoupper($outcome['result']),
                 ),
             );
+    }
+
+    /**
+     * P1-3 — the three consequences of a rejection, inside the store transaction.
+     *
+     * The rework quantity is the inspected lot size from the QC record itself — never a
+     * number the client typed separately.
+     */
+    private function onRejected(QcInspection $inspection, Request $request): void
+    {
+        // 1. The NCR, on the existing schema — severity from what the inspection found.
+        DB::table('ncrs')->insert([
+            'number' => $this->numbers->next('ncr'),
+            'source' => $inspection->stage,
+            'qc_inspection_id' => $inspection->id,
+            'job_card_id' => $inspection->job_card_id,
+            'raised_on' => now()->toDateString(),
+            'description' => sprintf(
+                'Inspection %s rejected %d pcs (%d critical / %d major found, reject at %d). Disposition: %s.%s',
+                $inspection->number,
+                $inspection->lot_size,
+                $inspection->critical_found,
+                $inspection->major_found,
+                $inspection->reject_number,
+                $inspection->disposition,
+                filled($inspection->remarks) ? ' '.$inspection->remarks : '',
+            ),
+            'severity' => $inspection->critical_found > 0 ? 'critical' : 'major',
+            'status' => 'open',
+            'raised_by' => $request->user()->id,
+        ]);
+
+        if ($inspection->job_card_id === null) {
+            return;
+        }
+
+        // 2. Freeze the rejected batch: this job's quarantined FG is blocked, so a later
+        //    accepted inspection of reworked output cannot accidentally release it. Status
+        //    flip only — the ledger stays silent.
+        if ($inspection->stage === 'final') {
+            DB::table('stock_lots')
+                ->where('job_card_id', $inspection->job_card_id)
+                ->where('kind', 'finished_goods')
+                ->where('status', 'quarantine')
+                ->update(['status' => 'blocked']);
+        }
+
+        // 3. Rework goes back to the floor through the state machine — the flagged operation
+        //    (or the final one) reopens, history untouched: old logs stay, new output adds.
+        if ($inspection->disposition === 'rework') {
+            $jobCard = JobCard::query()->findOrFail($inspection->job_card_id);
+
+            $operationId = $inspection->job_card_operation_id
+                ?? JobCardOperation::query()
+                    ->where('job_card_id', $jobCard->id)
+                    ->reorder('sequence_no', 'desc')
+                    ->value('id');
+
+            JobCardOperation::query()
+                ->whereKey($operationId)
+                ->update(['status' => JobCardOperation::READY, 'finished_at' => null]);
+
+            if ($jobCard->status === JobCard::QC_PENDING) {
+                $this->jobCards->transition($jobCard, JobCard::IN_PRODUCTION);
+            }
+        }
     }
 
     public function show(QcInspection $inspection): Response

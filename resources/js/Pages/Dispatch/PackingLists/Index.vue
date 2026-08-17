@@ -29,7 +29,7 @@ const columns = [
         <template #subtitle>Every carton's contents name their lot (D1)</template>
 
         <template #actions>
-            <span />
+            <Button v-if="can('packing_list.create')" size="sm" variant="primary" href="/packing-lists/create">New packing list</Button>
         </template>
 
         <Card :padded="false">
@@ -41,7 +41,7 @@ const columns = [
                 row-key="id"
                 empty="No packing lists yet."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
+                <template #cell:number="{ row, value }"><Link :href="`/packing-lists/${row.id}`" class="font-medium text-brand-700">{{ value ?? "(draft)" }}</Link></template>
                 <template #cell:packed_on="{ row, value }">{{ date(value) }}</template>
                 <template #cell:total_qty="{ row, value }">{{ pcs(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>

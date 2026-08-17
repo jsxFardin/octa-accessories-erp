@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Dispatch\Models;
 
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -26,6 +27,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class PackingList extends Model
 {
+    use Auditable;
+
     protected $table = 'packing_lists';
 
     public const UPDATED_AT = null;
@@ -63,5 +66,17 @@ class PackingList extends Model
             'created_at' => 'datetime',
             'created_by' => 'integer',
         ];
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<Carton, $this> */
+    public function cartons(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Carton::class, 'packing_list_id')->orderBy('carton_no');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Modules\Sales\Models\SalesOrder, $this> */
+    public function salesOrder(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Sales\Models\SalesOrder::class, 'sales_order_id');
     }
 }

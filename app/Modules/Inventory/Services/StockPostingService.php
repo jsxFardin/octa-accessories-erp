@@ -123,11 +123,20 @@ class StockPostingService
      * BR-36 — receive against a GRN line: create the lot, post the receipt, move the
      * item's weighted average.
      *
+     * `$movementType` defaults to the GRN receipt this method was built for; a finished-goods
+     * receipt passes `production_output` (P0-3). Same lot creation, same posting path, same
+     * locks — only the ledger's label differs.
+     *
      * @param  array<string, mixed>  $lotAttributes
      */
-    public function receive(array $lotAttributes, float $qty, float $unitCost, Model $source): StockLot
-    {
-        return DB::transaction(function () use ($lotAttributes, $qty, $unitCost, $source): StockLot {
+    public function receive(
+        array $lotAttributes,
+        float $qty,
+        float $unitCost,
+        Model $source,
+        string $movementType = 'grn_receipt',
+    ): StockLot {
+        return DB::transaction(function () use ($lotAttributes, $qty, $unitCost, $source, $movementType): StockLot {
             /** @var StockLot $lot */
             $lot = StockLot::query()->create([
                 ...$lotAttributes,
@@ -136,7 +145,7 @@ class StockPostingService
                 'unit_cost' => $unitCost, // written twice from two different sources of truth
             ]);
 
-            $this->post($lot, 'grn_receipt', $qty, $source, $unitCost);
+            $this->post($lot, $movementType, $qty, $source, $unitCost);
 
             $this->updateItemAverage($lot, $qty, $unitCost);
 

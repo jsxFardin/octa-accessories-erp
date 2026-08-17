@@ -74,7 +74,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur print:hidden">
+    <!-- `mt-auto` inside the form column's flex layout: docked to the foot of the window on a
+         short form, and still sticky while a long one scrolls past. -->
+    <div class="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-slate-200 bg-white/95 px-4 pt-2.5 pb-2.5 backdrop-blur print:hidden">
         <div class="flex flex-wrap items-center gap-3">
             <span v-if="form.isDirty" class="text-xs text-amber-700">Unsaved changes</span>
             <span v-else-if="summary" class="text-xs text-ink-500">{{ summary }}</span>

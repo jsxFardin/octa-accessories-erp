@@ -19,6 +19,8 @@ const props = defineProps({
     availableTransitions: { type: Array, default: () => [] },
     amendments: { type: Array, default: () => [] },
     jobCards: { type: Array, default: () => [] },
+    fulfilment: { type: Object, default: null },
+    challans: { type: Array, default: () => [] },
 });
 
 const releaseOpen = ref(false);
@@ -36,6 +38,7 @@ const lineColumns = [
     { key: 'ordered_qty', label: 'Ordered', align: 'right' },
     { key: 'produced_qty', label: 'Produced', align: 'right' },
     { key: 'delivered_qty', label: 'Delivered', align: 'right' },
+    { key: 'remaining_qty', label: 'Remaining', align: 'right' },
     { key: 'band', label: 'Acceptable band', align: 'right' },
     { key: 'rate_per_m', label: 'Rate /M', align: 'right' },
     { key: 'line_total', label: 'Value', align: 'right' },
@@ -93,6 +96,27 @@ const lineColumns = [
                 <strong>{{ money(creditCheck.excess) }}</strong>. Only Accounts or the MD may release it.
             </div>
 
+            <!-- P0-4: every figure from its authoritative source; gaps shown, never smoothed -->
+            <Card v-if="fulfilment" title="Fulfilment" rule="P0-4">
+                <dl class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-7">
+                    <div><dt class="text-xs text-ink-500">Ordered</dt><dd class="font-medium tnum">{{ pcs(fulfilment.ordered) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Produced</dt><dd class="font-medium tnum">{{ pcs(fulfilment.produced) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">FG received</dt><dd class="font-medium tnum">{{ pcs(fulfilment.fg_received) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">FG available</dt><dd class="font-medium tnum text-emerald-700">{{ pcs(fulfilment.fg_available) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Packed</dt><dd class="font-medium tnum">{{ pcs(fulfilment.packed) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Delivered</dt><dd class="font-medium tnum">{{ pcs(fulfilment.delivered) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Remaining</dt><dd class="font-medium tnum" :class="fulfilment.ordered - fulfilment.delivered > 0 ? 'text-rose-600' : ''">{{ pcs(Math.max(0, fulfilment.ordered - fulfilment.delivered)) }}</dd></div>
+                </dl>
+                <ul v-if="challans.length" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">
+                    <li v-for="challan in challans" :key="challan.id" class="flex items-center justify-between py-1.5">
+                        <Link :href="`/delivery-challans/${challan.id}`" class="font-medium text-brand-700">{{ challan.number ?? '(draft challan)' }}</Link>
+                        <span class="tnum">{{ pcs(challan.total_qty) }}</span>
+                        <span class="text-xs text-ink-500">{{ date(challan.challan_date) }}</span>
+                        <Badge :status="challan.status" />
+                    </li>
+                </ul>
+            </Card>
+
             <Card title="Lines" rule="BR-1 · BR-44" :padded="false">
                 <DataTable :columns="lineColumns" :rows="lines" row-key="id" empty="No lines." dense>
                     <template #cell:product="{ row }">
@@ -104,6 +128,7 @@ const lineColumns = [
                     <template #cell:ordered_qty="{ value }">{{ pcs(value) }}</template>
                     <template #cell:produced_qty="{ value }">{{ pcs(value) }}</template>
                     <template #cell:delivered_qty="{ value }">{{ pcs(value) }}</template>
+                    <template #cell:remaining_qty="{ row }">{{ pcs(Math.max(0, row.ordered_qty - row.delivered_qty)) }}</template>
                     <template #cell:band="{ row }">
                         <span class="text-xs text-ink-500">{{ pcs(row.delivery_band.min) }}–{{ pcs(row.delivery_band.max) }}</span>
                     </template>

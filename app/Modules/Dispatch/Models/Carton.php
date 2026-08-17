@@ -46,4 +46,10 @@ class Carton extends Model
             'height_cm' => 'decimal:2',
         ];
     }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<CartonContent, $this> */
+    public function contents(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(CartonContent::class, 'carton_id');
+    }
 }

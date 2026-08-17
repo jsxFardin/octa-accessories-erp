@@ -147,7 +147,7 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
                                 { value: 'incoming', label: 'Incoming' },
                                 { value: 'in_process', label: 'In process' },
                                 { value: 'final', label: 'Final' },
-                                { value: 'pre_dispatch', label: 'Pre-dispatch' },
+                                { value: 'pre_shipment', label: 'Pre-shipment' },
                             ]"
                         />
                     </FormField>

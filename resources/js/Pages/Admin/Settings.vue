@@ -109,7 +109,9 @@ function save() {
                 : 'Identity, branding and how dates and numbers are displayed' }}
         </template>
 
-        <div class="space-y-4">
+        <!-- The same column shape as a form page: tall enough to reach the foot of the
+             window, so the action bar docks there instead of ending with a short tab. -->
+        <div class="flex min-h-[calc(100vh-5.5rem)] flex-col space-y-4">
             <Tabs :tabs="tabs" :current="tab" />
 
             <!-- Organisation ------------------------------------------------------------->
@@ -341,8 +343,8 @@ function save() {
                     </div>
                 </Card>
             </div>
+            <FormFooter :form="activeForm" label="Save changes" @save="save" />
         </div>
 
-        <FormFooter :form="activeForm" label="Save changes" @save="save" />
     </AppLayout>
 </template>

@@ -42,7 +42,19 @@ defineProps({
             </ul>
         </nav>
 
-        <div class="min-w-0 flex-1" :class="full ? '' : wide ? 'max-w-6xl' : 'max-w-3xl'">
+        <!--
+            Tall enough to reach the bottom of the window even when the form is three fields
+            long. The action bar is `sticky bottom-0 mt-auto`, which pins it while a long
+            document scrolls — but on a short one the column used to end halfway up the screen
+            and the bar ended with it, floating in the middle of an empty page.
+
+            The subtraction is the shell: a 56px header plus the 16px padding above and below
+            the main region.
+        -->
+        <div
+            class="flex min-h-[calc(100vh-5.5rem)] min-w-0 flex-1 flex-col"
+            :class="full ? '' : wide ? 'max-w-6xl' : 'max-w-3xl'"
+        >
             <slot />
         </div>
     </div>

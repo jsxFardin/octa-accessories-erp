@@ -37,6 +37,9 @@ class RoleSeeder extends Seeder
             'grants' => [
                 '*:read',
                 'cost_sheet.override_margin', 'sales_order.release_credit_hold', 'sales_order.short_close',
+                'sales_order.override_tolerance',   // BR-44 — shipping outside the band is an MD sign-off
+                'delivery_challan.issue',           // …and the MD issues that exceptional challan personally
+                'sales_order.progress',             // whose side effect advances the order's fulfilment status
                 'artwork.approve', 'purchase_order.approve', 'stock_adjustment.approve',
                 'qc_inspection.concession', 'credit_note.approve', 'job_card.waive_material',
                 'report.dashboard',
@@ -102,6 +105,7 @@ class RoleSeeder extends Seeder
                 'purchase_requisition.submit', 'purchase_requisition.export',
                 'machine.*', 'stock_lot.*', 'stock_issue:read',
                 'job_card.waive_material',
+                'fg_receipt.*',   // P0-3 — the production-side manager tier owns FG receipts
                 'sales_order:read', 'product:read', 'product_spec:read', 'bom:read', 'routing:read',
                 'tool.*', 'item:read', 'supplier:read', 'purchase_order:read', 'grn:read', 'report.*',
             ],
@@ -113,6 +117,10 @@ class RoleSeeder extends Seeder
                 'job_card.*', 'operation.*', 'downtime.*', 'waste.*', 'packing_list.*',
                 'ncr.*', 'sample_request.*',
                 'job_card.release', 'job_card.hold',
+                // P0-3 — the supervisor books finished output into FG stock.
+                'fg_receipt:read', 'fg_receipt.create', 'fg_receipt.post',
+                // P0-4 — starting production moves the order to in_production.
+                'sales_order.progress',
                 'machine:read', 'stock_lot:read', 'stock_issue.*', 'qc_inspection:read',
                 'production_plan:read', 'product_spec:read', 'artwork:read', 'report.*',
             ],
@@ -130,6 +138,7 @@ class RoleSeeder extends Seeder
             // sweep `.approve` in with the rest and quietly make the manager tier decorative.
             'grants' => [
                 'stock_lot.*', 'stock_issue.*', 'stock_transfer.*',
+                'fg_receipt:read',   // P0-3 — sees FG arrive; posting belongs to production
                 'physical_count.view_any', 'physical_count.view', 'physical_count.create',
                 'physical_count.update', 'physical_count.export',
                 'stock_adjustment.create', 'stock_adjustment.update', 'stock_adjustment:read',
@@ -157,6 +166,10 @@ class RoleSeeder extends Seeder
             'grants' => [
                 'qc_inspection.*', 'ncr.*', 'lab_test:read', 'test_report:read',
                 'grn.*', 'packing_list.*', 'sample_request.*',
+                'fg_receipt:read',   // P0-3 — QC sees what is held in quarantine and why
+                // P1-3 — a rework disposition puts the job back in production; that transition
+                // is mapped to operation.start, so the inspector's rejection can move it.
+                'operation.start',
                 'job_card:read', 'stock_lot:read', 'product_spec:read', 'artwork:read', 'report.*',
             ],
         ],
@@ -227,6 +240,9 @@ class RoleSeeder extends Seeder
             'grants' => [
                 'packing_list.*', 'delivery_challan.*', 'trip.*', 'trip_stop.*', 'pod.*',
                 'export_document.*', 'stock_lot.*',
+                // P0-4 — a challan's issue moves the order to partially_delivered; the officer
+                // advances fulfilment status without holding sales_order.update.
+                'sales_order.progress',
                 'sales_order:read', 'job_card:read', 'customer:read', 'sales_invoice:read', 'report.*',
             ],
         ],

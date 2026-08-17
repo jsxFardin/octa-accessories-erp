@@ -159,6 +159,32 @@ class SalesOrderController extends Controller
             'jobCards' => DB::table('job_cards')
                 ->whereIn('sales_order_line_id', $salesOrder->lines->pluck('id'))
                 ->get(['id', 'number', 'status', 'planned_qty', 'good_qty', 'due_date']),
+            // P0-4 — the fulfilment strip: every figure from its authoritative source, the
+            // packed number derived from carton contents rather than cached anywhere.
+            'fulfilment' => [
+                'ordered' => (float) $salesOrder->lines->sum('ordered_qty'),
+                'produced' => (float) $salesOrder->lines->sum('produced_qty'),
+                'fg_received' => (float) DB::table('fg_receipts as fr')
+                    ->join('job_cards as jc', 'jc.id', '=', 'fr.job_card_id')
+                    ->whereIn('jc.sales_order_line_id', $salesOrder->lines->pluck('id'))
+                    ->where('fr.status', 'posted')->sum('fr.qty'),
+                'fg_available' => (float) DB::table('stock_lots as sl')
+                    ->join('job_cards as jc', 'jc.id', '=', 'sl.job_card_id')
+                    ->whereIn('jc.sales_order_line_id', $salesOrder->lines->pluck('id'))
+                    ->where('sl.kind', 'finished_goods')->where('sl.status', 'available')
+                    ->sum('sl.balance_qty'),
+                'packed' => (float) DB::table('carton_contents as cc')
+                    ->join('cartons as c', 'c.id', '=', 'cc.carton_id')
+                    ->join('packing_lists as pl', 'pl.id', '=', 'c.packing_list_id')
+                    ->whereIn('cc.sales_order_line_id', $salesOrder->lines->pluck('id'))
+                    ->whereIn('pl.status', ['packed', 'dispatched', 'delivered'])
+                    ->sum('cc.qty'),
+                'delivered' => (float) $salesOrder->lines->sum('delivered_qty'),
+            ],
+            'challans' => DB::table('delivery_challans')
+                ->where('sales_order_id', $salesOrder->id)
+                ->orderByDesc('id')
+                ->get(['id', 'number', 'status', 'challan_date', 'total_qty']),
         ]);
     }
 

@@ -7,6 +7,7 @@ namespace App\Modules\Manufacturing\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
+use App\Modules\Manufacturing\Services\FgReceiptService;
 use App\Modules\Manufacturing\Services\JobCardReleaseGate;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
 use App\Modules\Product\Models\ArtworkVersion;
@@ -36,6 +37,7 @@ class JobCardController extends Controller
         private readonly JobCardReleaseGate $gate,
         private readonly ConsumptionCalculator $consumption,
         private readonly CapacityCalculator $capacity,
+        private readonly FgReceiptService $fgReceipts,
     ) {}
 
     public function index(Request $request): Response
@@ -235,6 +237,17 @@ class JobCardController extends Controller
             ]) ?? [],
             'issues' => DB::table('material_issues')->where('job_card_id', $jobCard->id)
                 ->orderByDesc('id')->get(['id', 'number', 'issued_on', 'status']),
+            // P0-3 — produced vs received-to-FG vs available, gap stated, never smoothed over.
+            'fgPosition' => $this->fgReceipts->positionFor($jobCard),
+            'fgReceipts' => DB::table('fg_receipts as fr')
+                ->leftJoin('stock_lots as sl', 'sl.id', '=', 'fr.lot_id')
+                ->where('fr.job_card_id', $jobCard->id)
+                ->orderByDesc('fr.id')
+                ->get(['fr.id', 'fr.number', 'fr.received_on', 'fr.qty', 'fr.grade', 'fr.status',
+                    'sl.lot_no', 'sl.status as lot_status', 'sl.balance_qty']),
+            'fgWarehouses' => DB::table('warehouses')
+                ->where('is_active', true)->where('kind', 'finished_goods')
+                ->orderBy('code')->get(['id', 'code', 'name']),
             'wasteLogs' => DB::table('waste_logs')->where('job_card_id', $jobCard->id)
                 ->orderByDesc('id')->limit(20)->get(),
         ]);

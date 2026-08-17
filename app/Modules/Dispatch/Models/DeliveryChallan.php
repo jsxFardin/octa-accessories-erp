@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Dispatch\Models;
 
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -29,6 +30,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class DeliveryChallan extends Model
 {
+    use Auditable;
+
     protected $table = 'delivery_challans';
 
     public const UPDATED_AT = null;
@@ -73,5 +76,17 @@ class DeliveryChallan extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\Customer::class, 'customer_id');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<DeliveryChallanLine, $this> */
+    public function lines(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(DeliveryChallanLine::class, 'delivery_challan_id')->orderBy('line_no');
+    }
+
+    /** @return BelongsTo<PackingList, $this> */
+    public function packingList(): BelongsTo
+    {
+        return $this->belongsTo(PackingList::class, 'packing_list_id');
     }
 }

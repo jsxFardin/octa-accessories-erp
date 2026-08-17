@@ -14,6 +14,7 @@ use App\Modules\Finance\Http\Controllers\SalesInvoiceController;
 use App\Modules\Inventory\Http\Controllers\MaterialIssueController;
 use App\Modules\Inventory\Http\Controllers\StockEnquiryController;
 use App\Modules\Inventory\Http\Controllers\StockLotController;
+use App\Modules\Manufacturing\Http\Controllers\FgReceiptController;
 use App\Modules\Manufacturing\Http\Controllers\JobCardController;
 use App\Modules\MasterData\Http\Controllers\CustomerController;
 use App\Modules\MasterData\Http\Controllers\ItemController;
@@ -255,6 +256,9 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:job_card.view')->name('job-cards.show');
     Route::post('job-cards/{jobCard}/transition', [JobCardController::class, 'transition'])
         ->middleware('can:job_card.view')->name('job-cards.transition');
+    // P0-3 — production output enters finished-goods stock through this one door.
+    Route::post('job-cards/{jobCard}/fg-receipts', [FgReceiptController::class, 'store'])
+        ->middleware('can:fg_receipt.post')->name('job-cards.fg-receipts.store');
 
     // ---- Assurance -----------------------------------------------------------------
     Route::get('qc-inspections', [QcInspectionController::class, 'index'])
@@ -277,8 +281,32 @@ Route::middleware('auth')->group(function (): void {
     // ---- Fulfilment ----------------------------------------------------------------
     Route::get('packing-lists', [PackingListController::class, 'index'])
         ->middleware('can:packing_list.view_any')->name('packing-lists.index');
+    Route::get('packing-lists/create', [PackingListController::class, 'create'])
+        ->middleware('can:packing_list.create')->name('packing-lists.create');
+    Route::post('packing-lists', [PackingListController::class, 'store'])
+        ->middleware('can:packing_list.create')->name('packing-lists.store');
+    Route::get('packing-lists/{packingList}', [PackingListController::class, 'show'])
+        ->middleware('can:packing_list.view')->name('packing-lists.show');
+    // Targets carry their own permission inside the state machine (pack / delete / issue).
+    Route::post('packing-lists/{packingList}/transition', [PackingListController::class, 'transition'])
+        ->middleware('can:packing_list.view')->name('packing-lists.transition');
+    Route::post('packing-lists/{packingList}/cartons', [PackingListController::class, 'storeCarton'])
+        ->middleware('can:packing_list.update')->name('packing-lists.cartons.store');
+    Route::delete('packing-lists/{packingList}/cartons/{carton}', [PackingListController::class, 'destroyCarton'])
+        ->middleware('can:packing_list.update')->name('packing-lists.cartons.destroy');
+    Route::post('packing-lists/{packingList}/cartons/{carton}/contents', [PackingListController::class, 'storeContent'])
+        ->middleware('can:packing_list.update')->name('packing-lists.contents.store');
+    Route::delete('packing-lists/{packingList}/cartons/{carton}/contents/{content}', [PackingListController::class, 'destroyContent'])
+        ->middleware('can:packing_list.update')->name('packing-lists.contents.destroy');
+
     Route::get('delivery-challans', [DeliveryChallanController::class, 'index'])
         ->middleware('can:delivery_challan.view_any')->name('delivery-challans.index');
+    Route::post('delivery-challans', [DeliveryChallanController::class, 'store'])
+        ->middleware('can:delivery_challan.create')->name('delivery-challans.store');
+    Route::get('delivery-challans/{deliveryChallan}', [DeliveryChallanController::class, 'show'])
+        ->middleware('can:delivery_challan.view')->name('delivery-challans.show');
+    Route::post('delivery-challans/{deliveryChallan}/transition', [DeliveryChallanController::class, 'transition'])
+        ->middleware('can:delivery_challan.view')->name('delivery-challans.transition');
     Route::get('trips', [TripController::class, 'index'])
         ->middleware('can:trip.access')->name('trips.index');
 
@@ -330,8 +358,19 @@ Route::middleware('auth')->group(function (): void {
     // ---- Money ---------------------------------------------------------------------
     Route::get('invoices', [SalesInvoiceController::class, 'index'])
         ->middleware('can:sales_invoice.view_any')->name('invoices.index');
+    Route::post('invoices', [SalesInvoiceController::class, 'store'])
+        ->middleware('can:sales_invoice.create')->name('invoices.store');
+    Route::get('invoices/{invoice}', [SalesInvoiceController::class, 'show'])
+        ->middleware('can:sales_invoice.view')->name('invoices.show');
+    // Issue and cancel carry their own permission inside the state machine.
+    Route::post('invoices/{invoice}/transition', [SalesInvoiceController::class, 'transition'])
+        ->middleware('can:sales_invoice.view')->name('invoices.transition');
+
     Route::get('receipts', [ReceiptController::class, 'index'])
         ->middleware('can:receipt.view_any')->name('receipts.index');
+    // A receipt posts on store — recording cash in hand as a draft would be fiction.
+    Route::post('receipts', [ReceiptController::class, 'store'])
+        ->middleware('can:receipt.allocate')->name('receipts.store');
 
     Route::resource('expenses', ExpenseController::class)
         ->except(['show', 'destroy'])

@@ -64,7 +64,9 @@ class PermissionSeeder extends Seeder
         'quotation' => ['Commercial', ['send', 'revise', 'accept', 'reject']],
         'cost_sheet' => ['Commercial', ['override_margin']],
         'price_list' => ['Commercial', []],
-        'sales_order' => ['Commercial', ['confirm', 'cancel', 'close', 'short_close', 'release_credit_hold', 'override_tolerance', 'amend']],
+        // `progress` moves an order along its fulfilment statuses (in_production,
+        // partially_delivered, delivered) without granting line edits (P0-4.3).
+        'sales_order' => ['Commercial', ['confirm', 'cancel', 'close', 'short_close', 'release_credit_hold', 'override_tolerance', 'amend', 'progress']],
         'sample_request' => ['Commercial', ['dispatch']],
 
         // Supply
@@ -98,6 +100,9 @@ class PermissionSeeder extends Seeder
         'coc' => ['Assurance', ['reconcile', 'lock_period']],
 
         // Fulfilment
+        // `post` is the act that creates stock — separate from `create` for the same reason
+        // grn.post and stock_issue.post are: drafting paperwork is not moving inventory.
+        'fg_receipt' => ['Fulfilment', ['post']],
         'packing_list' => ['Fulfilment', ['pack']],
         'delivery_challan' => ['Fulfilment', ['issue', 'deliver', 'return']],
         'trip' => ['Fulfilment', ['start', 'complete', 'view_own']],

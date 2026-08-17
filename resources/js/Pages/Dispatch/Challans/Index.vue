@@ -41,7 +41,7 @@ const columns = [
                 row-key="id"
                 empty="No challans issued."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
+                <template #cell:number="{ row, value }"><Link :href="`/delivery-challans/${row.id}`" class="font-medium text-brand-700">{{ value ?? "(draft)" }}</Link></template>
                 <template #cell:customer_name="{ row, value }">{{ row.customer?.name ?? "—" }}</template>
                 <template #cell:challan_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:mode="{ row, value }">{{ titleCase(value) }}</template>

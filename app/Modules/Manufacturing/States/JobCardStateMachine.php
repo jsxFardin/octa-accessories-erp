@@ -76,6 +76,7 @@ class JobCardStateMachine extends StateMachine
             JobCard::RELEASED => $this->guardReleased($document, $context),
             JobCard::ON_HOLD => $this->guardHold($context),
             JobCard::QC_PENDING => $this->guardQcPending($document),
+            JobCard::COMPLETED => $this->guardCompleted($document),
             JobCard::CLOSED => $this->guardClosed($document),
             JobCard::CANCELLED => $this->guardCancelled($document, $context),
             default => null,
@@ -137,6 +138,48 @@ class JobCardStateMachine extends StateMachine
         }
     }
 
+    /**
+     * P1-1 — a job whose routing demands QC cannot complete without an accepted final
+     * verdict. The requirement comes from the routing's own `requires_qc` flags (explicit
+     * configuration is authoritative); `qc_final_required_default` extends it to every job
+     * when the factory turns the setting on. An unresolved rejection blocks until rework
+     * produces a later accepted inspection.
+     */
+    private function guardCompleted(JobCard $jobCard): void
+    {
+        $required = $jobCard->operations()->where('requires_qc', true)->exists()
+            || app(\App\Support\Settings\Settings::class)->bool('qc_final_required_default', false);
+
+        if (! $required) {
+            return;
+        }
+
+        $latest = \App\Modules\Quality\Models\QcInspection::query()
+            ->where('job_card_id', $jobCard->getKey())
+            ->where('stage', 'final')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($latest === null) {
+            throw TransitionDenied::guard(
+                'P1-1 · QC1',
+                'This routing requires final QC and none has been performed. Inspect before completing.',
+            );
+        }
+
+        if ($latest->result === 'rejected') {
+            throw TransitionDenied::guard(
+                'P1-1 · QC2',
+                "The latest final inspection ({$latest->number}) rejected the lot — disposition {$latest->disposition}. "
+                .'Rework and re-inspect before completing.',
+            );
+        }
+
+        if (! in_array($latest->result, ['accepted', 'accepted_with_concession'], true)) {
+            throw TransitionDenied::guard('P1-1 · QC1', "Final inspection {$latest->number} is still {$latest->result}.");
+        }
+    }
+
     /** J4, J5 */
     private function guardClosed(JobCard $jobCard): void
     {
@@ -192,7 +235,9 @@ class JobCardStateMachine extends StateMachine
             JobCard::IN_PRODUCTION => $this->onInProduction($document),
             JobCard::ON_HOLD => $document->forceFill(['hold_reason' => $context['hold_reason']])->save(),
             JobCard::COMPLETED => $document->forceFill(['actual_finish' => now()])->save(),
-            JobCard::CLOSED => $document->forceFill(['closed_at' => now()])->save(),
+            JobCard::CLOSED => $this->onClosed($document),
+            JobCard::CANCELLED => app(\App\Modules\Inventory\Services\ReservationService::class)
+                ->releaseForJob((int) $document->getKey()),
             default => null,
         };
     }
@@ -211,6 +256,13 @@ class JobCardStateMachine extends StateMachine
             'material_waiver_reason' => $context['material_waiver_reason'] ?? null,
         ])->save();
 
+        // P1-2 — the release claims its material, so the next job's J1 gate sees the truth.
+        // A waived release reserves what exists rather than failing on the waived shortfall.
+        app(\App\Modules\Inventory\Services\ReservationService::class)->reserveForJob(
+            $jobCard,
+            allowShortfall: filled($context['material_waiver_reason'] ?? null),
+        );
+
         // The first operation joins the shop-floor queue; the rest wait on J2 ordering.
         $jobCard->operations()
             ->where('sequence_no', $jobCard->operations()->min('sequence_no'))
@@ -222,5 +274,13 @@ class JobCardStateMachine extends StateMachine
         if ($jobCard->actual_start === null) {
             $jobCard->forceFill(['actual_start' => now()])->save();
         }
+    }
+
+    private function onClosed(JobCard $jobCard): void
+    {
+        $jobCard->forceFill(['closed_at' => now()])->save();
+
+        // P1-2 — leftover claims of a finished job go back to the pool; history rows stay.
+        app(\App\Modules\Inventory\Services\ReservationService::class)->releaseForJob((int) $jobCard->getKey());
     }
 }

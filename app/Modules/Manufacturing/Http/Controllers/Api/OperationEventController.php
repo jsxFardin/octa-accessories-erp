@@ -105,7 +105,8 @@ class OperationEventController extends Controller
                     'shift_id' => $data['shift_id'] ?? null,
                     'started_at' => $locked->started_at ?? $occurredAt,
                     'ended_at' => $occurredAt,
-                    'input_qty' => $addedInput,
+                    // No input_qty column here — per-shift input accumulates on the operation
+                    // row (J3 is checked against that running total, above).
                     'good_qty' => $good,
                     'waste_qty' => $waste,
                     'input_lot_id' => $data['input_lot_id'] ?? null,
@@ -130,6 +131,24 @@ class OperationEventController extends Controller
                         'waste_qty' => (float) $jobCard->waste_qty + $waste,
                         'produced_qty' => (float) $jobCard->produced_qty + $good + $waste,
                     ])->save();
+
+                    // P0-2 — the order line's produced total moves with the *final* operation's
+                    // good output, in this same transaction. Only the last operation counts:
+                    // 50,000 labels woven, cut and folded is 50,000 produced, not 150,000.
+                    // Atomic increment, not read-modify-write — two terminals logging the same
+                    // final operation must not lose an update. The S2 cancellation guard and
+                    // the job-card "remaining to cover" filter read this column.
+                    $finalSequence = (int) JobCardOperation::query()
+                        ->where('job_card_id', $locked->job_card_id)
+                        ->max('sequence_no');
+
+                    if ($good > 0
+                        && $locked->sequence_no === $finalSequence
+                        && $jobCard->sales_order_line_id !== null) {
+                        DB::table('sales_order_lines')
+                            ->where('id', $jobCard->sales_order_line_id)
+                            ->increment('produced_qty', $good);
+                    }
                 }
             });
 

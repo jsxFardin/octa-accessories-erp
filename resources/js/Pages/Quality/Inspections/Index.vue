@@ -38,7 +38,7 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'stage', label: 'Stage', options: ['incoming','in_process','final','pre_dispatch'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'result', label: 'Result', options: ['pending','accepted','accepted_with_concession','rejected'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search inspection number…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'stage', label: 'Stage', options: ['incoming','in_process','final','pre_shipment'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'result', label: 'Result', options: ['pending','accepted','accepted_with_concession','rejected'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search inspection number…" />
 
             <DataTable
                 :columns="columns"

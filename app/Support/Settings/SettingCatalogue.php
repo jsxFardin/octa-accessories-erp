@@ -72,6 +72,8 @@ class SettingCatalogue
 
         'merchandiser_sees_own_only' => ['scoping', 'Merchandisers see only their own records', null, 'When on, a merchandiser sees only the customers and orders assigned to them (06-rbac §4).'],
 
+        'qc_final_required_default' => ['quality', 'Final QC required for every job', null, 'P1-1 — when on, no job card completes without an accepted final inspection, even if its routing flags no QC operation. Routing-level requires_qc always applies regardless.'],
+
         'base_currency' => ['general', 'Base currency', null, 'Costs are computed and reported in this currency (BR-22). Changing it does not convert existing records.'],
 
         // The organisation profile — see /admin/organisation.

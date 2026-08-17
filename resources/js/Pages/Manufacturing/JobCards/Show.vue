@@ -8,6 +8,7 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import { date, datetime, pcs, qty, titleCase } from '@/plugins/formatting';
+import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -18,7 +19,28 @@ const props = defineProps({
     bomRequirement: { type: Array, default: () => [] },
     issues: { type: Array, default: () => [] },
     wasteLogs: { type: Array, default: () => [] },
+    fgPosition: { type: Object, default: () => ({ produced: 0, received: 0, available: 0, quarantined: 0, remaining_receivable: 0 }) },
+    fgReceipts: { type: Array, default: () => [] },
+    fgWarehouses: { type: Array, default: () => [] },
 });
+
+// P0-3 — client_ref makes a double-submit a replay, not a second lot.
+const fgForm = useForm({
+    qty: null,
+    warehouse_id: props.fgWarehouses[0]?.id ?? null,
+    grade: 'A',
+    client_ref: (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`),
+});
+
+function postFgReceipt() {
+    fgForm.post(`/job-cards/${props.jobCard.id}/fg-receipts`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            fgForm.reset('qty', 'grade');
+            fgForm.client_ref = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+        },
+    });
+}
 
 const releaseOpen = ref(false);
 const holdOpen = ref(false);
@@ -318,6 +340,69 @@ const bomColumns = [
                     </ul>
                 </Card>
             </div>
+
+            <!-- P0-3: production output becomes stock here. The gap is stated, never smoothed. -->
+            <Card title="Finished goods" rule="P0-3" subtitle="Output enters FG stock through a receipt; quarantine until final QC accepts">
+                <dl class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+                    <div>
+                        <dt class="text-xs text-ink-500">Produced (final op)</dt>
+                        <dd class="font-medium tnum">{{ pcs(fgPosition.produced) }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-ink-500">Received to FG</dt>
+                        <dd class="font-medium tnum">{{ pcs(fgPosition.received) }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-ink-500">Available</dt>
+                        <dd class="font-medium tnum text-emerald-700">{{ pcs(fgPosition.available) }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-ink-500">In quarantine</dt>
+                        <dd class="font-medium tnum text-amber-700">{{ pcs(fgPosition.quarantined) }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-ink-500">Unreceived production</dt>
+                        <dd class="font-medium tnum" :class="fgPosition.remaining_receivable > 0 ? 'text-rose-600' : ''">
+                            {{ pcs(fgPosition.remaining_receivable) }}
+                        </dd>
+                    </div>
+                </dl>
+
+                <ul v-if="fgReceipts.length" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">
+                    <li v-for="receipt in fgReceipts" :key="receipt.id" class="flex items-center justify-between gap-2 py-2">
+                        <span class="font-medium text-ink-800">{{ receipt.number }}</span>
+                        <span class="tnum">{{ pcs(receipt.qty) }}</span>
+                        <span class="text-xs text-ink-500">lot {{ receipt.lot_no ?? '—' }}</span>
+                        <Badge v-if="receipt.grade !== 'A'" tone="warning" :label="`grade ${receipt.grade}`" />
+                        <Badge :status="receipt.lot_status ?? receipt.status" />
+                        <span class="text-xs text-ink-500">{{ date(receipt.received_on) }}</span>
+                    </li>
+                </ul>
+
+                <form
+                    v-if="can('fg_receipt.post') && fgPosition.remaining_receivable > 0"
+                    class="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3"
+                    @submit.prevent="postFgReceipt"
+                >
+                    <FormField label="Quantity" :error="fgForm.errors.qty" class="w-36">
+                        <input v-model="fgForm.qty" type="number" min="0.000001" step="any"
+                               class="w-full rounded-md border-slate-300 text-sm" :placeholder="`≤ ${fgPosition.remaining_receivable}`" />
+                    </FormField>
+                    <FormField label="Warehouse" :error="fgForm.errors.warehouse_id" class="w-44">
+                        <select v-model="fgForm.warehouse_id" class="w-full rounded-md border-slate-300 text-sm">
+                            <option v-for="wh in fgWarehouses" :key="wh.id" :value="wh.id">{{ wh.code }} — {{ wh.name }}</option>
+                        </select>
+                    </FormField>
+                    <FormField label="Grade" :error="fgForm.errors.grade" class="w-28">
+                        <select v-model="fgForm.grade" class="w-full rounded-md border-slate-300 text-sm">
+                            <option value="A">A</option>
+                            <option value="B">B</option>
+                            <option value="reject">Reject</option>
+                        </select>
+                    </FormField>
+                    <Button type="submit" size="sm" variant="primary" :disabled="fgForm.processing">Receive to FG</Button>
+                </form>
+            </Card>
         </div>
 
         <!-- Release: the waiver is the only way past a shortage, and it demands a reason -->

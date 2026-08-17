@@ -7,6 +7,7 @@ namespace App\Modules\Inventory\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Inventory\Models\StockLot;
 use App\Modules\Inventory\Services\NegativeStockException;
+use App\Modules\Inventory\Services\ReservationService;
 use App\Modules\Inventory\Services\StockAvailability;
 use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\Manufacturing\Models\MaterialIssue;
@@ -37,6 +38,7 @@ class MaterialIssueController extends Controller
         private readonly StockAvailability $availability,
         private readonly InventoryValuator $valuator,
         private readonly NumberAllocator $numbers,
+        private readonly ReservationService $reservations,
     ) {}
 
     public function index(Request $request): Response
@@ -154,7 +156,22 @@ class MaterialIssueController extends Controller
 
                 foreach ($data['lines'] as $index => $line) {
                     /** @var StockLot $lot */
-                    $lot = StockLot::query()->findOrFail($line['lot_id']);
+                    $lot = StockLot::query()->lockForUpdate()->findOrFail($line['lot_id']);
+
+                    // P1-2 — another job's active reservation on this lot is not ours to take.
+                    // BR-38 protects the balance; this protects the claim.
+                    $othersClaim = $this->reservations->claimedByOthers((int) $lot->id, (int) $data['job_card_id']);
+                    $freeForThisJob = (float) $lot->balance_qty - $othersClaim;
+
+                    if ((float) $line['qty'] > $freeForThisJob + 0.000001) {
+                        throw new NegativeStockException(sprintf(
+                            'P1-2: lot %s has %s on hand but %s is reserved for other jobs — only %s is available to this one.',
+                            $lot->lot_no,
+                            rtrim(rtrim(number_format((float) $lot->balance_qty, 6, '.', ''), '0'), '.'),
+                            rtrim(rtrim(number_format($othersClaim, 6, '.', ''), '0'), '.'),
+                            rtrim(rtrim(number_format(max(0, $freeForThisJob), 6, '.', ''), '0'), '.'),
+                        ));
+                    }
 
                     DB::table('material_issue_lines')->insert([
                         'material_issue_id' => $issue->id,
@@ -176,6 +193,9 @@ class MaterialIssueController extends Controller
                         $issue,
                         remarks: $line['fifo_override_reason'] ?? null,
                     );
+
+                    // The physical issue consumes this job's own claim, oldest rows first.
+                    $this->reservations->consumeForIssue((int) $data['job_card_id'], (int) $lot->id, (float) $line['qty']);
                 }
 
                 return $issue;

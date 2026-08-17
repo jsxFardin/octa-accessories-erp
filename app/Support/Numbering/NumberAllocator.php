@@ -61,10 +61,25 @@ class NumberAllocator
     /**
      * Lot numbers use a date-based series (L{YYMMDD}-{#####}) rather than a yearly one
      * (01-domain-model §5), so the series key is the date, not the year.
+     *
+     * A daily series cannot be pre-seeded the way the yearly, VAT-relevant ones deliberately
+     * are, so the day's row is created on first use. `insertOrIgnore` against the unique key
+     * over (document_type, series_key) makes the race benign: of two concurrent first
+     * receipts, one inserts, the other is ignored, and both then serialise on the row lock
+     * in next() — same counter, no duplicates, and a rollback simply un-creates the row.
      */
     public function nextLotNumber(): string
     {
-        return $this->next('lot', now()->format('ymd'));
+        $seriesKey = now()->format('ymd');
+
+        DB::table('number_sequences')->insertOrIgnore([
+            'document_type' => 'lot',
+            'series_key' => $seriesKey,
+            'prefix' => 'L',
+            'padding' => 5,
+        ]);
+
+        return $this->next('lot', $seriesKey);
     }
 
     /**
