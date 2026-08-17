@@ -180,6 +180,13 @@ class SalesOrderController extends Controller
                     ->whereIn('pl.status', ['packed', 'dispatched', 'delivered'])
                     ->sum('cc.qty'),
                 'delivered' => (float) $salesOrder->lines->sum('delivered_qty'),
+                'invoiced' => (float) $salesOrder->lines->sum('invoiced_qty'),
+                // P2-1 — applied credit value against this order's invoices.
+                'credited_value' => (float) DB::table('credit_notes as cn')
+                    ->join('sales_invoices as si', 'si.id', '=', 'cn.sales_invoice_id')
+                    ->where('si.sales_order_id', $salesOrder->id)
+                    ->where('cn.status', 'applied')
+                    ->sum('cn.amount'),
             ],
             'challans' => DB::table('delivery_challans')
                 ->where('sales_order_id', $salesOrder->id)

@@ -44,7 +44,7 @@ const form = useForm({
 // The picker narrows to the chosen invoice's customer; outstanding shown per invoice.
 const invoiceOptions = computed(() => props.openInvoices.map((invoice) => ({
     ...invoice,
-    outstanding: (Number(invoice.total) - Number(invoice.received_amount)).toFixed(2),
+    outstanding: (Number(invoice.total) - Number(invoice.received_amount) - Number(invoice.credited_amount ?? 0)).toFixed(2),
 })));
 
 function pickInvoice(allocation) {
@@ -53,7 +53,7 @@ function pickInvoice(allocation) {
     if (invoice) {
         form.customer_id = invoice.customer_id;
         form.currency_id ??= invoice.currency_id ?? null;
-        allocation.amount ??= (Number(invoice.total) - Number(invoice.received_amount)).toFixed(2);
+        allocation.amount ??= (Number(invoice.total) - Number(invoice.received_amount) - Number(invoice.credited_amount ?? 0)).toFixed(2);
         form.amount ??= allocation.amount;
     }
 }

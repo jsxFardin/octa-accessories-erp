@@ -238,6 +238,53 @@ class DispatchService
                 $this->rollupSchedules((int) $line->sales_order_line_id, -((float) $line->qty));
             }
         }
+
+        $this->draftReturnCreditNote($challan);
+    }
+
+    /**
+     * P2-1 — a return AFTER invoicing needs a corrective document. The invoice stands
+     * (invoiced_qty untouched); a draft credit note for the returned value is raised for
+     * accounts to approve and apply. A return BEFORE invoicing needs nothing — a later
+     * invoice bills only what stayed delivered.
+     *
+     * Duplicate protection is structural: `returned` is terminal in the challan graph, so
+     * this runs at most once per challan.
+     */
+    private function draftReturnCreditNote(DeliveryChallan $challan): void
+    {
+        $invoice = DB::table('sales_invoices')
+            ->where('delivery_challan_id', $challan->getKey())
+            ->where('status', '!=', 'cancelled')
+            ->whereNotNull('number')   // issued at least once; drafts bill nothing yet
+            ->first();
+
+        if ($invoice === null) {
+            return;
+        }
+
+        $amount = 0.0;
+
+        foreach ($this->lines($challan) as $line) {
+            $rate = (float) (DB::table('sales_order_lines')->where('id', $line->sales_order_line_id)->value('rate_per_m') ?? 0);
+            // BR-1 — value from the per-1000 rate, same arithmetic the invoice line used.
+            $amount += (float) $line->qty / 1000 * $rate;
+        }
+
+        if ($amount <= 0) {
+            return;
+        }
+
+        \App\Modules\Finance\Models\CreditNote::query()->create([
+            'customer_id' => $challan->customer_id,
+            'sales_invoice_id' => $invoice->id,
+            'note_date' => now()->toDateString(),
+            'reason' => 'return',
+            'currency_id' => $invoice->currency_id,
+            'amount' => round($amount, 4),
+            'status' => 'draft',
+            'remarks' => "Auto-drafted: challan {$challan->number} returned.",
+        ]);
     }
 
     /** Delivery schedules fill in due-date order; a return unwinds in reverse. */

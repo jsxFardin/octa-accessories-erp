@@ -1,17 +1,26 @@
 <script setup>
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import FormField from '@/Components/Ui/FormField.vue';
 import { date, money, pcs, ratePerM } from '@/plugins/formatting';
+import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
     invoice: { type: Object, required: true },
     lines: { type: Array, default: () => [] },
     allocations: { type: Array, default: () => [] },
+    creditNotes: { type: Array, default: () => [] },
     availableTransitions: { type: Array, default: () => [] },
+});
+
+const creditForm = useForm({
+    sales_invoice_id: props.invoice.id,
+    reason: 'quality_claim',
+    amount: null,
 });
 
 function transition(to) {
@@ -57,13 +66,41 @@ const columns = [
             </Card>
 
             <div class="grid gap-4 lg:grid-cols-2">
-                <Card title="Totals">
+                <Card title="Totals" rule="total = received + credited + outstanding">
                     <dl class="grid grid-cols-2 gap-2 text-sm">
                         <div><dt class="text-xs text-ink-500">Subtotal</dt><dd class="font-medium tnum">{{ money(invoice.subtotal) }}</dd></div>
                         <div><dt class="text-xs text-ink-500">Total</dt><dd class="font-medium tnum">{{ money(invoice.total) }}</dd></div>
                         <div><dt class="text-xs text-ink-500">Received</dt><dd class="font-medium tnum text-emerald-700">{{ money(invoice.received_amount) }}</dd></div>
+                        <div><dt class="text-xs text-ink-500">Credited</dt><dd class="font-medium tnum text-amber-700">{{ money(invoice.credited ?? 0) }}</dd></div>
                         <div><dt class="text-xs text-ink-500">Outstanding</dt><dd class="font-medium tnum" :class="invoice.outstanding > 0 ? 'text-rose-600' : ''">{{ money(invoice.outstanding) }}</dd></div>
                     </dl>
+
+                    <form
+                        v-if="can('credit_note.create') && ['issued', 'partially_paid', 'overdue'].includes(invoice.status)"
+                        class="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3"
+                        @submit.prevent="creditForm.post('/credit-notes')"
+                    >
+                        <FormField label="Credit reason" class="w-40">
+                            <select v-model="creditForm.reason" class="w-full rounded-md border-slate-300 text-xs">
+                                <option v-for="reason in ['quality_claim','short_delivery','rate_difference','discount','other']" :key="reason" :value="reason">{{ reason }}</option>
+                            </select>
+                        </FormField>
+                        <FormField label="Amount" class="w-32">
+                            <input v-model="creditForm.amount" type="number" min="0.01" step="any" class="w-full rounded-md border-slate-300 text-xs" :placeholder="`≤ ${invoice.outstanding}`" />
+                        </FormField>
+                        <Button type="submit" size="xs" :disabled="creditForm.processing">Draft credit note</Button>
+                    </form>
+                </Card>
+
+                <Card v-if="creditNotes.length" title="Credit notes" :padded="false">
+                    <ul class="divide-y divide-slate-100 text-sm">
+                        <li v-for="note in creditNotes" :key="note.id" class="flex items-center justify-between gap-2 px-4 py-2">
+                            <Link :href="`/credit-notes/${note.id}`" class="font-medium text-brand-700">{{ note.number ?? '(draft)' }}</Link>
+                            <span class="text-xs text-ink-500">{{ note.reason }}</span>
+                            <span class="tnum">{{ money(note.amount) }}</span>
+                            <Badge :status="note.status" />
+                        </li>
+                    </ul>
                 </Card>
 
                 <Card title="Receipts against this invoice" :padded="false">

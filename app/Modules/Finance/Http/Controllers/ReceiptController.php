@@ -59,8 +59,15 @@ class ReceiptController extends Controller
                 ->join('customers as c', 'c.id', '=', 'si.customer_id')
                 ->whereIn('si.status', ['issued', 'partially_paid', 'overdue'])
                 ->orderBy('si.due_date')
-                ->get(['si.id', 'si.number', 'si.customer_id', 'si.currency_id', 'si.total',
-                    'si.received_amount', 'si.due_date', 'c.name as customer_name']),
+                ->select(['si.id', 'si.number', 'si.customer_id', 'si.currency_id', 'si.total',
+                    'si.received_amount', 'si.due_date', 'c.name as customer_name'])
+                // P2-1 — applied credits reduce what a receipt may allocate.
+                ->selectSub(
+                    DB::table('credit_notes')->whereColumn('sales_invoice_id', 'si.id')
+                        ->where('status', 'applied')->selectRaw('COALESCE(SUM(amount),0)'),
+                    'credited_amount',
+                )
+                ->get(),
         ]);
     }
 
@@ -122,7 +129,10 @@ class ReceiptController extends Controller
                         ]);
                     }
 
-                    $outstanding = (float) $invoice->total - (float) $invoice->received_amount;
+                    // P2-1 — the one outstanding formula: total − received − applied credits.
+                    // Recomputed under the invoice lock; a concurrent credit application
+                    // serialises against this same row.
+                    $outstanding = $this->invoices->outstanding($invoice);
 
                     if ((float) $allocation['amount'] > $outstanding + 0.0001) {
                         throw ValidationException::withMessages([

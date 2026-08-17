@@ -105,6 +105,7 @@ const lineColumns = [
                     <div><dt class="text-xs text-ink-500">FG available</dt><dd class="font-medium tnum text-emerald-700">{{ pcs(fulfilment.fg_available) }}</dd></div>
                     <div><dt class="text-xs text-ink-500">Packed</dt><dd class="font-medium tnum">{{ pcs(fulfilment.packed) }}</dd></div>
                     <div><dt class="text-xs text-ink-500">Delivered</dt><dd class="font-medium tnum">{{ pcs(fulfilment.delivered) }}</dd></div>
+                    <div v-if="fulfilment.credited_value > 0"><dt class="text-xs text-ink-500">Credited value</dt><dd class="font-medium tnum text-amber-700">{{ money(fulfilment.credited_value) }}</dd></div>
                     <div><dt class="text-xs text-ink-500">Remaining</dt><dd class="font-medium tnum" :class="fulfilment.ordered - fulfilment.delivered > 0 ? 'text-rose-600' : ''">{{ pcs(Math.max(0, fulfilment.ordered - fulfilment.delivered)) }}</dd></div>
                 </dl>
                 <ul v-if="challans.length" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">

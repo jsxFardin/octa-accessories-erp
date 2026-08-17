@@ -155,7 +155,9 @@ class SalesInvoiceController extends Controller
                     'total', 'received_amount', 'status', 'lc_no', 'mushak_no', 'remarks',
                     'sales_order_id', 'delivery_challan_id']),
                 'customer' => $invoice->customer?->only(['id', 'code', 'name']),
-                'outstanding' => round((float) $invoice->total - (float) $invoice->received_amount, 4),
+                // P2-1 — the one formula: total = received + credited + outstanding.
+                'credited' => $this->states->appliedCredits($invoice),
+                'outstanding' => $this->states->outstanding($invoice),
             ],
             'lines' => DB::table('sales_invoice_lines as sil')
                 ->leftJoin('products as p', 'p.id', '=', 'sil.product_id')
@@ -163,6 +165,10 @@ class SalesInvoiceController extends Controller
                 ->orderBy('sil.line_no')
                 ->get(['sil.id', 'sil.line_no', 'sil.description', 'sil.qty', 'sil.rate_per_m',
                     'sil.amount', 'p.code as product_code']),
+            'creditNotes' => DB::table('credit_notes')
+                ->where('sales_invoice_id', $invoice->id)
+                ->orderByDesc('id')
+                ->get(['id', 'number', 'note_date', 'reason', 'amount', 'status']),
             'allocations' => DB::table('receipt_allocations as ra')
                 ->join('receipts as r', 'r.id', '=', 'ra.receipt_id')
                 ->where('ra.sales_invoice_id', $invoice->id)

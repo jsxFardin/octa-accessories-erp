@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Finance\Models;
 
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -23,6 +24,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class CreditNote extends Model
 {
+    use Auditable;
+
     protected $table = 'credit_notes';
 
     public const UPDATED_AT = null;
@@ -54,5 +57,17 @@ class CreditNote extends Model
             'approved_by' => 'integer',
             'created_at' => 'datetime',
         ];
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Modules\MasterData\Models\Customer, $this> */
+    public function customer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Customer::class, 'customer_id');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<SalesInvoice, $this> */
+    public function salesInvoice(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(SalesInvoice::class, 'sales_invoice_id');
     }
 }

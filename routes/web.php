@@ -8,6 +8,7 @@ use App\Modules\Costing\Http\Controllers\CostSheetController;
 use App\Modules\Dispatch\Http\Controllers\DeliveryChallanController;
 use App\Modules\Dispatch\Http\Controllers\PackingListController;
 use App\Modules\Dispatch\Http\Controllers\TripController;
+use App\Modules\Finance\Http\Controllers\CreditNoteController;
 use App\Modules\Finance\Http\Controllers\ExpenseController;
 use App\Modules\Finance\Http\Controllers\ReceiptController;
 use App\Modules\Finance\Http\Controllers\SalesInvoiceController;
@@ -365,6 +366,16 @@ Route::middleware('auth')->group(function (): void {
     // Issue and cancel carry their own permission inside the state machine.
     Route::post('invoices/{invoice}/transition', [SalesInvoiceController::class, 'transition'])
         ->middleware('can:sales_invoice.view')->name('invoices.transition');
+
+    // P2-1 — credit notes: approve and apply carry their own permission in the state machine.
+    Route::get('credit-notes', [CreditNoteController::class, 'index'])
+        ->middleware('can:credit_note.view_any')->name('credit-notes.index');
+    Route::post('credit-notes', [CreditNoteController::class, 'store'])
+        ->middleware('can:credit_note.create')->name('credit-notes.store');
+    Route::get('credit-notes/{creditNote}', [CreditNoteController::class, 'show'])
+        ->middleware('can:credit_note.view')->name('credit-notes.show');
+    Route::post('credit-notes/{creditNote}/transition', [CreditNoteController::class, 'transition'])
+        ->middleware('can:credit_note.view')->name('credit-notes.transition');
 
     Route::get('receipts', [ReceiptController::class, 'index'])
         ->middleware('can:receipt.view_any')->name('receipts.index');

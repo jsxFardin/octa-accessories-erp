@@ -118,14 +118,40 @@ class SalesInvoiceStateMachine extends StateMachine
     }
 
     /**
-     * Receipt allocation moved the received amount; derive the payment status and walk the
-     * machine there — never a direct column write.
+     * P2-1 — the sum of credit notes applied against this invoice. Derived from
+     * `status = 'applied'` rows, never cached: there is no second column to drift.
+     */
+    public function appliedCredits(SalesInvoice $invoice): float
+    {
+        return (float) DB::table('credit_notes')
+            ->where('sales_invoice_id', $invoice->getKey())
+            ->where('status', 'applied')
+            ->sum('amount');
+    }
+
+    /**
+     * The one formula (P2-1): outstanding = total − received − applied credits.
+     * Receipts, credit applications and payment status all read this — nowhere else.
+     */
+    public function outstanding(SalesInvoice $invoice): float
+    {
+        return round(
+            (float) $invoice->total - (float) $invoice->received_amount - $this->appliedCredits($invoice),
+            4,
+        );
+    }
+
+    /**
+     * Money or credit moved; derive the payment status and walk the machine there — never a
+     * direct column write. Settled = received + credited covers the total.
      */
     public function reflectPayment(SalesInvoice $invoice): void
     {
+        $settled = (float) $invoice->received_amount + $this->appliedCredits($invoice);
+
         $target = match (true) {
-            (float) $invoice->received_amount >= (float) $invoice->total - 0.0001 => 'paid',
-            (float) $invoice->received_amount > 0 => 'partially_paid',
+            $settled >= (float) $invoice->total - 0.0001 => 'paid',
+            $settled > 0 => 'partially_paid',
             default => null,
         };
 

@@ -147,6 +147,7 @@ export const navigation = [
                 children: [
                     { label: 'Invoices', href: '/invoices', permissions: ['sales_invoice.view_any'] },
                     { label: 'Receipts', href: '/receipts', permissions: ['receipt.view_any'] },
+                    { label: 'Credit notes', href: '/credit-notes', permissions: ['credit_note.view_any'] },
                     { label: 'Expenses', href: '/expenses', permissions: ['expense.view_any'] },
                 ],
             },
