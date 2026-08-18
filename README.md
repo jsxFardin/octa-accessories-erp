@@ -8,6 +8,10 @@ Built to the specification in [`docs/`](docs/README.md). Every business rule in 
 
 ---
 
+## Using it
+
+Day-to-day how-to (sign-in, roles, each module) is the **[User Guide](docs/ug/README.md)**.
+
 ## Getting it running
 
 ```bash

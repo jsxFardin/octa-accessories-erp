@@ -22,5 +22,11 @@ class DatabaseSeeder extends Seeder
         if (app()->environment('local') || app()->runningUnitTests()) {
             $this->call(DemoDataSeeder::class);
         }
+
+        // 100 journeys across the full process — local only. Tests stay on the single
+        // walkthrough order so they stay fast and deterministic.
+        if (app()->environment('local')) {
+            $this->call(LocalProcessSeeder::class);
+        }
     }
 }

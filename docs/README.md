@@ -1,5 +1,7 @@
 # Octa ERP — Specification
 
+**Using the live system?** Start at the [User Guide](ug/README.md) — sign-in, roles, and the factory sequence (inquiry → invoice). This folder is the build specification.
+
 Build-ready specification for a **Label & Garment-Accessory Manufacturing ERP**, scoped to Maheen Label (woven labels, flexo/screen/heat-transfer/thermal printed labels, offset tags and tickets).
 
 Not a garment ERP. Production here is machine-centred and process-routed — loom, flexo press, screen table, heat-transfer press, offset press, thermal printer — with in-house plate and screen making, a physical testing laboratory, FSC/GRS/OEKO-TEX chain-of-custody obligations, and an owned delivery fleet.
