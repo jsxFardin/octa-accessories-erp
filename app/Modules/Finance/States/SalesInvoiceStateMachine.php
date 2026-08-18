@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Finance\States;
 
 use App\Modules\Finance\Models\SalesInvoice;
+use App\Support\Notifications\Notifier;
 use App\Support\Numbering\NumberAllocator;
 use App\Support\States\StateMachine;
 use App\Support\States\TransitionDenied;
@@ -24,6 +25,7 @@ class SalesInvoiceStateMachine extends StateMachine
     public function __construct(
         \App\Support\Audit\AuditLogger $audit,
         private readonly NumberAllocator $numbers,
+        private readonly Notifier $notifier,
     ) {
         parent::__construct($audit);
     }
@@ -83,6 +85,7 @@ class SalesInvoiceStateMachine extends StateMachine
         match ($to) {
             'issued' => $this->onIssued($document),
             'cancelled' => $this->onCancelled($document, $from),
+            'overdue' => $this->onOverdue($document),
             default => null,
         };
     }
@@ -114,6 +117,15 @@ class SalesInvoiceStateMachine extends StateMachine
                 DB::table('sales_order_lines')->where('id', $line->sales_order_line_id)
                     ->decrement('invoiced_qty', (float) $line->qty);
             }
+        }
+    }
+
+    private function onOverdue(SalesInvoice $invoice): void
+    {
+        try {
+            $this->notifier->notifyInvoiceOverdue($invoice);
+        } catch (\Throwable $e) {
+            report($e);
         }
     }
 

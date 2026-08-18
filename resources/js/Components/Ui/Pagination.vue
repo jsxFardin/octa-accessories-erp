@@ -24,19 +24,21 @@ function setPerPage(value) {
 }
 
 const showing = computed(() => {
-    const { from, to, total } = props.meta;
+    const from = props.meta?.from;
+    const to = props.meta?.to;
+    const total = props.meta?.total;
 
     if (!total) return 'No results';
 
     return `${from}–${to} of ${total.toLocaleString('en-GB')}`;
 });
 
-const hasPages = computed(() => (props.meta.links?.length ?? 0) > 3);
+const hasPages = computed(() => (props.meta?.links?.length ?? 0) > 3);
 </script>
 
 <template>
     <div
-        v-if="meta.total"
+        v-if="meta?.total"
         class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white px-3 py-2 text-xs text-ink-700"
     >
         <div class="flex items-center gap-3">

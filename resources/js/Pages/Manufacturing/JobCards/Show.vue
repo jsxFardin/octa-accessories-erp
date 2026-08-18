@@ -22,6 +22,7 @@ const props = defineProps({
     fgPosition: { type: Object, default: () => ({ produced: 0, received: 0, available: 0, quarantined: 0, remaining_receivable: 0 }) },
     fgReceipts: { type: Array, default: () => [] },
     fgWarehouses: { type: Array, default: () => [] },
+    ncrs: { type: Array, default: () => [] },
 });
 
 // P0-3 — client_ref makes a double-submit a replay, not a second lot.
@@ -402,6 +403,20 @@ const bomColumns = [
                     </FormField>
                     <Button type="submit" size="sm" variant="primary" :disabled="fgForm.processing">Receive to FG</Button>
                 </form>
+            </Card>
+
+            <Card v-if="ncrs.length" title="NCRs" subtitle="Raised when QC rejected output from this job">
+                <ul class="divide-y divide-slate-100 text-sm">
+                    <li v-for="ncr in ncrs" :key="ncr.id" class="flex items-center justify-between py-2">
+                        <Link :href="`/ncrs/${ncr.id}`" class="font-medium text-brand-700">{{ ncr.number }}</Link>
+                        <Badge
+                            :tone="ncr.severity === 'critical' ? 'danger' : ncr.severity === 'major' ? 'warning' : 'neutral'"
+                            :label="titleCase(ncr.severity)"
+                        />
+                        <Badge :status="ncr.status" />
+                        <span class="text-xs text-ink-500">{{ date(ncr.raised_on) }}</span>
+                    </li>
+                </ul>
             </Card>
         </div>
 

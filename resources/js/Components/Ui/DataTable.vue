@@ -262,6 +262,6 @@ const rowPadding = computed(() => (compact.value ? 'py-1.5' : 'py-2.5'));
             </table>
         </div>
 
-        <Pagination v-if="!Array.isArray(rows)" v-model:compact="compact" :meta="rows" />
+        <Pagination v-if="rows && !Array.isArray(rows)" v-model:compact="compact" :meta="rows" />
     </div>
 </template>

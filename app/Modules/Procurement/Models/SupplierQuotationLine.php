@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Procurement\Models;
 
+use App\Modules\MasterData\Models\Item;
+use App\Modules\MasterData\Models\Uom;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int $id
@@ -28,8 +31,6 @@ class SupplierQuotationLine extends Model
         'item_id',
         'qty',
         'uom_id',
-        'rate',
-        'amount',
     ];
 
     /** @return array<string, string> */
@@ -44,5 +45,23 @@ class SupplierQuotationLine extends Model
             'rate' => 'decimal:4',
             'amount' => 'decimal:4',
         ];
+    }
+
+    /** @return BelongsTo<SupplierQuotation, $this> */
+    public function quotation(): BelongsTo
+    {
+        return $this->belongsTo(SupplierQuotation::class, 'supplier_quotation_id');
+    }
+
+    /** @return BelongsTo<Item, $this> */
+    public function item(): BelongsTo
+    {
+        return $this->belongsTo(Item::class, 'item_id');
+    }
+
+    /** @return BelongsTo<Uom, $this> */
+    public function uom(): BelongsTo
+    {
+        return $this->belongsTo(Uom::class, 'uom_id');
     }
 }

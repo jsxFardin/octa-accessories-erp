@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Quality\Models;
 
+use App\Models\User;
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int $id
@@ -20,6 +23,20 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Capa extends Model
 {
+    use Auditable;
+
+    public const KIND_CORRECTIVE = 'corrective';
+
+    public const KIND_PREVENTIVE = 'preventive';
+
+    public const OPEN = 'open';
+
+    public const IN_PROGRESS = 'in_progress';
+
+    public const COMPLETED = 'completed';
+
+    public const VERIFIED = 'verified';
+
     protected $table = 'capas';
 
     public $timestamps = false;
@@ -45,5 +62,17 @@ class Capa extends Model
             'due_date' => 'date',
             'completed_on' => 'date',
         ];
+    }
+
+    /** @return BelongsTo<Ncr, $this> */
+    public function ncr(): BelongsTo
+    {
+        return $this->belongsTo(Ncr::class);
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function responsible(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'responsible_id');
     }
 }

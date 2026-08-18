@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Finance\Models;
 
+use App\Modules\Procurement\Models\SupplierBill;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int $id
@@ -32,5 +34,17 @@ class PaymentAllocation extends Model
             'supplier_bill_id' => 'integer',
             'amount' => 'decimal:4',
         ];
+    }
+
+    /** @return BelongsTo<Payment, $this> */
+    public function payment(): BelongsTo
+    {
+        return $this->belongsTo(Payment::class, 'payment_id');
+    }
+
+    /** @return BelongsTo<SupplierBill, $this> */
+    public function bill(): BelongsTo
+    {
+        return $this->belongsTo(SupplierBill::class, 'supplier_bill_id');
     }
 }

@@ -12,7 +12,7 @@ import { navigation } from '@/navigation';
  * Two halves. Screens are matched locally against the navigation tree — instant, no request.
  * Records go to `/search`, which looks up document numbers and codes across the sources this
  * user may see. Typing "SO-2026" should not require knowing that sales orders live under
- * Commercial.
+ * Sales.
  */
 const open = ref(false);
 const query = ref('');

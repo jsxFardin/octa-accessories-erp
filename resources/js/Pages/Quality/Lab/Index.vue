@@ -1,9 +1,11 @@
 <script setup>
 import { Head } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
+import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, titleCase } from '@/plugins/formatting';
+import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 defineProps({
@@ -20,6 +22,12 @@ defineProps({
 
         <template #title>Laboratory</template>
         <template #subtitle>BR-32 — the nine tests the factory advertises, with their methods and thresholds</template>
+
+        <template #actions>
+            <Button v-if="can('test_report.create')" size="sm" variant="primary" :href="'/lab/reports/create'">
+                New test report
+            </Button>
+        </template>
 
         <div class="space-y-4">
             <Card title="Test catalogue" rule="BR-32" :padded="false">
@@ -72,16 +80,25 @@ defineProps({
             <Card title="Test reports" rule="QC3" subtitle="Immutable once issued — reprinting reproduces the original values" :padded="false">
                 <DataTable
                     :columns="[
-                        { key: 'number', label: 'Number' },
-                        { key: 'issued_on', label: 'Issued' },
+                        { key: 'number', label: 'Number', sort: true },
+                        { key: 'lot_no', label: 'Lot' },
+                        { key: 'customer', label: 'Customer' },
+                        { key: 'tested_on', label: 'Tested', sort: true },
+                        { key: 'overall_result', label: 'Result' },
+                        { key: 'technician', label: 'Technician' },
                         { key: 'status', label: 'Status' },
                     ]"
                     :rows="reports"
                     row-key="id"
-                    empty="No test reports issued."
+                    :row-href="(row) => `/lab/reports/${row.id}`"
+                    empty="No test reports yet."
                     dense
                 >
-                    <template #cell:issued_on="{ value }">{{ value ? date(value) : '—' }}</template>
+                    <template #cell:number="{ value }">{{ value ?? '(draft)' }}</template>
+                    <template #cell:tested_on="{ value }">{{ date(value) }}</template>
+                    <template #cell:overall_result="{ value }">
+                        <Badge :tone="value === 'pass' ? 'success' : value === 'fail' ? 'danger' : 'neutral'" :label="titleCase(value)" />
+                    </template>
                     <template #cell:status="{ value }"><Badge :status="value" /></template>
                 </DataTable>
             </Card>

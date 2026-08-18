@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Quality\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int $id
@@ -37,5 +38,17 @@ class TestReportLine extends Model
             'test_report_id' => 'integer',
             'lab_test_id' => 'integer',
         ];
+    }
+
+    /** @return BelongsTo<TestReport, $this> */
+    public function report(): BelongsTo
+    {
+        return $this->belongsTo(TestReport::class, 'test_report_id');
+    }
+
+    /** @return BelongsTo<LabTest, $this> */
+    public function labTest(): BelongsTo
+    {
+        return $this->belongsTo(LabTest::class, 'lab_test_id');
     }
 }

@@ -4,6 +4,7 @@ import { router } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
 import Icon from '@/Components/Ui/Icon.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
+import DateInput from '@/Components/Ui/DateInput.vue';
 
 const props = defineProps({
     filters: { type: Object, default: () => ({}) },
@@ -80,9 +81,15 @@ function reset() {
                 >
             </div>
 
-            <div v-for="field in fields" :key="field.key" class="w-40">
+            <div v-for="field in fields" :key="field.key" :class="field.type === 'date' ? 'w-36' : 'w-40'">
+                <DateInput
+                    v-if="field.type === 'date'"
+                    v-model="state[field.key]"
+                    :placeholder="field.label"
+                />
                 <!-- A customer filter over 400 customers is unusable without a search box. -->
                 <SelectInput
+                    v-else
                     v-model="state[field.key]"
                     :options="field.options"
                     :placeholder="`All ${field.label.toLowerCase()}`"

@@ -49,6 +49,9 @@ it('guards every application route with a permission', function (): void {
     $exempt = [
         'login', 'logout', 'up', '/', 'floor', 'portal', 'api/v1/device/session',
         'profile', 'profile/password', 'profile/locale', 'search',
+        // Own-user inbox: the row belongs to the caller, so a route-level `can:` would
+        // either lock everyone out or say nothing (same reasoning as profile).
+        'notifications', 'notifications/{notification}/read', 'notifications/read-all',
         // Export is gated per resource inside the controller — `sales_order.export` for one
         // list, `item.export` for the next — which a single route-level `can:` cannot express.
         'exports/{resource}', 'exports/{resource}/columns',

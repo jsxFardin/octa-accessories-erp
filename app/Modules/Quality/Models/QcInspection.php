@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Quality\Models;
 
+use App\Modules\Manufacturing\Models\JobCardOperation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -92,5 +94,17 @@ class QcInspection extends Model
     public function jobCard(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\Manufacturing\Models\JobCard::class, 'job_card_id');
+    }
+
+    /** @return BelongsTo<JobCardOperation, $this> */
+    public function operation(): BelongsTo
+    {
+        return $this->belongsTo(JobCardOperation::class, 'job_card_operation_id');
+    }
+
+    /** @return HasMany<Ncr, $this> */
+    public function ncrs(): HasMany
+    {
+        return $this->hasMany(Ncr::class, 'qc_inspection_id');
     }
 }

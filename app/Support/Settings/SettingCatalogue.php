@@ -65,6 +65,8 @@ class SettingCatalogue
         'packing_days' => ['planning', 'Packing allowance', 'days', 'Reserved for packing when a promised date is calculated (BR-29).'],
 
         'po_approval_band_manager' => ['approval', 'Purchase order — manager band', 'BDT', 'A purchase manager may approve up to this value; above it the order needs the Managing Director (06-rbac §5).'],
+        'rfq_three_quote_value_threshold' => ['approval', 'RFQ — three-quote threshold', 'BDT', 'Quoted value above which at least three supplier quotations are required before selecting a winner (PR-2).'],
+        'supplier_bill_rate_tolerance_pct' => ['approval', 'Supplier bill rate tolerance', '%', 'Rate variance above this percentage requires supplier_bill.approve_variance permission (06-procurement §three-way-match).'],
         'adjustment_approval_band_manager' => ['approval', 'Stock adjustment — manager band', 'BDT', 'A store manager may approve write-offs up to this value.'],
         'credit_note_approval_band_accounts' => ['approval', 'Credit note — accounts band', 'BDT', 'Accounts may approve credit notes up to this value.'],
 

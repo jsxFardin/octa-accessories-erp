@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Inventory\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int $id
@@ -37,5 +38,17 @@ class StockAdjustmentLine extends Model
             'lot_id' => 'integer',
             'qty_delta' => 'decimal:6',
         ];
+    }
+
+    /** @return BelongsTo<StockAdjustment, $this> */
+    public function adjustment(): BelongsTo
+    {
+        return $this->belongsTo(StockAdjustment::class, 'stock_adjustment_id');
+    }
+
+    /** @return BelongsTo<StockLot, $this> */
+    public function lot(): BelongsTo
+    {
+        return $this->belongsTo(StockLot::class, 'lot_id');
     }
 }

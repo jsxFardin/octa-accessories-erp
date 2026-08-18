@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Manufacturing\Models;
 
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -21,7 +22,15 @@ use Illuminate\Database\Eloquent\Model;
  */
 class MaterialIssue extends Model
 {
+    use Auditable;
+
     protected $table = 'material_issues';
+
+    public const TYPE_ISSUE = 'issue';
+
+    public const TYPE_RETURN = 'return';
+
+    public const POSTED = 'posted';
 
     public const UPDATED_AT = null;
 

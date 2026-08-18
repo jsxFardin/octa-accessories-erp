@@ -24,6 +24,9 @@ const TONES = {
 const STATUS_TONES = {
     draft: 'neutral',
     open: 'info',
+    investigating: 'progress',
+    action_taken: 'warning',
+    verified: 'success',
     submitted: 'info',
     sent: 'info',
     planned: 'info',

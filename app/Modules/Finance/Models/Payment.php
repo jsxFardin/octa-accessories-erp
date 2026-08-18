@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Finance\Models;
 
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -24,6 +27,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Payment extends Model
 {
+    use Auditable;
+
     protected $table = 'payments';
 
     public const UPDATED_AT = null;
@@ -40,7 +45,6 @@ class Payment extends Model
         'allocated_amount',
         'status',
         'remarks',
-        'created_by',
     ];
 
     /** @return array<string, string> */
@@ -56,5 +60,23 @@ class Payment extends Model
             'created_at' => 'datetime',
             'created_by' => 'integer',
         ];
+    }
+
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Supplier, $this> */
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Supplier::class, 'supplier_id');
+    }
+
+    /** @return HasMany<PaymentAllocation, $this> */
+    public function allocations(): HasMany
+    {
+        return $this->hasMany(PaymentAllocation::class, 'payment_id');
+    }
+
+    /** @return BelongsTo<\App\Models\User, $this> */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'created_by');
     }
 }

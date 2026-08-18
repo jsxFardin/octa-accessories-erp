@@ -255,7 +255,7 @@ class FgReceiptService
             ->join('stock_lots as sl', 'sl.id', '=', 'mil.lot_id')
             ->where('mi.job_card_id', $jobCard->getKey())
             ->where('mi.status', 'posted')
-            ->get(['mil.qty', 'sl.cert_scheme', 'sl.cert_claim_pct']);
+            ->get(['mil.qty', 'mi.issue_type', 'sl.cert_scheme', 'sl.cert_claim_pct']);
 
         if ($consumed->isEmpty()) {
             return ['scheme' => null, 'claim_pct' => 0.0];
@@ -269,7 +269,7 @@ class FgReceiptService
 
         $claim = $this->coc->dilutedClaimPct(
             $consumed->map(fn ($row): array => [
-                'qty_consumed' => (float) $row->qty,
+                'qty_consumed' => $this->signedIssueQty($row->issue_type, (float) $row->qty),
                 'claim_pct' => (float) $row->cert_claim_pct,
             ])->all(),
         );
@@ -295,9 +295,15 @@ class FgReceiptService
             ->join('material_issues as mi', 'mi.id', '=', 'mil.material_issue_id')
             ->where('mi.job_card_id', $jobCard->getKey())
             ->where('mi.status', 'posted')
-            ->sum(DB::raw('mil.qty * mil.unit_cost'));
+            ->sum(DB::raw("CASE WHEN mi.issue_type = 'return' THEN -mil.qty ELSE mil.qty END * mil.unit_cost"));
 
         return round($materialValue / $finalGood, 4);
+    }
+
+    /** IN-3 — a return is unused material, not additional consumption. */
+    private function signedIssueQty(?string $issueType, float $qty): float
+    {
+        return $issueType === 'return' ? -abs($qty) : abs($qty);
     }
 
     /** FG is counted in pieces; the base UoM for labels. */

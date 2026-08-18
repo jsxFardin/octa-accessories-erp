@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Quality\Models;
 
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -24,9 +27,17 @@ use Illuminate\Database\Eloquent\Model;
  */
 class TestReport extends Model
 {
+    use Auditable;
+
     protected $table = 'test_reports';
 
     public const UPDATED_AT = null;
+
+    public const DRAFT = 'draft';
+
+    public const ISSUED = 'issued';
+
+    public const CANCELLED = 'cancelled';
 
     protected $fillable = [
         'number',
@@ -40,7 +51,6 @@ class TestReport extends Model
         'status',
         'issued_at',
         'remarks',
-        'created_by',
     ];
 
     /** @return array<string, string> */
@@ -57,5 +67,35 @@ class TestReport extends Model
             'created_at' => 'datetime',
             'created_by' => 'integer',
         ];
+    }
+
+    /** @return HasMany<TestReportLine, $this> */
+    public function lines(): HasMany
+    {
+        return $this->hasMany(TestReportLine::class, 'test_report_id');
+    }
+
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Customer, $this> */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Customer::class, 'customer_id');
+    }
+
+    /** @return BelongsTo<\App\Modules\Inventory\Models\StockLot, $this> */
+    public function lot(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Inventory\Models\StockLot::class, 'lot_id');
+    }
+
+    /** @return BelongsTo<\App\Models\User, $this> */
+    public function technician(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'technician_id');
+    }
+
+    /** @return BelongsTo<\App\Models\User, $this> */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'created_by');
     }
 }

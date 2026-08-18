@@ -29,6 +29,18 @@ class TripStop extends Model
 
     public $timestamps = false;
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Trip, $this> */
+    public function trip(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Trip::class, 'trip_id');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<DeliveryChallan, $this> */
+    public function challan(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(DeliveryChallan::class, 'delivery_challan_id');
+    }
+
     protected $fillable = [
         'trip_id',
         'sequence_no',

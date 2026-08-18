@@ -50,6 +50,9 @@ const columns = [
             <Button v-if="requisition.status === 'submitted' && can('purchase_requisition.approve')" size="sm" variant="success" @click="transition('approved')">
                 Approve
             </Button>
+            <Button v-if="requisition.status === 'approved' && can('rfq.create')" size="sm" :href="`/rfqs/create?pr_id=${requisition.id}`">
+                Raise RFQ
+            </Button>
             <Button v-if="requisition.status === 'approved' && can('purchase_order.create')" size="sm" variant="primary" href="/purchase-orders/create">
                 Raise a purchase order
             </Button>

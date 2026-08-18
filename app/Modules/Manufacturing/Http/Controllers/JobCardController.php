@@ -250,6 +250,8 @@ class JobCardController extends Controller
                 ->orderBy('code')->get(['id', 'code', 'name']),
             'wasteLogs' => DB::table('waste_logs')->where('job_card_id', $jobCard->id)
                 ->orderByDesc('id')->limit(20)->get(),
+            'ncrs' => DB::table('ncrs')->where('job_card_id', $jobCard->id)
+                ->orderByDesc('id')->get(['id', 'number', 'status', 'severity', 'raised_on']),
         ]);
     }
 

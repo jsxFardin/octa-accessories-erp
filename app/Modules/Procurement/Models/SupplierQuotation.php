@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\Procurement\Models;
 
+use App\Modules\MasterData\Models\Currency;
+use App\Modules\MasterData\Models\Supplier;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -30,9 +34,7 @@ class SupplierQuotation extends Model
         'quoted_on',
         'valid_until',
         'currency_id',
-        'total',
         'lead_time_days',
-        'is_selected',
         'remarks',
     ];
 
@@ -49,5 +51,29 @@ class SupplierQuotation extends Model
             'lead_time_days' => 'integer',
             'is_selected' => 'boolean',
         ];
+    }
+
+    /** @return HasMany<SupplierQuotationLine, $this> */
+    public function lines(): HasMany
+    {
+        return $this->hasMany(SupplierQuotationLine::class, 'supplier_quotation_id')->orderBy('line_no');
+    }
+
+    /** @return BelongsTo<SupplierRfq, $this> */
+    public function rfq(): BelongsTo
+    {
+        return $this->belongsTo(SupplierRfq::class, 'rfq_id');
+    }
+
+    /** @return BelongsTo<Supplier, $this> */
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class, 'supplier_id');
+    }
+
+    /** @return BelongsTo<Currency, $this> */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class, 'currency_id');
     }
 }

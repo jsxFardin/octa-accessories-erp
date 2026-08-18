@@ -74,7 +74,7 @@ class PermissionSeeder extends Seeder
         'rfq' => ['Supply', ['send']],
         'purchase_order' => ['Supply', ['submit', 'approve', 'send', 'cancel', 'close']],
         'grn' => ['Supply', ['post', 'cancel']],
-        'supplier_bill' => ['Supply', ['post']],
+        'supplier_bill' => ['Supply', ['post', 'approve_variance']],
 
         // Inventory
         'stock_lot' => ['Inventory', ['print_barcode']],

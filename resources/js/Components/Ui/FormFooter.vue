@@ -27,11 +27,11 @@ const props = defineProps({
 const emit = defineEmits(['save']);
 
 function save() {
-    if (!props.disabled && !props.form.processing) emit('save');
+    if (!props.disabled && !props.form?.processing) emit('save');
 }
 
 function onBeforeUnload(event) {
-    if (!props.form.isDirty || props.form.processing) return;
+    if (!props.form?.isDirty || props.form?.processing) return;
 
     event.preventDefault();
     event.returnValue = '';
@@ -42,7 +42,7 @@ function onKeydown(event) {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
 
-        if (props.form.isDirty) save();
+        if (props.form?.isDirty) save();
     }
 }
 
@@ -53,7 +53,7 @@ onMounted(() => {
     window.addEventListener('keydown', onKeydown);
 
     stopRouterGuard = router.on('before', (event) => {
-        if (!props.form.isDirty || props.form.processing) return;
+        if (!props.form?.isDirty || props.form?.processing) return;
 
         // The form's own submit is a visit too; guarding it would ask permission to save.
         if ((event.detail.visit.method ?? 'get').toLowerCase() !== 'get') return;
@@ -78,14 +78,14 @@ onUnmounted(() => {
          short form, and still sticky while a long one scrolls past. -->
     <div class="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-slate-200 bg-white/95 px-4 pt-2.5 pb-2.5 backdrop-blur print:hidden">
         <div class="flex flex-wrap items-center gap-3">
-            <span v-if="form.isDirty" class="text-xs text-amber-700">Unsaved changes</span>
+            <span v-if="form?.isDirty" class="text-xs text-amber-700">Unsaved changes</span>
             <span v-else-if="summary" class="text-xs text-ink-500">{{ summary }}</span>
 
             <div class="ml-auto flex items-center gap-2">
                 <Button v-if="cancelHref" :href="cancelHref">Cancel</Button>
                 <Button
                     variant="primary"
-                    :loading="form.processing"
+                    :loading="form?.processing"
                     :disabled="disabled"
                     @click="save"
                 >

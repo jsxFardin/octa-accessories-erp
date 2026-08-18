@@ -9,6 +9,7 @@ use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\Services\FgReceiptService;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
+use App\Modules\Quality\Models\Ncr;
 use App\Modules\Quality\Models\QcInspection;
 use App\Support\Calculators\AqlResolver;
 use App\Support\Http\ListsResources;
@@ -207,7 +208,8 @@ class QcInspectionController extends Controller
     private function onRejected(QcInspection $inspection, Request $request): void
     {
         // 1. The NCR, on the existing schema — severity from what the inspection found.
-        DB::table('ncrs')->insert([
+        // Eloquent so Auditable records creation; the row shape is unchanged from P1-3.
+        Ncr::query()->create([
             'number' => $this->numbers->next('ncr'),
             'source' => $inspection->stage,
             'qc_inspection_id' => $inspection->id,
@@ -224,7 +226,7 @@ class QcInspectionController extends Controller
                 filled($inspection->remarks) ? ' '.$inspection->remarks : '',
             ),
             'severity' => $inspection->critical_found > 0 ? 'critical' : 'major',
-            'status' => 'open',
+            'status' => Ncr::OPEN,
             'raised_by' => $request->user()->id,
         ]);
 
@@ -268,9 +270,15 @@ class QcInspectionController extends Controller
     {
         $inspection->load('jobCard');
 
+        $ncr = Ncr::query()
+            ->where('qc_inspection_id', $inspection->id)
+            ->orderByDesc('id')
+            ->first(['id', 'number', 'status', 'severity']);
+
         return Inertia::render('Quality/Inspections/Show', [
             'inspection' => $inspection,
             'jobCard' => $inspection->jobCard?->only(['id', 'number', 'status']),
+            'ncr' => $ncr,
             'defects' => DB::table('qc_inspection_defects as d')
                 ->join('defects as c', 'c.id', '=', 'd.defect_id')
                 ->where('d.qc_inspection_id', $inspection->id)

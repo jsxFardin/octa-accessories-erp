@@ -57,6 +57,33 @@ class WorkQueue
             ];
         }
 
+        if ($user->hasPermission('stock_adjustment.approve')) {
+            $band = $this->settings->decimal('adjustment_approval_band_manager', 25000);
+            $isMd = $user->hasRole('md') || $user->hasRole('super_admin');
+
+            $valueSql = '(SELECT COALESCE(SUM(ABS(sal.qty_delta) * sl.unit_cost), 0)
+                FROM stock_adjustment_lines AS sal
+                INNER JOIN stock_lots AS sl ON sl.id = sal.lot_id
+                WHERE sal.stock_adjustment_id = sa.id)';
+
+            $query = DB::table('stock_adjustments as sa')->where('sa.status', 'pending_approval');
+
+            if (! $isMd) {
+                $query->whereRaw($valueSql.' <= ?', [$band]);
+            }
+
+            $entries[] = [
+                'key' => 'stock_adjustment_approval',
+                'label' => 'Stock adjustments to approve',
+                'count' => $query->count(),
+                'href' => '/stock-adjustments?status=pending_approval',
+                'tone' => 'warning',
+                'hint' => $isMd
+                    ? 'Every band, including those above the manager limit.'
+                    : 'Within your approval band of '.number_format($band, 0).'.',
+            ];
+        }
+
         if ($user->hasPermission('purchase_requisition.approve')) {
             $entries[] = [
                 'key' => 'pr_approval',

@@ -40,12 +40,15 @@ class SearchController extends Controller
             ['inquiry.view_any', 'Inquiries', 'inquiries', '/inquiries', ['number'], 'customer'],
             ['job_card.view_any', 'Job cards', 'job_cards', '/job-cards', ['number'], null],
             ['purchase_order.view_any', 'Purchase orders', 'purchase_orders', '/purchase-orders', ['number'], 'supplier'],
+            ['rfq.view_any', 'RFQs', 'supplier_rfqs', '/rfqs', ['number'], null],
             ['grn.view_any', 'Goods receipts', 'grns', '/grns', ['number'], 'supplier'],
+            ['supplier_bill.view_any', 'Supplier bills', 'supplier_bills', '/supplier-bills', ['number', 'bill_no'], 'supplier'],
             ['stock_lot.view_any', 'Lots', 'stock_lots', '/lots', ['lot_no'], null],
             ['customer.view_any', 'Customers', 'customers', '/customers', ['code', 'name'], null],
             ['supplier.view_any', 'Suppliers', 'suppliers', '/suppliers', ['code', 'name'], null],
             ['item.view_any', 'Items', 'items', '/items', ['code', 'name'], null],
             ['product.view_any', 'Products', 'products', '/products', ['code', 'name'], null],
+            ['ncr.view_any', 'NCRs', 'ncrs', '/ncrs', ['number'], null],
         ];
 
         $groups = [];

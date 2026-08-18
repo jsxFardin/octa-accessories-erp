@@ -10,11 +10,11 @@ import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
-const props = defineProps({ sales_invoices: Object, filters: Object });
+const props = defineProps({ invoices: Object, filters: Object });
 
 const columns = [
     { key: 'number', label: 'Number', sort: true },
-    { key: 'customer_name', label: 'Customer' },
+    { key: 'customer', label: 'Customer' },
     { key: 'invoice_date', label: 'Date', sort: true },
     { key: 'due_date', label: 'Due', sort: true },
     { key: 'total', label: 'Value', align: 'right', sort: true },
@@ -51,12 +51,12 @@ const columns = [
 
             <DataTable
                 :columns="columns"
-                :rows="sales_invoices"
+                :rows="invoices"
                 row-key="id"
                 empty="No invoices issued."
             >
                 <template #cell:number="{ row, value }"><Link :href="`/invoices/${row.id}`" class="font-medium text-brand-700">{{ value ?? "(draft)" }}</Link></template>
-                <template #cell:customer_name="{ row, value }">{{ row.customer?.name ?? "—" }}</template>
+                <template #cell:customer="{ value }">{{ value ?? "—" }}</template>
                 <template #cell:invoice_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:due_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:total="{ row, value }">{{ money(value) }}</template>

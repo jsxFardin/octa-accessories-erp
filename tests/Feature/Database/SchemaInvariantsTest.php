@@ -192,12 +192,13 @@ it('loads every object the specification promises', function (): void {
         ->count();
 
     // 146 ERP tables plus the framework's own (migrations, sessions, password resets, cache,
-    // cache_locks, jobs, job_batches, failed_jobs). The ERP count rose by nine with §13a —
-    // trade finance, import and expenses — and by eight with §1a, the vocabularies.
+    // cache_locks, jobs, job_batches, failed_jobs, notifications). The ERP count rose by nine
+    // with §13a — trade finance, import and expenses — and by eight with §1a, the vocabularies.
+    // P2-4 added Laravel's standard notifications table.
     //
     // Those eight moved eleven CHECK constraints onto twelve foreign keys: the list a column
     // accepts is a table now, not a constraint body.
-    expect($tables)->toBe(154)
+    expect($tables)->toBe(155)
         ->and($views)->toBe(4)
         ->and($foreignKeys)->toBe(408)
         ->and($checks)->toBe(168);

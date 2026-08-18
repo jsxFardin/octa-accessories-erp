@@ -9,6 +9,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 defineProps({
     inspection: { type: Object, required: true },
     jobCard: { type: Object, default: null },
+    ncr: { type: Object, default: null },
     defects: { type: Array, default: () => [] },
 });
 </script>
@@ -58,6 +59,12 @@ defineProps({
                 <p v-else class="text-sm text-ink-500">Accepted; no disposition needed.</p>
 
                 <p v-if="inspection.remarks" class="mt-3 text-sm text-ink-700">{{ inspection.remarks }}</p>
+
+                <p v-if="ncr" class="mt-4 text-sm">
+                    NCR
+                    <Link :href="`/ncrs/${ncr.id}`" class="font-medium text-brand-700">{{ ncr.number }}</Link>
+                    <Badge :status="ncr.status" class="ml-1" />
+                </p>
             </Card>
 
             <Card class="lg:col-span-3" title="Defects found" :padded="false">

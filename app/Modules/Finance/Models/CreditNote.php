@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Finance\Models;
 
 use App\Support\Audit\Auditable;
+use App\Support\Notifications\Notifier;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -43,6 +44,23 @@ class CreditNote extends Model
         'approved_by',
         'remarks',
     ];
+
+    protected static function booted(): void
+    {
+        // Draft is the awaiting-approval state. Both the accounts form and a return-after-invoice
+        // create a draft; this is the one trigger so those paths cannot diverge.
+        static::created(function (CreditNote $note): void {
+            if ($note->status !== 'draft') {
+                return;
+            }
+
+            try {
+                app(Notifier::class)->notifyCreditNoteApproval($note);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        });
+    }
 
     /** @return array<string, string> */
     protected function casts(): array

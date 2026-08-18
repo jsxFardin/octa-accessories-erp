@@ -4,6 +4,7 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import CommandPalette from '@/Components/Ui/CommandPalette.vue';
 import ConfirmDialog from '@/Components/Ui/ConfirmDialog.vue';
 import Icon from '@/Components/Ui/Icon.vue';
+import NotificationBell from '@/Components/Ui/NotificationBell.vue';
 import Toasts from '@/Components/Ui/Toasts.vue';
 import { canAny } from '@/plugins/permissions';
 import { ADMIN_PREFIXES, adminNavigation, navigation, visibleSections } from '@/navigation';
@@ -91,7 +92,9 @@ const crumbs = computed(() => {
         const item = section.items.find((candidate) => isActive(candidate));
 
         if (item) {
-            const trail = [{ label: section.label }, { label: item.label, href: item.href }];
+            const trail = section.heading === false || section.label === item.label
+                ? [{ label: item.label, href: item.href }]
+                : [{ label: section.label }, { label: item.label, href: item.href }];
 
             // Anything below the list itself — a detail page, a form — is the current page,
             // whose name is already the <h1>; the crumb just marks the depth.
@@ -107,32 +110,40 @@ const crumbs = computed(() => {
 });
 
 // --- Sidebar state -----------------------------------------------------------------------
-// Both the rail collapse and the per-section state persist: a planner who works out of two
-// sections should not re-open them every morning.
+// The rail persists. Section expand does not: only the group you are in starts open, so a
+// nine-heading sidebar does not dump every row onto the floor before you have clicked.
 const railed = ref(localStorage.getItem('octa.sidebar.railed') === '1');
 const mobileOpen = ref(false);
-
-const collapsed = ref(new Set(JSON.parse(localStorage.getItem('octa.sidebar.collapsed') ?? '[]')));
+const extraOpen = ref(new Set());
 
 watch(railed, (value) => localStorage.setItem('octa.sidebar.railed', value ? '1' : '0'));
-watch(currentUrl, () => (mobileOpen.value = false));
+watch(currentUrl, () => {
+    mobileOpen.value = false;
+    extraOpen.value = new Set();
+});
 
-function toggleSection(label) {
-    const next = new Set(collapsed.value);
-
-    next.has(label) ? next.delete(label) : next.add(label);
-    collapsed.value = next;
-
-    localStorage.setItem('octa.sidebar.collapsed', JSON.stringify([...next]));
+function isSectionActive(section) {
+    return section.items.some((item) => isActive(item));
 }
 
-/** A collapsed section still opens when you are inside it — never hide where you are. */
+function toggleSection(section) {
+    if (section.heading === false || isSectionActive(section)) {
+        return;
+    }
+
+    const next = new Set(extraOpen.value);
+
+    next.has(section.label) ? next.delete(section.label) : next.add(section.label);
+    extraOpen.value = next;
+}
+
+/** Hubs with no heading are always visible. The active group is always visible. Others wait. */
 function isOpen(section) {
-    if (section.items.some((item) => isActive(item))) {
+    if (section.heading === false || isSectionActive(section)) {
         return true;
     }
 
-    return !collapsed.value.has(section.label);
+    return extraOpen.value.has(section.label);
 }
 
 // --- Account menu ------------------------------------------------------------------------
@@ -292,10 +303,10 @@ const paletteHint = computed(() =>
                         no grouping is twenty identical rows.
                     -->
                     <button
-                        v-if="!railed"
+                        v-if="!railed && section.heading !== false"
                         class="group/section flex w-full items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold tracking-[0.09em] text-ink-400 uppercase transition hover:text-ink-600 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                         :aria-expanded="isOpen(section)"
-                        @click="toggleSection(section.label)"
+                        @click="toggleSection(section)"
                     >
                         <span>{{ section.label }}</span>
                         <!-- The chevron is chrome until you go looking for it. -->
@@ -417,6 +428,8 @@ const paletteHint = computed(() =>
 
                     <div class="flex shrink-0 items-center gap-2">
                         <slot name="actions" />
+
+                        <NotificationBell />
 
                         <button
                             class="hidden rounded-md p-1.5 text-ink-400 transition hover:bg-slate-100 hover:text-ink-700 sm:block"

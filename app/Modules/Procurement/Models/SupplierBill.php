@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Procurement\Models;
 
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -27,9 +30,23 @@ use Illuminate\Database\Eloquent\Model;
  */
 class SupplierBill extends Model
 {
+    use Auditable;
+
     protected $table = 'supplier_bills';
 
     public const UPDATED_AT = null;
+
+    public const DRAFT = 'draft';
+
+    public const APPROVED = 'approved';
+
+    public const PARTIALLY_PAID = 'partially_paid';
+
+    public const PAID = 'paid';
+
+    public const CANCELLED = 'cancelled';
+
+    public const NON_TERMINAL = [self::DRAFT, self::APPROVED, self::PARTIALLY_PAID];
 
     protected $fillable = [
         'number',
@@ -46,7 +63,6 @@ class SupplierBill extends Model
         'total',
         'paid_amount',
         'status',
-        'created_by',
     ];
 
     /** @return array<string, string> */
@@ -67,5 +83,35 @@ class SupplierBill extends Model
             'created_at' => 'datetime',
             'created_by' => 'integer',
         ];
+    }
+
+    /** @return HasMany<SupplierBillLine, $this> */
+    public function lines(): HasMany
+    {
+        return $this->hasMany(SupplierBillLine::class, 'supplier_bill_id');
+    }
+
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Supplier, $this> */
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Supplier::class, 'supplier_id');
+    }
+
+    /** @return BelongsTo<PurchaseOrder, $this> */
+    public function purchaseOrder(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'po_id');
+    }
+
+    /** @return BelongsTo<Grn, $this> */
+    public function grn(): BelongsTo
+    {
+        return $this->belongsTo(Grn::class, 'grn_id');
+    }
+
+    /** @return BelongsTo<\App\Models\User, $this> */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'created_by');
     }
 }

@@ -14,7 +14,11 @@ const props = defineProps({ trips: Object, filters: Object });
 
 const columns = [
     { key: 'number', label: 'Number', sort: true },
+    { key: 'vehicle', label: 'Vehicle' },
+    { key: 'driver', label: 'Driver' },
+    { key: 'route_zone', label: 'Zone' },
     { key: 'trip_date', label: 'Date', sort: true },
+    { key: 'stops', label: 'Stops', align: 'center' },
     { key: 'status', label: 'Status', sort: true },
 ];
 </script>
@@ -27,7 +31,9 @@ const columns = [
         <template #subtitle>The owned fleet: multi-drop routes with POD at each stop</template>
 
         <template #actions>
-            <span />
+            <Button v-if="can('trip.create')" size="sm" variant="primary" :href="'/trips/create'">
+                Plan trip
+            </Button>
         </template>
 
         <Card :padded="false">
@@ -37,6 +43,7 @@ const columns = [
                 :columns="columns"
                 :rows="trips"
                 row-key="id"
+                :row-href="(row) => `/trips/${row.id}`"
                 empty="No trips planned."
             >
                 <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>

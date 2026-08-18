@@ -10,11 +10,15 @@ use App\Modules\Dispatch\Http\Controllers\PackingListController;
 use App\Modules\Dispatch\Http\Controllers\TripController;
 use App\Modules\Finance\Http\Controllers\CreditNoteController;
 use App\Modules\Finance\Http\Controllers\ExpenseController;
+use App\Modules\Finance\Http\Controllers\PaymentController;
 use App\Modules\Finance\Http\Controllers\ReceiptController;
 use App\Modules\Finance\Http\Controllers\SalesInvoiceController;
 use App\Modules\Inventory\Http\Controllers\MaterialIssueController;
+use App\Modules\Inventory\Http\Controllers\PhysicalCountController;
+use App\Modules\Inventory\Http\Controllers\StockAdjustmentController;
 use App\Modules\Inventory\Http\Controllers\StockEnquiryController;
 use App\Modules\Inventory\Http\Controllers\StockLotController;
+use App\Modules\Inventory\Http\Controllers\StockTransferController;
 use App\Modules\Manufacturing\Http\Controllers\FgReceiptController;
 use App\Modules\Manufacturing\Http\Controllers\JobCardController;
 use App\Modules\MasterData\Http\Controllers\CustomerController;
@@ -26,6 +30,8 @@ use App\Modules\Planning\Http\Controllers\PlanningBoardController;
 use App\Modules\Procurement\Http\Controllers\GrnController;
 use App\Modules\Procurement\Http\Controllers\PurchaseOrderController;
 use App\Modules\Procurement\Http\Controllers\PurchaseRequisitionController;
+use App\Modules\Procurement\Http\Controllers\SupplierBillController;
+use App\Modules\Procurement\Http\Controllers\SupplierRfqController;
 use App\Modules\Product\Http\Controllers\ArtworkController;
 use App\Modules\Product\Http\Controllers\ArtworkVersionController;
 use App\Modules\Product\Http\Controllers\BomController;
@@ -34,7 +40,9 @@ use App\Modules\Product\Http\Controllers\ProductSpecController;
 use App\Modules\Product\Http\Controllers\RoutingController;
 use App\Modules\Product\Http\Controllers\ToolController;
 use App\Modules\Quality\Http\Controllers\LabController;
+use App\Modules\Quality\Http\Controllers\NcrController;
 use App\Modules\Quality\Http\Controllers\QcInspectionController;
+use App\Modules\Reporting\Http\Controllers\ReportController;
 use App\Modules\Sales\Http\Controllers\InquiryController;
 use App\Modules\Sales\Http\Controllers\PriceListController;
 use App\Modules\Sales\Http\Controllers\QuotationController;
@@ -45,6 +53,7 @@ use App\Support\Export\Http\Controllers\ExportController;
 use App\Support\Http\Controllers\BulkTransitionController;
 use App\Support\Http\LandingPage;
 use App\Support\Import\Http\Controllers\ImportController;
+use App\Support\Notifications\Http\Controllers\NotificationInboxController;
 use App\Support\Platform\Http\Controllers\AuditLogController;
 use App\Support\Platform\Http\Controllers\NumberSequenceController;
 use App\Support\Platform\Http\Controllers\OrganisationController;
@@ -79,9 +88,22 @@ Route::middleware('auth')->group(function (): void {
     Route::put('profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
     Route::put('profile/locale', [ProfileController::class, 'updateLocale'])->name('profile.locale');
 
+    // Own-user inbox: every authenticated user reads their own rows. A permission here
+    // would either lock the bell or grant nothing the ownership query does not already.
+    Route::get('notifications', [NotificationInboxController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/{notification}/read', [NotificationInboxController::class, 'read'])->name('notifications.read');
+    Route::post('notifications/read-all', [NotificationInboxController::class, 'readAll'])->name('notifications.read-all');
+
     Route::get('dashboard', DashboardController::class)
         ->middleware('can:report.dashboard')
         ->name('dashboard');
+
+    Route::get('reports', [ReportController::class, 'index'])
+        ->middleware('can:report.view_any')
+        ->name('reports.index');
+    Route::get('reports/{report}', [ReportController::class, 'show'])
+        ->middleware('can:report.view')
+        ->name('reports.show');
 
     // ---- Master data ---------------------------------------------------------------
     Route::resource('items', ItemController::class)
@@ -203,6 +225,21 @@ Route::middleware('auth')->group(function (): void {
     Route::post('purchase-requisitions/{purchaseRequisition}/transition', [PurchaseRequisitionController::class, 'transition'])
         ->middleware('can:purchase_requisition.view')->name('purchase-requisitions.transition');
 
+    Route::resource('rfqs', SupplierRfqController::class)->except(['destroy'])
+        ->middlewareFor(['index', 'show'], 'can:rfq.view_any')
+        ->middlewareFor(['create', 'store'], 'can:rfq.create')
+        ->middlewareFor(['edit', 'update'], 'can:rfq.update');
+    Route::post('rfqs/{rfq}/transition', [SupplierRfqController::class, 'transition'])
+        ->middleware('can:rfq.view')->name('rfqs.transition');
+    Route::get('rfqs/{rfq}/compare', [SupplierRfqController::class, 'compare'])
+        ->middleware('can:rfq.view')->name('rfqs.compare');
+    Route::post('rfqs/{rfq}/quotations', [SupplierRfqController::class, 'storeQuotation'])
+        ->middleware('can:rfq.update')->name('rfqs.quotations.store');
+    Route::post('rfqs/{rfq}/select', [SupplierRfqController::class, 'select'])
+        ->middleware('can:rfq.update')->name('rfqs.select');
+    Route::post('rfqs/{rfq}/purchase-order', [SupplierRfqController::class, 'storePurchaseOrder'])
+        ->middleware('can:purchase_order.create')->name('rfqs.purchase-order');
+
     Route::resource('purchase-orders', PurchaseOrderController::class)->except(['destroy'])
         ->middlewareFor(['index', 'show'], 'can:purchase_order.view_any')
         ->middlewareFor(['create', 'store'], 'can:purchase_order.create')
@@ -238,6 +275,55 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:stock_issue.post')->name('material-issues.store');
     Route::get('material-issues/suggest', [MaterialIssueController::class, 'suggest'])
         ->middleware('can:stock_issue.create')->name('material-issues.suggest');
+    Route::get('material-issues/returnable', [MaterialIssueController::class, 'returnable'])
+        ->middleware('can:stock_issue.create')->name('material-issues.returnable');
+
+    Route::get('stock-adjustments', [StockAdjustmentController::class, 'index'])
+        ->middleware('can:stock_adjustment.view_any')->name('stock-adjustments.index');
+    Route::get('stock-adjustments/create', [StockAdjustmentController::class, 'create'])
+        ->middleware('can:stock_adjustment.create')->name('stock-adjustments.create');
+    Route::post('stock-adjustments', [StockAdjustmentController::class, 'store'])
+        ->middleware('can:stock_adjustment.create')->name('stock-adjustments.store');
+    Route::get('stock-adjustments/{adjustment}', [StockAdjustmentController::class, 'show'])
+        ->middleware('can:stock_adjustment.view')->name('stock-adjustments.show');
+    Route::get('stock-adjustments/{adjustment}/edit', [StockAdjustmentController::class, 'edit'])
+        ->middleware('can:stock_adjustment.update')->name('stock-adjustments.edit');
+    Route::put('stock-adjustments/{adjustment}', [StockAdjustmentController::class, 'update'])
+        ->middleware('can:stock_adjustment.update')->name('stock-adjustments.update');
+    Route::post('stock-adjustments/{adjustment}/transition', [StockAdjustmentController::class, 'transition'])
+        ->middleware('can:stock_adjustment.view')->name('stock-adjustments.transition');
+
+    Route::get('stock-transfers', [StockTransferController::class, 'index'])
+        ->middleware('can:stock_transfer.view_any')->name('stock-transfers.index');
+    Route::get('stock-transfers/create', [StockTransferController::class, 'create'])
+        ->middleware('can:stock_transfer.create')->name('stock-transfers.create');
+    Route::post('stock-transfers', [StockTransferController::class, 'store'])
+        ->middleware('can:stock_transfer.create')->name('stock-transfers.store');
+    Route::get('stock-transfers/{transfer}', [StockTransferController::class, 'show'])
+        ->middleware('can:stock_transfer.view')->name('stock-transfers.show');
+    Route::get('stock-transfers/{transfer}/edit', [StockTransferController::class, 'edit'])
+        ->middleware('can:stock_transfer.update')->name('stock-transfers.edit');
+    Route::put('stock-transfers/{transfer}', [StockTransferController::class, 'update'])
+        ->middleware('can:stock_transfer.update')->name('stock-transfers.update');
+    Route::post('stock-transfers/{transfer}/transition', [StockTransferController::class, 'transition'])
+        ->middleware('can:stock_transfer.view')->name('stock-transfers.transition');
+
+    Route::get('physical-counts', [PhysicalCountController::class, 'index'])
+        ->middleware('can:physical_count.view_any')->name('physical-counts.index');
+    Route::get('physical-counts/create', [PhysicalCountController::class, 'create'])
+        ->middleware('can:physical_count.create')->name('physical-counts.create');
+    Route::post('physical-counts', [PhysicalCountController::class, 'store'])
+        ->middleware('can:physical_count.create')->name('physical-counts.store');
+    Route::get('physical-counts/{count}', [PhysicalCountController::class, 'show'])
+        ->middleware('can:physical_count.view')->name('physical-counts.show');
+    Route::get('physical-counts/{count}/edit', [PhysicalCountController::class, 'edit'])
+        ->middleware('can:physical_count.update')->name('physical-counts.edit');
+    Route::put('physical-counts/{count}', [PhysicalCountController::class, 'update'])
+        ->middleware('can:physical_count.update')->name('physical-counts.update');
+    Route::post('physical-counts/{count}/transition', [PhysicalCountController::class, 'transition'])
+        ->middleware('can:physical_count.view')->name('physical-counts.transition');
+    Route::get('physical-counts/{count}/print', [PhysicalCountController::class, 'print'])
+        ->middleware('can:physical_count.view')->name('physical-counts.print');
 
     // ---- Operations ----------------------------------------------------------------
     Route::get('planning', PlanningBoardController::class)
@@ -271,8 +357,31 @@ Route::middleware('auth')->group(function (): void {
     Route::get('qc-inspections/{inspection}', [QcInspectionController::class, 'show'])
         ->middleware('can:qc_inspection.view')->name('qc-inspections.show');
 
+    Route::get('ncrs', [NcrController::class, 'index'])
+        ->middleware('can:ncr.view_any')->name('ncrs.index');
+    Route::get('ncrs/{ncr}', [NcrController::class, 'show'])
+        ->middleware('can:ncr.view')->name('ncrs.show');
+    Route::post('ncrs/{ncr}/assign', [NcrController::class, 'assign'])
+        ->middleware('can:ncr.update')->name('ncrs.assign');
+    Route::post('ncrs/{ncr}/investigate', [NcrController::class, 'investigate'])
+        ->middleware('can:ncr.update')->name('ncrs.investigate');
+    Route::post('ncrs/{ncr}/disposition', [NcrController::class, 'disposition'])
+        ->middleware('can:ncr.update')->name('ncrs.disposition');
+    Route::post('ncrs/{ncr}/verify', [NcrController::class, 'verify'])
+        ->middleware('can:ncr.close')->name('ncrs.verify');
+    Route::post('ncrs/{ncr}/close', [NcrController::class, 'close'])
+        ->middleware('can:ncr.close')->name('ncrs.close');
+
     Route::get('lab', [LabController::class, 'index'])
         ->middleware('can:test_report.view_any')->name('lab.index');
+    Route::get('lab/reports/create', [LabController::class, 'create'])
+        ->middleware('can:test_report.create')->name('lab.create');
+    Route::post('lab/reports', [LabController::class, 'store'])
+        ->middleware('can:test_report.create')->name('lab.store');
+    Route::get('lab/reports/{report}', [LabController::class, 'show'])
+        ->middleware('can:test_report.view')->name('lab.show');
+    Route::post('lab/reports/{report}/transition', [LabController::class, 'transition'])
+        ->middleware('can:test_report.view')->name('lab.transition');
 
     Route::get('compliance', [ComplianceController::class, 'index'])
         ->middleware('can:coc.view_any')->name('compliance.index');
@@ -310,6 +419,18 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:delivery_challan.view')->name('delivery-challans.transition');
     Route::get('trips', [TripController::class, 'index'])
         ->middleware('can:trip.access')->name('trips.index');
+    Route::get('trips/create', [TripController::class, 'create'])
+        ->middleware('can:trip.create')->name('trips.create');
+    Route::post('trips', [TripController::class, 'store'])
+        ->middleware('can:trip.create')->name('trips.store');
+    Route::get('trips/{trip}', [TripController::class, 'show'])
+        ->middleware('can:trip.view')->name('trips.show');
+    Route::post('trips/{trip}/start', [TripController::class, 'start'])
+        ->middleware('can:trip.start')->name('trips.start');
+    Route::post('trips/{trip}/complete', [TripController::class, 'complete'])
+        ->middleware('can:trip.complete')->name('trips.complete');
+    Route::post('trips/{trip}/stops/{stop}/deliver', [TripController::class, 'deliver'])
+        ->middleware('can:trip_stop.update')->name('trips.stops.deliver');
 
     /*
      * ---- Trade finance & import ------------------------------------------------------
@@ -379,9 +500,26 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('receipts', [ReceiptController::class, 'index'])
         ->middleware('can:receipt.view_any')->name('receipts.index');
-    // A receipt posts on store — recording cash in hand as a draft would be fiction.
     Route::post('receipts', [ReceiptController::class, 'store'])
         ->middleware('can:receipt.allocate')->name('receipts.store');
+
+    // FN-4 — supplier bills: three-way match, approve, pay.
+    Route::get('supplier-bills', [SupplierBillController::class, 'index'])
+        ->middleware('can:supplier_bill.view_any')->name('supplier-bills.index');
+    Route::get('supplier-bills/create', [SupplierBillController::class, 'create'])
+        ->middleware('can:supplier_bill.create')->name('supplier-bills.create');
+    Route::post('supplier-bills', [SupplierBillController::class, 'store'])
+        ->middleware('can:supplier_bill.create')->name('supplier-bills.store');
+    Route::get('supplier-bills/{supplierBill}', [SupplierBillController::class, 'show'])
+        ->middleware('can:supplier_bill.view')->name('supplier-bills.show');
+    Route::post('supplier-bills/{supplierBill}/transition', [SupplierBillController::class, 'transition'])
+        ->middleware('can:supplier_bill.view')->name('supplier-bills.transition');
+
+    // FN-5 — supplier payments: allocate against approved bills.
+    Route::get('payments', [PaymentController::class, 'index'])
+        ->middleware('can:payment.view_any')->name('payments.index');
+    Route::post('payments', [PaymentController::class, 'store'])
+        ->middleware('can:payment.allocate')->name('payments.store');
 
     Route::resource('expenses', ExpenseController::class)
         ->except(['show', 'destroy'])

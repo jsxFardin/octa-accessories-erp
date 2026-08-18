@@ -227,6 +227,12 @@ class JobCard extends Model
         return $this->hasMany(WasteLog::class);
     }
 
+    /** @return HasMany<\App\Modules\Quality\Models\Ncr, $this> */
+    public function ncrs(): HasMany
+    {
+        return $this->hasMany(\App\Modules\Quality\Models\Ncr::class, 'job_card_id');
+    }
+
     public function reference(): string
     {
         return $this->number ?? '(unnumbered)';

@@ -18,7 +18,16 @@ describe('sidebar visibility', () => {
         expect(labels).toContain('Inquiries');
         expect(labels).toContain('Suppliers');
         expect(labels).toContain('Job cards');
+        expect(labels).toContain('Products');
+        expect(labels).toContain('Reports');
         expect(labels.length).toBeGreaterThan(10);
+    });
+
+    it('groups the factory sequence, not a heading per hub', () => {
+        const labels = visibleSections(navigation, all).map((section) => section.label);
+
+        expect(labels).toEqual(['Overview', 'Sales', 'Buying', 'Floor', 'Records']);
+        expect(visibleSections(navigation, all).find((section) => section.label === 'Records')?.heading).toBe(false);
     });
 
     it('shows every administration screen inside the shell', () => {

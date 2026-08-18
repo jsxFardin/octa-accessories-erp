@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Dispatch\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -55,5 +57,23 @@ class Trip extends Model
             'end_odometer' => 'decimal:2',
             'fuel_cost' => 'decimal:4',
         ];
+    }
+
+    /** @return HasMany<TripStop, $this> */
+    public function stops(): HasMany
+    {
+        return $this->hasMany(TripStop::class, 'trip_id')->orderBy('sequence_no');
+    }
+
+    /** @return BelongsTo<Vehicle, $this> */
+    public function vehicle(): BelongsTo
+    {
+        return $this->belongsTo(Vehicle::class, 'vehicle_id');
+    }
+
+    /** @return BelongsTo<Driver, $this> */
+    public function driver(): BelongsTo
+    {
+        return $this->belongsTo(Driver::class, 'driver_id');
     }
 }

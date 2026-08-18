@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Procurement\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int $id
@@ -46,5 +47,17 @@ class SupplierBillLine extends Model
             'tax_id' => 'integer',
             'amount' => 'decimal:4',
         ];
+    }
+
+    /** @return BelongsTo<SupplierBill, $this> */
+    public function bill(): BelongsTo
+    {
+        return $this->belongsTo(SupplierBill::class, 'supplier_bill_id');
+    }
+
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Item, $this> */
+    public function item(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Item::class, 'item_id');
     }
 }

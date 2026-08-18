@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Support\Notifications\Inbox;
 use App\Support\Settings\Organisation;
 use App\Support\Settings\Settings;
 use Illuminate\Http\Request;
@@ -63,6 +64,10 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
                 'warning' => fn () => $request->session()->get('warning'),
             ],
+
+            'notifications' => fn (): array => $user === null
+                ? ['unread' => 0, 'notifications' => []]
+                : Inbox::for($user),
 
             /*
              * Scoped by config/ziggy.php. Route names are not a secret — every route is

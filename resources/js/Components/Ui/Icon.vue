@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import {
-    Activity, ArchiveRestore, Award, BadgeCheck, Banknote, Barcode, Beaker, Bell, Blocks,
+    Activity, ArchiveRestore, Award, BadgeCheck, Banknote, BarChart3, Barcode, Beaker, Bell, Blocks,
     Boxes, Building2, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
     ClipboardCheck, ClipboardList, Cog, Command, Copy, CreditCard, Download, Factory,
     FileSpreadsheet, FileText, Filter, Gauge, Inbox, Info, Layers, LayoutDashboard, LogOut,
@@ -25,6 +25,7 @@ import {
 const REGISTRY = {
     // Navigation — one per menu entry
     dashboard: LayoutDashboard,
+    reports: BarChart3,
     inbox: Inbox,
     quote: FileSpreadsheet,
     order: ClipboardList,
@@ -34,6 +35,7 @@ const REGISTRY = {
     routing: Route,
     tool: Ruler,
     requisition: ClipboardCheck,
+    rfq: Send,
     'purchase-order': ShoppingCart,
     'goods-receipt': PackageOpen,
     supplier: Factory,
@@ -53,6 +55,8 @@ const REGISTRY = {
     trip: MapPin,
     invoice: Receipt,
     receipt: Banknote,
+    bill: FileText,
+    money: Banknote,
     ship: Ship,
     users: User,
     roles: Shield,
