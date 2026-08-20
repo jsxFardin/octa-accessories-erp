@@ -35,7 +35,7 @@ class SoDeliverySchedule extends Model
             'sales_order_line_id' => 'integer',
             'sequence_no' => 'integer',
             'qty' => 'decimal:6',
-            'due_date' => 'date',
+            'due_date' => 'date:Y-m-d',
             'delivered_qty' => 'decimal:6',
         ];
     }

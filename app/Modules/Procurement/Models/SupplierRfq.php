@@ -50,8 +50,8 @@ class SupplierRfq extends Model
     {
         return [
             'pr_id' => 'integer',
-            'issued_on' => 'date',
-            'respond_by' => 'date',
+            'issued_on' => 'date:Y-m-d',
+            'respond_by' => 'date:Y-m-d',
             'created_by' => 'integer',
             'created_at' => 'datetime',
         ];

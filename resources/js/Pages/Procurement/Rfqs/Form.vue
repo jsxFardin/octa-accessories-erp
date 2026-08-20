@@ -10,6 +10,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
+import { todayIso, isoDate } from '@/plugins/formatting';
 
 const props = defineProps({
     rfq: { type: Object, default: null },
@@ -28,7 +29,7 @@ function blankLine() {
 
 const form = useForm({
     pr_id: props.rfq?.pr_id ?? props.requisition?.id ?? '',
-    issued_on: props.rfq?.issued_on ?? new Date().toISOString().slice(0, 10),
+    issued_on: isoDate(props.rfq?.issued_on) || todayIso(),
     respond_by: props.rfq?.respond_by ?? '',
     lines: (props.rfq?.lines?.length
         ? props.rfq.lines

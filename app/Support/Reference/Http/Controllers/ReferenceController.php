@@ -25,20 +25,16 @@ use Inertia\Response;
  */
 class ReferenceController extends Controller
 {
-    /** How many rows a hub card shows before it defers to the full screen. */
-    private const CARD_ROWS = 50;
-
     public function __construct(private readonly AuditLogger $audit) {}
 
     /**
-     * The Setup hub: one tab per group, each tab a set of cards showing the list inline.
+     * The Setup directory: every list the user may open, grouped, with a count.
      *
-     * Only the open tab's rows are loaded. Twenty-five lists with their rows and their
-     * reference options in one payload would be a slow screen that is 90% unread.
+     * Rows stay off this page. A hub that previews fifty departments next to three shifts
+     * asks people to edit in two places; clicking through to the list is one place.
      */
     public function hub(Request $request): Response
     {
-        $tabs = [];
         $visible = [];
 
         foreach (ReferenceRegistry::all() as $slug => $definition) {
@@ -46,95 +42,32 @@ class ReferenceController extends Controller
                 continue;
             }
 
-            $visible[$definition['group']][$slug] = $definition;
-        }
-
-        foreach (ReferenceRegistry::GROUPS as $key => $label) {
-            if (isset($visible[$key])) {
-                $tabs[] = ['key' => $key, 'label' => $label, 'count' => count($visible[$key])];
-            }
-        }
-
-        // Every list is editable now — product type and cut type included, since the rules
-        // behind them are columns rather than `match` arms. A user who may read no list at
-        // all gets no tabs, and the hub says so rather than opening on a tab that is not there.
-        $current = (string) $request->query('tab', $tabs[0]['key'] ?? '');
-
-        if (! isset($visible[$current])) {
-            $current = $tabs[0]['key'] ?? '';
-        }
-
-        $cards = [];
-
-        foreach ($visible[$current] ?? [] as $slug => $definition) {
-            $cards[] = [
+            $visible[$definition['group']][] = [
                 'slug' => $slug,
                 'label' => $definition['label'],
-                'singular' => $definition['singular'],
                 'icon' => $definition['icon'],
                 'description' => $definition['description'],
-                'fields' => $definition['fields'],
-                'options' => $this->referenceOptions($definition),
                 'total' => DB::table($definition['table'])->count(),
-                // Capped: a card is a working list, not a report. The full screen paginates.
-                'rows' => DB::table($definition['table'])
-                    ->orderBy($this->hubSortColumn($definition))
-                    ->limit(self::CARD_ROWS)
-                    ->get()
-                    ->map(fn (object $row): array => (array) $row)
-                    ->all(),
-                'display' => $this->displayFields($definition),
-                'can' => [
-                    'create' => $this->allows($request, $slug, 'create'),
-                    'update' => $this->allows($request, $slug, 'update'),
-                    'delete' => $this->allows($request, $slug, 'delete'),
-                ],
+            ];
+        }
+
+        $groups = [];
+
+        foreach (ReferenceRegistry::GROUPS as $key => $label) {
+            if (! isset($visible[$key])) {
+                continue;
+            }
+
+            $groups[] = [
+                'key' => $key,
+                'label' => $label,
+                'lists' => $visible[$key],
             ];
         }
 
         return Inertia::render('Setup/Index', [
-            'tabs' => $tabs,
-            'current' => $current,
-            'cards' => $cards,
+            'groups' => $groups,
         ]);
-    }
-
-    /** @param array<string, mixed> $definition */
-    private function hubSortColumn(array $definition): string
-    {
-        $sort = ltrim((string) ($definition['defaultSort'] ?? ''), '-');
-        $columns = array_column($definition['fields'], 'name');
-
-        return in_array($sort, $columns, true) ? $sort : ($columns[0] ?? 'id');
-    }
-
-    /**
-     * What a card shows per row: a title, a subtitle and up to two badges. The full field set
-     * belongs in the form, not in a list someone is scanning.
-     *
-     * @param  array<string, mixed>  $definition
-     * @return array{title: string, subtitle: ?string, badges: list<string>}
-     */
-    private function displayFields(array $definition): array
-    {
-        $names = array_column($definition['fields'], 'name');
-        $byName = array_combine($names, $definition['fields']);
-
-        $title = in_array('code', $names, true) ? 'code' : ($names[0] ?? 'id');
-        $subtitle = in_array('name', $names, true) && $title !== 'name' ? 'name' : null;
-
-        $badges = array_values(array_filter(
-            $names,
-            fn (string $name): bool => $name !== $title
-                && $name !== $subtitle
-                && in_array($byName[$name]['type'], ['select', 'boolean'], true),
-        ));
-
-        return [
-            'title' => $title,
-            'subtitle' => $subtitle,
-            'badges' => array_slice($badges, 0, 2),
-        ];
     }
 
     public function index(Request $request, string $reference): Response

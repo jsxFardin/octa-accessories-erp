@@ -11,7 +11,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { pcs } from '@/plugins/formatting';
+import { date, isoDate, pcs, todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     list: { type: Object, default: null },
@@ -31,8 +31,8 @@ const form = useForm({
     name: props.list?.name ?? "",
     customer_id: props.list?.customer_id ?? "",
     currency_id: props.list?.currency_id ?? props.currencies.find((c) => c.is_base)?.id ?? "",
-    valid_from: props.list?.valid_from ?? new Date().toISOString().slice(0, 10),
-    valid_to: props.list?.valid_to ?? "",
+    valid_from: isoDate(props.list?.valid_from) || todayIso(),
+    valid_to: isoDate(props.list?.valid_to),
     is_active: props.list?.is_active ?? true,
     lines: props.list?.lines?.length ? props.list.lines.map((line) => ({ ...line })) : [blankLine()],
 });
@@ -172,14 +172,14 @@ const columns = [
                         <div class="flex items-baseline justify-between gap-3">
                             <dt class="text-xs text-ink-500">Valid from</dt>
                             <dd class="text-right" :class="form.valid_from ? 'text-ink-900' : 'text-ink-400'">
-                                {{ form.valid_from || 'Not set' }}
+                                {{ form.valid_from ? date(form.valid_from) : 'Not set' }}
                             </dd>
                         </div>
 
                         <div class="flex items-baseline justify-between gap-3">
                             <dt class="text-xs text-ink-500">Valid to</dt>
                             <dd class="text-right" :class="form.valid_to ? 'text-ink-900' : 'text-ink-400'">
-                                {{ form.valid_to || 'Open-ended' }}
+                                {{ form.valid_to ? date(form.valid_to) : 'Open-ended' }}
                             </dd>
                         </div>
                     </dl>

@@ -64,7 +64,7 @@ class DeliveryChallan extends Model
             'customer_id' => 'integer',
             'delivery_address_id' => 'integer',
             'trip_id' => 'integer',
-            'challan_date' => 'date',
+            'challan_date' => 'date:Y-m-d',
             'total_cartons' => 'integer',
             'total_qty' => 'decimal:6',
             'created_at' => 'datetime',

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { date as formatDate, isoDate, todayIso } from '@/plugins/formatting';
 
 /**
  * A date field with its own calendar.
@@ -9,8 +10,9 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
  * in and out (`YYYY-MM-DD`), Monday-first, and typing still works because the trigger is a
  * real text input.
  *
- * Dates are formatted from local parts, never `toISOString()` — Dhaka is UTC+6, so a
- * `toISOString()` on a midnight date lands on the previous day.
+ * Laravel's `date` cast used to arrive as `2026-08-20T00:00:00.000000Z`. Values are normalised
+ * to a calendar day, and the closed field shows the organisation date format (`d M Y` by
+ * default) rather than the raw ISO string.
  */
 const model = defineModel({ type: [String, null], default: '' });
 
@@ -24,11 +26,27 @@ const props = defineProps({
     clearable: { type: Boolean, default: true },
 });
 
+const focused = ref(false);
+const draft = ref('');
+
+const isoValue = computed({
+    get: () => isoDate(model.value),
+    set: (value) => {
+        model.value = isoDate(value) || '';
+    },
+});
+
 const open = ref(false);
 const wrapper = ref(null);
 const field = ref(null);
 const position = ref({ top: 0, left: 0 });
-const cursor = ref(startOfMonth(parse(model.value) ?? new Date()));
+const cursor = ref(startOfMonth(parse(isoValue.value) ?? new Date()));
+
+const displayValue = computed(() => {
+    if (focused.value) return draft.value;
+
+    return isoValue.value ? formatDate(isoValue.value) : '';
+});
 
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 const MONTHS = [
@@ -57,7 +75,7 @@ function startOfMonth(date) {
     return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-const selected = computed(() => parse(model.value));
+const selected = computed(() => parse(isoValue.value));
 
 /** Six weeks, Monday first — a fixed grid so the popover never changes height. */
 const days = computed(() => {
@@ -72,12 +90,12 @@ const days = computed(() => {
             date,
             iso: iso(date),
             outside: date.getMonth() !== first.getMonth(),
-            disabled: (props.min && iso(date) < props.min) || (props.max && iso(date) > props.max),
+            disabled: (props.min && iso(date) < isoDate(props.min)) || (props.max && iso(date) > isoDate(props.max)),
         };
     });
 });
 
-const today = iso(new Date());
+const today = todayIso();
 
 function place() {
     const rect = field.value?.getBoundingClientRect();
@@ -106,7 +124,8 @@ async function show() {
 function pick(day) {
     if (day.disabled) return;
 
-    model.value = day.iso;
+    isoValue.value = day.iso;
+    draft.value = day.iso;
     open.value = false;
 }
 
@@ -115,8 +134,30 @@ function shiftMonth(delta) {
 }
 
 function clear() {
-    model.value = '';
+    isoValue.value = '';
+    draft.value = '';
     open.value = false;
+}
+
+function onFocus() {
+    focused.value = true;
+    draft.value = isoValue.value;
+    show();
+}
+
+function onInput(event) {
+    draft.value = event.target.value;
+    const parsed = isoDate(event.target.value);
+
+    if (parsed) isoValue.value = parsed;
+}
+
+function onBlur() {
+    focused.value = false;
+    const parsed = isoDate(draft.value);
+
+    isoValue.value = parsed;
+    draft.value = parsed;
 }
 
 function onKeydown(event) {
@@ -134,13 +175,20 @@ function onDocumentClick(event) {
     }
 }
 
-watch(() => model.value, (value) => {
+watch(() => isoValue.value, (value) => {
     const parsed = parse(value);
 
     if (parsed) cursor.value = startOfMonth(parsed);
+    if (!focused.value) draft.value = value;
 });
 
 onMounted(() => {
+    const iso = isoDate(model.value);
+
+    if (iso && iso !== model.value) {
+        model.value = iso;
+    }
+
     document.addEventListener('click', onDocumentClick, true);
     window.addEventListener('resize', place);
     window.addEventListener('scroll', place, true);
@@ -159,14 +207,16 @@ onUnmounted(() => {
             <!-- Typing stays possible: a planner entering thirty dates should never need the mouse. -->
             <input
                 ref="field"
-                v-model="model"
+                :value="displayValue"
                 type="text"
                 inputmode="numeric"
                 class="form-input pr-8"
                 :class="error && 'form-input-error'"
                 :placeholder="placeholder"
                 :disabled="disabled"
-                @focus="show"
+                @focus="onFocus"
+                @input="onInput"
+                @blur="onBlur"
                 @keydown="onKeydown"
             >
             <button
@@ -229,7 +279,7 @@ onUnmounted(() => {
                         type="button"
                         class="rounded py-1 text-xs transition"
                         :class="[
-                            day.iso === model
+                            day.iso === isoValue
                                 ? 'bg-brand-600 font-semibold text-white'
                                 : day.iso === today
                                     ? 'bg-brand-50 font-medium text-brand-800'

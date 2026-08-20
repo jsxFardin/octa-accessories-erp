@@ -66,8 +66,8 @@ class GrnLine extends Model
             'rejected_qty' => 'decimal:6',
             'rate' => 'decimal:4',
             'landed_rate' => 'decimal:4',
-            'manufactured_on' => 'date',
-            'expiry_date' => 'date',
+            'manufactured_on' => 'date:Y-m-d',
+            'expiry_date' => 'date:Y-m-d',
             'cert_claim_pct' => 'decimal:4',
         ];
     }

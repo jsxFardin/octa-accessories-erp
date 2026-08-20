@@ -9,7 +9,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { date, money, titleCase } from '@/plugins/formatting';
+import { date, money, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
@@ -38,7 +38,7 @@ const attaching = ref(false);
 
 const openForm = useForm({ status: 'opened', lc_no: props.letter.lc_no ?? '', issued_on: '' });
 const amendForm = useForm({
-    amended_on: new Date().toISOString().slice(0, 10),
+    amended_on: todayIso(),
     amount_delta: 0,
     new_expiry_date: '',
     new_last_shipment_date: '',

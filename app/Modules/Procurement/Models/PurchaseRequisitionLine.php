@@ -46,7 +46,7 @@ class PurchaseRequisitionLine extends Model
             'uom_id' => 'integer',
             'qty' => 'decimal:6',
             'ordered_qty' => 'decimal:6',
-            'required_by' => 'date',
+            'required_by' => 'date:Y-m-d',
             'job_card_id' => 'integer',
         ];
     }

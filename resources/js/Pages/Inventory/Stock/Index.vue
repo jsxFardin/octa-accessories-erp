@@ -30,10 +30,10 @@ const columns = [
 
 <template>
     <AppLayout>
-        <Head title="Stock enquiry" />
+        <Head title="On-hand" />
 
-        <template #title>Stock enquiry</template>
-        <template #subtitle>Balances from the summary table, reconciled against the append-only ledger</template>
+        <template #title>On-hand</template>
+        <template #subtitle>How much is in each warehouse right now. Open a lot for history and genealogy.</template>
 
         <div class="space-y-4">
             <!--

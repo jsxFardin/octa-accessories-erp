@@ -57,7 +57,7 @@ const columns = [
         <Head title="Products" />
 
         <template #title>Products</template>
-        <template #subtitle>One product, one customer (P1) — with its current spec version</template>
+        <template #subtitle>Finished labels the customer orders. Yarn, ink and packing are under Inventory → Materials.</template>
 
         <template #actions>
             <ImportDialog v-if="can('product.import')" resource="products" label="Products" />

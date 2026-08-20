@@ -35,7 +35,7 @@ class Driver extends Model
     {
         return [
             'employee_id' => 'integer',
-            'licence_expiry' => 'date',
+            'licence_expiry' => 'date:Y-m-d',
             'is_active' => 'boolean',
         ];
     }

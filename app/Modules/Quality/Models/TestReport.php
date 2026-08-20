@@ -61,7 +61,7 @@ class TestReport extends Model
             'job_card_id' => 'integer',
             'product_id' => 'integer',
             'customer_id' => 'integer',
-            'tested_on' => 'date',
+            'tested_on' => 'date:Y-m-d',
             'technician_id' => 'integer',
             'issued_at' => 'datetime',
             'created_at' => 'datetime',

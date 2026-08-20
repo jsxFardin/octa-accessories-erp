@@ -1,8 +1,6 @@
 # Sales
 
-Inquiry → quotation → sales order. This is the busiest path. Hiding any of it behind a tab would cost a click every time, so all three are sidebar rows.
-
-**Sales → Customers** is a hub (Customers + Price lists).
+Inquiry → quotation → sales order. This is the busiest path. All three are sidebar rows under **Sales**, with Customers and Price lists next to them.
 
 ## Inquiry
 
@@ -76,7 +74,7 @@ Commercial guard rails that actually fire later:
 
 Addresses: at least one **delivery** address. Transit days and route zone feed promised dates and trip planning.
 
-**Price lists** (tab): optional rate breaks that default onto a quotation line. They do not bypass the cost sheet.
+**Sales → Price lists**: optional rate breaks that default onto a quotation line. They do not bypass the cost sheet.
 
 ## What you should not do
 

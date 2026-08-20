@@ -40,7 +40,7 @@ class CapacityCalendar extends Model
         return [
             'machine_id' => 'integer',
             'machine_group_id' => 'integer',
-            'calendar_date' => 'date',
+            'calendar_date' => 'date:Y-m-d',
             'shift_id' => 'integer',
             'available_minutes' => 'decimal:2',
             'planned_downtime_pct' => 'decimal:4',

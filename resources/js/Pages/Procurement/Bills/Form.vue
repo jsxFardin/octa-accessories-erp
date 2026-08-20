@@ -9,6 +9,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     suppliers: { type: Array, default: () => [] },
@@ -25,7 +26,7 @@ const form = useForm({
     po_id: props.prefill?.po_id ?? null,
     grn_id: props.prefill?.grn_id ?? null,
     bill_no: '',
-    bill_date: new Date().toISOString().slice(0, 10),
+    bill_date: todayIso(),
     due_date: '',
     currency_id: props.prefill?.currency_id ?? null,
     exchange_rate: 1,

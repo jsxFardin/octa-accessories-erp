@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -28,6 +28,12 @@ function makeCurrent(spec) {
 function activateBom(bom) {
     router.post(`/boms/${bom.id}/activate`, {}, { preserveScroll: true });
 }
+
+onMounted(() => {
+    if (window.location.hash === '#bom') {
+        document.getElementById('bom')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+});
 
 const bomColumns = [
     { key: 'item', label: 'Item' },
@@ -151,7 +157,7 @@ const bomColumns = [
                 </Card>
             </div>
 
-            <Card title="Bills of material" rule="PD-3 · BR-1" subtitle="Quantities are per base quantity — 1000 pieces by default" :padded="false">
+            <Card id="bom" class="scroll-mt-20" title="Bills of material" subtitle="What this product consumes per 1,000 pieces. Activate one version before a job card can be released." :padded="false">
                 <div v-for="bom in boms" :key="bom.id" class="border-b border-slate-100 last:border-0">
                     <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50/60 px-3 py-2">
                         <div class="flex items-center gap-2">

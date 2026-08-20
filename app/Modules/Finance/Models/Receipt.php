@@ -51,7 +51,7 @@ class Receipt extends Model
     {
         return [
             'customer_id' => 'integer',
-            'receipt_date' => 'date',
+            'receipt_date' => 'date:Y-m-d',
             'currency_id' => 'integer',
             'exchange_rate' => 'decimal:8',
             'amount' => 'decimal:4',

@@ -10,7 +10,7 @@ import DateInput from '@/Components/Ui/DateInput.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { date, money, qty } from '@/plugins/formatting';
+import { date, money, qty, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 
 const props = defineProps({
@@ -25,7 +25,7 @@ const props = defineProps({
 
 const quoteForm = useForm({
     supplier_id: '',
-    quoted_on: new Date().toISOString().slice(0, 10),
+    quoted_on: todayIso(),
     valid_until: '',
     currency_id: '',
     lead_time_days: '',

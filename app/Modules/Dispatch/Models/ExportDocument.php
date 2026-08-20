@@ -39,7 +39,7 @@ class ExportDocument extends Model
         return [
             'delivery_challan_id' => 'integer',
             'sales_order_id' => 'integer',
-            'doc_date' => 'date',
+            'doc_date' => 'date:Y-m-d',
             'created_at' => 'datetime',
         ];
     }

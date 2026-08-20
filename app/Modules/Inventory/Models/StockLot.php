@@ -83,8 +83,8 @@ class StockLot extends Model
             'job_card_id' => 'integer',
             'parent_lot_id' => 'integer',
             'roll_length_m' => 'decimal:6',
-            'received_on' => 'date',
-            'expiry_date' => 'date',
+            'received_on' => 'date:Y-m-d',
+            'expiry_date' => 'date:Y-m-d',
             'cert_claim_pct' => 'decimal:4',
             'created_at' => 'datetime',
         ];

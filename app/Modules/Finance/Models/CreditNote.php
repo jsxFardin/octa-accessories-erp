@@ -68,7 +68,7 @@ class CreditNote extends Model
         return [
             'customer_id' => 'integer',
             'sales_invoice_id' => 'integer',
-            'note_date' => 'date',
+            'note_date' => 'date:Y-m-d',
             'ncr_id' => 'integer',
             'currency_id' => 'integer',
             'amount' => 'decimal:4',

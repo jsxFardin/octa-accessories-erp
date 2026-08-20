@@ -44,8 +44,8 @@ class SupplierQuotation extends Model
         return [
             'rfq_id' => 'integer',
             'supplier_id' => 'integer',
-            'quoted_on' => 'date',
-            'valid_until' => 'date',
+            'quoted_on' => 'date:Y-m-d',
+            'valid_until' => 'date:Y-m-d',
             'currency_id' => 'integer',
             'total' => 'decimal:4',
             'lead_time_days' => 'integer',

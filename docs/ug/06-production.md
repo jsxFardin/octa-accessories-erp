@@ -1,6 +1,6 @@
 # Production
 
-Planning, job cards, MRP, and the shop-floor terminal. Desk users live under **Floor**. Operators live on `/floor`.
+Planning, job cards, the material plan (MRP), and the shop-floor terminal. Desk users live under **Floor**. Operators live on `/floor`.
 
 ## Planning board
 
@@ -10,9 +10,9 @@ Load by machine / day. Drag or assign job-card operations into capacity. An oper
 
 This is the planner’s morning screen. The board does not start the machine; the operator (or supervisor) does.
 
-## MRP
+## Material plan
 
-**Floor → MRP.**
+**Floor → Material plan.**
 
 Run MRP against confirmed demand. It proposes requisitions for shortages. Review, then raise PRs — MRP does not silently place POs.
 

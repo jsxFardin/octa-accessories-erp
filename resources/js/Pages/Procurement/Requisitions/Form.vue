@@ -11,7 +11,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { qty } from '@/plugins/formatting';
+import { date, isoDate, qty, todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     requisition: { type: Object, default: null },
@@ -30,8 +30,8 @@ function blankLine() {
 const form = useForm({
     factory_unit_id: props.requisition?.factory_unit_id ?? props.units[0]?.id ?? '',
     department_id: props.requisition?.department_id ?? '',
-    requested_on: props.requisition?.requested_on ?? new Date().toISOString().slice(0, 10),
-    required_by: props.requisition?.required_by ?? '',
+    requested_on: isoDate(props.requisition?.requested_on) || todayIso(),
+    required_by: isoDate(props.requisition?.required_by),
     remarks: props.requisition?.remarks ?? '',
     lines: props.requisition?.lines?.length
         ? props.requisition.lines.map((line) => ({ ...line }))
@@ -185,7 +185,7 @@ const columns = [
                         <div class="flex items-baseline justify-between gap-3">
                             <dt class="text-xs text-ink-500">Needed by</dt>
                             <dd class="text-right" :class="form.required_by ? 'text-ink-900' : 'text-ink-400'">
-                                {{ form.required_by || 'Not stated' }}
+                                {{ form.required_by ? date(form.required_by) : 'Not stated' }}
                             </dd>
                         </div>
                     </dl>

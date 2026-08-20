@@ -57,7 +57,7 @@ class Grn extends Model
             'po_id' => 'integer',
             'supplier_id' => 'integer',
             'warehouse_id' => 'integer',
-            'received_on' => 'date',
+            'received_on' => 'date:Y-m-d',
             'freight_amount' => 'decimal:4',
             'duty_amount' => 'decimal:4',
             'clearing_amount' => 'decimal:4',

@@ -48,8 +48,8 @@ class PurchaseRequisition extends Model
         return [
             'factory_unit_id' => 'integer',
             'department_id' => 'integer',
-            'requested_on' => 'date',
-            'required_by' => 'date',
+            'requested_on' => 'date:Y-m-d',
+            'required_by' => 'date:Y-m-d',
             'approved_by' => 'integer',
             'approved_at' => 'datetime',
             'created_at' => 'datetime',

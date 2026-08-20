@@ -39,8 +39,8 @@ class MrpRun extends Model
     {
         return [
             'factory_unit_id' => 'integer',
-            'horizon_from' => 'date',
-            'horizon_to' => 'date',
+            'horizon_from' => 'date:Y-m-d',
+            'horizon_to' => 'date:Y-m-d',
             'run_at' => 'datetime',
             'run_by' => 'integer',
             'shortage_count' => 'integer',

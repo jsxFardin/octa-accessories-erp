@@ -55,15 +55,15 @@ const columns = [
 
 <template>
     <AppLayout>
-        <Head title="Items" />
+        <Head title="Materials" />
 
-        <template #title>Items</template>
-        <template #subtitle>Raw materials, consumables and packing — with the technical fields the formulas read</template>
+        <template #title>Materials</template>
+        <template #subtitle>Yarn, ink, packing and other stock you buy — not the labels you sell.</template>
 
         <template #actions>
             <ImportDialog v-if="can('item.import')" resource="items" label="Items" />
             <ExportDialog v-if="can('item.export')" resource="items" />
-            <Button v-if="can('item.create')" variant="primary" href="/items/create">New item</Button>
+            <Button v-if="can('item.create')" variant="primary" href="/items/create">New material</Button>
         </template>
 
         <Card :padded="false">

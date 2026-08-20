@@ -1,6 +1,6 @@
 # Money
 
-**Money** is a hub. Tabs: Invoices, Receipts, Credit notes, Supplier bills, Payments, Expenses.
+**Money** sits as its own sidebar group: Invoices, Receipts, Credit notes, Supplier bills, Payments, Expenses.
 
 AR follows the challan. AP follows the GRN / PO.
 

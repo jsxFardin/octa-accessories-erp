@@ -1,12 +1,12 @@
 # Products & artwork
 
-Engineering lives under **Floor → Products** (tabs: Products, Artwork, Routings, Tools). Machines are the next row.
+Engineering lives under **Products** (Products, Artwork, BOMs, Routings, Tools). Machines sit on **Floor**.
 
 Nothing ships from a product code alone. A **current spec** plus an **approved artwork version** are what Gate 1 checks.
 
 ## Products
 
-**Floor → Products → New product** (or open `PRD-NFJ-CARE-01` from the demo).
+**Products → New product** (or open `PRD-NFJ-CARE-01` from the demo).
 
 Identity: code, name, customer, brand, product type (woven, flexo, screen, heat transfer, offset, thermal…). Type drives which spec fields and consumption formulas apply.
 
@@ -24,7 +24,7 @@ Sales-order confirm looks at the **current** spec, not at a draft sitting on the
 
 ## Artwork (Gate 1)
 
-**Floor → Products → Artwork** tab, or the Artwork list.
+**Products → Artwork**, or the Artwork list.
 
 1. Create artwork against the product.
 2. Upload a version (file + checksum). Status `draft`.
@@ -38,13 +38,13 @@ Merchandiser typically submits; merchandiser / sales manager / MD approve when t
 
 ## Routings
 
-**Routings** tab: ordered operations (warp, weave, cut, fold, QC…), machine group, standard minutes, whether the step **requires QC**.
+**Products → Routings**: ordered operations (warp, weave, cut, fold, QC…), machine group, standard minutes, whether the step **requires QC**.
 
 Parallel operations are allowed only where the routing says `allow_parallel`. Otherwise an operation cannot start before its predecessor is completed.
 
 ## BOM
 
-Bill of materials on the product: yarn, ink, ribbon, packing, per the consumption plan. **Activate** one BOM; the previous active is superseded.
+**Products → BOMs**, or the **Bills of material** card on the product. Yarn, ink, ribbon, packing, per the consumption plan. **Activate** one BOM; the previous active is superseded.
 
 Job-card release checks that required material can be issued (or a supervisor waives with a reason). A BOM that is still draft will not satisfy the gate.
 

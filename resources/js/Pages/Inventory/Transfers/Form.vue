@@ -9,7 +9,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { money, qty } from '@/plugins/formatting';
+import { money, qty, todayIso, isoDate } from '@/plugins/formatting';
 
 const props = defineProps({
     transfer: { type: Object, default: null },
@@ -22,7 +22,7 @@ const isEdit = computed(() => Boolean(props.transfer?.id));
 const form = useForm({
     from_warehouse_id: props.transfer?.from_warehouse_id ?? props.warehouses[0]?.id ?? '',
     to_warehouse_id: props.transfer?.to_warehouse_id ?? props.warehouses[1]?.id ?? props.warehouses[0]?.id ?? '',
-    transfer_date: props.transfer?.transfer_date ?? new Date().toISOString().slice(0, 10),
+    transfer_date: isoDate(props.transfer?.transfer_date) || todayIso(),
     remarks: props.transfer?.remarks ?? '',
     lines: (props.transfer?.lines ?? []).map((line) => ({
         lot_id: line.lot_id,

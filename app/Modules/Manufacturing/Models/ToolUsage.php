@@ -35,7 +35,7 @@ class ToolUsage extends Model
             'tool_id' => 'integer',
             'job_card_operation_id' => 'integer',
             'impressions' => 'integer',
-            'used_on' => 'date',
+            'used_on' => 'date:Y-m-d',
         ];
     }
 }

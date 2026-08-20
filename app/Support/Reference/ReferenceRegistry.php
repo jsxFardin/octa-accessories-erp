@@ -28,12 +28,12 @@ namespace App\Support\Reference;
 class ReferenceRegistry
 {
     /**
-     * Grouped for the Setup hub, in the order the groups are read.
+     * Grouped for the Setup directory, in the order the groups are read.
      *
      * @var array<string, string>
      */
     public const GROUPS = [
-        'organisation' => 'Organisation',
+        'organisation' => 'Factory',
         'people' => 'People',
         'commercial' => 'Commercial',
         'measurement' => 'Units & money',

@@ -40,10 +40,10 @@ class LcAmendment extends Model
         return [
             'lc_id' => 'integer',
             'amendment_no' => 'integer',
-            'amended_on' => 'date',
+            'amended_on' => 'date:Y-m-d',
             'amount_delta' => 'decimal:4',
-            'new_expiry_date' => 'date',
-            'new_last_shipment_date' => 'date',
+            'new_expiry_date' => 'date:Y-m-d',
+            'new_last_shipment_date' => 'date:Y-m-d',
             'charges_amount' => 'decimal:4',
             'created_at' => 'datetime',
             'created_by' => 'integer',

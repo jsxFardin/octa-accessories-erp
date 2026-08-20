@@ -4,39 +4,38 @@ The desk is the white application with the left sidebar. Operators on `/floor` c
 
 ## Sidebar
 
-Groups follow the factory, not the org chart:
+Groups follow the factory, not the org chart. Click a heading to open that group’s first screen. The chevron peeks without leaving the page. Only the group you are in starts open.
 
 | Group | What is in it |
 |---|---|
-| **Overview** | Dashboard, Reports |
-| **Sales** | Inquiries, Quotations, Sales orders, Customers |
-| **Buying** | Requisitions, RFQs, Purchase orders, Goods receipts, Suppliers, Import |
-| **Floor** | Planning board, Job cards, MRP, Products, Machines |
-| **Inventory / Quality / Dispatch / Money** | Hubs — one row each; extra screens are **tabs** on the page |
+| **Dashboard** | Always visible (no heading) |
+| **Sales** | Inquiries, Quotations, Sales orders, Customers, Price lists |
+| **Buying** | Requisitions, RFQs, Purchase orders, Goods receipts, Suppliers, Import shipments, Letters of credit |
+| **Floor** | Planning board, Job cards, Material plan, Machines |
+| **Products** | Products, Artwork, BOMs, Routings, Tools |
+| **Inventory** | On-hand, Lots, Material issues, Transfers, Adjustments, Physical counts, Materials |
+| **Quality** | Inspections, NCRs, Laboratory, Compliance & CoC |
+| **Dispatch** | Packing lists, Delivery notes, Trips |
+| **Money** | Invoices, Receipts, Credit notes, Supplier bills, Payments, Expenses |
+| **Reports** | All reports, then each operational register |
 
-Only the group you are in starts open. Click another heading to peek; navigating away closes it again. Inventory, Quality, Dispatch and Money stay visible because they are hubs, not folders.
+Every screen is its own row. There are no folders inside folders, and no tab strip under the page title.
 
 **⌘B** / **Ctrl-B** collapses the sidebar to icons.
 
-**Configuration** (footer) is a separate shell: Setup, Settings, number sequences, users, roles, audit log. **Exit configuration** returns to the factory. Admin screens never sit next to job cards.
+**Configuration** (footer) is a separate shell: Lists, Settings, number sequences, users, roles, audit log. **Exit configuration** returns to the factory. Admin screens never sit next to job cards.
 
 You only see rows your permissions allow. A missing menu is not a bug.
-
-## Tabs on a hub
-
-Customers, Products, Inventory, Quality, Dispatch, Money, Import and Reports are **one sidebar row**. Sibling lists appear as a tab strip under the page title.
-
-The strip is only on the **list**. It is hidden on a form or a document so you cannot abandon unsaved lines by clicking Artwork.
 
 ## Search
 
 **⌘K** / **Ctrl-K**, or **Search** in the sidebar footer.
 
-Type a screen name (`inquiries`, `trips`) or a document number (`SO-`, `LOT-`, `GRN-`). Results are permission-filtered. You cannot jump to a record you may not open.
+Type a screen name (`inquiries`, `trips`, `lists`, `users`) or a document number (`SO-`, `LOT-`, `GRN-`). Configuration screens are included. Results are permission-filtered. You cannot jump to a record you may not open.
 
 ## Dashboard
 
-**Overview → Dashboard.** Two questions:
+**Dashboard.** Two questions:
 
 1. **What is stuck on me?** — the work queue (POs to approve, overdue NCRs, artwork waiting, and so on). Each tile is work you are allowed to do.
 2. **How is the factory?** — open / late orders, job cards on the floor, stock value, certificates.

@@ -12,7 +12,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { money, qty } from '@/plugins/formatting';
+import { money, qty, todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     suppliers: { type: Array, default: () => [] },
@@ -43,7 +43,7 @@ const form = useForm({
     supplier_id: '',
     po_id: '',
     warehouse_id: '',
-    received_on: new Date().toISOString().slice(0, 10),
+    received_on: todayIso(),
     invoice_no: '',
     challan_no: '',
     freight_amount: 0,

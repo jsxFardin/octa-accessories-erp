@@ -36,8 +36,8 @@ class ProductionPlan extends Model
     {
         return [
             'factory_unit_id' => 'integer',
-            'plan_from' => 'date',
-            'plan_to' => 'date',
+            'plan_from' => 'date:Y-m-d',
+            'plan_to' => 'date:Y-m-d',
             'created_by' => 'integer',
             'created_at' => 'datetime',
         ];

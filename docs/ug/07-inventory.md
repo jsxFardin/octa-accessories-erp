@@ -1,10 +1,10 @@
 # Inventory
 
-**Inventory** is a hub. Tabs: Stock enquiry, Lots, Material issues, Transfers, Adjustments, Physical counts, Items.
+**Inventory** sits as its own sidebar group: On-hand, Lots, Material issues, Transfers, Adjustments, Physical counts, Materials.
 
 Stock never changes because someone edited a quantity field. It changes because a **document posted** (GRN, issue, transfer, adjustment, count, dispatch, FG receipt).
 
-## Stock enquiry
+## On-hand
 
 On-hand by item / warehouse / lot, with a ledger that must reconcile to the lot. If enquiry and ledger disagree, that is a defect — tell implementers; do not “fix” it with an adjustment until you know why.
 
@@ -31,7 +31,7 @@ Negative stock is refused (BR-38). If post fails, you do not have the qty — no
 
 ## Transfers
 
-**Transfers** tab.
+**Inventory → Transfers**.
 
 Draft: from warehouse → to warehouse, lines with lots and qty. Source and destination must differ; qty must be within free qty.
 
@@ -48,7 +48,7 @@ Approval band: store manager up to `adjustment_approval_band_manager`; above tha
 
 ## Physical counts
 
-**Physical counts** tab.
+**Inventory → Physical counts**.
 
 1. **Open count** on a warehouse — this **freezes** available lots in that warehouse. Issues against them will fail until you finish or cancel.
 2. Print the **blind count sheet** (no system qty).
@@ -58,9 +58,9 @@ Approval band: store manager up to `adjustment_approval_band_manager`; above tha
 
 Cancel an open/counting document if you opened it by mistake; do not leave a warehouse frozen over a weekend.
 
-## Items
+## Materials
 
-Item master: category, UoM, class (yarn, ink, packing, FG…). Technical attributes (yield, width) feed consumption. Prefer **deactivate** over delete.
+**Inventory → Materials** (`/items`). Category, UoM, class (yarn, ink, packing, FG…). Technical attributes (yield, width) feed consumption. Prefer **deactivate** over delete. The labels you sell live under **Products**.
 
 ## What you should not do
 

@@ -70,7 +70,7 @@ class Expense extends Model
     protected function casts(): array
     {
         return [
-            'expense_date' => 'date',
+            'expense_date' => 'date:Y-m-d',
             'expense_category_id' => 'integer',
             'factory_unit_id' => 'integer',
             'department_id' => 'integer',
@@ -84,7 +84,7 @@ class Expense extends Model
             'bank_account_id' => 'integer',
             'approved_by' => 'integer',
             'approved_at' => 'datetime',
-            'paid_on' => 'date',
+            'paid_on' => 'date:Y-m-d',
             'created_at' => 'datetime',
             'created_by' => 'integer',
         ];

@@ -59,8 +59,8 @@ class Capa extends Model
         return [
             'ncr_id' => 'integer',
             'responsible_id' => 'integer',
-            'due_date' => 'date',
-            'completed_on' => 'date',
+            'due_date' => 'date:Y-m-d',
+            'completed_on' => 'date:Y-m-d',
         ];
     }
 

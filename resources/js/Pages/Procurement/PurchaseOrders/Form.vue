@@ -12,7 +12,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { date, money, qty } from '@/plugins/formatting';
+import { addCalendarDays, date, isoDate, money, qty, todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     order: { type: Object, default: null },
@@ -44,8 +44,8 @@ function blankLine() {
 const form = useForm({
     supplier_id: props.order?.supplier_id ?? '',
     factory_unit_id: props.order?.factory_unit_id ?? props.units[0]?.id ?? '',
-    order_date: props.order?.order_date ?? new Date().toISOString().slice(0, 10),
-    expected_date: props.order?.expected_date ?? '',
+    order_date: isoDate(props.order?.order_date) || todayIso(),
+    expected_date: isoDate(props.order?.expected_date),
     currency_id: props.order?.currency_id ?? baseCurrency.value?.id ?? '',
     exchange_rate: props.order?.exchange_rate ?? 1,
     payment_term_id: props.order?.payment_term_id ?? '',
@@ -69,10 +69,7 @@ function onSupplierChange() {
     form.payment_term_id = supplier.value.payment_term_id ?? form.payment_term_id;
 
     if (supplier.value.lead_time_days && !form.expected_date) {
-        const due = new Date(form.order_date);
-
-        due.setDate(due.getDate() + Number(supplier.value.lead_time_days));
-        form.expected_date = due.toISOString().slice(0, 10);
+        form.expected_date = addCalendarDays(form.order_date, supplier.value.lead_time_days);
     }
 }
 

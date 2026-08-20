@@ -10,7 +10,7 @@ import Icon from '@/Components/Ui/Icon.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { date, money, qty, titleCase } from '@/plugins/formatting';
+import { date, money, qty, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
@@ -45,7 +45,7 @@ const costForm = useForm({
     description: '',
     supplier_id: '',
     reference_no: '',
-    incurred_on: new Date().toISOString().slice(0, 10),
+    incurred_on: todayIso(),
     currency_id: props.shipment.currency_id,
     exchange_rate: 1,
     amount: '',

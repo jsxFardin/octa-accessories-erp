@@ -37,8 +37,8 @@ class SampleDispatch extends Model
     {
         return [
             'sample_request_id' => 'integer',
-            'dispatched_on' => 'date',
-            'delivered_on' => 'date',
+            'dispatched_on' => 'date:Y-m-d',
+            'delivered_on' => 'date:Y-m-d',
         ];
     }
 }

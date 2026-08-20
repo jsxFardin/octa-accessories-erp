@@ -8,12 +8,57 @@ use App\Http\Controllers\Controller;
 use App\Modules\Product\Models\Bom;
 use App\Modules\Product\Models\BomLine;
 use App\Modules\Product\Models\Product;
+use App\Support\Http\ListsResources;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class BomController extends Controller
 {
+    use ListsResources;
+
+    public function index(Request $request): Response
+    {
+        $query = Bom::query()->with(['product:id,code,name']);
+
+        $term = trim((string) $request->string('q'));
+
+        if ($term !== '') {
+            $query->whereHas('product', function ($products) use ($term): void {
+                $products->where(function ($match) use ($term): void {
+                    $match->where('code', 'like', "%{$term}%")
+                        ->orWhere('name', 'like', "%{$term}%");
+                });
+            });
+        }
+
+        $this->applyListing(
+            $query,
+            $request,
+            filters: ['status' => 'status'],
+            sortable: ['version_no', 'status', 'created_at'],
+            defaultSort: '-id',
+        );
+
+        return Inertia::render('Product/Boms/Index', [
+            'boms' => $query->paginate($this->perPage($request))->withQueryString()->through(
+                fn (Bom $bom): array => [
+                    'id' => $bom->id,
+                    'product_id' => $bom->product_id,
+                    'product_code' => $bom->product?->code,
+                    'product_name' => $bom->product?->name,
+                    'version_no' => $bom->version_no,
+                    'status' => $bom->status,
+                    'base_qty' => $bom->base_qty,
+                    'created_at' => $bom->created_at?->toDateString(),
+                ],
+            ),
+            'filters' => $this->listingFilters($request, ['status']),
+        ]);
+    }
+
     /**
      * BOM quantities are per `base_qty` finished pieces — 1000 by default (BR-1).
      *

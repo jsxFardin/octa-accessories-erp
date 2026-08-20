@@ -46,7 +46,7 @@ class Tool extends Model
         return [
             'product_spec_id' => 'integer',
             'colour_index' => 'integer',
-            'made_on' => 'date',
+            'made_on' => 'date:Y-m-d',
             'cost' => 'decimal:4',
             'life_impressions' => 'integer',
             'used_impressions' => 'integer',

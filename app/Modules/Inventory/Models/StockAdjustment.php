@@ -56,7 +56,7 @@ class StockAdjustment extends Model
     {
         return [
             'warehouse_id' => 'integer',
-            'adjusted_on' => 'date',
+            'adjusted_on' => 'date:Y-m-d',
             'approved_by' => 'integer',
             'created_by' => 'integer',
             'created_at' => 'datetime',

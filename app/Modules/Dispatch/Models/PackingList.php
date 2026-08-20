@@ -57,7 +57,7 @@ class PackingList extends Model
             'sales_order_id' => 'integer',
             'customer_id' => 'integer',
             'delivery_address_id' => 'integer',
-            'packed_on' => 'date',
+            'packed_on' => 'date:Y-m-d',
             'total_cartons' => 'integer',
             'total_qty' => 'decimal:6',
             'gross_weight_kg' => 'decimal:3',

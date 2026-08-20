@@ -2,11 +2,13 @@
 import { computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import Card from '@/Components/Ui/Card.vue';
+import DateInput from '@/Components/Ui/DateInput.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
+import { isoDate } from '@/plugins/formatting';
 
 /**
  * The master-data form pattern, written once (10-roadmap, Phase 0).
@@ -30,8 +32,10 @@ const defaults = computed(() => {
 
     for (const section of props.sections) {
         for (const field of section.fields) {
-            values[field.key] = props.initial?.[field.key]
+            const raw = props.initial?.[field.key]
                 ?? (field.type === 'checkbox' ? false : field.default ?? '');
+
+            values[field.key] = field.type === 'date' ? isoDate(raw) || raw : raw;
         }
     }
 
@@ -94,6 +98,12 @@ function submit() {
                             v-model="form[field.key]"
                             rows="3"
                             class="form-textarea"
+                        />
+
+                        <DateInput
+                            v-else-if="field.type === 'date'"
+                            v-model="form[field.key]"
+                            :error="form.errors[field.key]"
                         />
 
                         <TextInput

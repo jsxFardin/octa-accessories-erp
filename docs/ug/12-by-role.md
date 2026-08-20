@@ -8,9 +8,9 @@ What to open first after sign-in. Full how-to is in the chapter linked at the en
 | Managing Director | `md@…` | Dashboard queue | Approvals above manager bands, credit-hold releases, exceptions | [Reports](11-reports-and-setup.md) |
 | Merchandiser | `merchandiser@…` | Sales → Inquiries | Quote, submit artwork, confirm SO when Gate 1 is green | [Sales](03-sales.md) |
 | Sales manager | `sales@…` | Quotations / orders | Margin overrides, short close | [Sales](03-sales.md) |
-| Designer | `designer@…` | Floor → Products → Artwork | New versions, submit | [Products & artwork](04-products-and-artwork.md) |
-| Engineer | `engineer@…` | Products, Routings, BOM | Make spec current, activate BOM | [Products & artwork](04-products-and-artwork.md) |
-| Planner | `planner@…` | Planning board, MRP, Job cards | Release the demo job card, schedule operations | [Production](06-production.md) |
+| Designer | `designer@…` | Products → Artwork | New versions, submit | [Products & artwork](04-products-and-artwork.md) |
+| Engineer | `engineer@…` | Products, BOMs, Routings | Make spec current, activate BOM | [Products & artwork](04-products-and-artwork.md) |
+| Planner | `planner@…` | Planning board, Material plan, Job cards | Release the demo job card, schedule operations | [Production](06-production.md) |
 | Production supervisor | `supervisor@…` | Job cards | Holds, waivers, waste, FG receipt | [Production](06-production.md) |
 | Operator | `operator@…` | `/floor` (badge `BADGE-0009` / PIN `0009`) | Queue → start / finish | [Production](06-production.md) |
 | Store keeper | `store@…` | Inventory, GRNs, Issues | Post receipts, issue to job cards | [Inventory](07-inventory.md), [Buying](05-buying.md) |

@@ -38,8 +38,8 @@ class PriceList extends Model
         return [
             'customer_id' => 'integer',
             'currency_id' => 'integer',
-            'valid_from' => 'date',
-            'valid_to' => 'date',
+            'valid_from' => 'date:Y-m-d',
+            'valid_to' => 'date:Y-m-d',
             'is_active' => 'boolean',
         ];
     }

@@ -44,8 +44,8 @@ class ProductionPlanLine extends Model
             'sales_order_line_id' => 'integer',
             'product_id' => 'integer',
             'planned_qty' => 'decimal:6',
-            'planned_start' => 'date',
-            'planned_finish' => 'date',
+            'planned_start' => 'date:Y-m-d',
+            'planned_finish' => 'date:Y-m-d',
             'machine_group_id' => 'integer',
             'priority' => 'integer',
         ];

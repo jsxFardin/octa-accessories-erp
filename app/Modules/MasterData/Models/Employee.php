@@ -48,7 +48,7 @@ class Employee extends Model
             'user_id' => 'integer',
             'factory_unit_id' => 'integer',
             'department_id' => 'integer',
-            'joined_on' => 'date',
+            'joined_on' => 'date:Y-m-d',
             'is_active' => 'boolean',
         ];
     }

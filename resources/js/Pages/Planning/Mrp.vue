@@ -32,12 +32,11 @@ const columns = [
 
 <template>
     <AppLayout>
-        <Head title="MRP" />
+        <Head title="Material plan" />
 
-        <template #title>Material requirements planning</template>
+        <template #title>Material plan</template>
         <template #subtitle>
-            BR-24 … BR-26. The output of a run is persisted, so a planner can answer
-            “what did the system tell me on Tuesday?”
+            What to buy, and by when, from open job cards. A run is saved so you can see what the plan said on Tuesday.
         </template>
 
         <template #actions>

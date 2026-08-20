@@ -58,7 +58,7 @@ class PhysicalCount extends Model
     {
         return [
             'warehouse_id' => 'integer',
-            'counted_on' => 'date',
+            'counted_on' => 'date:Y-m-d',
             'created_by' => 'integer',
             'created_at' => 'datetime',
         ];

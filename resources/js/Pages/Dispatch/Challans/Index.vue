@@ -23,10 +23,10 @@ const columns = [
 
 <template>
     <AppLayout>
-        <Head title="Delivery challans" />
+        <Head title="Delivery notes" />
 
-        <template #title>Delivery challans</template>
-        <template #subtitle>Goods leave the factory on a challan; the invoice follows it</template>
+        <template #title>Delivery notes</template>
+        <template #subtitle>Goods leave the factory on a delivery note (challan); the invoice follows it.</template>
 
         <template #actions>
             <span />

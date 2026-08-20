@@ -9,6 +9,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     vehicles: { type: Array, default: () => [] },
@@ -19,7 +20,7 @@ const props = defineProps({
 const form = useForm({
     vehicle_id: null,
     driver_id: null,
-    trip_date: new Date().toISOString().slice(0, 10),
+    trip_date: todayIso(),
     route_zone: '',
     start_odometer: null,
     remarks: '',

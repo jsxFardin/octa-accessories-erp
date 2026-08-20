@@ -160,6 +160,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('artwork-versions/{version}/transition', [ArtworkVersionController::class, 'transition'])
         ->middleware('can:artwork.view')->name('artwork-versions.transition');
 
+    Route::get('boms', [BomController::class, 'index'])
+        ->middleware('can:bom.view_any')->name('boms.index');
     Route::post('products/{product}/boms', [BomController::class, 'store'])
         ->middleware('can:bom.create')->name('products.boms.store');
     Route::post('boms/{bom}/activate', [BomController::class, 'activate'])

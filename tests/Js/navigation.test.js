@@ -9,6 +9,10 @@ function rows(sections) {
     return sections.flatMap((section) => section.items.map((item) => item.label));
 }
 
+function itemsOf(label) {
+    return navigation.find((section) => section.label === label)?.items.map((item) => item.label);
+}
+
 describe('sidebar visibility', () => {
     it('renders leaf items, not just hubs', () => {
         // The regression this exists for: a filter meant to drop empty hubs dropped every leaf
@@ -19,20 +23,57 @@ describe('sidebar visibility', () => {
         expect(labels).toContain('Suppliers');
         expect(labels).toContain('Job cards');
         expect(labels).toContain('Products');
-        expect(labels).toContain('Reports');
-        expect(labels.length).toBeGreaterThan(10);
+        expect(labels).toContain('Artwork');
+        expect(labels).toContain('On-hand');
+        expect(labels).toContain('Inspections');
+        expect(labels).toContain('Packing lists');
+        expect(labels).toContain('Invoices');
+        expect(labels).toContain('All reports');
+        expect(labels.length).toBeGreaterThan(20);
     });
 
-    it('groups the factory sequence, not a heading per hub', () => {
+    it('groups the factory sequence into collapsible sections', () => {
         const labels = visibleSections(navigation, all).map((section) => section.label);
 
-        expect(labels).toEqual(['Overview', 'Sales', 'Buying', 'Floor', 'Records']);
-        expect(visibleSections(navigation, all).find((section) => section.label === 'Records')?.heading).toBe(false);
+        expect(labels).toEqual([
+            'Overview',
+            'Sales',
+            'Buying',
+            'Floor',
+            'Products',
+            'Inventory',
+            'Quality',
+            'Dispatch',
+            'Money',
+            'Reports',
+        ]);
+        expect(visibleSections(navigation, all).find((section) => section.label === 'Overview')?.heading).toBe(false);
+    });
+
+    it('puts every screen on its own row, not behind a folder or a tab strip', () => {
+        expect(itemsOf('Sales')).toEqual(['Inquiries', 'Quotations', 'Sales orders', 'Customers', 'Price lists']);
+        expect(itemsOf('Floor')).toContain('Material plan');
+        expect(itemsOf('Products')).toEqual(['Products', 'Artwork', 'BOMs', 'Routings', 'Tools']);
+        expect(itemsOf('Inventory')).toContain('On-hand');
+        expect(itemsOf('Inventory')).toContain('Lots');
+        expect(itemsOf('Inventory')).toContain('Materials');
+        expect(itemsOf('Quality')).toEqual(['Inspections', 'NCRs', 'Laboratory', 'Compliance & CoC']);
+        expect(itemsOf('Dispatch')).toEqual(['Packing lists', 'Delivery notes', 'Trips']);
+        expect(itemsOf('Money')).toContain('Supplier bills');
+        expect(itemsOf('Buying')).toContain('Import shipments');
+        expect(itemsOf('Buying')).toContain('Letters of credit');
+
+        for (const section of navigation) {
+            for (const item of section.items) {
+                expect(item.children).toBeUndefined();
+                expect(item.sidebar).toBeUndefined();
+            }
+        }
     });
 
     it('shows every administration screen inside the shell', () => {
         expect(rows(visibleSections(adminNavigation, all))).toEqual([
-            'Setup',
+            'Lists',
             'Settings',
             'Number sequences',
             'Users',
@@ -46,60 +87,64 @@ describe('sidebar visibility', () => {
         expect(visibleSections(adminNavigation, none)).toEqual([]);
     });
 
-    it('drops a hub whose every tab is out of reach', () => {
+    it('drops a group whose every screen is out of reach', () => {
         const sections = visibleSections(navigation, only('sales_order.view_any'));
 
         expect(rows(sections)).toEqual(['Sales orders']);
     });
 
-    it('points a hub at the first tab the user may open', () => {
-        // Someone who may read lots but not stock balances should not land on a 403.
+    it('shows only the inventory screens the user may open', () => {
+        // Someone who may issue material but not read stock balances should not land on a 403.
         const sections = visibleSections(navigation, only('stock_issue.view_any'));
-        const inventory = sections.flatMap((s) => s.items).find((i) => i.label === 'Inventory');
+        const inventory = sections.find((section) => section.label === 'Inventory');
 
-        expect(inventory.href).toBe('/material-issues');
-        expect(inventory.children.map((c) => c.label)).toEqual(['Material issues']);
+        expect(inventory.items.map((item) => item.label)).toEqual(['Material issues']);
+        expect(inventory.items[0].href).toBe('/material-issues');
     });
 
-    it('keeps every hub tab reachable by its own URL', () => {
-        // Collapsing rows into tabs must not orphan a screen: each child keeps a real href.
+    it('keeps every screen reachable by its own URL', () => {
         for (const section of navigation) {
             for (const item of section.items) {
-                for (const child of item.children ?? []) {
-                    expect(child.href.startsWith('/')).toBe(true);
-                    expect(child.permissions.length).toBeGreaterThan(0);
-                }
+                expect(item.href.startsWith('/')).toBe(true);
+                expect(item.permissions.length).toBeGreaterThan(0);
+                expect(item.icon).toBeTruthy();
             }
         }
     });
 
     it('keeps administration out of the working application', () => {
-        const mainHrefs = navigation
-            .flatMap((s) => s.items)
-            .flatMap((i) => [i.href, ...(i.children ?? []).map((c) => c.href)]);
+        const mainHrefs = navigation.flatMap((s) => s.items).map((i) => i.href);
 
         for (const href of mainHrefs) {
             expect(ADMIN_PREFIXES.some((prefix) => href.startsWith(prefix))).toBe(false);
         }
     });
+
+    it('opens Access without a heading, and keeps old names as search aliases', () => {
+        expect(adminNavigation.every((section) => section.heading === false)).toBe(true);
+
+        const items = [...navigation, ...adminNavigation].flatMap((section) => section.items);
+        const byHref = Object.fromEntries(items.map((item) => [item.href, item]));
+
+        expect(byHref['/mrp'].aliases).toContain('mrp');
+        expect(byHref['/stock'].aliases).toContain('stock enquiry');
+        expect(byHref['/items'].aliases).toContain('items');
+        expect(byHref['/delivery-challans'].aliases).toContain('challans');
+        expect(byHref['/setup'].aliases).toContain('setup');
+        expect(byHref['/boms']).toBeTruthy();
+    });
 });
 
-describe('hub tabs', () => {
-    // The strip belongs to the lists it groups. Above a half-filled form it invites a click
-    // that discards the form, and "Artwork · Routings · Tools" says nothing while you are
-    // creating a product.
-    const hubChildHrefs = navigation
-        .flatMap((section) => section.items)
-        .flatMap((item) => item.children ?? [])
-        .map((child) => child.href);
+describe('list URLs', () => {
+    const hrefs = navigation.flatMap((section) => section.items).map((item) => item.href);
 
     it('knows a list URL from a form URL', () => {
-        expect(hubChildHrefs).toContain('/products');
-        expect(hubChildHrefs).not.toContain('/products/create');
+        expect(hrefs).toContain('/products');
+        expect(hrefs).not.toContain('/products/create');
     });
 
-    it('gives every hub child a URL that is a list, never a detail route', () => {
-        for (const href of hubChildHrefs) {
+    it('gives every screen a URL that is a list, never a detail route', () => {
+        for (const href of hrefs) {
             expect(href).not.toMatch(/\/(create|edit)$/);
             expect(href).not.toMatch(/\{|\}|:/);
         }

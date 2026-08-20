@@ -56,7 +56,7 @@ class StockTransfer extends Model
         return [
             'from_warehouse_id' => 'integer',
             'to_warehouse_id' => 'integer',
-            'transfer_date' => 'date',
+            'transfer_date' => 'date:Y-m-d',
             'created_by' => 'integer',
             'created_at' => 'datetime',
         ];

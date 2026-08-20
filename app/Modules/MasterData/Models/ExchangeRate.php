@@ -29,7 +29,7 @@ class ExchangeRate extends Model
     {
         return [
             'currency_id' => 'integer',
-            'effective_on' => 'date',
+            'effective_on' => 'date:Y-m-d',
             'rate_to_base' => 'decimal:8',
         ];
     }

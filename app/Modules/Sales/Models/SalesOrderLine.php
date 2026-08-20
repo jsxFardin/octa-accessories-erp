@@ -74,7 +74,7 @@ class SalesOrderLine extends Model
             'line_total' => 'decimal:4',
             'over_tolerance_pct' => 'decimal:4',
             'under_tolerance_pct' => 'decimal:4',
-            'promised_date' => 'date',
+            'promised_date' => 'date:Y-m-d',
         ];
     }
 

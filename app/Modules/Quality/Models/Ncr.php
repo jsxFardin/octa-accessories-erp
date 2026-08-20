@@ -71,8 +71,8 @@ class Ncr extends Model
             'job_card_id' => 'integer',
             'supplier_id' => 'integer',
             'customer_id' => 'integer',
-            'raised_on' => 'date',
-            'closed_on' => 'date',
+            'raised_on' => 'date:Y-m-d',
+            'closed_on' => 'date:Y-m-d',
             'raised_by' => 'integer',
             'owner_id' => 'integer',
         ];

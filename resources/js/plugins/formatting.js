@@ -46,19 +46,65 @@ const DATE_PARTS = {
     y: { year: '2-digit' },
 };
 
-function renderDate(value, format) {
-    const parsed = value instanceof Date ? value : new Date(value);
+function isoFromLocal(date) {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
 
-    if (Number.isNaN(parsed.getTime())) return '—';
+    return `${date.getFullYear()}-${month}-${day}`;
+}
 
-    // Formatting part by part keeps the separators the admin chose ('/' vs '-' vs ' ').
+/**
+ * Calendar `YYYY-MM-DD` from a date-only value or a Laravel ISO datetime.
+ *
+ * Date-only fields must not go through `toISOString()`: Dhaka is UTC+6, so midnight local
+ * becomes the previous day in UTC, and `2026-08-20T00:00:00.000000Z` is a calendar date,
+ * not an instant.
+ */
+export function isoDate(value) {
+    if (value === null || value === undefined || value === '') return '';
+
+    if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? '' : isoFromLocal(value);
+    }
+
+    const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+    return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
+}
+
+/** Today's calendar date in the browser, never UTC. */
+export function todayIso() {
+    return isoFromLocal(new Date());
+}
+
+export function addCalendarDays(value, days) {
+    const parsed = parseCalendarDate(value);
+
+    if (!parsed) return '';
+
+    parsed.setDate(parsed.getDate() + Number(days));
+
+    return isoFromLocal(parsed);
+}
+
+function parseCalendarDate(value) {
+    const iso = isoDate(value);
+
+    if (!iso) return null;
+
+    const [year, month, day] = iso.split('-').map(Number);
+
+    return new Date(year, month - 1, day);
+}
+
+function applyFormat(date, format, timeZone = null) {
     return [...format]
         .map((token) => {
             const options = DATE_PARTS[token];
 
             if (!options) return token;
 
-            return parsed.toLocaleDateString(settings.locale, { ...options, timeZone: settings.timezone });
+            return date.toLocaleDateString(settings.locale, timeZone ? { ...options, timeZone } : options);
         })
         .join('');
 }
@@ -142,15 +188,20 @@ export function mm(value) {
 export function datetime(value) {
     if (!value) return '—';
 
-    const rendered = renderDate(value, settings.dateFormat);
+    const parsed = value instanceof Date ? value : new Date(value);
 
-    return rendered === '—' ? rendered : `${rendered} ${renderTime(value)}`;
+    if (Number.isNaN(parsed.getTime())) return '—';
+
+    return `${applyFormat(parsed, settings.dateFormat, settings.timezone)} ${renderTime(value)}`;
 }
 
+/** Calendar dates (order date, due date) — never shifted by timezone. */
 export function date(value) {
     if (!value) return '—';
 
-    return renderDate(value, settings.dateFormat);
+    const parsed = parseCalendarDate(value);
+
+    return parsed ? applyFormat(parsed, settings.dateFormat) : '—';
 }
 
 export function time(value) {
@@ -208,6 +259,8 @@ export default {
             mm,
             datetime,
             date,
+            isoDate,
+            todayIso,
             time,
             relative,
             documentNumber,

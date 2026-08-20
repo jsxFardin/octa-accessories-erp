@@ -10,7 +10,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { money, pcs } from '@/plugins/formatting';
+import { date, isoDate, money, pcs, todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     inquiry: { type: Object, default: null },
@@ -23,8 +23,8 @@ const isEdit = computed(() => Boolean(props.inquiry));
 
 const form = useForm({
     customer_id: props.inquiry?.customer_id ?? '',
-    inquiry_date: props.inquiry?.inquiry_date ?? new Date().toISOString().slice(0, 10),
-    required_by: props.inquiry?.required_by ?? '',
+    inquiry_date: isoDate(props.inquiry?.inquiry_date) || todayIso(),
+    required_by: isoDate(props.inquiry?.required_by),
     source: props.inquiry?.source ?? '',
     notes: props.inquiry?.notes ?? '',
     lines: props.inquiry?.lines?.length
@@ -197,7 +197,7 @@ const columns = [
                         <div class="flex items-baseline justify-between gap-3">
                             <dt class="text-xs text-ink-500">Required by</dt>
                             <dd class="text-right" :class="form.required_by ? 'text-ink-900' : 'text-ink-400'">
-                                {{ form.required_by || 'Open' }}
+                                {{ form.required_by ? date(form.required_by) : 'Open' }}
                             </dd>
                         </div>
 

@@ -1,6 +1,6 @@
 # Dispatch
 
-**Dispatch** is a hub. Tabs: Packing lists, Challans, Trips.
+**Dispatch** sits as its own sidebar group: Packing lists, Delivery notes, Trips.
 
 You invoice what left the gate, not what was produced. The chain is packing list → delivery challan → (own-fleet trip) → invoice.
 
@@ -18,7 +18,7 @@ Certification claim on the list (scheme + %) must be backed by the lots inside. 
 
 ## Delivery challans
 
-**Dispatch → Challans.**
+**Dispatch → Delivery notes.**
 
 Created from a packing list. Mode: own fleet, courier, customer pickup, freight forwarder.
 

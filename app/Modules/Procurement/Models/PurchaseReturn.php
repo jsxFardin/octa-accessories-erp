@@ -39,7 +39,7 @@ class PurchaseReturn extends Model
         return [
             'grn_id' => 'integer',
             'supplier_id' => 'integer',
-            'returned_on' => 'date',
+            'returned_on' => 'date:Y-m-d',
             'created_by' => 'integer',
             'created_at' => 'datetime',
         ];

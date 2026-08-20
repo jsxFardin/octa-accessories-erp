@@ -8,6 +8,7 @@ import FormFooter from '@/Components/Ui/FormFooter.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     customers: { type: Array, default: () => [] },
@@ -20,7 +21,7 @@ const form = useForm({
     lot_id: null,
     product_id: null,
     customer_id: null,
-    tested_on: new Date().toISOString().slice(0, 10),
+    tested_on: todayIso(),
     remarks: '',
     results: props.labTests.map((t) => ({
         lab_test_id: t.id,

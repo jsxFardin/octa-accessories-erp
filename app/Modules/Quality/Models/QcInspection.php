@@ -75,7 +75,7 @@ class QcInspection extends Model
             'grn_line_id' => 'integer',
             'lot_id' => 'integer',
             'aql_plan_id' => 'integer',
-            'inspected_on' => 'date',
+            'inspected_on' => 'date:Y-m-d',
             'inspector_id' => 'integer',
             'lot_size' => 'integer',
             'sample_size' => 'integer',

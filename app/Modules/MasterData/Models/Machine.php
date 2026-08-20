@@ -61,7 +61,7 @@ class Machine extends Model
             'factory_unit_id' => 'integer',
             'machine_group_id' => 'integer',
             'department_id' => 'integer',
-            'commissioned_on' => 'date',
+            'commissioned_on' => 'date:Y-m-d',
             'web_width_mm' => 'decimal:2',
             'max_colours' => 'integer',
             'std_rate_per_hour' => 'decimal:6',

@@ -61,7 +61,7 @@ class PurchaseOrderLine extends Model
             'amount' => 'decimal:4',
             'received_qty' => 'decimal:6',
             'billed_qty' => 'decimal:6',
-            'expected_date' => 'date',
+            'expected_date' => 'date:Y-m-d',
         ];
     }
 }

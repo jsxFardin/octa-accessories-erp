@@ -41,6 +41,7 @@ const REGISTRY = {
     supplier: Factory,
     stock: Boxes,
     lot: Layers,
+    bom: Layers,
     issue: ArchiveRestore,
     item: Blocks,
     planning: CalendarDays,

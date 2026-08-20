@@ -52,7 +52,7 @@ class Payment extends Model
     {
         return [
             'supplier_id' => 'integer',
-            'payment_date' => 'date',
+            'payment_date' => 'date:Y-m-d',
             'currency_id' => 'integer',
             'exchange_rate' => 'decimal:8',
             'amount' => 'decimal:4',

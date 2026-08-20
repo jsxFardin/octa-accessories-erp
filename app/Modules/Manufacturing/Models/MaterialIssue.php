@@ -52,7 +52,7 @@ class MaterialIssue extends Model
         return [
             'job_card_id' => 'integer',
             'warehouse_id' => 'integer',
-            'issued_on' => 'date',
+            'issued_on' => 'date:Y-m-d',
             'issued_by' => 'integer',
             'received_by' => 'integer',
             'created_at' => 'datetime',

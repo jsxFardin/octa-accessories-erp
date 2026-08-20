@@ -408,6 +408,35 @@ it('will not duplicate for someone who may not raise a quotation', function (): 
     $this->actingAs($operator)->post("/quotations/{$quotation->id}/duplicate")->assertForbidden();
 });
 
+it('serialises date-only fields as calendar days, not UTC timestamps', function (): void {
+    $this->actingAs($this->merchandiser)->post('/sales-orders', [
+        'customer_id' => $this->customer->id,
+        'customer_po_no' => 'PO-DATE-1',
+        'order_date' => '2026-08-20',
+        'delivery_date' => '2026-08-31',
+        'currency_id' => $this->currency->id,
+        'exchange_rate' => 1,
+        'priority' => 'normal',
+        'lines' => [[
+            'product_id' => $this->product->id,
+            'product_spec_id' => $this->product->currentSpec->id,
+            'ordered_qty' => 1000,
+            'rate_per_m' => 3.25,
+            'under_tolerance_pct' => 5,
+            'over_tolerance_pct' => 5,
+        ]],
+    ])->assertRedirect();
+
+    $order = SalesOrder::query()->where('customer_po_no', 'PO-DATE-1')->firstOrFail();
+
+    $this->actingAs($this->merchandiser)
+        ->get("/sales-orders/{$order->id}/edit")
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('order.order_date', '2026-08-20')
+            ->where('order.delivery_date', '2026-08-31'));
+});
+
 it('names the field and the line in a validation message', function (): void {
     // "The lines.0.product_id field is required" names a row the user cannot see (line 1 is
     // index 0) and a column nobody typed. Every message in the application goes through

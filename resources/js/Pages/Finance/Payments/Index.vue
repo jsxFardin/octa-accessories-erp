@@ -9,7 +9,7 @@ import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
-import { date, money, titleCase } from '@/plugins/formatting';
+import { date, money, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
@@ -33,7 +33,7 @@ const createOpen = ref(false);
 
 const form = useForm({
     supplier_id: null,
-    payment_date: new Date().toISOString().slice(0, 10),
+    payment_date: todayIso(),
     method: 'bank_transfer',
     reference_no: '',
     currency_id: null,

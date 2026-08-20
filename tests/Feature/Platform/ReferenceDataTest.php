@@ -192,39 +192,30 @@ it('lets a manager read the lists without being able to change them', function (
     ])->assertForbidden();
 });
 
-// --- The tabbed hub ----------------------------------------------------------------------
+// --- The directory hub -------------------------------------------------------------------
 
-it('serves one tab per group, with only that tab loaded', function (): void {
-    // Twenty-five lists with their rows and reference options in one payload would be a slow
-    // screen that is 90% unread.
-    $this->actingAs($this->admin)->get('/setup?tab=quality')
+it('lists every group on Setup, without loading the rows', function (): void {
+    // Twenty-five lists with their rows on one page was a slow screen that is 90% unread,
+    // and it asked people to edit in two places. The hub is a directory; the list is the work.
+    $this->actingAs($this->admin)->get('/setup')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('Setup/Index')
-            ->where('current', 'quality')
-            // One tab per group. Nothing is read-only any more, so there is no extra tab.
-            ->has('tabs', count(ReferenceRegistry::GROUPS))
-            ->has('cards', 4)                       // defects, AQL plans, certifications, scopes
-            ->has('cards.0.rows')
-            ->has('cards.0.fields')
-            ->has('cards.0.can'));
+            ->has('groups', count(ReferenceRegistry::GROUPS))
+            ->has('groups.0.lists')
+            ->missing('cards')
+            ->missing('current'));
 });
 
-it('falls back to the first tab a user may actually open', function (): void {
-    $this->actingAs($this->admin)->get('/setup?tab=nonsense')
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('current', 'organisation'));
-});
-
-it('shows a card only to a user who may read that list', function (): void {
+it('shows a group only when the user may read a list inside it', function (): void {
     $planner = User::query()->whereHas('roles', fn ($q) => $q->where('name', 'planner'))->firstOrFail();
 
     // The planner holds reference_data:read but not employee.view_any, and Employees is the
     // only list in the People group — so the group disappears rather than showing an empty card.
-    $tabs = collect($this->actingAs($planner)->get('/setup')->viewData('page')['props']['tabs'] ?? [])
+    $keys = collect($this->actingAs($planner)->get('/setup')->viewData('page')['props']['groups'] ?? [])
         ->pluck('key');
 
-    expect($tabs)->not->toContain('people');
+    expect($keys)->not->toContain('people');
 });
 
 // --- Vocabularies ------------------------------------------------------------------------
@@ -328,11 +319,9 @@ it('still refuses a value no vocabulary row carries', function (): void {
     ]))->toThrow(Illuminate\Database\QueryException::class);
 });
 
-it('shows the vocabularies as editable cards in Setup', function (): void {
-    $this->actingAs($this->admin)->get('/setup?tab=vocabularies')
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->where('current', 'vocabularies')
-            ->has('cards', 8)
-            ->where('cards.0.can.update', true));
+it('lists the vocabularies on Setup so they can be opened and edited', function (): void {
+    $groups = collect($this->actingAs($this->admin)->get('/setup')->viewData('page')['props']['groups'] ?? []);
+    $vocabularies = $groups->firstWhere('key', 'vocabularies');
+
+    expect($vocabularies['lists'] ?? [])->toHaveCount(8);
 });

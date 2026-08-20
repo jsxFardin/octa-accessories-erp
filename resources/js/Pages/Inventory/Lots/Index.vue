@@ -31,7 +31,7 @@ const columns = [
         <Head title="Stock lots" />
 
         <template #title>Stock lots</template>
-        <template #subtitle>One barcode, one origin, one certification claim (I5)</template>
+        <template #subtitle>Each receipt is a lot with a barcode, a warehouse and a certification claim. On-hand balances are under Inventory → On-hand.</template>
 
         <template #actions>
             <ExportDialog v-if="can('stock_lot.export')" resource="lots" />

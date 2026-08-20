@@ -2,7 +2,7 @@
 
 ## Reports
 
-**Overview → Reports.**
+**Reports → All reports**, or open a named register from the group.
 
 Operational registers with filters (dates, status, customer/supplier) and pagination:
 
@@ -11,7 +11,7 @@ Operational registers with filters (dates, status, customer/supplier) and pagina
 | Fulfilment | Order lines: ordered vs produced vs delivered |
 | Production | Job cards and output |
 | Stock | On-hand and value |
-| Dispatch | Challans / trips |
+| Dispatch register | Challans / trips |
 | Receivables | Issued invoices, ageing, overdue |
 | Payables | Supplier bills, outstanding |
 | Purchases | PO lines: ordered vs received vs pending |
@@ -23,9 +23,9 @@ Permission is `report.view` (dashboard is `report.dashboard`). Read-only auditor
 
 Sidebar footer → **Configuration**. The main factory menu is replaced until you **Exit configuration**.
 
-### Setup
+### Lists
 
-Reference lists in tabs (Organisation, People, Commercial, Units & money, Inventory, Production, Quality, Vocabularies). Add/edit in place. This is factory units, departments, shifts, UoMs, taxes, payment terms, defect codes, lab tests, and similar short lists.
+Grouped on one page (Factory, People, Commercial, Units & money, Inventory, Production, Quality, Vocabularies). Open a list to add or edit. Company name and logo are in **Settings**, not here.
 
 Do not put a new customer here — customers have their own screen under Sales.
 

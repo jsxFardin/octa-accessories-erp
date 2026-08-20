@@ -2,7 +2,7 @@
 
 Requisition → RFQ → purchase order → goods receipt. Supplier bills are under **Money**, not here.
 
-Sidebar: **Buying** — Requisitions, RFQs, Purchase orders, Goods receipts, Suppliers, Import.
+Sidebar: **Buying** — Requisitions, RFQs, Purchase orders, Goods receipts, Suppliers, Import shipments, Letters of credit.
 
 ## Requisitions
 
@@ -59,7 +59,7 @@ Rejected qty does not become available stock. Certified claim on the lot is what
 
 ## Import
 
-**Buying → Import** (tabs: Shipments, Letters of credit).
+**Buying → Import shipments** and **Buying → Letters of credit**.
 
 Follow one consignment: LC → shipment → costs that land on the GRN. Use this for overseas yarn and ribbon, not for a local stationery PO.
 

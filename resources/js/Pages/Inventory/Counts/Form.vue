@@ -8,6 +8,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
+import { todayIso, isoDate } from '@/plugins/formatting';
 
 const props = defineProps({
     count: { type: Object, default: null },
@@ -31,7 +32,7 @@ const form = useForm(
           }
         : {
               warehouse_id: props.warehouses[0]?.id ?? '',
-              counted_on: props.count?.counted_on ?? new Date().toISOString().slice(0, 10),
+              counted_on: isoDate(props.count?.counted_on) || todayIso(),
           },
 );
 

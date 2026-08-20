@@ -146,7 +146,7 @@ class JobCard extends Model
             'planned_finish' => 'datetime',
             'actual_start' => 'datetime',
             'actual_finish' => 'datetime',
-            'due_date' => 'date',
+            'due_date' => 'date:Y-m-d',
             'priority' => 'integer',
             'gross_metres' => 'decimal:6',
             'ends' => 'integer',

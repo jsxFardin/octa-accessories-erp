@@ -38,8 +38,8 @@ class Vehicle extends Model
         return [
             'capacity_kg' => 'decimal:3',
             'is_owned' => 'boolean',
-            'fitness_expiry' => 'date',
-            'tax_expiry' => 'date',
+            'fitness_expiry' => 'date:Y-m-d',
+            'tax_expiry' => 'date:Y-m-d',
             'is_active' => 'boolean',
         ];
     }

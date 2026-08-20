@@ -1,6 +1,6 @@
 # Quality
 
-**Quality** is a hub. Tabs: Inspections, NCRs, Laboratory, Compliance & CoC.
+**Quality** sits as its own sidebar group: Inspections, NCRs, Laboratory, Compliance & CoC.
 
 ## Inspections (AQL)
 

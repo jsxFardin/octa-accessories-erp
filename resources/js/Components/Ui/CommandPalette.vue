@@ -4,7 +4,7 @@ import { router } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
 import Icon from '@/Components/Ui/Icon.vue';
 import { canAny } from '@/plugins/permissions';
-import { navigation } from '@/navigation';
+import { adminNavigation, navigation } from '@/navigation';
 
 /**
  * ⌘K / Ctrl-K: go anywhere, find anything.
@@ -21,13 +21,34 @@ const results = ref([]);
 const loading = ref(false);
 const input = ref(null);
 
-const screens = computed(() =>
-    navigation.flatMap((section) =>
+const screens = computed(() => {
+    const flatten = (tree) => tree.flatMap((section) =>
         section.items
             .filter((item) => canAny(...item.permissions))
-            .map((item) => ({ ...item, section: section.label })),
-    ),
-);
+            .flatMap((item) => {
+                const row = {
+                    ...item,
+                    section: section.label,
+                    search: [item.label, section.label, ...(item.aliases ?? [])].join(' '),
+                };
+
+                if (!item.children?.length) {
+                    return [row];
+                }
+
+                return item.children
+                    .filter((child) => canAny(...child.permissions))
+                    .map((child) => ({
+                        ...child,
+                        icon: child.icon ?? item.icon,
+                        section: section.label,
+                        search: [child.label, section.label, ...(child.aliases ?? [])].join(' '),
+                    }));
+            }),
+    );
+
+    return [...flatten(navigation), ...flatten(adminNavigation)];
+});
 
 const matchedScreens = computed(() => {
     const needle = query.value.trim().toLowerCase();
@@ -35,7 +56,7 @@ const matchedScreens = computed(() => {
     if (!needle) return screens.value.slice(0, 7);
 
     return screens.value
-        .filter((item) => `${item.label} ${item.section}`.toLowerCase().includes(needle))
+        .filter((item) => (item.search ?? `${item.label} ${item.section}`).toLowerCase().includes(needle))
         .slice(0, 6);
 });
 

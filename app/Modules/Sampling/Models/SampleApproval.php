@@ -36,7 +36,7 @@ class SampleApproval extends Model
     {
         return [
             'sample_request_line_id' => 'integer',
-            'decided_on' => 'date',
+            'decided_on' => 'date:Y-m-d',
             'recorded_by' => 'integer',
             'created_at' => 'datetime',
         ];

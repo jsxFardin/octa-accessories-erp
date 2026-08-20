@@ -56,7 +56,7 @@ class ImportCost extends Model
             'shipment_id' => 'integer',
             'supplier_id' => 'integer',
             'expense_id' => 'integer',
-            'incurred_on' => 'date',
+            'incurred_on' => 'date:Y-m-d',
             'currency_id' => 'integer',
             'exchange_rate' => 'decimal:8',
             'amount' => 'decimal:4',

@@ -49,7 +49,7 @@ class FgReceipt extends Model
             'job_card_id' => 'integer',
             'warehouse_id' => 'integer',
             'lot_id' => 'integer',
-            'received_on' => 'date',
+            'received_on' => 'date:Y-m-d',
             'qty' => 'decimal:6',
             'qc_inspection_id' => 'integer',
             'created_at' => 'datetime',

@@ -40,8 +40,8 @@ class Certification extends Model
     protected function casts(): array
     {
         return [
-            'issued_on' => 'date',
-            'expires_on' => 'date',
+            'issued_on' => 'date:Y-m-d',
+            'expires_on' => 'date:Y-m-d',
             'reminder_days' => 'integer',
         ];
     }

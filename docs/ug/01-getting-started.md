@@ -107,7 +107,7 @@ This volume seeder runs **only in `local`**. Tests and production do not get it.
 Signed in as `admin@maheenlabel.test`:
 
 1. Change your password.
-2. Open **Configuration** (sidebar footer) → **Setup**. Confirm factory unit, departments, shifts, warehouses.
+2. Open **Configuration** (sidebar footer) → **Lists**. Confirm factory unit, departments, shifts, warehouses.
 3. **Settings** — costing percentages, delivery tolerances, approval bands.
 4. **Users** — real people, real roles. Do not keep sharing `password`.
 5. Walk the seeded order through release → issue material → produce → QC → pack → challan → invoice so you have seen every gate once.

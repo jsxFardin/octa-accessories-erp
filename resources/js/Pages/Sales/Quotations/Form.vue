@@ -12,7 +12,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
+import { date, isoDate, money, pcs, qty, ratePerM, titleCase, todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     quotation: { type: Object, default: null },
@@ -42,8 +42,8 @@ function blankLine() {
 const form = useForm({
     inquiry_id: props.quotation?.inquiry_id ?? props.inquiryId ?? '',
     customer_id: props.quotation?.customer_id ?? '',
-    quotation_date: props.quotation?.quotation_date ?? new Date().toISOString().slice(0, 10),
-    valid_until: props.quotation?.valid_until ?? '',
+    quotation_date: isoDate(props.quotation?.quotation_date) || todayIso(),
+    valid_until: isoDate(props.quotation?.valid_until),
     currency_id: props.quotation?.currency_id ?? props.currencies.find((c) => c.is_base)?.id ?? '',
     exchange_rate: props.quotation?.exchange_rate ?? 1,
     terms: props.quotation?.terms ?? '',
@@ -385,7 +385,7 @@ const columns = [
                         <div class="flex items-baseline justify-between gap-3">
                             <dt class="text-xs text-ink-500">Valid until</dt>
                             <dd class="text-right" :class="form.valid_until ? 'text-ink-900' : 'text-ink-400'">
-                                {{ form.valid_until || 'Open' }}
+                                {{ form.valid_until ? date(form.valid_until) : 'Open' }}
                             </dd>
                         </div>
 

@@ -11,7 +11,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { money, pcs } from '@/plugins/formatting';
+import { date, isoDate, money, pcs, todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     priorities: { type: Array, default: () => [] },
@@ -48,15 +48,15 @@ function blankLine() {
 const form = useForm({
     customer_id: props.order?.customer_id ?? '',
     customer_po_no: props.order?.customer_po_no ?? '',
-    order_date: props.order?.order_date ?? new Date().toISOString().slice(0, 10),
-    delivery_date: props.order?.delivery_date ?? '',
+    order_date: isoDate(props.order?.order_date) || todayIso(),
+    delivery_date: isoDate(props.order?.delivery_date),
     currency_id: props.order?.currency_id ?? props.currencies.find((c) => c.is_base)?.id ?? '',
     exchange_rate: props.order?.exchange_rate ?? 1,
     priority: props.order?.priority ?? 'normal',
     notes: props.order?.notes ?? '',
     amendment_reason: '',
     lines: props.order?.lines?.length
-        ? props.order.lines.map((line) => ({ ...line }))
+        ? props.order.lines.map((line) => ({ ...line, promised_date: isoDate(line.promised_date) }))
         : [blankLine()],
 });
 
@@ -286,7 +286,7 @@ const columns = [
                         <div class="flex items-baseline justify-between gap-3">
                             <dt class="text-xs text-ink-500">Delivery</dt>
                             <dd class="text-right" :class="form.delivery_date ? 'text-ink-900' : 'text-ink-400'">
-                                {{ form.delivery_date || 'Not set' }}
+                                {{ form.delivery_date ? date(form.delivery_date) : 'Not set' }}
                             </dd>
                         </div>
 

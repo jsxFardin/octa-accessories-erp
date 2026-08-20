@@ -50,7 +50,7 @@ class Trip extends Model
         return [
             'vehicle_id' => 'integer',
             'driver_id' => 'integer',
-            'trip_date' => 'date',
+            'trip_date' => 'date:Y-m-d',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
             'start_odometer' => 'decimal:2',

@@ -121,7 +121,7 @@ function rowActions(row) {
         <template #actions>
             <Button href="/setup">
                 <Icon name="left" size="size-3.5" />
-                Setup
+                All lists
             </Button>
             <Button v-if="can.create" variant="primary" @click="create">
                 <Icon name="add" size="size-3.5" />

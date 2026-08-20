@@ -39,48 +39,26 @@ function matches(href) {
     return path.value === href || path.value.startsWith(`${href}/`);
 }
 
-function isActive(item) {
-    return (item.children ?? []).some((child) => matches(child.href)) || matches(item.href);
-}
-
 /**
- * The tab strip for the hub the current screen belongs to.
- *
- * Rendered by the layout rather than by each page, so collapsing four sidebar rows into one
- * hub costs a navigation entry and nothing else — no controller, no route, no page edit, and
- * every existing deep link still lands where it always did.
+ * Longest href wins, so `/reports/fulfilment` does not also light up All reports (`/reports`).
  */
-const hubTabs = computed(() => {
-    // Only on the lists themselves. A tab strip above a half-filled form invites a click that
-    // throws the form away, and "Artwork · Routings · Tools" means nothing while you are
-    // creating a product — the breadcrumb already says where you are.
-    const onAList = sections.value
-        .flatMap((section) => section.items)
-        .flatMap((item) => item.children ?? [])
-        .some((child) => child.href === path.value);
-
-    if (!onAList) {
-        return [];
-    }
+const activeItem = computed(() => {
+    let best = null;
 
     for (const section of sections.value) {
         for (const item of section.items) {
-            if (item.children?.length && item.children.some((child) => matches(child.href))) {
-                return item.children.map((child) => ({
-                    key: child.href,
-                    label: child.label,
-                    href: child.href,
-                }));
+            if (matches(item.href) && (!best || item.href.length > best.href.length)) {
+                best = item;
             }
         }
     }
 
-    return [];
+    return best;
 });
 
-const currentTab = computed(
-    () => hubTabs.value.find((tab) => matches(tab.href))?.key ?? '',
-);
+function isActive(item) {
+    return activeItem.value?.href === item.href;
+}
 
 /**
  * Breadcrumbs are derived from the navigation tree rather than declared per page: the section
@@ -88,25 +66,27 @@ const currentTab = computed(
  * worse than none.
  */
 const crumbs = computed(() => {
-    for (const section of sections.value) {
-        const item = section.items.find((candidate) => isActive(candidate));
+    const item = activeItem.value;
 
-        if (item) {
-            const trail = section.heading === false || section.label === item.label
-                ? [{ label: item.label, href: item.href }]
-                : [{ label: section.label }, { label: item.label, href: item.href }];
-
-            // Anything below the list itself — a detail page, a form — is the current page,
-            // whose name is already the <h1>; the crumb just marks the depth.
-            if (currentUrl.value.replace(/\?.*$/, '') !== item.href) {
-                trail.push({ label: currentUrl.value.endsWith('/create') ? 'New' : 'Detail' });
-            }
-
-            return trail;
-        }
+    if (!item) {
+        return [];
     }
 
-    return [];
+    const section = sections.value.find((candidate) =>
+        candidate.items.some((entry) => entry.href === item.href),
+    );
+
+    const trail = !section || section.heading === false || section.label === item.label
+        ? [{ label: item.label, href: item.href }]
+        : [{ label: section.label }, { label: item.label, href: item.href }];
+
+    // Anything below the list itself — a detail page, a form — is the current page,
+    // whose name is already the <h1>; the crumb just marks the depth.
+    if (currentUrl.value.replace(/\?.*$/, '') !== item.href) {
+        trail.push({ label: currentUrl.value.endsWith('/create') ? 'New' : 'Detail' });
+    }
+
+    return trail;
 });
 
 // --- Sidebar state -----------------------------------------------------------------------
@@ -302,21 +282,36 @@ const paletteHint = computed(() =>
                         sections with a hairline instead, since a rail of unlabelled icons with
                         no grouping is twenty identical rows.
                     -->
-                    <button
+                    <!--
+                        The heading is a destination: it opens the first screen in the group.
+                        The chevron peeks without leaving the page you are on.
+                    -->
+                    <div
                         v-if="!railed && section.heading !== false"
-                        class="group/section flex w-full items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold tracking-[0.09em] text-ink-400 uppercase transition hover:text-ink-600 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                        :aria-expanded="isOpen(section)"
-                        @click="toggleSection(section)"
+                        class="flex items-center gap-0.5"
                     >
-                        <span>{{ section.label }}</span>
-                        <!-- The chevron is chrome until you go looking for it. -->
-                        <Icon
-                            name="down"
-                            size="size-3"
-                            class="transition-all group-hover/section:opacity-100 group-focus-visible/section:opacity-100"
-                            :class="isOpen(section) ? 'opacity-0' : '-rotate-90 opacity-60'"
-                        />
-                    </button>
+                        <Link
+                            :href="section.items[0].href"
+                            class="min-w-0 flex-1 rounded px-2 py-1 text-[11px] font-semibold tracking-[0.08em] uppercase transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                            :class="isSectionActive(section) ? 'text-ink-800' : 'text-ink-600 hover:text-ink-800'"
+                        >
+                            {{ section.label }}
+                        </Link>
+                        <button
+                            type="button"
+                            class="rounded p-0.5 text-ink-500 transition hover:bg-slate-100 hover:text-ink-800 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                            :aria-expanded="isOpen(section)"
+                            :aria-label="`Toggle ${section.label}`"
+                            @click="toggleSection(section)"
+                        >
+                            <Icon
+                                name="down"
+                                size="size-3"
+                                class="transition"
+                                :class="isOpen(section) ? '' : '-rotate-90'"
+                            />
+                        </button>
+                    </div>
 
                     <ul v-show="railed || isOpen(section)" class="mt-0.5 space-y-px">
                         <li v-for="item in section.items" :key="item.href">
@@ -334,16 +329,16 @@ const paletteHint = computed(() =>
                                         ? railed
                                             ? 'bg-brand-50 text-brand-700'
                                             : 'bg-brand-50 font-medium text-brand-700 shadow-[inset_2px_0_0_0_var(--color-brand-600)]'
-                                        : 'text-ink-700 hover:bg-slate-100 hover:text-ink-900',
+                                        : 'text-ink-800 hover:bg-slate-100 hover:text-ink-900',
                                     railed && 'justify-center px-0',
                                 ]"
                             >
                                 <Icon
                                     :name="item.icon"
                                     class="shrink-0 transition-colors"
-                                    :class="isActive(item) ? 'text-brand-600' : 'text-ink-400 group-hover:text-ink-600'"
+                                    :class="isActive(item) ? 'text-brand-600' : 'text-ink-500 group-hover:text-ink-700'"
                                 />
-                                <span v-if="!railed" class="truncate">{{ item.label }}</span>
+                                <span v-if="!railed" class="min-w-0 flex-1 truncate">{{ item.label }}</span>
                             </Link>
                         </li>
                     </ul>
@@ -352,12 +347,12 @@ const paletteHint = computed(() =>
 
             <div class="shrink-0 space-y-px border-t border-slate-200 bg-slate-50/60 px-2 py-2">
                 <button
-                    class="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-ink-600 transition hover:bg-white hover:text-ink-900 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                    class="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-ink-800 transition hover:bg-white hover:text-ink-900 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                     :class="railed && 'justify-center px-0'"
                     :title="railed ? `Search (${paletteHint})` : undefined"
                     @click="palette?.show()"
                 >
-                    <Icon name="search" class="shrink-0 text-ink-400 transition-colors group-hover:text-ink-600" />
+                    <Icon name="search" class="shrink-0 text-ink-500 transition-colors group-hover:text-ink-700" />
                     <template v-if="!railed">
                         <span>Search</span>
                         <kbd class="ml-auto rounded border border-slate-200 bg-white px-1 py-0.5 font-sans text-[10px] text-ink-400">
@@ -373,11 +368,11 @@ const paletteHint = computed(() =>
                 <Link
                     v-if="!inAdminShell && canAny('reference_data.view_any', 'setting.view_any', 'user.view_any', 'role.view_any')"
                     href="/setup"
-                    class="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-ink-600 transition hover:bg-white hover:text-ink-900 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                    class="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-ink-800 transition hover:bg-white hover:text-ink-900 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                     :class="railed && 'justify-center px-0'"
                     :title="railed ? 'Configuration' : undefined"
                 >
-                    <Icon name="settings" class="shrink-0 text-ink-400 transition-colors group-hover:text-ink-600" />
+                    <Icon name="settings" class="shrink-0 text-ink-500 transition-colors group-hover:text-ink-700" />
                     <span v-if="!railed">Configuration</span>
                 </Link>
             </div>
@@ -404,13 +399,13 @@ const paletteHint = computed(() =>
                     </button>
 
                     <div class="min-w-0 flex-1">
-                        <nav v-if="crumbs.length" class="hidden items-center gap-1 text-[11px] text-ink-400 sm:flex">
+                        <nav v-if="crumbs.length" class="hidden items-center gap-1 text-[11px] text-ink-500 sm:flex">
                             <template v-for="(crumb, index) in crumbs" :key="crumb.label">
-                                <Icon v-if="index > 0" name="right" size="size-3" class="text-ink-300" />
+                                <Icon v-if="index > 0" name="right" size="size-3" class="text-ink-400" />
                                 <Link
                                     v-if="crumb.href"
                                     :href="crumb.href"
-                                    class="truncate transition hover:text-ink-700"
+                                    class="truncate transition hover:text-ink-800"
                                 >
                                     {{ crumb.label }}
                                 </Link>
@@ -493,27 +488,6 @@ const paletteHint = computed(() =>
                     </div>
                 </div>
             </header>
-
-            <!--
-                The hub's sibling screens, as tabs. Four sidebar rows become one row plus this
-                strip, and the pages themselves never learned they are in a hub.
-            -->
-            <div v-if="hubTabs.length > 1" class="border-b border-slate-200 bg-white px-4 print:hidden">
-                <nav class="mx-auto -mb-px flex max-w-[1600px] flex-wrap gap-1" aria-label="Section">
-                    <Link
-                        v-for="tab in hubTabs"
-                        :key="tab.key"
-                        :href="tab.href"
-                        class="border-b-2 px-3 py-2 text-sm transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                        :class="tab.key === currentTab
-                            ? 'border-brand-600 font-medium text-brand-700'
-                            : 'border-transparent text-ink-600 hover:border-slate-300 hover:text-ink-900'"
-                        :aria-current="tab.key === currentTab ? 'page' : undefined"
-                    >
-                        {{ tab.label }}
-                    </Link>
-                </nav>
-            </div>
 
             <!--
                 Capped: on a 1920 monitor a full-bleed table stretches so wide the eye loses the

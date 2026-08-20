@@ -51,7 +51,7 @@ class StockBalance extends Model
             'warehouse_id' => 'integer',
             'cert_claim_pct' => 'decimal:4',
             'balance_qty' => 'decimal:6',
-            'received_on' => 'date',
+            'received_on' => 'date:Y-m-d',
             'refreshed_at' => 'datetime',
         ];
     }

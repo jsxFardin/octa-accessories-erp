@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import ResourceForm from '@/Components/Ui/ResourceForm.vue';
-import { titleCase } from '@/plugins/formatting';
+import { titleCase, todayIso } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -97,7 +97,7 @@ const sections = computed(() => [
                 exchange_rate: 1,
                 method: 'cash',
                 tax_amount: 0,
-                expense_date: new Date().toISOString().slice(0, 10),
+                expense_date: todayIso(),
             }"
             :action="isEdit ? `/expenses/${expense.id}` : '/expenses'"
             :method="isEdit ? 'put' : 'post'"
