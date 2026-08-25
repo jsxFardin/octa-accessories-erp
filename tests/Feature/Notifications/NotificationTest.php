@@ -14,6 +14,7 @@ use App\Modules\Manufacturing\States\JobCardStateMachine;
 use App\Modules\Quality\Models\Capa;
 use App\Modules\Quality\Models\Ncr;
 use App\Modules\Quality\Services\NcrService;
+use App\Modules\Sales\Models\SalesOrder;
 use App\Support\Notifications\Notifier;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Console\Scheduling\Schedule;
@@ -531,4 +532,74 @@ it('schedules the NCR overdue command daily and does not schedule invoice ageing
             fn ($event): bool => str_contains((string) $event->command, 'invoice')
                 && str_contains((string) $event->command, 'overdue'),
         ))->toBeFalse();
+});
+
+/*
+ * The two workflow exceptions that used to surface nowhere: an order that cannot be confirmed
+ * because of credit, and a rejection that raises an NCR nobody owns yet. Both are states the
+ * business stalls in, and in both cases the people who can clear them were never told.
+ */
+
+it('tells the people who can release a credit hold that an order is on one', function (): void {
+    $notifier = app(Notifier::class);
+
+    $order = SalesOrder::query()->firstOrFail();
+
+    $notifier->notifyOrderOnCreditHold($order, 42_500.00);
+
+    $note = p24Notes($this->accounts, 'credit_hold')->first();
+
+    expect($note)->not->toBeNull()
+        ->and($note->data['href'])->toBe('/sales-orders/'.$order->id)
+        // What happened, why it matters, and what to do — not just that an event occurred.
+        ->and($note->data['body'])->toContain('42,500.00')
+        ->and($note->data['body'])->toContain('release the hold');
+
+    // An operator holds nothing commercial; the hold must not leak into their inbox.
+    expect(p24Notes($this->operator, 'credit_hold'))->toHaveCount(0);
+});
+
+it('does not tell the same person twice about the same credit hold', function (): void {
+    $notifier = app(Notifier::class);
+    $order = SalesOrder::query()->firstOrFail();
+
+    $notifier->notifyOrderOnCreditHold($order, 100.0);
+    $notifier->notifyOrderOnCreditHold($order, 100.0);
+
+    expect(p24Notes($this->accounts, 'credit_hold'))->toHaveCount(1);
+});
+
+it('tells quality that a rejection has raised an NCR with no owner', function (): void {
+    $notifier = app(Notifier::class);
+
+    $ncr = p24OpenNcr($this->qc->id);
+
+    $notifier->notifyNcrRaised($ncr);
+
+    $note = p24Notes($this->quality, 'raised')->first();
+
+    expect($note)->not->toBeNull()
+        ->and($note->data['href'])->toBe('/ncrs/'.$ncr->id)
+        ->and($note->data['body'])->toContain('Assign an owner');
+});
+
+it('raises that notification from a rejected inspection, not only by hand', function (): void {
+    // The end-to-end path: QC posts a rejection, the NCR is raised inside the same
+    // transaction, and Quality finds it in their inbox rather than in a list they had no
+    // reason to open.
+    $before = p24Notes($this->quality, 'raised')->count();
+
+    $card = JobCard::query()->firstOrFail();
+
+    $this->actingAs($this->qc)->post('/qc-inspections', [
+        'job_card_id' => $card->id,
+        'stage' => 'final',
+        'lot_size' => 5000,
+        'critical_found' => 3,
+        'major_found' => 12,
+        'minor_found' => 0,
+        'disposition' => 'rework',
+    ])->assertRedirect();
+
+    expect(p24Notes($this->quality, 'raised')->count())->toBe($before + 1);
 });

@@ -17,6 +17,8 @@ import { addCalendarDays, date, isoDate, money, qty, todayIso } from '@/plugins/
 const props = defineProps({
     order: { type: Object, default: null },
     openRequisitionLines: { type: Array, default: () => [] },
+    /** The requisition the buyer came from, when they came from one. */
+    fromRequisition: { type: Object, default: null },
     suppliers: { type: Array, default: () => [] },
     units: { type: Array, default: () => [] },
     currencies: { type: Array, default: () => [] },
@@ -338,7 +340,9 @@ const columns = [
                 <Card
                     v-if="openRequisitionLines.length"
                     title="Open requisition lines"
-                    subtitle="Approved and not yet fully ordered"
+                    :subtitle="fromRequisition
+                        ? `${fromRequisition.number ?? 'The requisition you came from'} first, then everything else approved`
+                        : 'Approved and not yet fully ordered'"
                     :padded="false"
                 >
                     <div class="max-h-96 divide-y divide-slate-100 overflow-y-auto">

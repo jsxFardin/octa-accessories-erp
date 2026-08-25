@@ -26,6 +26,9 @@ final class Inbox
                 ->map(fn (DatabaseNotification $row): array => [
                     'id' => (string) $row->id,
                     'title' => (string) ($row->data['title'] ?? $row->data['action'] ?? 'Notification'),
+                    // What it means and what to do about it. A title alone says an event
+                    // happened; it does not say why the reader is the one being told.
+                    'body' => isset($row->data['body']) ? (string) $row->data['body'] : null,
                     'href' => isset($row->data['href']) ? (string) $row->data['href'] : null,
                     'action' => isset($row->data['action']) ? (string) $row->data['action'] : null,
                     'document_type' => isset($row->data['document_type']) ? (string) $row->data['document_type'] : null,

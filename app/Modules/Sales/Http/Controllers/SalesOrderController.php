@@ -14,6 +14,7 @@ use App\Modules\Sales\Models\SalesOrderLine;
 use App\Modules\Sales\States\SalesOrderStateMachine;
 use App\Support\Calculators\CostSheetCalculator;
 use App\Support\Http\ListsResources;
+use App\Support\Notifications\Notifier;
 use App\Support\Reference\Vocabulary;
 use App\Support\Settings\Settings;
 use App\Support\States\TransitionDenied;
@@ -32,6 +33,7 @@ class SalesOrderController extends Controller
         private readonly SalesOrderStateMachine $states,
         private readonly CostSheetCalculator $costing,
         private readonly Settings $settings,
+        private readonly Notifier $notifier,
     ) {}
 
     public function index(Request $request): Response
@@ -52,6 +54,19 @@ class SalesOrderController extends Controller
                 ->whereIn('status', ['confirmed', 'in_production', 'partially_delivered']);
         }
 
+        // The dashboard's "waiting for a job card" queue needs somewhere to land. An order
+        // qualifies when a line still has quantity to make and no live card covers it —
+        // the same condition `JobCardController::create()` builds its line list from.
+        if ($request->query('awaiting') === 'job_card') {
+            $query->whereIn('status', ['confirmed', 'in_production'])
+                ->whereHas('lines', fn ($line) => $line
+                    ->whereColumn('produced_qty', '<', 'ordered_qty')
+                    ->whereNotExists(fn ($exists) => $exists
+                        ->from('job_cards')
+                        ->whereColumn('job_cards.sales_order_line_id', 'sales_order_lines.id')
+                        ->whereNotIn('job_cards.status', ['cancelled'])));
+        }
+
         return Inertia::render('Sales/SalesOrders/Index', [
             'orders' => $query->paginate($this->perPage($request))->withQueryString()->through(
                 fn (SalesOrder $order): array => [
@@ -70,7 +85,7 @@ class SalesOrderController extends Controller
                     'lines_count' => $order->lines_count,
                 ],
             ),
-            'filters' => $this->listingFilters($request, ['status', 'customer', 'late']),
+            'filters' => $this->listingFilters($request, ['status', 'customer', 'late', 'awaiting']),
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'name']),
         ]);
     }
@@ -257,6 +272,10 @@ class SalesOrderController extends Controller
 
             if ($credit['on_hold']) {
                 $this->states->transition($salesOrder, 'credit_hold', $data);
+
+                // The hold is invisible to the people who can clear it otherwise: the status
+                // sits on a screen none of them had a reason to open.
+                $this->notifier->notifyOrderOnCreditHold($salesOrder, (float) $credit['excess']);
 
                 return back()->with(
                     'warning',

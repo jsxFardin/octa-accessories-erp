@@ -14,6 +14,8 @@ import { date, isoDate, money, pcs, todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     inquiry: { type: Object, default: null },
+    /** The customer whose page this inquiry was started from, resolved server-side. */
+    preselectCustomerId: { type: Number, default: null },
     customers: { type: Array, default: () => [] },
     productTypes: { type: Array, default: () => [] },
     sources: { type: Array, default: () => [] },
@@ -22,7 +24,7 @@ const props = defineProps({
 const isEdit = computed(() => Boolean(props.inquiry));
 
 const form = useForm({
-    customer_id: props.inquiry?.customer_id ?? '',
+    customer_id: props.inquiry?.customer_id ?? props.preselectCustomerId ?? '',
     inquiry_date: isoDate(props.inquiry?.inquiry_date) || todayIso(),
     required_by: isoDate(props.inquiry?.required_by),
     source: props.inquiry?.source ?? '',

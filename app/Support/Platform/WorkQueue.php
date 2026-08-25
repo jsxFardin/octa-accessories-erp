@@ -117,6 +117,30 @@ class WorkQueue
             ];
         }
 
+        // --- Work that has not been handed on --------------------------------------------
+        // The gap the dashboard never named: an order is confirmed, everyone assumes planning
+        // has it, and nothing is on the floor because no card was ever raised.
+        if ($user->hasPermission('job_card.create')) {
+            $entries[] = [
+                'key' => 'orders_awaiting_job_card',
+                'label' => 'Confirmed orders with no job card',
+                'count' => DB::table('sales_orders as so')
+                    ->whereIn('so.status', ['confirmed', 'in_production'])
+                    ->whereExists(fn ($line) => $line
+                        ->from('sales_order_lines as sol')
+                        ->whereColumn('sol.sales_order_id', 'so.id')
+                        ->whereColumn('sol.produced_qty', '<', 'sol.ordered_qty')
+                        ->whereNotExists(fn ($card) => $card
+                            ->from('job_cards as jc')
+                            ->whereColumn('jc.sales_order_line_id', 'sol.id')
+                            ->where('jc.status', '!=', 'cancelled')))
+                    ->count(),
+                'href' => '/sales-orders?awaiting=job_card',
+                'tone' => 'warning',
+                'hint' => 'Confirmed, still to make, and nothing raised against them yet.',
+            ];
+        }
+
         // --- Work that has stalled ------------------------------------------------------
         if ($user->hasPermission('job_card.view_any')) {
             $entries[] = [

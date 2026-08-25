@@ -420,7 +420,12 @@ const paletteHint = computed(() =>
             <header
                 class="sticky top-0 z-20 border-b border-slate-200 bg-white/85 backdrop-blur print:hidden"
             >
-                <div class="flex min-h-14 items-center gap-3 px-4 py-2">
+                <!--
+                    Wraps rather than overflows. Detail pages now carry the next action in the
+                    header alongside the status and the transitions, which on a phone is more
+                    buttons than fit on one line; unwrapped they pushed the page sideways.
+                -->
+                <div class="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
                     <button
                         class="rounded-md p-1 text-ink-500 transition hover:bg-slate-100 lg:hidden"
                         aria-label="Open navigation"
@@ -429,7 +434,7 @@ const paletteHint = computed(() =>
                         <Icon name="menu" size="size-5" />
                     </button>
 
-                    <div class="min-w-0 flex-1">
+                    <div class="min-w-0 flex-1 basis-48">
                         <nav v-if="crumbs.length" class="hidden items-center gap-1 text-[11px] text-ink-500 sm:flex">
                             <template v-for="(crumb, index) in crumbs" :key="crumb.label">
                                 <Icon v-if="index > 0" name="right" size="size-3" class="text-ink-400" />
@@ -452,7 +457,7 @@ const paletteHint = computed(() =>
                         </p>
                     </div>
 
-                    <div class="flex shrink-0 items-center gap-2">
+                    <div class="flex flex-wrap items-center justify-end gap-2">
                         <slot name="actions" />
 
                         <NotificationBell />

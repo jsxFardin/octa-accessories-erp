@@ -72,23 +72,91 @@ class JobCardController extends Controller
         ]);
     }
 
+    /**
+     * `?sales_order=` / `?sales_order_line=` carry the context from the order the planner was
+     * just looking at. The full list of eligible lines is still offered — planning genuinely
+     * raises cards against other orders from here — but the one that was asked for is chosen
+     * and sorted to the top rather than searched for again.
+     */
     public function create(Request $request): Response
     {
+        $lines = DB::table('sales_order_lines as sol')
+            ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
+            ->join('products as p', 'p.id', '=', 'sol.product_id')
+            ->join('customers as c', 'c.id', '=', 'so.customer_id')
+            ->whereIn('so.status', ['confirmed', 'in_production', 'partially_delivered'])
+            ->whereColumn('sol.produced_qty', '<', 'sol.ordered_qty')
+            ->orderBy('sol.promised_date')
+            ->get([
+                'sol.id', 'sol.line_no', 'sol.ordered_qty', 'sol.produced_qty', 'sol.promised_date',
+                'sol.product_id', 'sol.product_spec_id', 'sol.sales_order_id',
+                'so.number as so_number', 'p.code as product_code', 'p.name as product_name',
+                'c.name as customer_name',
+            ]);
+
+        $orderId = $request->integer('sales_order') ?: null;
+        $lineId = $request->integer('sales_order_line') ?: null;
+
+        // A line id that names an order the planner did not ask for is still honoured; an id
+        // that is not on the eligible list at all is not, because nothing can be done with it.
+        $preselect = $lineId !== null && $lines->contains(fn ($line): bool => (int) $line->id === $lineId)
+            ? $lineId
+            : null;
+
+        $fromOrder = $lines->filter(
+            fn ($line): bool => $orderId !== null && (int) $line->sales_order_id === $orderId,
+        );
+
+        if ($preselect === null && $fromOrder->count() === 1) {
+            $preselect = (int) $fromOrder->first()->id;
+        }
+
         return Inertia::render('Manufacturing/JobCards/Form', [
-            'orderLines' => DB::table('sales_order_lines as sol')
-                ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
-                ->join('products as p', 'p.id', '=', 'sol.product_id')
-                ->join('customers as c', 'c.id', '=', 'so.customer_id')
-                ->whereIn('so.status', ['confirmed', 'in_production', 'partially_delivered'])
-                ->whereColumn('sol.produced_qty', '<', 'sol.ordered_qty')
-                ->orderBy('sol.promised_date')
-                ->get([
-                    'sol.id', 'sol.line_no', 'sol.ordered_qty', 'sol.produced_qty', 'sol.promised_date',
-                    'sol.product_id', 'sol.product_spec_id', 'so.number as so_number',
-                    'p.code as product_code', 'p.name as product_name', 'c.name as customer_name',
-                ]),
+            // The asked-for order's lines first: on a factory with fifty open lines the one the
+            // planner came in for was below the fold.
+            'orderLines' => $orderId === null
+                ? $lines->values()
+                : $fromOrder->concat($lines->reject(
+                    fn ($line): bool => (int) $line->sales_order_id === $orderId,
+                ))->values(),
             'units' => DB::table('factory_units')->where('is_active', true)->get(['id', 'code', 'name']),
+            'preselectLineId' => $preselect,
+            'context' => $orderId === null ? null : $this->orderContext($orderId, $fromOrder->count()),
+            // More than one card per line is legitimate — a line is often split across
+            // colourways or runs (BR-28) — so this is stated rather than blocked. Raising a
+            // second card by accident, because the first was invisible here, is not.
+            'existingCards' => $preselect === null ? [] : DB::table('job_cards')
+                ->where('sales_order_line_id', $preselect)
+                ->where('status', '!=', 'cancelled')
+                ->orderByDesc('id')
+                ->get(['id', 'number', 'status', 'planned_qty', 'colourway']),
         ]);
+    }
+
+    /**
+     * What the planner arrived from, so the form can say so instead of silently ticking a row.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function orderContext(int $orderId, int $eligibleLines): ?array
+    {
+        $order = DB::table('sales_orders as so')
+            ->join('customers as c', 'c.id', '=', 'so.customer_id')
+            ->where('so.id', $orderId)
+            ->first(['so.id', 'so.number', 'so.status', 'so.delivery_date', 'c.name as customer_name']);
+
+        if ($order === null) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $order->id,
+            'number' => $order->number,
+            'status' => $order->status,
+            'customer_name' => $order->customer_name,
+            'delivery_date' => $order->delivery_date,
+            'eligible_lines' => $eligibleLines,
+        ];
     }
 
     /**
@@ -192,7 +260,7 @@ class JobCardController extends Controller
         $jobCard->load([
             'product.customer', 'spec', 'artworkVersion.artwork', 'bom.lines.item', 'routing',
             'operations.machine', 'operations.machineGroup', 'operations.tool', 'operations.routingOperation',
-            'salesOrderLine',
+            'salesOrderLine.salesOrder:id,number,status',
         ]);
 
         // P0-2 — output is the final operation's, in pieces. The row's own running totals add
@@ -213,6 +281,9 @@ class JobCardController extends Controller
                 'produced_qty' => $output['produced'],
                 'product' => $jobCard->product?->only(['id', 'code', 'name', 'product_type']),
                 'customer' => $jobCard->product?->customer?->only(['id', 'name']),
+                // Where this card sits in the order it is making — the way back up the chain.
+                'sales_order' => $jobCard->salesOrderLine?->salesOrder?->only(['id', 'number', 'status']),
+                'sales_order_line_no' => $jobCard->salesOrderLine?->line_no,
                 'spec_version' => $jobCard->spec?->version_no,
                 'artwork' => [
                     'id' => $jobCard->artworkVersion?->artwork_id,

@@ -53,11 +53,18 @@ class InquiryController extends Controller
         ]);
     }
 
-    public function create(): Response
+    /** `?customer=` carries the customer whose page the inquiry was started from. */
+    public function create(Request $request): Response
     {
+        $customers = Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']);
+        $requested = $request->integer('customer') ?: null;
+
         return Inertia::render('Sales/Inquiries/Form', [
             'inquiry' => null,
-            'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
+            'customers' => $customers,
+            // Only a customer the picker actually offers: an archived one would leave the
+            // select showing an id it cannot resolve, and would fail validation on save.
+            'preselectCustomerId' => $customers->contains('id', $requested) ? $requested : null,
             'productTypes' => Vocabulary::options('product_type'),
             'sources' => Vocabulary::options('inquiry_source'),
         ]);

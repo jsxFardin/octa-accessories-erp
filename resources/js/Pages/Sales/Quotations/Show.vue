@@ -18,6 +18,10 @@ const props = defineProps({
     quotation: { type: Object, required: true },
     lines: { type: Array, default: () => [] },
     availableTransitions: { type: Array, default: () => [] },
+    /** The inquiry this answers, when it came from one. */
+    inquiry: { type: Object, default: null },
+    /** The order(s) it was converted into. */
+    orders: { type: Array, default: () => [] },
 });
 
 const rejectOpen = ref(false);
@@ -44,16 +48,23 @@ async function transition(to) {
         <Head :title="quotation.reference" />
 
         <template #title>{{ quotation.reference }}</template>
-        <template #subtitle>{{ quotation.customer?.name }} · {{ date(quotation.quotation_date) }}</template>
+        <template #subtitle>
+            {{ quotation.customer?.name }} · {{ date(quotation.quotation_date) }}
+            <span v-if="inquiry">
+                · from
+                <Link :href="`/inquiries/${inquiry.id}`" class="hover:underline">
+                    inquiry {{ inquiry.number ?? `#${inquiry.id}` }}</Link>
+            </span>
+        </template>
 
         <template #actions>
-            <Button v-if="can('quotation.update') && quotation.status === 'draft'" size="sm" :href="`/quotations/${quotation.id}/edit`">Edit</Button>
             <Badge :status="quotation.status" />
             <Button v-if="availableTransitions.includes('sent')" size="sm" variant="primary" @click="transition('sent')">Send</Button>
-            <Button v-if="availableTransitions.includes('accepted')" size="sm" variant="success" @click="transition('accepted')">Customer accepted</Button>
-            <Button v-if="availableTransitions.includes('rejected')" size="sm" variant="danger" @click="rejectOpen = true">Rejected</Button>
-            <Button v-if="availableTransitions.includes('revised')" size="sm" @click="transition('revised')">Revise</Button>
             <Button v-if="quotation.status === 'accepted'" size="sm" variant="primary" @click="convertOpen = true">Convert to order</Button>
+            <Button v-if="availableTransitions.includes('accepted')" size="sm" variant="success" @click="transition('accepted')">Customer accepted</Button>
+            <Button v-if="availableTransitions.includes('revised')" size="sm" @click="transition('revised')">Revise</Button>
+            <Button v-if="can('quotation.update') && quotation.status === 'draft'" size="sm" :href="`/quotations/${quotation.id}/edit`">Edit</Button>
+            <Button v-if="availableTransitions.includes('rejected')" size="sm" variant="danger" @click="rejectOpen = true">Rejected</Button>
             <!-- Repeat business is the norm: same labels, new season, different quantity. -->
             <Button v-if="can('quotation.create')" size="sm" @click="duplicate">Duplicate</Button>
             <!-- Opens in its own tab: printing is a detour, not a navigation. -->
@@ -61,6 +72,17 @@ async function transition(to) {
         </template>
 
         <div class="space-y-4">
+            <div
+                v-if="orders.length"
+                class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900"
+            >
+                Converted to
+                <template v-for="(order, index) in orders" :key="order.id"><span v-if="index">, </span><Link
+                    :href="`/sales-orders/${order.id}`"
+                    class="font-medium underline"
+                >{{ order.number ?? `draft order #${order.id}` }}</Link> ({{ titleCase(order.status) }})</template>.
+            </div>
+
             <!-- Q1: a sent quotation is a snapshot, not a live query -->
             <div
                 v-if="quotation.status !== 'draft'"

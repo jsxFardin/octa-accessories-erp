@@ -58,20 +58,39 @@ class PurchaseOrderController extends Controller
 
     public function create(Request $request): Response
     {
+        // A requisition line is the usual origin of an order; carrying it through means
+        // the buyer does not retype what the planner already asked for.
+        $lines = DB::table('purchase_requisition_lines as prl')
+            ->join('purchase_requisitions as pr', 'pr.id', '=', 'prl.pr_id')
+            ->join('items as i', 'i.id', '=', 'prl.item_id')
+            ->where('pr.status', 'approved')
+            ->whereColumn('prl.ordered_qty', '<', 'prl.qty')
+            ->orderBy('prl.required_by')
+            ->get([
+                'prl.id', 'prl.pr_id', 'prl.item_id', 'prl.uom_id', 'prl.qty', 'prl.ordered_qty',
+                'prl.required_by', 'pr.number as pr_number', 'i.code as item_code', 'i.name as item_name',
+            ]);
+
+        $prId = $request->integer('pr') ?: null;
+        $requisition = null;
+
+        if ($prId !== null && $lines->contains(fn ($line): bool => (int) $line->pr_id === $prId)) {
+            $requisition = DB::table('purchase_requisitions')
+                ->where('id', $prId)
+                ->first(['id', 'number', 'status']);
+
+            $lines = $lines->filter(fn ($line): bool => (int) $line->pr_id === $prId)
+                ->concat($lines->reject(fn ($line): bool => (int) $line->pr_id === $prId))
+                ->values();
+        }
+
         return Inertia::render('Procurement/PurchaseOrders/Form', [
             'order' => null,
-            // A requisition line is the usual origin of an order; carrying it through means
-            // the buyer does not retype what the planner already asked for.
-            'openRequisitionLines' => DB::table('purchase_requisition_lines as prl')
-                ->join('purchase_requisitions as pr', 'pr.id', '=', 'prl.pr_id')
-                ->join('items as i', 'i.id', '=', 'prl.item_id')
-                ->where('pr.status', 'approved')
-                ->whereColumn('prl.ordered_qty', '<', 'prl.qty')
-                ->orderBy('prl.required_by')
-                ->get([
-                    'prl.id', 'prl.item_id', 'prl.uom_id', 'prl.qty', 'prl.ordered_qty',
-                    'prl.required_by', 'pr.number as pr_number', 'i.code as item_code', 'i.name as item_name',
-                ]),
+            'openRequisitionLines' => $lines,
+            // `?pr=` carries the requisition the buyer came from. Its lines sort to the top
+            // rather than being hunted for among every approved requisition in the factory;
+            // the others stay listed, because one order routinely covers several.
+            'fromRequisition' => $requisition,
             ...$this->options(),
         ]);
     }

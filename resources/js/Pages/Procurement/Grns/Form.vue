@@ -20,6 +20,8 @@ const props = defineProps({
     items: { type: Array, default: () => [] },
     uoms: { type: Array, default: () => [] },
     purchaseOrders: { type: Array, default: () => [] },
+    /** The purchase order this receipt was started from, resolved server-side. */
+    preselectPoId: { type: Number, default: null },
     schemes: { type: Array, default: () => [] },
 });
 
@@ -39,9 +41,12 @@ function blankLine() {
     };
 }
 
+/** The order the storekeeper is receiving against, and the supplier that implies. */
+const fromOrder = props.purchaseOrders.find((po) => po.id === props.preselectPoId) ?? null;
+
 const form = useForm({
-    supplier_id: '',
-    po_id: '',
+    supplier_id: fromOrder?.supplier_id ?? '',
+    po_id: fromOrder?.id ?? '',
     warehouse_id: '',
     received_on: todayIso(),
     invoice_no: '',

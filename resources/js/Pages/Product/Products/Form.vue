@@ -13,7 +13,9 @@ const sections = computed(() => [
         title: 'Commercial identity',
         rule: 'P1',
         fields: [
-            { key: 'customer_id', label: 'Customer', type: 'select', options: props.customers, valueKey: 'id', labelKey: 'name', required: true, rule: 'P1', hint: 'A product belongs to exactly one customer, permanently.' },
+            // `?customer=` was already resolved server-side and then dropped on the floor:
+            // the prop existed, nothing consumed it, and the picker opened empty.
+            { key: 'customer_id', label: 'Customer', type: 'select', options: props.customers, valueKey: 'id', labelKey: 'name', required: true, rule: 'P1', hint: 'A product belongs to exactly one customer, permanently.', default: props.preselectedCustomer ?? '' },
             { key: 'brand_id', label: 'Brand', type: 'select', options: props.brands, valueKey: 'id', labelKey: 'name' },
             { key: 'code', label: 'Code', required: true },
             { key: 'name', label: 'Name', required: true },

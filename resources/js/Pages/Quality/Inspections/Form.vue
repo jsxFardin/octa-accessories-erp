@@ -17,13 +17,19 @@ const props = defineProps({
     operations: { type: Array, default: () => [] },
     defects: { type: Array, default: () => [] },
     plans: { type: Array, default: () => [] },
+    /** The card (and operation) the inspector was sent from, resolved server-side. */
+    preselect: { type: Object, default: null },
 });
 
+/** An in-process inspection is the one that names an operation; anything else is final. */
+const initialStage = props.preselect?.stage
+    ?? (props.preselect?.job_card_operation_id ? 'in_process' : 'final');
+
 const form = useForm({
-    job_card_id: '',
-    job_card_operation_id: '',
-    stage: 'final',
-    lot_size: '',
+    job_card_id: props.preselect?.job_card_id ?? '',
+    job_card_operation_id: props.preselect?.job_card_operation_id ?? '',
+    stage: initialStage,
+    lot_size: props.preselect?.lot_size || '',
     critical_found: 0,
     major_found: 0,
     minor_found: 0,

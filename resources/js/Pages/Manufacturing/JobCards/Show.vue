@@ -105,6 +105,20 @@ function hold() {
     });
 }
 
+/**
+ * A card at `qc_pending` is literally waiting for an inspection; one in production can be
+ * inspected in-process. Both used to mean walking to Quality and finding the card by number.
+ */
+const canInspect = computed(
+    () => ['in_production', 'qc_pending'].includes(props.jobCard.status) && can('qc_inspection.create'),
+);
+
+function inspectionHref(operation = null) {
+    const base = `/qc-inspections/create?job_card=${props.jobCard.id}`;
+
+    return operation ? `${base}&operation=${operation.id}&stage=in_process` : base;
+}
+
 const operationColumns = [
     { key: 'sequence_no', label: '#', align: 'center', width: '3rem' },
     { key: 'name', label: 'Operation' },
@@ -114,6 +128,7 @@ const operationColumns = [
     { key: 'good_qty', label: 'Good', align: 'right' },
     { key: 'waste_qty', label: 'Waste', align: 'right' },
     { key: 'status', label: 'Status' },
+    { key: 'inspect', label: '', width: '5.5rem', align: 'right' },
 ];
 
 const bomColumns = [
@@ -133,10 +148,17 @@ const bomColumns = [
             {{ jobCard.product?.code }} — {{ jobCard.product?.name }}
             <span v-if="jobCard.colourway"> · {{ jobCard.colourway }}</span>
             <span v-if="jobCard.customer"> · {{ jobCard.customer.name }}</span>
+            <!-- The order this card is making, one click away rather than a search. -->
+            <span v-if="jobCard.sales_order">
+                ·
+                <Link :href="`/sales-orders/${jobCard.sales_order.id}`" class="hover:underline">
+                    {{ jobCard.sales_order.number ?? '(unnumbered order)' }}</Link><span
+                    v-if="jobCard.sales_order_line_no"> line {{ jobCard.sales_order_line_no }}</span>
+            </span>
         </template>
 
+        <!-- Status, then the transition this card is waiting for, then everything else. -->
         <template #actions>
-            <Button size="sm" :href="`/job-cards/${jobCard.id}/print`" external target="_blank">Print</Button>
             <Badge :status="jobCard.status" />
 
             <Button
@@ -169,6 +191,18 @@ const bomColumns = [
             <Button v-if="availableTransitions.includes('closed')" size="sm" @click="transition('closed')">
                 Close
             </Button>
+
+            <!-- The card is already known; QC opens with it chosen and its output as the lot. -->
+            <Button
+                v-if="canInspect"
+                size="sm"
+                :variant="jobCard.status === 'qc_pending' ? 'primary' : 'secondary'"
+                :href="inspectionHref()"
+            >
+                Record inspection
+            </Button>
+
+            <Button size="sm" :href="`/job-cards/${jobCard.id}/print`" external target="_blank">Print</Button>
         </template>
 
         <div class="space-y-4">
@@ -329,6 +363,20 @@ const bomColumns = [
                     <template #cell:good_qty="{ value }">{{ qty(value) }}</template>
                     <template #cell:waste_qty="{ value }">{{ qty(value) }}</template>
                     <template #cell:status="{ value }"><Badge :status="value" /></template>
+                    <!--
+                        QC1 — an in-process verdict releases exactly one operation, so the
+                        inspection is raised from the operation rather than picked out of a
+                        flat list of every QC step in the factory.
+                    -->
+                    <template #cell:inspect="{ row }">
+                        <Button
+                            v-if="canInspect && row.requires_qc && row.status !== 'pending'"
+                            size="sm"
+                            :href="inspectionHref(row)"
+                        >
+                            Inspect
+                        </Button>
+                    </template>
                 </DataTable>
             </Card>
 

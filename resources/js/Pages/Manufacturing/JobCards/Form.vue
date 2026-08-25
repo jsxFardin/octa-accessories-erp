@@ -1,29 +1,42 @@
 <script setup>
 import { computed } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { date, pcs } from '@/plugins/formatting';
+import { date, pcs, titleCase } from '@/plugins/formatting';
 
 const props = defineProps({
     orderLines: { type: Array, default: () => [] },
     units: { type: Array, default: () => [] },
+    /** The line the planner arrived asking for, resolved and validated server-side. */
+    preselectLineId: { type: Number, default: null },
+    /** The order the planner came from, when they came from one. */
+    context: { type: Object, default: null },
+    /** Live cards already covering the preselected line. */
+    existingCards: { type: Array, default: () => [] },
 });
 
+const preselected = props.orderLines.find((line) => line.id === props.preselectLineId) ?? null;
+
 const form = useForm({
-    sales_order_line_id: '',
+    sales_order_line_id: preselected?.id ?? '',
     factory_unit_id: props.units[0]?.id ?? '',
-    planned_qty: '',
+    // What is left to make on that line, and the date it was promised for: the same defaults
+    // picking the line by hand would have applied.
+    planned_qty: preselected
+        ? Math.max(0, Number(preselected.ordered_qty) - Number(preselected.produced_qty))
+        : '',
     colourway: '',
-    due_date: '',
+    due_date: preselected?.promised_date ?? '',
     priority: 50,
 });
 
@@ -63,6 +76,55 @@ function submit() {
 
         <FormLayout wide-rail @submit="submit">
 
+            <!-- Where the planner came from, and what was chosen on their behalf. -->
+            <div
+                v-if="context"
+                class="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2.5 text-sm text-brand-900"
+            >
+                <p>
+                    Raising a card against
+                    <Link :href="`/sales-orders/${context.id}`" class="font-medium underline">
+                        order {{ context.number ?? `#${context.id}` }}</Link>
+                    for {{ context.customer_name }}.
+                    <template v-if="preselected">
+                        Line {{ preselected.line_no }} ({{ preselected.product_code }}) is selected with its
+                        outstanding quantity.
+                    </template>
+                    <template v-else-if="context.eligible_lines > 1">
+                        {{ context.eligible_lines }} of its lines still have quantity to make — choose one below.
+                    </template>
+                    <template v-else>
+                        None of its lines has quantity left to make.
+                    </template>
+                </p>
+                <p v-if="context.eligible_lines > 1" class="mt-1 text-xs">
+                    Lines from other orders are listed underneath, so a card can still be raised against one.
+                </p>
+            </div>
+
+            <!--
+                A line can carry several cards — one per colourway, or a run split in two — so
+                this is a statement, not a block. What it prevents is the second card raised by
+                accident because the first was nowhere on this screen.
+            -->
+            <div
+                v-if="existingCards.length"
+                class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900"
+            >
+                <p class="font-medium">
+                    {{ existingCards.length }}
+                    {{ existingCards.length === 1 ? 'card is' : 'cards are' }} already open against this line.
+                </p>
+                <ul class="mt-1 space-y-0.5 text-xs">
+                    <li v-for="card in existingCards" :key="card.id">
+                        <Link :href="`/job-cards/${card.id}`" class="font-medium underline">
+                            {{ card.number ?? `draft card #${card.id}` }}</Link>
+                        — {{ pcs(card.planned_qty) }} planned<span v-if="card.colourway">, {{ card.colourway }}</span>,
+                        {{ titleCase(card.status) }}
+                    </li>
+                </ul>
+            </div>
+
             <Card title="Order line to produce" :padded="false">
                 <div class="max-h-96 divide-y divide-slate-100 overflow-y-auto">
                     <label
@@ -98,9 +160,15 @@ function submit() {
                         </div>
                     </label>
 
-                    <p v-if="orderLines.length === 0" class="px-3 py-10 text-center text-sm text-ink-500">
-                        No confirmed order line has quantity left to produce.
-                    </p>
+                    <div v-if="orderLines.length === 0" class="px-3 py-8">
+                        <EmptyState
+                            icon="job-card"
+                            title="Nothing is waiting to be made"
+                            description="A job card is raised against a confirmed order line that still has quantity outstanding. There are none right now."
+                            action-label="Open sales orders"
+                            action-href="/sales-orders?status=confirmed"
+                        />
+                    </div>
                 </div>
 
                 <p v-if="form.errors.sales_order_line_id" class="border-t border-slate-200 px-3 py-2 text-xs text-rose-600">

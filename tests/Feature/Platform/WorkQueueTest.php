@@ -98,3 +98,43 @@ it('serves the queue with the dashboard', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('Dashboard')->has('queue'));
 });
+
+it('counts confirmed orders that nothing has been raised against', function (): void {
+    // The gap nobody was looking at: the order is confirmed, sales assume planning has it,
+    // and the floor is idle because no card was ever raised.
+    $line = DB::table('sales_order_lines as sol')
+        ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
+        ->whereIn('so.status', ['confirmed', 'in_production'])
+        ->whereColumn('sol.produced_qty', '<', 'sol.ordered_qty')
+        ->first(['sol.id', 'sol.sales_order_id']);
+
+    expect($line)->not->toBeNull();
+
+    $planner = User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail();
+    $entry = fn (): ?array => collect($this->queue->for($planner))
+        ->firstWhere('key', 'orders_awaiting_job_card');
+
+    // Covered by a live card: not in the queue.
+    DB::table('job_cards')->where('sales_order_line_id', $line->id)->update(['status' => 'planned']);
+    $covered = $entry()['count'] ?? 0;
+
+    // Cancel the card and the line is uncovered again.
+    DB::table('job_cards')->where('sales_order_line_id', $line->id)->update(['status' => 'cancelled']);
+
+    expect($entry())->not->toBeNull()
+        ->and($entry()['count'])->toBeGreaterThan($covered - 1)
+        ->and($entry()['href'])->toBe('/sales-orders?awaiting=job_card');
+
+    // And the href it points at actually narrows the list to those orders.
+    $orders = $this->actingAs($planner)->get('/sales-orders?awaiting=job_card')
+        ->viewData('page')['props']['orders']['data'];
+
+    expect(collect($orders)->pluck('id'))->toContain((int) $line->sales_order_id);
+});
+
+it('does not offer the job-card queue to someone who cannot raise one', function (): void {
+    $accounts = User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail();
+
+    expect($accounts->hasPermission('job_card.create'))->toBeFalse()
+        ->and(queueKeys($this, 'accounts@maheenlabel.test'))->not->toContain('orders_awaiting_job_card');
+});

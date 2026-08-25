@@ -33,7 +33,14 @@ const sections = computed(() => [
             { key: 'min_order_value', label: 'Minimum order value', type: 'number', step: '0.0001', default: 0, rule: 'BR-21' },
             { key: 'under_tolerance_pct', label: 'Under tolerance %', type: 'number', step: '0.01', default: 5, rule: 'BR-44' },
             { key: 'over_tolerance_pct', label: 'Over tolerance %', type: 'number', step: '0.01', default: 5, rule: 'BR-44' },
-            { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+            {
+                key: 'is_active',
+                label: 'Active',
+                type: 'checkbox',
+                default: true,
+                checkboxLabel: 'Selectable on inquiries, quotations and orders',
+                hint: 'An inactive customer stays on its history but disappears from every picker.',
+            },
         ],
     },
 ]);

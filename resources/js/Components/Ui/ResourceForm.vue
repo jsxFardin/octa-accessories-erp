@@ -1,5 +1,4 @@
 <script setup>
-import { computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import Card from '@/Components/Ui/Card.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
@@ -8,7 +7,7 @@ import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { isoDate } from '@/plugins/formatting';
+import { resolveDefaults } from '@/plugins/formDefaults';
 
 /**
  * The master-data form pattern, written once (10-roadmap, Phase 0).
@@ -27,22 +26,7 @@ const props = defineProps({
     cancelHref: { type: String, default: null },
 });
 
-const defaults = computed(() => {
-    const values = {};
-
-    for (const section of props.sections) {
-        for (const field of section.fields) {
-            const raw = props.initial?.[field.key]
-                ?? (field.type === 'checkbox' ? false : field.default ?? '');
-
-            values[field.key] = field.type === 'date' ? isoDate(raw) || raw : raw;
-        }
-    }
-
-    return values;
-});
-
-const form = useForm(defaults.value);
+const form = useForm(resolveDefaults(props.sections, props.initial));
 
 function submit() {
     form[props.method](props.action, { preserveScroll: true });

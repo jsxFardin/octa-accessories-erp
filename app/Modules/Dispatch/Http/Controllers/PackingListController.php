@@ -54,14 +54,24 @@ class PackingListController extends Controller
         ]);
     }
 
+    /** `?sales_order=` preselects the order dispatch arrived from; the picker still works. */
     public function create(Request $request): Response
     {
+        $orders = DB::table('sales_orders as so')
+            ->join('customers as c', 'c.id', '=', 'so.customer_id')
+            ->whereIn('so.status', ['confirmed', 'in_production', 'partially_delivered'])
+            ->orderByDesc('so.id')
+            ->get(['so.id', 'so.number', 'so.customer_id', 'so.delivery_address_id', 'c.name as customer_name']);
+
+        $requested = $request->integer('sales_order') ?: null;
+
         return Inertia::render('Dispatch/PackingLists/Form', [
-            'orders' => DB::table('sales_orders as so')
-                ->join('customers as c', 'c.id', '=', 'so.customer_id')
-                ->whereIn('so.status', ['confirmed', 'in_production', 'partially_delivered'])
-                ->orderByDesc('so.id')
-                ->get(['so.id', 'so.number', 'so.customer_id', 'so.delivery_address_id', 'c.name as customer_name']),
+            'orders' => $orders,
+            // Only if it is genuinely packable — an order that is not on the list would leave
+            // the select showing an id it cannot resolve.
+            'preselectOrderId' => $orders->contains(fn ($order): bool => (int) $order->id === $requested)
+                ? $requested
+                : null,
         ]);
     }
 

@@ -53,7 +53,14 @@ class CustomerController extends Controller
     {
         $customer = Customer::query()->create($this->validated($request));
 
-        return redirect()->route('customers.show', $customer)->with('success', "Customer {$customer->code} created.");
+        // "Created." was true and useless: an inactive customer is created just as
+        // successfully and then cannot be found in any picker, which reads as a lost save.
+        return redirect()->route('customers.show', $customer)->with(
+            'success',
+            $customer->is_active
+                ? "Customer {$customer->code} created and available to quote and order against."
+                : "Customer {$customer->code} created, but marked inactive — it will not appear in order or quotation pickers until it is activated.",
+        );
     }
 
     public function show(Customer $customer): Response

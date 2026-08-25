@@ -1,6 +1,6 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { computed, onMounted, ref, watch } from 'vue';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -17,6 +17,8 @@ import { date, isoDate, money, pcs, qty, ratePerM, titleCase, todayIso } from '@
 const props = defineProps({
     quotation: { type: Object, default: null },
     inquiryId: { type: Number, default: null },
+    /** The inquiry behind `Quote it`, already resolved server-side. */
+    inquiryPrefill: { type: Object, default: null },
     customers: { type: Array, default: () => [] },
     currencies: { type: Array, default: () => [] },
     products: { type: Array, default: () => [] },
@@ -39,18 +41,45 @@ function blankLine() {
     };
 }
 
+/**
+ * An inquiry line becomes a quotation line: the product and quantity carry across, the rate
+ * does not — it is computed from the cost sheet once the line is priced (BR-20). A line the
+ * customer described without a product keeps its wording and waits for one to be chosen.
+ */
+function lineFromInquiry(line) {
+    return {
+        ...blankLine(),
+        product_id: line.product_id ?? '',
+        description: line.description ?? '',
+        qty: line.qty ?? '',
+    };
+}
+
+const prefill = props.quotation ? null : props.inquiryPrefill;
+
 const form = useForm({
     inquiry_id: props.quotation?.inquiry_id ?? props.inquiryId ?? '',
-    customer_id: props.quotation?.customer_id ?? '',
+    customer_id: props.quotation?.customer_id ?? prefill?.customer_id ?? '',
     quotation_date: isoDate(props.quotation?.quotation_date) || todayIso(),
     valid_until: isoDate(props.quotation?.valid_until),
-    currency_id: props.quotation?.currency_id ?? props.currencies.find((c) => c.is_base)?.id ?? '',
+    currency_id:
+        props.quotation?.currency_id
+        ?? prefill?.currency_id
+        ?? props.currencies.find((c) => c.is_base)?.id
+        ?? '',
     exchange_rate: props.quotation?.exchange_rate ?? 1,
     terms: props.quotation?.terms ?? '',
     lines: props.quotation?.lines?.length
         ? props.quotation.lines.map((line) => ({ ...line }))
-        : [blankLine()],
+        : prefill?.lines?.length
+            ? prefill.lines.map(lineFromInquiry)
+            : [blankLine()],
 });
+
+/** Lines the inquiry described in words rather than naming a product — still to resolve. */
+const unresolvedFromInquiry = computed(
+    () => (prefill?.lines ?? []).filter((line) => !line.product_id).length,
+);
 
 /** Products belong to exactly one customer, so the picker narrows with the header. */
 const availableProducts = computed(() =>
@@ -115,6 +144,18 @@ watch(
     () => form.lines.forEach((_, index) => priceLine(index)),
 );
 
+/**
+ * A prefilled line arrives with a product and a quantity already on it, so the watcher above
+ * — which only fires on a *change* — never ran and the rate stayed empty. The rate is computed
+ * and displayed, not an input, so saving failed on a field the merchandiser had no way to
+ * fill. Price what came in from the inquiry as soon as the form mounts.
+ */
+onMounted(() => {
+    if (prefill) {
+        form.lines.forEach((_, index) => priceLine(index));
+    }
+});
+
 watch(() => form.exchange_rate, () => form.lines.forEach((_, index) => priceLine(index)));
 
 function addLine() {
@@ -142,6 +183,26 @@ const belowFloor = computed(() =>
 );
 
 const filledLines = computed(() => form.lines.filter((line) => line.product_id || line.qty).length);
+
+/**
+ * A line the inquiry described in words has no product, so nothing can price it. The server
+ * rejects that with "the rate per 1000 field is required", which names a field that is not on
+ * the form. Say what is actually missing, and keep the save button from being the way anyone
+ * finds out.
+ */
+const unpriced = computed(() =>
+    form.lines
+        .map((line, index) => ({ line, index }))
+        .filter(({ line }) => !line.product_id || !line.qty || !line.rate_per_m)
+        .map(({ line, index }) => ({
+            no: index + 1,
+            reason: !line.product_id
+                ? 'needs a product before it can be priced'
+                : !line.qty
+                    ? 'needs a quantity'
+                    : 'is still being priced',
+        })),
+);
 
 const totalQty = computed(() => form.lines.reduce((sum, line) => sum + (Number(line.qty) || 0), 0));
 
@@ -175,6 +236,32 @@ const columns = [
         <template #subtitle>Each line is priced by the cost sheet, not typed by hand</template>
 
         <FormLayout @submit="submit">
+
+            <!--
+                Where this quotation came from, stated on the form rather than left implicit in
+                a query string. The link back matters: the merchandiser is about to price what
+                the inquiry describes and will want to re-read it.
+            -->
+            <div
+                v-if="prefill"
+                class="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2.5 text-sm text-brand-900"
+            >
+                <p>
+                    Quoting
+                    <Link :href="`/inquiries/${prefill.id}`" class="font-medium underline">
+                        inquiry {{ prefill.number ?? `#${prefill.id}` }}</Link><span v-if="prefill.customer">
+                        for {{ prefill.customer.name }}</span>.
+                    <span v-if="prefill.lines.length">
+                        {{ prefill.lines.length }} {{ prefill.lines.length === 1 ? 'line has' : 'lines have' }} been
+                        carried across — rates are computed here, not copied.
+                    </span>
+                </p>
+                <p v-if="unresolvedFromInquiry" class="mt-1 text-xs">
+                    {{ unresolvedFromInquiry }} of them
+                    {{ unresolvedFromInquiry === 1 ? 'was described' : 'were described' }}
+                    without a product. Choose one on each before it can be priced.
+                </p>
+            </div>
 
             <Card title="Header">
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -290,6 +377,17 @@ const columns = [
                     </LineItemsTable>
 
                     <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
+
+                    <div
+                        v-if="unpriced.length"
+                        class="mt-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-ink-700"
+                        role="status"
+                    >
+                        <p>Not ready to save yet:</p>
+                        <ul class="mt-1 list-disc pl-4">
+                            <li v-for="item in unpriced" :key="item.no">Line {{ item.no }} {{ item.reason }}.</li>
+                        </ul>
+                    </div>
 
                     <p v-if="belowFloor" class="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
                         A line is priced below the {{ marginFloorPct }}% margin floor. Sending this
@@ -434,7 +532,10 @@ const columns = [
                 <FormFooter
                     :form="form"
                     cancel-href="/quotations"
-                    :summary="`${filledLines} ${filledLines === 1 ? 'line' : 'lines'} · ${money(subtotal, currencyCode)}`"
+                    :disabled="unpriced.length > 0"
+                    :summary="unpriced.length
+                        ? `${unpriced.length} ${unpriced.length === 1 ? 'line is' : 'lines are'} not priced yet`
+                        : `${filledLines} ${filledLines === 1 ? 'line' : 'lines'} · ${money(subtotal, currencyCode)}`"
                     :label="isEdit ? 'Save changes' : 'Save draft'"
                     @save="submit"
                 />

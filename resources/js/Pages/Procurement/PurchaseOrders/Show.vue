@@ -1,10 +1,12 @@
 <script setup>
+import { computed } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import { date, money, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -16,6 +18,18 @@ const props = defineProps({
     availableTransitions: { type: Array, default: () => [] },
     approval: { type: Object, default: null },
 });
+
+/**
+ * An order open to receiving is one the storekeeper can book goods against. The statuses are
+ * the ones `GrnController::create()` offers, so the button never leads to a picker that does
+ * not list this order.
+ */
+const canReceive = computed(
+    () => ['approved', 'sent', 'partially_received'].includes(props.purchaseOrder.status)
+        && can('grn.create'),
+);
+
+const grnHref = computed(() => `/grns/create?po=${props.purchaseOrder.id}`);
 
 const confirmTransition = useTransitionConfirm();
 
@@ -49,6 +63,10 @@ async function transition(to) {
             </Button>
             <Button v-if="availableTransitions.includes('sent')" size="sm" variant="primary" @click="transition('sent')">
                 Send to supplier
+            </Button>
+            <!-- The goods arrive against this order; the receipt opens with it already chosen. -->
+            <Button v-if="canReceive" size="sm" variant="primary" :href="grnHref">
+                Receive goods
             </Button>
             <!-- Only once approved: the controller refuses a draft, so the button follows it. -->
             <Button
@@ -125,6 +143,10 @@ async function transition(to) {
             </Card>
 
             <Card title="Goods receipts" :padded="false">
+                <template #actions>
+                    <Button v-if="canReceive" size="sm" :href="grnHref">Receive goods</Button>
+                </template>
+
                 <DataTable
                     :columns="[
                         { key: 'number', label: 'GRN' },
@@ -137,6 +159,18 @@ async function transition(to) {
                     empty="Nothing received against this order yet."
                     dense
                 >
+                    <template #empty>
+                        <EmptyState
+                            icon="goods-receipt"
+                            title="Nothing received against this order yet"
+                            :description="canReceive
+                                ? 'A goods receipt books the delivery into stock and is what a supplier bill is later matched against.'
+                                : 'Goods can be booked in once the order has been approved.'"
+                            :action-label="canReceive ? 'Receive goods' : null"
+                            :action-href="canReceive ? grnHref : null"
+                        />
+                    </template>
+
                     <template #cell:received_on="{ value }">{{ date(value) }}</template>
                     <template #cell:status="{ value }"><Badge :status="value" /></template>
                 </DataTable>

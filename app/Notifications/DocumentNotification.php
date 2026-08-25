@@ -19,6 +19,7 @@ use Illuminate\Notifications\Notification;
  *     action: string,
  *     href: string,
  *     title: string,
+ *     body?: string,
  *     dedupe_key: string
  * }
  */

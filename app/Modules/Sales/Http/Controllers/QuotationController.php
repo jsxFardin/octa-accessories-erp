@@ -11,6 +11,7 @@ use App\Modules\MasterData\Models\Currency;
 use App\Modules\MasterData\Models\Customer;
 use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\ProductSpec;
+use App\Modules\Sales\Models\Inquiry;
 use App\Modules\Sales\Models\Quotation;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Models\SalesOrderLine;
@@ -67,11 +68,64 @@ class QuotationController extends Controller
 
     public function create(Request $request): Response
     {
+        $inquiry = $this->prefillInquiry($request);
+
         return Inertia::render('Sales/Quotations/Form', [
             'quotation' => null,
-            'inquiryId' => $request->integer('inquiry') ?: null,
+            'inquiryId' => $inquiry['id'] ?? ($request->integer('inquiry') ?: null),
+            // The handoff from `Quote it`. Passing only the id left the merchandiser retyping
+            // the customer and every line they were looking at a second earlier.
+            'inquiryPrefill' => $inquiry,
             ...$this->formOptions(),
         ]);
+    }
+
+    /**
+     * The inquiry behind `?inquiry=`, shaped for the quotation form.
+     *
+     * Nothing here is authoritative — `store()` revalidates every field. It exists so the
+     * form opens with what the system already knows, and it stays silent when the user may
+     * not read inquiries or the id does not resolve.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function prefillInquiry(Request $request): ?array
+    {
+        $id = $request->integer('inquiry') ?: null;
+
+        if ($id === null || ! $request->user()?->hasPermission('inquiry.view_any')) {
+            return null;
+        }
+
+        $inquiry = Inquiry::query()
+            ->with(['customer:id,code,name,currency_id,payment_term_id', 'lines.product:id,code,name,customer_id'])
+            ->find($id);
+
+        if ($inquiry === null) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $inquiry->id,
+            'number' => $inquiry->number,
+            'status' => $inquiry->status,
+            'required_by' => $inquiry->required_by,
+            'customer' => $inquiry->customer?->only(['id', 'code', 'name']),
+            'customer_id' => $inquiry->customer_id,
+            'currency_id' => $inquiry->customer?->currency_id,
+            // An inquiry line names a product only once one exists; the rest are described in
+            // the customer's words. Those carry across as a description with no product, which
+            // is exactly what the merchandiser has to resolve before the line can be priced.
+            'lines' => $inquiry->lines->map(fn ($line): array => [
+                'line_no' => $line->line_no,
+                'product_id' => $line->product_id,
+                'product_code' => $line->product?->code,
+                'description' => $line->description,
+                'qty' => $line->qty,
+                'target_rate_per_m' => $line->target_rate_per_m,
+                'notes' => $line->notes,
+            ])->values()->all(),
+        ];
     }
 
     public function store(Request $request): RedirectResponse
@@ -186,6 +240,15 @@ class QuotationController extends Controller
                 ]) ?? [],
             ]),
             'availableTransitions' => $this->states->available($quotation),
+            // Both ends of the chain this quotation sits in the middle of: the inquiry it
+            // answers, and the order(s) it became. Without them the only way back was search.
+            'inquiry' => $quotation->inquiry_id === null ? null : DB::table('inquiries')
+                ->where('id', $quotation->inquiry_id)
+                ->first(['id', 'number', 'status']),
+            'orders' => DB::table('sales_orders')
+                ->where('quotation_id', $quotation->id)
+                ->orderByDesc('id')
+                ->get(['id', 'number', 'status', 'total']),
         ]);
     }
 

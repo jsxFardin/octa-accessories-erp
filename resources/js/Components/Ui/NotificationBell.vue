@@ -154,6 +154,11 @@ onUnmounted(() => {
                             @click="openItem(item)"
                         >
                             <span class="text-sm leading-snug font-medium">{{ item.title }}</span>
+                            <!-- Why it matters and what to do: a title alone says only that
+                                 something happened, not why this reader is being told. -->
+                            <span v-if="item.body" class="text-[11px] leading-relaxed text-ink-500">
+                                {{ item.body }}
+                            </span>
                             <span v-if="item.document_number" class="text-[11px] text-ink-400">
                                 {{ item.document_number }}
                             </span>

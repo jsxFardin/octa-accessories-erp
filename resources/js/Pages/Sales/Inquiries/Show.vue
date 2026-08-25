@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import { date, money, pcs, ratePerM, titleCase } from '@/plugins/formatting';
@@ -17,6 +18,13 @@ const props = defineProps({
     lines: { type: Array, default: () => [] },
     quotations: { type: Array, default: () => [] },
 });
+
+/** The one action an open inquiry exists for; the same rule the button in the header uses. */
+const canQuote = computed(
+    () => ['open', 'quoted'].includes(props.inquiry.status) && can('quotation.create'),
+);
+
+const quoteHref = computed(() => `/quotations/create?inquiry=${props.inquiry.id}`);
 
 const lostOpen = ref(false);
 const lostForm = useForm({ status: 'lost', lost_reason: '' });
@@ -80,12 +88,7 @@ const quotationColumns = [
                 Submit
             </Button>
 
-            <Button
-                v-if="['open', 'quoted'].includes(inquiry.status) && can('quotation.create')"
-                variant="primary"
-                size="sm"
-                :href="`/quotations/create?inquiry=${inquiry.id}`"
-            >
+            <Button v-if="canQuote" variant="primary" size="sm" :href="quoteHref">
                 Quote it
             </Button>
 
@@ -124,6 +127,10 @@ const quotationColumns = [
             </Card>
 
             <Card title="Quotations raised" :padded="false">
+                <template #actions>
+                    <Button v-if="canQuote" size="sm" :href="quoteHref">Quote it</Button>
+                </template>
+
                 <DataTable
                     :columns="quotationColumns"
                     :rows="quotations"
@@ -132,6 +139,20 @@ const quotationColumns = [
                     empty="Nothing quoted yet."
                     dense
                 >
+                    <template #empty>
+                        <EmptyState
+                            icon="quote"
+                            title="No quotation has been raised for this inquiry"
+                            :description="canQuote
+                                ? 'Quoting it opens a draft with this customer and every line already on it — the rates are computed from the cost sheet.'
+                                : inquiry.status === 'draft'
+                                    ? 'Submit the inquiry first; a draft has no number to quote against.'
+                                    : 'This inquiry is closed, so nothing further can be quoted against it.'"
+                            :action-label="canQuote ? 'Quote it' : null"
+                            :action-href="canQuote ? quoteHref : null"
+                        />
+                    </template>
+
                     <template #cell:number="{ row }">
                         {{ row.number ?? '(unnumbered)' }}<span v-if="row.revision_no" class="text-ink-400">/R{{ row.revision_no }}</span>
                     </template>

@@ -5,6 +5,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import { date, isoDate, money, pcs, ratePerM, relative, titleCase } from '@/plugins/formatting';
@@ -36,6 +37,35 @@ const releaseForm = useForm({ to: 'confirmed', release_reason: '' });
 
 const notReady = computed(() => props.readiness.filter((r) => !r.spec || !r.artwork));
 
+/**
+ * What can happen next, from this order.
+ *
+ * The conditions mirror the ones the target screens enforce — `JobCardController::create()`
+ * offers exactly the lines of a confirmed order with quantity left, and the packing list is
+ * drafted against an order in the same three statuses. Showing an action the next screen
+ * would then refuse is worse than not showing it.
+ */
+const IN_FLIGHT = ['confirmed', 'in_production', 'partially_delivered'];
+
+const inFlight = computed(() => IN_FLIGHT.includes(props.order.status));
+
+/** Lines with quantity still to make — one job card's worth of work each, at least. */
+const linesToMake = computed(() =>
+    props.lines.filter((line) => Number(line.ordered_qty) > Number(line.produced_qty)),
+);
+
+const canRaiseJobCard = computed(
+    () => inFlight.value && linesToMake.value.length > 0 && can('job_card.create'),
+);
+
+const canPack = computed(() => inFlight.value && can('packing_list.create'));
+
+function jobCardHref(line = null) {
+    const base = `/job-cards/create?sales_order=${props.order.id}`;
+
+    return line ? `${base}&sales_order_line=${line.id}` : base;
+}
+
 const confirmTransition = useTransitionConfirm();
 
 async function transition(to) {
@@ -56,6 +86,7 @@ const lineColumns = [
     { key: 'line_total', label: 'Value', align: 'right' },
     { key: 'gate', label: 'Gate 1' },
     { key: 'promised_date', label: 'Promised' },
+    { key: 'make', label: '', width: '5.5rem', align: 'right' },
 ];
 </script>
 
@@ -70,13 +101,28 @@ const lineColumns = [
             · due {{ date(order.delivery_date) }}
         </template>
 
+        <!--
+            Status first and on its own — it is a fact, not a button. Then the one thing this
+            order is most likely waiting for, then the rest, then the destructive ones.
+        -->
         <template #actions>
-            <Button v-if="can('sales_order.update') && !['closed', 'cancelled'].includes(order.status)" size="sm" :href="`/sales-orders/${order.id}/edit`">Edit</Button>
             <Badge :status="order.status" />
+
             <Button v-if="availableTransitions.includes('confirmed')" size="sm" variant="primary"
                     @click="order.status === 'credit_hold' ? (releaseOpen = true) : transition('confirmed')">
                 {{ order.status === 'credit_hold' ? 'Release credit hold' : 'Confirm' }}
             </Button>
+
+            <!-- A confirmed order's next document is a job card; it opens with this order on it. -->
+            <Button v-if="canRaiseJobCard" size="sm" variant="primary" :href="jobCardHref()">
+                Create job card
+            </Button>
+
+            <Button v-if="canPack" size="sm" :href="`/packing-lists/create?sales_order=${order.id}`">
+                Start packing list
+            </Button>
+
+            <Button v-if="can('sales_order.update') && !['closed', 'cancelled'].includes(order.status)" size="sm" :href="`/sales-orders/${order.id}/edit`">Edit</Button>
             <Button v-if="availableTransitions.includes('closed')" size="sm" @click="transition('closed')">Close</Button>
             <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="transition('cancelled')">Cancel</Button>
         </template>
@@ -156,19 +202,42 @@ const lineColumns = [
                         </span>
                     </template>
                     <template #cell:promised_date="{ value }">{{ date(value) }}</template>
-                </DataTable>
+                    <!--
+                        The line is where the planner actually decides; sending them to a list
+                        of every open line in the factory to find the one already on screen was
+                        the long way round.
+                    -->
+                    <template #cell:make="{ row }">
+                        <Button
+                            v-if="canRaiseJobCard && Number(row.ordered_qty) > Number(row.produced_qty)"
+                            size="sm"
+                            :href="jobCardHref(row)"
+                        >
+                            Make
+                        </Button>
+                    </template>
 
-                <template #footer>
-                    <tr>
-                        <td colspan="7" class="px-3 py-2 text-right text-ink-700">Order total</td>
-                        <td class="px-3 py-2 text-right tnum font-semibold">{{ money(order.total, order.currency) }}</td>
-                        <td colspan="2" />
-                    </tr>
-                </template>
+                    <!--
+                        Belongs to the table, not the card: `Card` has no footer slot, so this
+                        total silently rendered nowhere and its colspans had drifted off the
+                        column count with it.
+                    -->
+                    <template #footer>
+                        <tr>
+                            <td colspan="8" class="px-3 py-2 text-right text-ink-700">Order total</td>
+                            <td class="px-3 py-2 text-right tnum font-semibold">{{ money(order.total, order.currency) }}</td>
+                            <td colspan="3" />
+                        </tr>
+                    </template>
+                </DataTable>
             </Card>
 
             <div class="grid gap-4 lg:grid-cols-2">
                 <Card title="Job cards" :padded="false">
+                    <template #actions>
+                        <Button v-if="canRaiseJobCard" size="sm" :href="jobCardHref()">Create job card</Button>
+                    </template>
+
                     <DataTable
                         :columns="[
                             { key: 'number', label: 'Number' },
@@ -183,6 +252,20 @@ const lineColumns = [
                         empty="No job cards raised yet."
                         dense
                     >
+                        <template #empty>
+                            <EmptyState
+                                icon="job-card"
+                                title="No job cards for this order yet"
+                                :description="canRaiseJobCard
+                                    ? 'Nothing is on the floor against it. A card carries one line of this order into production.'
+                                    : inFlight
+                                        ? 'Nothing is on the floor against it yet.'
+                                        : 'A job card can only be raised once the order is confirmed.'"
+                                :action-label="canRaiseJobCard ? 'Create job card' : null"
+                                :action-href="canRaiseJobCard ? jobCardHref() : null"
+                            />
+                        </template>
+
                         <template #cell:planned_qty="{ value }">{{ pcs(value) }}</template>
                         <template #cell:good_qty="{ value }">{{ pcs(value) }}</template>
                         <template #cell:due_date="{ value }">{{ date(value) }}</template>

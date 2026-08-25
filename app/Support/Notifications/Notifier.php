@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Modules\Finance\Models\CreditNote;
 use App\Modules\Finance\Models\SalesInvoice;
 use App\Modules\Quality\Models\Ncr;
+use App\Modules\Sales\Models\SalesOrder;
 use App\Notifications\DocumentNotification;
 use App\Support\Settings\Settings;
 use Closure;
@@ -129,6 +130,67 @@ class Notifier
         });
     }
 
+    /**
+     * BR-46 — an order that would breach the customer's credit limit lands on `credit_hold`
+     * rather than `confirmed`.
+     *
+     * Until now the only trace was a status on a screen nobody had a reason to open, so the
+     * order sat there and the customer was told it was confirmed. The people who can clear it
+     * are exactly the ones who hold the release permission.
+     */
+    public function notifyOrderOnCreditHold(SalesOrder $order, float $excess): void
+    {
+        $this->afterCommit(function () use ($order, $excess): void {
+            // `sales_orders.customer_id` is NOT NULL and the foreign key is enforced, so the
+            // customer is always there to name.
+            $customer = $order->customer->name;
+            $reference = $order->number ?? "draft order #{$order->id}";
+
+            foreach ($this->usersWith(['sales_order.release_credit_hold']) as $user) {
+                $this->deliver($user, [
+                    'document_type' => 'sales_order',
+                    'document_id' => (int) $order->id,
+                    'document_number' => $order->number,
+                    'action' => 'credit_hold',
+                    'href' => '/sales-orders/'.$order->id,
+                    'title' => 'Order '.$reference.' is held on credit',
+                    'body' => sprintf(
+                        'Confirming it takes %s past their credit limit by %s, so nothing can be '
+                        .'planned or made against it. Review the exposure and either release the '
+                        .'hold with a reason or cancel the order.',
+                        $customer,
+                        number_format($excess, 2),
+                    ),
+                    'dedupe_key' => 'sales_order:credit_hold:'.$order->id,
+                ]);
+            }
+        });
+    }
+
+    /**
+     * A rejection raises an NCR with no owner yet (P1-3). Nobody was told, so it waited for
+     * whoever happened to open the NCR list next — which is the one queue a rejection cannot
+     * afford to sit in.
+     */
+    public function notifyNcrRaised(Ncr $ncr): void
+    {
+        $this->afterCommit(function () use ($ncr): void {
+            foreach ($this->usersWith(['ncr.update']) as $user) {
+                $this->deliver($user, [
+                    'document_type' => 'ncr',
+                    'document_id' => (int) $ncr->id,
+                    'document_number' => $ncr->number,
+                    'action' => 'raised',
+                    'href' => '/ncrs/'.$ncr->id,
+                    'title' => 'NCR '.$ncr->number.' raised from a '.$ncr->severity.' rejection',
+                    'body' => 'A lot failed inspection and the batch is frozen until this is '
+                        .'dispositioned. Assign an owner and record the investigation.',
+                    'dedupe_key' => 'ncr:raised:'.$ncr->id,
+                ]);
+            }
+        });
+    }
+
     public function notifyInvoiceOverdue(SalesInvoice $invoice): void
     {
         $this->afterCommit(function () use ($invoice): void {
@@ -197,6 +259,7 @@ class Notifier
      *     action: string,
      *     href: string,
      *     title: string,
+     *     body?: string,
      *     dedupe_key: string
      * }  $payload
      */

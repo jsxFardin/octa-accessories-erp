@@ -62,6 +62,18 @@ class GrnController extends Controller
 
     public function create(Request $request): Response
     {
+        $orders = DB::table('purchase_orders')
+            ->whereIn('status', ['approved', 'sent', 'partially_received'])
+            ->orderByDesc('id')->get(['id', 'number', 'supplier_id']);
+
+        $requested = $request->integer('po') ?: null;
+
+        // Only an order still open to receiving; anything else would leave the picker showing
+        // an id it does not list and the supplier filter with nothing to match.
+        $preselect = $orders->contains(fn ($order): bool => (int) $order->id === $requested)
+            ? $requested
+            : null;
+
         return Inertia::render('Procurement/Grns/Form', [
             'suppliers' => DB::table('suppliers')->where('is_active', true)->orderBy('name')
                 ->get(['id', 'code', 'name']),
@@ -70,9 +82,10 @@ class GrnController extends Controller
             'items' => DB::table('items')->where('is_active', true)->orderBy('code')
                 ->get(['id', 'code', 'name', 'base_uom_id', 'std_rate', 'is_shade_critical', 'has_expiry', 'shelf_life_days']),
             'uoms' => DB::table('uoms')->orderBy('code')->get(['id', 'code', 'name']),
-            'purchaseOrders' => DB::table('purchase_orders')
-                ->whereIn('status', ['approved', 'sent', 'partially_received'])
-                ->orderByDesc('id')->get(['id', 'number', 'supplier_id']),
+            'purchaseOrders' => $orders,
+            // `?po=` carries the order the storekeeper is receiving against, so the supplier
+            // and the order are already chosen when the goods are on the bench.
+            'preselectPoId' => $preselect,
             'schemes' => ['GRS', 'FSC', 'OEKO_TEX', 'SCOPE'],
         ]);
     }

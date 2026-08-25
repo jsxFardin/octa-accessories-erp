@@ -13,6 +13,7 @@ use App\Modules\Quality\Models\Ncr;
 use App\Modules\Quality\Models\QcInspection;
 use App\Support\Calculators\AqlResolver;
 use App\Support\Http\ListsResources;
+use App\Support\Notifications\Notifier;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,6 +38,7 @@ class QcInspectionController extends Controller
         private readonly NumberAllocator $numbers,
         private readonly FgReceiptService $fgReceipts,
         private readonly JobCardStateMachine $jobCards,
+        private readonly Notifier $notifier,
     ) {}
 
     public function index(Request $request): Response
@@ -67,13 +69,32 @@ class QcInspectionController extends Controller
         ]);
     }
 
+    /**
+     * `?job_card=` / `?operation=` carry the card the inspector was sent from. The full list of
+     * inspectable cards stays on the form — QC works a queue, not one card at a time.
+     */
     public function create(Request $request): Response
     {
+        $jobCards = DB::table('job_cards')
+            ->whereIn('status', ['in_production', 'qc_pending'])
+            ->orderBy('number')
+            ->get(['id', 'number', 'planned_qty', 'good_qty']);
+
+        $requestedCard = $request->integer('job_card') ?: null;
+        $preselectCard = $jobCards->contains(fn ($card): bool => (int) $card->id === $requestedCard)
+            ? $requestedCard
+            : null;
+
         return Inertia::render('Quality/Inspections/Form', [
-            'jobCards' => DB::table('job_cards')
-                ->whereIn('status', ['in_production', 'qc_pending'])
-                ->orderBy('number')
-                ->get(['id', 'number', 'planned_qty', 'good_qty']),
+            'jobCards' => $jobCards,
+            'preselect' => $preselectCard === null ? null : [
+                'job_card_id' => $preselectCard,
+                'job_card_operation_id' => $this->preselectOperation($request, $preselectCard),
+                // The lot in front of the inspector is what the card has made so far; typing
+                // it again from the screen they just left is where transposed digits enter.
+                'lot_size' => (int) $jobCards->firstWhere('id', $preselectCard)->good_qty,
+                'stage' => $request->string('stage')->toString() ?: null,
+            ],
             // QC1 — an in-process inspection has to name the operation it clears, or the
             // successor operation has nothing to wait for.
             'operations' => DB::table('job_card_operations')
@@ -89,6 +110,24 @@ class QcInspectionController extends Controller
                 ->orderBy('lot_size_from')
                 ->get(['id', 'lot_size_from', 'lot_size_to', 'sample_size', 'accept_number', 'reject_number']),
         ]);
+    }
+
+    /** The QC-flagged operation named by `?operation=`, if it belongs to the chosen card. */
+    private function preselectOperation(Request $request, int $jobCardId): ?int
+    {
+        $id = $request->integer('operation') ?: null;
+
+        if ($id === null) {
+            return null;
+        }
+
+        $exists = DB::table('job_card_operations')
+            ->where('id', $id)
+            ->where('job_card_id', $jobCardId)
+            ->where('requires_qc', true)
+            ->exists();
+
+        return $exists ? $id : null;
     }
 
     public function store(Request $request): RedirectResponse
@@ -220,7 +259,7 @@ class QcInspectionController extends Controller
     {
         // 1. The NCR, on the existing schema — severity from what the inspection found.
         // Eloquent so Auditable records creation; the row shape is unchanged from P1-3.
-        Ncr::query()->create([
+        $ncr = Ncr::query()->create([
             'number' => $this->numbers->next('ncr'),
             'source' => $inspection->stage,
             'qc_inspection_id' => $inspection->id,
@@ -240,6 +279,9 @@ class QcInspectionController extends Controller
             'status' => Ncr::OPEN,
             'raised_by' => $request->user()->id,
         ]);
+
+        // Raised with no owner yet, so nothing else would have told Quality it exists.
+        $this->notifier->notifyNcrRaised($ncr);
 
         if ($inspection->job_card_id === null) {
             return;
