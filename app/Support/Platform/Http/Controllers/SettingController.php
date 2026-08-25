@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support\Platform\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Platform\QueueHealth;
 use App\Support\Settings\Organisation;
 use App\Support\Settings\Settings;
 use Illuminate\Http\RedirectResponse;
@@ -25,6 +26,7 @@ class SettingController extends Controller
         private readonly Settings $settings,
         private readonly Organisation $organisation,
         private readonly OrganisationController $organisationScreen,
+        private readonly QueueHealth $queueHealth,
     ) {}
 
     /**
@@ -49,6 +51,10 @@ class SettingController extends Controller
             // The organisation group is excluded from the rules tab on purpose: two places
             // editing the same key is how a timezone ends up half-changed.
             'groups' => collect($this->settings->grouped())->except('organisation')->all(),
+            // Not a setting — a runtime fact, shown to the one role that can act on it.
+            // Notifications are queued, so a missing worker looks exactly like a broken
+            // notification system from every other screen in the application.
+            'queue' => $this->queueHealth->report(),
         ]);
     }
 

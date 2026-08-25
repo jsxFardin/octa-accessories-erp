@@ -5,6 +5,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
@@ -113,6 +114,18 @@ const canInspect = computed(
     () => ['in_production', 'qc_pending'].includes(props.jobCard.status) && can('qc_inspection.create'),
 );
 
+/**
+ * Material moves against a card that is released or running — the same two statuses the issue
+ * form itself allows. A card stuck at `material_pending` is the single biggest reason the
+ * floor is idle, and the way to clear it was to leave the card and search for it again.
+ */
+const canIssueMaterial = computed(
+    () => ['released', 'in_production', 'material_pending'].includes(props.jobCard.status)
+        && can('stock_issue.create'),
+);
+
+const issueHref = computed(() => `/material-issues/create?job_card=${props.jobCard.id}`);
+
 function inspectionHref(operation = null) {
     const base = `/qc-inspections/create?job_card=${props.jobCard.id}`;
 
@@ -176,13 +189,15 @@ const bomColumns = [
             >
                 Release
             </Button>
-            <Button v-if="availableTransitions.includes('on_hold')" size="sm" variant="danger" @click="holdOpen = true">
-                Hold
-            </Button>
             <Button v-if="availableTransitions.includes('in_production')" size="sm" @click="transition('in_production')">
                 Resume
             </Button>
-            <Button v-if="availableTransitions.includes('qc_pending')" size="sm" @click="transition('qc_pending')">
+            <!--
+                What a card in production is actually waiting for. Never primary at the same
+                time as `Record inspection`: once the card is at `qc_pending` this transition
+                is no longer available, so exactly one of the two leads at any status.
+            -->
+            <Button v-if="availableTransitions.includes('qc_pending')" size="sm" variant="primary" @click="transition('qc_pending')">
                 Send to QC
             </Button>
             <Button v-if="availableTransitions.includes('completed')" size="sm" variant="success" @click="transition('completed')">
@@ -203,6 +218,11 @@ const bomColumns = [
             </Button>
 
             <Button size="sm" :href="`/job-cards/${jobCard.id}/print`" external target="_blank">Print</Button>
+
+            <!-- Destructive last, after everything that moves the card forward. -->
+            <Button v-if="availableTransitions.includes('on_hold')" size="sm" variant="danger" @click="holdOpen = true">
+                Hold
+            </Button>
         </template>
 
         <div class="space-y-4">
@@ -397,14 +417,26 @@ const bomColumns = [
                 </Card>
 
                 <Card title="Material issued" :padded="false">
+                    <template #actions>
+                        <Button v-if="canIssueMaterial" size="sm" :href="issueHref">Issue material</Button>
+                    </template>
+
                     <ul class="divide-y divide-slate-100 text-sm">
                         <li v-for="issue in issues" :key="issue.id" class="flex items-center justify-between px-3 py-2">
                             <span class="font-medium text-ink-800">{{ issue.number }}</span>
                             <span class="text-xs text-ink-500">{{ date(issue.issued_on) }}</span>
                             <Badge :status="issue.status" />
                         </li>
-                        <li v-if="issues.length === 0" class="px-3 py-6 text-center text-sm text-ink-500">
-                            Nothing issued yet.
+                        <li v-if="issues.length === 0" class="px-3 py-4">
+                            <EmptyState
+                                icon="issue"
+                                title="No material issued to this card yet"
+                                :description="canIssueMaterial
+                                    ? 'Production cannot draw against it until material is issued from a store.'
+                                    : 'Material is issued once the card has been released to the floor.'"
+                                :action-label="canIssueMaterial ? 'Issue material' : null"
+                                :action-href="canIssueMaterial ? issueHref : null"
+                            />
                         </li>
                     </ul>
                 </Card>

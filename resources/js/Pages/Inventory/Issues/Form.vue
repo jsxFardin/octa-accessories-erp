@@ -19,17 +19,54 @@ const props = defineProps({
     jobCards: { type: Array, default: () => [] },
     warehouses: { type: Array, default: () => [] },
     items: { type: Array, default: () => [] },
+    /** The job card the store came from, resolved server-side. */
+    preselectJobCardId: { type: Number, default: null },
 });
 
+/** Only honoured for an issue: a card must also be in a returnable status to take a return. */
+const preselectedJob = props.jobCards.find((job) => job.id === props.preselectJobCardId) ?? null;
+
 const form = useForm({
-    job_card_id: '',
-    warehouse_id: props.warehouses[0]?.id ?? '',
+    job_card_id: ISSUE_JOB_STATUSES.includes(preselectedJob?.status) ? preselectedJob.id : '',
+    // Deliberately unset. A job card's BOM spans raw material, ink and packing, which live in
+    // different stores, so no single warehouse is right for every issue — and the previous
+    // default (the alphabetically first nettable warehouse) was "Finished goods", which
+    // returned an empty pick list for every raw-material issue. The ledger posts against the
+    // lot, not this field, so the wrong choice never moved the wrong stock; it just silently
+    // offered nothing. Making it an explicit choice is the honest fix.
+    warehouse_id: '',
     issue_type: 'issue',
     remarks: '',
     lines: [],
 });
 
 const isReturn = computed(() => form.issue_type === 'return');
+
+/**
+ * The store's kind spelled out beside its name. "FG" and "RM" are obvious to someone who has
+ * worked here a year and meaningless on day one, and picking the wrong one is the difference
+ * between a full pick list and an empty one.
+ */
+const KIND_LABEL = {
+    raw_material: 'Raw material',
+    ink_chemical: 'Ink and chemicals',
+    tool: 'Tooling',
+    wip: 'Work in progress',
+    finished_goods: 'Finished goods',
+    packing: 'Packing material',
+    scrap: 'Scrap',
+    transit: 'In transit',
+};
+
+const warehouseOptions = computed(() =>
+    props.warehouses.map((w) => {
+        const kind = KIND_LABEL[w.kind] ?? w.kind;
+
+        // Several stores are named after their kind ("Finished goods", "Packing material"),
+        // and repeating it under the name reads as a rendering fault rather than a hint.
+        return { ...w, kind_label: kind.toLowerCase() === (w.name ?? '').toLowerCase() ? null : kind };
+    }),
+);
 
 const visibleJobs = computed(() => {
     const allowed = isReturn.value ? RETURN_JOB_STATUSES : ISSUE_JOB_STATUSES;
@@ -241,13 +278,21 @@ function submit() {
                         />
                     </FormField>
 
-                    <FormField :label="isReturn ? 'Warehouse' : 'From warehouse'" :error="form.errors.warehouse_id" required>
+                    <FormField
+                        :label="isReturn ? 'Warehouse' : 'From warehouse'"
+                        :hint="isReturn
+                            ? 'Where the unused material goes back to.'
+                            : 'Which store the material comes out of — it decides which lots are offered below.'"
+                        :error="form.errors.warehouse_id"
+                        required
+                    >
                         <SelectInput
                             v-model="form.warehouse_id"
-                            :placeholder="null"
-                            :options="warehouses"
+                            placeholder="— choose a store —"
+                            :options="warehouseOptions"
                             value-key="id"
                             label-key="name"
+                            hint-key="kind_label"
                         />
                     </FormField>
 
@@ -274,6 +319,20 @@ function submit() {
                 rule="BR-37"
                 subtitle="Enter what the job needs; the system picks the lots"
             >
+                <!--
+                    Without a store there is nothing to search: an unfiltered suggestion would
+                    return lots from every warehouse, including finished goods, and the header
+                    would then name a store those lots were never in.
+                -->
+                <p
+                    v-if="!form.warehouse_id"
+                    class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                    role="status"
+                >
+                    Choose the store this material comes out of first — it decides which lots are offered.
+                    A job card usually draws yarn and ink from different stores, so there is no sensible default.
+                </p>
+
                 <!-- items-start, not items-end: two of these fields carry a hint and two do
                      not, and bottom alignment pushed their labels out of line. -->
                 <div class="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -311,7 +370,7 @@ function submit() {
                         <Button
                             class="w-full"
                             :loading="busy"
-                            :disabled="!requestItemId || !requestQty"
+                            :disabled="!requestItemId || !requestQty || !form.warehouse_id"
                             @click="suggest"
                         >
                             Suggest lots

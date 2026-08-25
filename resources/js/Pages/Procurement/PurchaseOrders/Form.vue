@@ -19,6 +19,8 @@ const props = defineProps({
     openRequisitionLines: { type: Array, default: () => [] },
     /** The requisition the buyer came from, when they came from one. */
     fromRequisition: { type: Object, default: null },
+    /** The supplier whose page the order was started from, resolved server-side. */
+    preselectSupplierId: { type: Number, default: null },
     suppliers: { type: Array, default: () => [] },
     units: { type: Array, default: () => [] },
     currencies: { type: Array, default: () => [] },
@@ -44,7 +46,7 @@ function blankLine() {
 }
 
 const form = useForm({
-    supplier_id: props.order?.supplier_id ?? '',
+    supplier_id: props.order?.supplier_id ?? props.preselectSupplierId ?? '',
     factory_unit_id: props.order?.factory_unit_id ?? props.units[0]?.id ?? '',
     order_date: isoDate(props.order?.order_date) || todayIso(),
     expected_date: isoDate(props.order?.expected_date),

@@ -71,15 +71,29 @@ class MaterialIssueController extends Controller
         ]);
     }
 
+    /** `?job_card=` carries the card the store was sent from; the picker still works. */
     public function create(Request $request): Response
     {
+        $jobCards = DB::table('job_cards')
+            ->whereIn('status', self::RETURNABLE_JOB_STATUSES)
+            ->orderBy('number')
+            ->get(['id', 'number', 'status', 'product_id', 'planned_qty', 'bom_id']);
+
+        $requested = $request->integer('job_card') ?: null;
+
         return Inertia::render('Inventory/Issues/Form', [
-            'jobCards' => DB::table('job_cards')
-                ->whereIn('status', self::RETURNABLE_JOB_STATUSES)
-                ->orderBy('number')
-                ->get(['id', 'number', 'status', 'product_id', 'planned_qty', 'bom_id']),
+            'jobCards' => $jobCards,
+            // Only a card material may actually move against; anything else would tick a row
+            // the form's own status filter then hides.
+            'preselectJobCardId' => $jobCards->contains(fn ($card): bool => (int) $card->id === $requested)
+                ? $requested
+                : null,
+            // `kind` travels with the row so the picker can say "Raw material" beside "RM"
+            // rather than leaving the store keeper to know the codes. The header warehouse is
+            // what filters the candidate lots (`suggest`), so choosing the wrong one returns
+            // an empty pick list rather than a wrong movement — the ledger follows the lot.
             'warehouses' => DB::table('warehouses')->where('is_active', true)->where('is_nettable', true)
-                ->orderBy('code')->get(['id', 'code', 'name']),
+                ->orderBy('code')->get(['id', 'code', 'name', 'kind']),
             // The picker needs `is_shade_critical` to know whether to offer a shade at all
             // (BR-37), and the base UoM to post the line without a second lookup.
             'items' => Item::query()->where('is_active', true)->orderBy('code')

@@ -64,9 +64,12 @@ const columns = [
         <template #actions>
             <Badge :status="challan.status" />
             <Button v-if="availableTransitions.includes('issued')" size="sm" variant="primary" @click="issueOpen = true">Issue</Button>
-            <Button v-if="availableTransitions.includes('in_transit')" size="sm" @click="post(transitForm)">In transit</Button>
-            <Button v-if="availableTransitions.includes('delivered')" size="sm" variant="primary" @click="post(deliverForm)">Delivered</Button>
-            <Button v-if="availableTransitions.includes('returned')" size="sm" variant="danger" @click="returnOpen = true">Return</Button>
+            <!--
+                Verbs, not statuses. Beside a badge reading "Issued", a button reading
+                "Delivered" is indistinguishable from a second status label.
+            -->
+            <Button v-if="availableTransitions.includes('in_transit')" size="sm" @click="post(transitForm)">Mark in transit</Button>
+            <Button v-if="availableTransitions.includes('delivered')" size="sm" variant="primary" @click="post(deliverForm)">Mark delivered</Button>
             <Button
                 v-if="['issued', 'in_transit', 'delivered'].includes(challan.status) && can('sales_invoice.create')"
                 size="sm"
@@ -74,6 +77,8 @@ const columns = [
             >
                 Create invoice
             </Button>
+            <!-- Destructive last, after everything that moves the delivery forward. -->
+            <Button v-if="availableTransitions.includes('returned')" size="sm" variant="danger" @click="returnOpen = true">Return</Button>
             <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="post(useForm({ to: 'cancelled' }))">Cancel</Button>
         </template>
 

@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Models\User;
+use App\Support\Platform\QueueHealth;
 use App\Support\Scoping\PortalContext;
 use App\Support\Settings\Settings;
 use App\Support\Validation\DocumentValidator;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
@@ -67,6 +70,14 @@ class AppServiceProvider extends ServiceProvider
          * mistyped password lock out a factory floor sharing a single NAT gateway, which is
          * exactly the deployment this runs in.
          */
+        /*
+         * The worker heartbeat. Notifications are queued (`DocumentNotification` is
+         * `ShouldQueue`), so with nothing draining the queue the inbox is silently always
+         * empty — no error, no log line. One cache write per completed job is what lets
+         * Configuration → Settings and `queue:health` say "worker unavailable" instead.
+         */
+        Event::listen(JobProcessed::class, fn () => app(QueueHealth::class)->recordHeartbeat());
+
         RateLimiter::for('login', fn (Request $request) => [
             Limit::perMinute(5)->by(Str::lower((string) $request->input('email')).'|'.$request->ip()),
             Limit::perMinute(30)->by($request->ip()),

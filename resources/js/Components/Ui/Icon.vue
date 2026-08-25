@@ -7,7 +7,7 @@ import {
     FileSpreadsheet, FileText, Filter, Gauge, Inbox, Info, Layers, LayoutDashboard, LogOut,
     Mail, MapPin, Menu, MoreVertical, Package, PackageCheck, PackageOpen, Pencil, Plus,
     Printer, Receipt, RefreshCw, Route, Ruler, Search, Send, Settings2, Shield, ShieldCheck,
-    Ship, ShoppingCart, SlidersHorizontal, Sparkles, Trash2, TriangleAlert, Truck, Upload,
+    Ship, ShoppingCart, SlidersHorizontal, Sparkles, Tablet, Trash2, TriangleAlert, Truck, Upload,
     User, Users, Warehouse, X,
 } from '@lucide/vue';
 
@@ -48,6 +48,7 @@ const REGISTRY = {
     mrp: Activity,
     'job-card': FileText,
     machine: Cog,
+    terminal: Tablet,
     inspection: BadgeCheck,
     lab: Beaker,
     compliance: ShieldCheck,

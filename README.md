@@ -26,7 +26,24 @@ php artisan migrate --seed      # schema, reference data, users, and the demo wa
 
 npm run build                   # or: npm run dev
 php artisan serve
+php artisan queue:work          # required — see below
 ```
+
+### The queue worker is not optional
+
+Notifications (credit holds, NCRs, overdue invoices) are queued, so on any connection other
+than `sync` they are written by a worker rather than by the request that raised them. With no
+worker running nothing fails and nothing is logged — the in-app inbox is simply always empty,
+which reads as a broken notification system rather than a missing process.
+
+`composer dev` runs one alongside the server. In production, run `php artisan queue:work`
+under a supervisor (systemd, Supervisor, or a container restart policy). To check:
+
+```bash
+php artisan queue:health        # exits non-zero when nothing is draining the queue
+```
+
+Configuration → Settings shows the same state to an administrator.
 
 Requires **MySQL ≥ 8.0.16**. Earlier releases parse `CHECK` constraints and silently ignore them, which would turn the invariants below into comments.
 

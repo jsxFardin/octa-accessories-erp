@@ -84,15 +84,42 @@ class PurchaseOrderController extends Controller
                 ->values();
         }
 
+        $options = $this->options();
+
         return Inertia::render('Procurement/PurchaseOrders/Form', [
             'order' => null,
             'openRequisitionLines' => $lines,
+            // `?supplier=` carries the supplier whose page the buyer started from. Resolved
+            // against the same collection the picker itself renders, so an inactive or
+            // unknown id preselects nothing rather than showing an unresolvable value.
+            'preselectSupplierId' => $this->preselectSupplier($request, $options['suppliers']),
             // `?pr=` carries the requisition the buyer came from. Its lines sort to the top
             // rather than being hunted for among every approved requisition in the factory;
             // the others stay listed, because one order routinely covers several.
             'fromRequisition' => $requisition,
-            ...$this->options(),
+            ...$options,
         ]);
+    }
+
+    /**
+     * The supplier behind `?supplier=`, if the picker actually offers it.
+     *
+     * Nothing here widens what may be ordered: `store()` revalidates the supplier, and the
+     * approved-supplier rule is enforced on submission, not here.
+     *
+     * @param  \Illuminate\Support\Collection<int, Supplier>  $suppliers
+     */
+    private function preselectSupplier(Request $request, $suppliers): ?int
+    {
+        $id = $request->integer('supplier') ?: null;
+
+        if ($id === null) {
+            return null;
+        }
+
+        return $suppliers->contains(fn (Supplier $supplier): bool => (int) $supplier->id === $id)
+            ? $id
+            : null;
     }
 
     public function store(Request $request): RedirectResponse

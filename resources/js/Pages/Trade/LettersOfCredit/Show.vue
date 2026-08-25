@@ -30,7 +30,28 @@ const NEXT = {
     retired: ['closed'],
 };
 
+/**
+ * A button labelled "Applied" beside a badge reading "Draft" is indistinguishable from a
+ * status: the reader cannot tell which of the two words on screen is a fact and which is a
+ * thing they can do. Every other document in the system labels its transitions with a verb,
+ * so these do too. The target status is unchanged — only what the button says.
+ */
+const LABEL = {
+    applied: 'Mark applied',
+    opened: 'Open the credit',
+    shipped: 'Mark shipped',
+    retired: 'Retire',
+    closed: 'Close',
+    cancelled: 'Cancel',
+};
+
+const DESTRUCTIVE = ['cancelled'];
+
 const next = computed(() => NEXT[props.letter.status] ?? []);
+
+/** Forward moves first; cancelling belongs after everything that progresses the credit. */
+const forward = computed(() => next.value.filter((s) => !DESTRUCTIVE.includes(s)));
+const destructive = computed(() => next.value.filter((s) => DESTRUCTIVE.includes(s)));
 
 const opening = ref(false);
 const amending = ref(false);
@@ -106,17 +127,27 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
             <Button v-if="can('letter_of_credit.amend') && ['applied', 'opened', 'shipped'].includes(letter.status)" size="sm" @click="amending = true">
                 Amend
             </Button>
+            <!-- Only the first forward move leads; the rest are alternatives, not the path. -->
             <Button
-                v-for="status in next"
+                v-for="(status, index) in forward"
                 :key="status"
                 size="sm"
-                :variant="status === 'cancelled' ? 'danger' : 'primary'"
+                :variant="index === 0 ? 'primary' : 'secondary'"
                 @click="move(status)"
             >
-                {{ titleCase(status) }}
+                {{ LABEL[status] ?? titleCase(status) }}
             </Button>
             <Button v-if="can('letter_of_credit.update') && letter.status === 'draft'" size="sm" :href="`/letters-of-credit/${letter.id}/edit`">
                 Edit
+            </Button>
+            <Button
+                v-for="status in destructive"
+                :key="status"
+                size="sm"
+                variant="danger"
+                @click="move(status)"
+            >
+                {{ LABEL[status] ?? titleCase(status) }}
             </Button>
         </template>
 

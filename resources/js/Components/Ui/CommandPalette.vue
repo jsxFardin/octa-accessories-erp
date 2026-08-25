@@ -68,6 +68,7 @@ const flatItems = computed(() => [
         title: item.label,
         subtitle: item.section,
         href: item.href,
+        external: item.external ?? false,
     })),
     ...results.value.flatMap((group) =>
         group.items.map((item) => ({
@@ -125,6 +126,15 @@ function close() {
 
 function go(item) {
     close();
+
+    // An external screen (the floor terminal) runs its own shell and cannot be entered with
+    // an Inertia visit without replacing the desk application.
+    if (item.external) {
+        window.open(item.href, '_blank', 'noopener');
+
+        return;
+    }
+
     router.visit(item.href);
 }
 

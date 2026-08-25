@@ -34,7 +34,25 @@ const NEXT = {
     costed: ['closed'],
 };
 
+/**
+ * Verbs, not statuses — see the note on the letter-of-credit screen. "In Transit" as a button
+ * beside a badge reading "Draft" reads as a second status, not as something to press.
+ */
+const LABEL = {
+    in_transit: 'Mark in transit',
+    arrived: 'Mark arrived',
+    cleared: 'Mark cleared',
+    costed: 'Mark costed',
+    closed: 'Close',
+    cancelled: 'Cancel',
+};
+
+const DESTRUCTIVE = ['cancelled'];
+
 const next = computed(() => NEXT[props.shipment.status] ?? []);
+
+const forward = computed(() => next.value.filter((s) => !DESTRUCTIVE.includes(s)));
+const destructive = computed(() => next.value.filter((s) => DESTRUCTIVE.includes(s)));
 
 const addingCost = ref(false);
 const linking = ref(false);
@@ -157,15 +175,25 @@ const byLine = computed(() => {
                 Allocate costs
             </Button>
             <Button
-                v-for="status in next"
+                v-for="(status, index) in forward"
                 :key="status"
                 size="sm"
-                :variant="status === 'cancelled' ? 'danger' : 'secondary'"
+                :variant="index === 0 ? 'primary' : 'secondary'"
                 @click="move(status)"
             >
-                {{ titleCase(status) }}
+                {{ LABEL[status] ?? titleCase(status) }}
             </Button>
             <Button v-if="can('import_shipment.update')" size="sm" :href="`/import-shipments/${shipment.id}/edit`">Edit</Button>
+            <!-- Destructive last, after everything that moves the shipment forward. -->
+            <Button
+                v-for="status in destructive"
+                :key="status"
+                size="sm"
+                variant="danger"
+                @click="move(status)"
+            >
+                {{ LABEL[status] ?? titleCase(status) }}
+            </Button>
         </template>
 
         <div class="space-y-4">

@@ -455,6 +455,38 @@ it('leaves the pull list unsorted when the buyer came from nowhere', function ()
         ->assertInertia(fn (AssertableInertia $page) => $page->where('fromRequisition', null));
 });
 
+it('opens a purchase order on the supplier the buyer came from', function (): void {
+    $supplier = DB::table('suppliers')->where('is_active', true)->where('is_approved', true)->firstOrFail();
+
+    $this->actingAs($this->buyer)
+        ->get("/purchase-orders/create?supplier={$supplier->id}")
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Procurement/PurchaseOrders/Form')
+            ->where('preselectSupplierId', (int) $supplier->id),
+        );
+});
+
+it('does not preselect a supplier the picker does not offer', function (): void {
+    // The picker lists active suppliers only; an inactive id must resolve to nothing rather
+    // than to a value the select cannot render and `store()` would reject.
+    $supplier = DB::table('suppliers')->where('is_active', true)->first(['id']);
+
+    DB::table('suppliers')->where('id', $supplier->id)->update(['is_active' => false]);
+
+    $this->actingAs($this->buyer)
+        ->get("/purchase-orders/create?supplier={$supplier->id}")
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('preselectSupplierId', null));
+});
+
+it('ignores a supplier id that names nothing', function (): void {
+    $this->actingAs($this->buyer)
+        ->get('/purchase-orders/create?supplier=99999999')
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('preselectSupplierId', null));
+});
+
 it('opens a goods receipt on the order it is being received against', function (): void {
     $orderId = approvedPurchaseOrder($this);
 
@@ -536,6 +568,65 @@ it('says so plainly when a customer is created inactive', function (): void {
         ->viewData('page')['props']['customers'];
 
     expect(collect($customers)->pluck('id'))->not->toContain((int) $customer->id);
+});
+
+// --- Job card → material issue -----------------------------------------------------------
+
+it('opens a material issue on the job card the store was sent from', function (): void {
+    // A card released but unfed is the single biggest reason the floor stands idle; clearing
+    // it used to mean leaving the card and finding it again in a list of every open card.
+    $card = inspectableJobCard();
+    DB::table('job_cards')->where('id', $card->id)->update(['status' => 'released']);
+
+    $this->actingAs($this->store)
+        ->get("/material-issues/create?job_card={$card->id}")
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Inventory/Issues/Form')
+            ->where('preselectJobCardId', (int) $card->id),
+        );
+});
+
+it('names each store by kind so the source is a conscious choice', function (): void {
+    /*
+     * The form deliberately preselects no warehouse. A job card's BOM draws yarn, ink and
+     * packing from different stores, so no single default is right — and the old default (the
+     * alphabetically first nettable warehouse) was "Finished goods", which returned an empty
+     * pick list for every raw-material issue. The ledger posts against the lot, so the wrong
+     * choice never moved the wrong stock; it just silently offered nothing.
+     */
+    $props = $this->actingAs($this->store)
+        ->get('/material-issues/create')
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    $warehouses = collect($props['warehouses']);
+
+    expect($warehouses)->not->toBeEmpty()
+        ->and($warehouses->every(fn ($w): bool => filled($w->kind)))->toBeTrue()
+        ->and($warehouses->pluck('kind')->unique()->count())->toBeGreaterThan(1);
+});
+
+it('still refuses an issue that names no store', function (): void {
+    $card = inspectableJobCard();
+    DB::table('job_cards')->where('id', $card->id)->update(['status' => 'released']);
+
+    $this->actingAs($this->store)
+        ->post('/material-issues', [
+            'job_card_id' => $card->id,
+            'lines' => [],
+        ])
+        ->assertSessionHasErrors('warehouse_id');
+});
+
+it('does not preselect a job card material cannot move against', function (): void {
+    $card = inspectableJobCard();
+    DB::table('job_cards')->where('id', $card->id)->update(['status' => 'draft']);
+
+    $this->actingAs($this->store)
+        ->get("/material-issues/create?job_card={$card->id}")
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('preselectJobCardId', null));
 });
 
 // --- Order → packing list ----------------------------------------------------------------

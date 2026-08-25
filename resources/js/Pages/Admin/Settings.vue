@@ -24,6 +24,8 @@ const props = defineProps({
     organisation: { type: Object, required: true },
     options: { type: Object, default: () => ({}) },
     groups: { type: Object, default: () => ({}) },
+    /** Runtime state, not a setting: is anything draining the queue? */
+    queue: { type: Object, default: null },
 });
 
 const tabs = [
@@ -113,6 +115,30 @@ function save() {
              window, so the action bar docks there instead of ending with a short tab. -->
         <div class="flex min-h-[calc(100vh-5.5rem)] flex-col space-y-4">
             <Tabs :tabs="tabs" :current="tab" />
+
+            <!--
+                Notifications are queued, so a stopped worker looks identical to a broken
+                notification system from every other screen. Stated here, where the person who
+                can restart it already is, and only when there is something to say.
+            -->
+            <div
+                v-if="queue && !queue.healthy"
+                class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-900"
+                role="alert"
+            >
+                <p class="font-medium">Queue worker unavailable</p>
+                <p class="mt-0.5 text-xs leading-relaxed">{{ queue.detail }}</p>
+                <p class="mt-1 font-mono text-[11px]">php artisan queue:work --queue=default</p>
+            </div>
+
+            <div
+                v-else-if="queue && queue.status === 'idle'"
+                class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900"
+                role="status"
+            >
+                <p class="font-medium">No queue worker has reported in</p>
+                <p class="mt-0.5 text-xs leading-relaxed">{{ queue.detail }}</p>
+            </div>
 
             <!-- Organisation ------------------------------------------------------------->
             <div v-if="tab === 'organisation'" class="grid gap-4 xl:grid-cols-3">

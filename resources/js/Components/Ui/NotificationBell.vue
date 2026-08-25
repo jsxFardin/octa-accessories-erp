@@ -123,9 +123,16 @@ onUnmounted(() => {
             leave-active-class="transition duration-75"
             leave-to-class="opacity-0 scale-95"
         >
+            <!--
+                The panel is anchored to the bell's right edge, and the bell is not the
+                rightmost control — search and the avatar sit beyond it. On a phone a fixed
+                320px panel therefore started off the left of the screen. Below `sm` its width
+                is the viewport less that fixed chrome (7.5rem), so it always lands on-screen;
+                from `sm` up there is room for the full 320px.
+            -->
             <div
                 v-if="open"
-                class="absolute right-0 z-50 mt-2 w-80 origin-top-right rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                class="absolute right-0 z-50 mt-2 w-[calc(100vw_-_7.5rem)] origin-top-right rounded-lg border border-slate-200 bg-white py-1 shadow-lg sm:w-80"
                 role="menu"
             >
                 <div class="flex items-center justify-between border-b border-slate-100 px-3 py-2">

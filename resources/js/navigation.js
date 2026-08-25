@@ -52,6 +52,21 @@ export const navigation = [
             { label: 'Job cards', href: '/job-cards', icon: 'job-card', permissions: ['job_card.view_any'] },
             { label: 'Material plan', href: '/mrp', icon: 'mrp', aliases: ['mrp'], permissions: ['mrp.view_any', 'mrp.run'] },
             { label: 'Machines', href: '/machines', icon: 'machine', permissions: ['machine.view_any'] },
+            /*
+             * The shop-floor terminal is a separate application on a separate device
+             * (08-architecture §4) and nothing about it is shared with the desk shell — it has
+             * no way back here. Listed so a new planner or supervisor knows it exists, and
+             * opened in its own tab so following the link never strands anyone on a badge
+             * login screen with the desk session behind it.
+             */
+            {
+                label: 'Floor terminal',
+                href: '/floor',
+                icon: 'terminal',
+                external: true,
+                aliases: ['shop floor', 'operator', 'badge', 'terminal'],
+                permissions: ['job_card.view_any'],
+            },
         ],
     },
     {

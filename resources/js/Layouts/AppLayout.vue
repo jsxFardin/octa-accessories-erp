@@ -328,8 +328,15 @@ const paletteHint = computed(() =>
 
                     <ul v-show="railed || isOpen(section)" class="mt-0.5 space-y-px">
                         <li v-for="item in section.items" :key="item.href">
-                            <Link
+                            <!--
+                                An external entry leaves this application (the floor terminal
+                                runs its own shell), so it is a plain anchor in a new tab
+                                rather than an Inertia visit that would replace the desk.
+                            -->
+                            <component
+                                :is="item.external ? 'a' : Link"
                                 :href="item.href"
+                                v-bind="item.external ? { target: '_blank', rel: 'noopener' } : {}"
                                 :title="railed ? item.label : undefined"
                                 :aria-current="isActive(item) ? 'page' : undefined"
                                 class="group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
@@ -352,7 +359,13 @@ const paletteHint = computed(() =>
                                     :class="isActive(item) ? 'text-brand-600' : 'text-ink-500 group-hover:text-ink-700'"
                                 />
                                 <span v-if="!railed" class="min-w-0 flex-1 truncate">{{ item.label }}</span>
-                            </Link>
+                                <Icon
+                                    v-if="item.external && !railed"
+                                    name="right"
+                                    size="size-3"
+                                    class="shrink-0 -rotate-45 text-ink-400"
+                                />
+                            </component>
                         </li>
                     </ul>
                 </div>
@@ -457,13 +470,24 @@ const paletteHint = computed(() =>
                         </p>
                     </div>
 
-                    <div class="flex flex-wrap items-center justify-end gap-2">
+                    <!--
+                        `ml-auto` keeps this strip against the right edge on the line it lands
+                        on. Without it a wrapped header put the strip at the start of the second
+                        line, and the notification panel — anchored `right-0` to the bell — then
+                        opened off the left of the screen.
+                    -->
+                    <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
                         <slot name="actions" />
 
                         <NotificationBell />
 
+                        <!--
+                            Shown at every width. Hidden below `sm` there was no way at all to
+                            reach the command palette on a phone — the keyboard shortcut that
+                            replaces it is not available on one.
+                        -->
                         <button
-                            class="hidden rounded-md p-1.5 text-ink-400 transition hover:bg-slate-100 hover:text-ink-700 sm:block"
+                            class="rounded-md p-1.5 text-ink-400 transition hover:bg-slate-100 hover:text-ink-700"
                             :title="`Search (${paletteHint})`"
                             aria-label="Search"
                             @click="palette?.show()"
