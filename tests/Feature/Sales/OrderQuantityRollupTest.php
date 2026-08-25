@@ -34,6 +34,10 @@ beforeEach(function (): void {
 /** Log output against one operation of the shared demo job card, as the floor terminal would. */
 function logOutput(object $test, JobCardOperation $operation, float $good, string $key): Illuminate\Testing\TestResponse
 {
+    // J2 — the step's predecessors ran. Since F-04 the API refuses production on a step whose
+    // predecessor is still open, which is the point of the rule and not of this test.
+    completeOperationsBefore($operation);
+
     return $test->postJson("/api/v1/operations/{$operation->id}/log", [
         'good_qty' => $good,
         'waste_qty' => 0,

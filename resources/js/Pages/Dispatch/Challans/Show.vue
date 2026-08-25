@@ -7,7 +7,7 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
-import { date, pcs } from '@/plugins/formatting';
+import { date, pcs, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
@@ -55,10 +55,15 @@ const columns = [
 
         <template #title>{{ challan.number ?? '(draft challan)' }}</template>
         <template #subtitle>
+            <Link v-if="challan.customer" :href="`/customers/${challan.customer.id}`" class="font-medium hover:underline">
+                {{ challan.customer.name }}
+            </Link>
+            <span v-else class="text-rose-600">No customer</span>
+            ·
             <Link v-if="challan.packing_list" :href="`/packing-lists/${challan.packing_list.id}`" class="hover:underline">
                 {{ challan.packing_list.number }}
             </Link>
-            · {{ date(challan.challan_date) }} · {{ challan.mode }}
+            · {{ date(challan.challan_date) }} · {{ titleCase(challan.mode) }}
         </template>
 
         <template #actions>
@@ -83,6 +88,63 @@ const columns = [
         </template>
 
         <div class="space-y-4">
+            <!--
+                D4 — where these goods are going, and what they are going against. A delivery
+                note whose customer, consignee and source documents are not on it is not a
+                logistics document, and the driver, the gate and the auditor all read this one.
+            -->
+            <Card title="Consignee" rule="D4">
+                <dl class="grid gap-4 sm:grid-cols-3">
+                    <div>
+                        <dt class="text-xs text-ink-500">Deliver to</dt>
+                        <dd class="font-medium text-ink-900">
+                            <Link v-if="challan.customer" :href="`/customers/${challan.customer.id}`" class="text-brand-700 hover:underline">
+                                {{ challan.customer.name }}
+                            </Link>
+                            <span v-else class="text-rose-600">Not set</span>
+                        </dd>
+                        <dd v-if="challan.customer?.code" class="text-xs text-ink-500">{{ challan.customer.code }}</dd>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <dt class="text-xs text-ink-500">Delivery address</dt>
+                        <dd v-if="challan.consignee" class="text-ink-800">
+                            <span class="font-medium">{{ challan.consignee.label }}</span> — {{ challan.consignee.address }}
+                        </dd>
+                        <dd v-else class="text-rose-600">
+                            None set. This challan cannot be issued until the order names a delivery address (D4).
+                        </dd>
+                        <dd v-if="challan.consignee?.route_zone" class="text-xs text-ink-500">
+                            Route {{ challan.consignee.route_zone }} · {{ challan.consignee.transit_days }} day transit
+                        </dd>
+                    </div>
+                </dl>
+
+                <dl class="mt-4 grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-3">
+                    <div>
+                        <dt class="text-xs text-ink-500">Sales order</dt>
+                        <dd>
+                            <Link v-if="challan.sales_order" :href="`/sales-orders/${challan.sales_order.id}`" class="font-medium text-brand-700 hover:underline">
+                                {{ challan.sales_order.number ?? `#${challan.sales_order.id}` }}
+                            </Link>
+                            <span v-else class="text-ink-400">—</span>
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-ink-500">Customer PO</dt>
+                        <dd class="text-ink-800">{{ challan.sales_order?.customer_po_no ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-ink-500">Packing list</dt>
+                        <dd>
+                            <Link v-if="challan.packing_list" :href="`/packing-lists/${challan.packing_list.id}`" class="font-medium text-brand-700 hover:underline">
+                                {{ challan.packing_list.number ?? `#${challan.packing_list.id}` }}
+                            </Link>
+                            <span v-else class="text-ink-400">—</span>
+                        </dd>
+                    </div>
+                </dl>
+            </Card>
+
             <Card title="Lines" rule="D3 · BR-44" :padded="false">
                 <DataTable :columns="columns" :rows="lines" row-key="id" empty="No lines." dense>
                     <template #cell:qty="{ value }">{{ pcs(value) }}</template>

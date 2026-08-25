@@ -118,7 +118,7 @@ CREATE TABLE audit_logs (
     KEY audit_logs_auditable_idx (auditable_type, auditable_id, created_at),
     KEY audit_logs_user_idx (user_id, created_at),
     CONSTRAINT audit_logs_user_fk  FOREIGN KEY (user_id) REFERENCES users(id),
-    CONSTRAINT audit_logs_event_chk CHECK (event IN ('created','updated','deleted','restored','status_changed','printed','exported','imported'))
+    CONSTRAINT audit_logs_event_chk CHECK (event IN ('created','updated','deleted','restored','status_changed','converted','printed','exported','imported'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE attachments (
@@ -3326,6 +3326,26 @@ WHERE jco.status IN ('pending','ready','in_progress')
 GROUP BY jco.machine_id, m.code, DATE(jco.scheduled_start);
 
 -- Chain-of-custody reconciliation (BR-42).
+-- P0-2 — what a job card made: the final operation's output, and nothing summed across
+-- operations that do not share a unit (weaving books metres, packing books pieces).
+CREATE VIEW v_job_card_output AS
+SELECT
+    jco.job_card_id,
+    jco.sequence_no  AS final_sequence_no,
+    jco.good_qty     AS good_qty,
+    jco.waste_qty    AS waste_qty,
+    jco.good_qty + jco.waste_qty AS produced_qty,
+    jco.machine_id   AS final_machine_id,
+    jco.status       AS final_status
+FROM job_card_operations jco
+JOIN (
+    SELECT job_card_id, MAX(sequence_no) AS sequence_no
+    FROM job_card_operations
+    GROUP BY job_card_id
+) last_op
+  ON last_op.job_card_id = jco.job_card_id
+ AND last_op.sequence_no = jco.sequence_no;
+
 CREATE VIEW v_coc_reconciliation AS
 SELECT
     scheme,

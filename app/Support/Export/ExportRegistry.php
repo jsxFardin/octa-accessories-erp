@@ -240,12 +240,16 @@ class ExportRegistry
                 'label' => 'Job cards',
                 'permission' => 'job_card.export',
                 'from' => 'job_cards as j',
+                // J6 — the job's output is its final operation's good quantity, not
+                // `j.produced_qty`, which accumulates every operation and so adds woven
+                // metres to packed pieces. One definition, in `v_job_card_output`.
+                'joins' => [['v_job_card_output as jo', 'jo.job_card_id', 'j.id']],
                 'searchable' => ['j.number'],
                 'filters' => ['status' => 'j.status'],
                 'columns' => [
                     'Number' => 'j.number',
                     'Planned qty' => 'j.planned_qty',
-                    'Produced qty' => 'j.produced_qty',
+                    'Produced qty' => 'jo.good_qty',
                     'Due date' => 'j.due_date',
                     'Priority' => 'j.priority',
                     'Status' => 'j.status',

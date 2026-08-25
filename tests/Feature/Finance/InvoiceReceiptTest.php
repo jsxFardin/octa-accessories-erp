@@ -27,6 +27,9 @@ beforeEach(function (): void {
     $states = app(JobCardStateMachine::class);
     $states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'finance walkthrough']);
     $states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
+    // BR-48 — a job that produced finished goods consumed material to do it. The store's
+    // issue is the fixture; F-08 is why the FG receipt now insists on it.
+    issueMaterialFor($this->jobCard->refresh(), 60000);
     $this->jobCard->operations()->reorder('sequence_no', 'desc')->firstOrFail()
         ->forceFill(['input_qty' => 5000, 'good_qty' => 5000])->save();
     DB::table('sales_order_lines')->where('id', $this->soLineId)->increment('produced_qty', 5000);

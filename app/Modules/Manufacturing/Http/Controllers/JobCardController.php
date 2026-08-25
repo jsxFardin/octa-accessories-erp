@@ -42,7 +42,13 @@ class JobCardController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = JobCard::query()->with(['product:id,code,name,product_type', 'factoryUnit:id,code']);
+        // J6 — the list prints the job's output, and the job's output is the final
+        // operation's. `job_cards.good_qty` is a running total across operations that do not
+        // share a unit: 407 m woven + 30,050 pcs folded + 30,000 pcs packed once read as
+        // "60,457 good" against a plan of 30,000 for a job that made exactly 30,000 labels.
+        $query = JobCard::query()
+            ->withFinalOutput()
+            ->with(['product:id,code,name,product_type', 'factoryUnit:id,code']);
 
         $this->applyListing(
             $query,
@@ -59,14 +65,21 @@ class JobCardController extends Controller
 
         return Inertia::render('Manufacturing/JobCards/Index', [
             'jobCards' => $query->paginate($this->perPage($request))->withQueryString()->through(
-                fn (JobCard $card): array => [
-                    ...$card->only([
-                        'id', 'number', 'colourway', 'planned_qty', 'produced_qty', 'good_qty',
-                        'waste_qty', 'due_date', 'priority', 'status', 'gross_metres', 'ends',
-                    ]),
-                    'product' => $card->product?->only(['id', 'code', 'name', 'product_type']),
-                    'unit' => $card->factoryUnit?->code,
-                ],
+                function (JobCard $card): array {
+                    $output = $card->reportedOutput();
+
+                    return [
+                        ...$card->only([
+                            'id', 'number', 'colourway', 'planned_qty',
+                            'due_date', 'priority', 'status', 'gross_metres', 'ends',
+                        ]),
+                        'good_qty' => $output['good'],
+                        'waste_qty' => $output['waste'],
+                        'produced_qty' => $output['produced'],
+                        'product' => $card->product?->only(['id', 'code', 'name', 'product_type']),
+                        'unit' => $card->factoryUnit?->code,
+                    ];
+                },
             ),
             'filters' => $this->listingFilters($request, ['status', 'product', 'unit', 'open']),
         ]);
@@ -304,6 +317,10 @@ class JobCardController extends Controller
                 'machine_group' => $op->machineGroup?->name,
                 'tool' => $op->tool?->only(['id', 'code', 'kind']),
                 'predecessors_complete' => $op->predecessorsComplete(),
+                // Metres or pieces (`consumes_web`). Without it the operations table reads as
+                // one column of comparable numbers, which is exactly the misreading that made
+                // 407 look like a catastrophic shortfall against 30,000.
+                'unit' => $op->unit(),
             ]),
             // J1 — the four checks, always visible, not only when release fails.
             'releaseGate' => $this->gate->evaluate($jobCard),
@@ -323,7 +340,10 @@ class JobCardController extends Controller
                 ->where('fr.job_card_id', $jobCard->id)
                 ->orderByDesc('fr.id')
                 ->get(['fr.id', 'fr.number', 'fr.received_on', 'fr.qty', 'fr.grade', 'fr.status',
-                    'sl.lot_no', 'sl.status as lot_status', 'sl.balance_qty']),
+                    // The lot's id as well as its number: the strip named the lot in plain
+                    // text, so the one screen that knows which lot this job made offered no
+                    // way to open it.
+                    'sl.id as lot_id', 'sl.lot_no', 'sl.status as lot_status', 'sl.balance_qty']),
             'fgWarehouses' => DB::table('warehouses')
                 ->where('is_active', true)->where('kind', 'finished_goods')
                 ->orderBy('code')->get(['id', 'code', 'name']),

@@ -89,4 +89,24 @@ class DeliveryChallan extends Model
     {
         return $this->belongsTo(PackingList::class, 'packing_list_id');
     }
+
+    /** @return BelongsTo<\App\Modules\Sales\Models\SalesOrder, $this> */
+    public function salesOrder(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Sales\Models\SalesOrder::class, 'sales_order_id');
+    }
+
+    /**
+     * Where the goods are going.
+     *
+     * The consignee on a challan is not a second copy of a name and an address — it is this
+     * row of `customer_addresses`, which is why a challan without one has nowhere to go and
+     * cannot be issued (D4).
+     *
+     * @return BelongsTo<\App\Modules\MasterData\Models\CustomerAddress, $this>
+     */
+    public function deliveryAddress(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\CustomerAddress::class, 'delivery_address_id');
+    }
 }

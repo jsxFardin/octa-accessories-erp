@@ -177,6 +177,9 @@ function p27Produce(object $test, JobCard $job, float $good): void
 
     $final = $job->operations()->reorder('sequence_no', 'desc')->firstOrFail();
 
+    // J2 — this job reached its last step legitimately; F-04 makes the API insist on it.
+    completeOperationsBefore($final);
+
     $test->postJson("/api/v1/operations/{$final->id}/log", [
         'good_qty' => $good, 'waste_qty' => 0, 'input_qty' => $good,
     ], [
@@ -185,7 +188,13 @@ function p27Produce(object $test, JobCard $job, float $good): void
     ])->assertOk();
 }
 
-function p27ReceiveFg(object $test, JobCard $job, float $qty): FgReceipt
+/**
+ * These fixtures issue one item deliberately, not the job's whole BOM, because what is under
+ * test is how a return nets out of FG cost — so the receipt is taken under an explicit BR-48
+ * waiver, which the production supervisor holds. That is the only way an FG lot reaches a
+ * zero valuation now, and saying so out loud is the point (F-07).
+ */
+function p27ReceiveFg(object $test, JobCard $job, float $qty, ?string $waiver = null): FgReceipt
 {
     $fgWarehouseId = (int) DB::table('warehouses')->where('kind', 'finished_goods')->value('id');
 
@@ -195,6 +204,7 @@ function p27ReceiveFg(object $test, JobCard $job, float $qty): FgReceipt
         'warehouse_id' => $fgWarehouseId,
         'grade' => 'A',
         'client_ref' => (string) Str::uuid(),
+        'material_waiver_reason' => $waiver ?? 'Costing fixture: only the yarn line is issued for this test.',
     ])->assertSessionHasNoErrors();
 
     return FgReceipt::query()->where('job_card_id', $job->id)->orderByDesc('id')->firstOrFail();

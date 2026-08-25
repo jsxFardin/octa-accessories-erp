@@ -437,6 +437,29 @@ A sales order line closes when cumulative delivered quantity ≥ `ordered_qty * 
 ### BR-46 — Credit control
 On sales order confirmation, if `customer_outstanding + order_value > customer.credit_limit`, the order is held at `credit_hold` and only Accounts or the MD may release it.
 
+### BR-48 — Finished goods are made out of issued material
+
+Finished goods may only be received against a job card up to the quantity the material issued
+to it can account for:
+
+```
+required_i(qty)  = bom.scaleTo(bom_line_i.qty_per_base, qty)      -- mandatory lines only
+issued_i         = SUM(issue lines for item i) - SUM(return lines for item i)
+receivable       = max qty such that issued_i >= required_i(qty) for every mandatory line i
+```
+
+`bom_lines.is_optional` is what "mandatory" means; a job with no BOM, or one whose BOM carries
+no mandatory line, requires no issue at all — some processes genuinely consume nothing from
+the store, and refusing those would invent work rather than prevent an error.
+
+Receiving beyond `receivable` requires permission `job_card.waive_material` and a typed reason,
+which is written to the audit log against the job card.
+
+The rule and the valuation are the same fact seen twice: FG unit cost is the job's issued
+material value over its final-operation good output, so a job with nothing issued values its
+output at zero. Under BR-48 a zero-cost finished-goods lot is only reachable through a
+documented waiver or a job with no material requirement.
+
 ---
 
 ## 10. Rounding and presentation

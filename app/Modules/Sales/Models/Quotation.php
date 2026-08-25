@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Models;
 
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -33,6 +34,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Quotation extends Model
 {
+    use Auditable;
+
     protected $table = 'quotations';
 
     public const UPDATED_AT = null;
@@ -86,6 +89,22 @@ class Quotation extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\Customer::class, 'customer_id');
+    }
+
+    /**
+     * How this quotation is named in a message a customer or an auditor will read: the number
+     * with its revision suffix (BR-35), or a plain statement that it has none yet.
+     */
+    public function reference(): string
+    {
+        if ($this->number === null) {
+            return 'This draft quotation';
+        }
+
+        // BR-35 lives in the allocator; spelling the suffix out a second time here is how the
+        // two drift apart.
+        return app(\App\Support\Numbering\NumberAllocator::class)
+            ->withRevision($this->number, (int) $this->revision_no);
     }
 
     /** @return HasMany<QuotationLine, $this> */

@@ -194,6 +194,93 @@ class JobCardOperation extends Model
         return $blocking->diff($accepted)->isEmpty();
     }
 
+    /**
+     * J2 — the earlier operation that is holding this one up, or null when nothing is.
+     *
+     * `predecessorsComplete()` answers yes/no; a refusal has to name the step so the floor
+     * knows what to chase. Skipped and cancelled operations are not holding anything up.
+     */
+    public function blockingPredecessor(): ?self
+    {
+        if ($this->routingOperation?->allow_parallel) {
+            return null;
+        }
+
+        return self::query()
+            ->where('job_card_id', $this->job_card_id)
+            ->where('sequence_no', '<', $this->sequence_no)
+            ->whereNotIn('status', [self::COMPLETED, self::SKIPPED, self::CANCELLED])
+            ->reorder('sequence_no', 'desc')
+            ->first();
+    }
+
+    /**
+     * The operation that hands its output to this one: the nearest earlier step that was not
+     * skipped or cancelled. Null on the first operation of a routing, whose input comes from
+     * the store rather than from another step.
+     */
+    public function feedingPredecessor(): ?self
+    {
+        return self::query()
+            ->with('routingOperation')
+            ->where('job_card_id', $this->job_card_id)
+            ->where('sequence_no', '<', $this->sequence_no)
+            ->whereNotIn('status', [self::SKIPPED, self::CANCELLED])
+            ->reorder('sequence_no', 'desc')
+            ->first();
+    }
+
+    /**
+     * How much this operation may legitimately be handed, given what the step before it has
+     * actually produced — or null when the question does not apply.
+     *
+     * Null means one of two things, both of which leave the input bounded by the operation's
+     * own plan instead:
+     *
+     *  - **No predecessor.** The first operation is fed from a material issue, not from
+     *    another step.
+     *  - **A change of unit.** Weaving produces metres and cutting consumes them to make
+     *    pieces; 407 m does not cap 30,100 pcs, and pretending it does would block every
+     *    real job. The conversion between them is the consumption plan (BR-4 … BR-13)
+     *    snapshotted on the card, not a quantity comparison here.
+     */
+    public function inputAvailableFromPredecessor(): ?float
+    {
+        $predecessor = $this->feedingPredecessor();
+
+        if ($predecessor === null || ! $this->sharesUnitWith($predecessor)) {
+            return null;
+        }
+
+        return (float) $predecessor->good_qty;
+    }
+
+    /** Statuses in which an operation can still take production. */
+    public function acceptsProduction(): bool
+    {
+        return ! in_array($this->status, [self::COMPLETED, self::SKIPPED, self::CANCELLED], true);
+    }
+
+    /**
+     * The unit this operation counts in.
+     *
+     * `routing_operations.consumes_web` is the domain's own discriminator: an operation that
+     * consumes the web is measured in metres, one that does not is measured in pieces. It is
+     * why an operation's quantities may never be added to another's — 407 m woven and 30,000
+     * pcs packed are not 30,407 of anything — and why the figure has to say which it is on
+     * every screen that prints it.
+     */
+    public function unit(): string
+    {
+        return ($this->routingOperation?->consumes_web ?? false) ? 'm' : 'pcs';
+    }
+
+    /** True when this operation's figures may be compared with `$other`'s at all. */
+    public function sharesUnitWith(self $other): bool
+    {
+        return $this->unit() === $other->unit();
+    }
+
     /** J3 — how much this operation may still book without breaching its input. */
     public function remainingOutputAllowance(): float
     {

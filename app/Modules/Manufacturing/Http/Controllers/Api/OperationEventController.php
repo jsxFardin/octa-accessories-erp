@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
+use App\Support\Audit\AuditLogger;
 use App\Support\States\StateMachine;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -33,8 +34,16 @@ class OperationEventController extends Controller
         return $this->idempotent($request, function () use ($request, $operation): array {
             // J2 — an operation cannot start before its predecessor is done, unless the
             // routing marks it parallel.
-            if (! $operation->predecessorsComplete()) {
-                abort(422, 'J2: an earlier operation on this job card is still open.');
+            $blocker = $operation->blockingPredecessor();
+
+            if ($blocker !== null) {
+                abort(422, sprintf(
+                    'J2: %s cannot start because %s (step %d) is still %s. Finish it first, or ask a planner to skip it.',
+                    $operation->name,
+                    $blocker->name,
+                    $blocker->sequence_no,
+                    str_replace('_', ' ', $blocker->status),
+                ));
             }
 
             // QC1 — the `QC` badge on the preceding row is a gate, not a note.
@@ -93,6 +102,13 @@ class OperationEventController extends Controller
                 /** @var JobCardOperation $locked */
                 $locked = JobCardOperation::query()->lockForUpdate()->findOrFail($operation->getKey());
 
+                // J7 / J2 — an operation's quantities may not exist independently of the
+                // step before it. Only `start` used to ask this, so posting straight to
+                // `log` recorded 5,000 good against three `pending` steps whose predecessor
+                // had produced nothing, and handed 21,500 to a packing step fed by a folding
+                // step that reported zero.
+                $this->guardChain($locked, $addedInput);
+
                 $newInput = (float) $locked->input_qty + $addedInput;
                 $newGood = (float) $locked->good_qty + $good;
                 $newWaste = (float) $locked->waste_qty + $waste;
@@ -147,7 +163,7 @@ class OperationEventController extends Controller
                     }
                 }
 
-                DB::table('operation_logs')->insert([
+                $logId = DB::table('operation_logs')->insertGetId([
                     'job_card_operation_id' => $locked->id,
                     'machine_id' => $data['machine_id'] ?? $locked->machine_id,
                     'operator_id' => $session->employeeId,
@@ -164,10 +180,33 @@ class OperationEventController extends Controller
                     'created_at' => now(),
                 ]);
 
+                // Production is a business event, and it is the one the trail was missing:
+                // `operation_logs` has no model of its own, so it goes through the same
+                // writer the reference tables use rather than a second mechanism.
+                app(AuditLogger::class)->recordTable('operation_logs', (int) $logId, 'created', null, [
+                    'job_card_id' => $locked->job_card_id,
+                    'job_card_operation_id' => $locked->id,
+                    'operation' => $locked->name,
+                    'good_qty' => $good,
+                    'waste_qty' => $waste,
+                    'input_qty' => $addedInput,
+                    'unit' => $locked->unit(),
+                    'operator_id' => $session->employeeId,
+                ]);
+
                 $locked->forceFill([
                     'input_qty' => $newInput,
                     'good_qty' => $newGood,
                     'waste_qty' => $newWaste,
+                    // Booking output on a step that is queued is how the terminal is used —
+                    // the operator presses `+ OUTPUT`, not `START` then `+ OUTPUT`. The step
+                    // has passed the same J2/QC1 gates `start` applies, so it opens here
+                    // rather than staying `pending` with production against it.
+                    'status' => $locked->status === JobCardOperation::PENDING
+                        || $locked->status === JobCardOperation::READY
+                            ? JobCardOperation::IN_PROGRESS
+                            : $locked->status,
+                    'started_at' => $locked->started_at ?? $occurredAt,
                 ])->save();
 
                 $jobCard = $card;
@@ -294,6 +333,86 @@ class OperationEventController extends Controller
 
             return ['downtime_log_id' => $id];
         });
+    }
+
+    /**
+     * J7 — the operation chain, enforced where production is recorded rather than only
+     * where it is started.
+     *
+     * Three questions, in the order a supervisor would ask them: is this step still open, is
+     * the step before it done, and is there enough of what that step made to hand over? The
+     * third is asked only when the two steps count in the same unit — weaving makes metres and
+     * cutting makes pieces out of them, and a metre figure has nothing to say about a piece
+     * figure (see JobCardOperation::inputAvailableFromPredecessor()).
+     */
+    private function guardChain(JobCardOperation $operation, float $addedInput): void
+    {
+        if (! $operation->acceptsProduction()) {
+            abort(422, sprintf(
+                'Production cannot be recorded for %s because the step is %s. Reopen it, or record against the step that is running.',
+                $operation->name,
+                str_replace('_', ' ', $operation->status),
+            ));
+        }
+
+        $blocker = $operation->blockingPredecessor();
+
+        if ($blocker !== null) {
+            $made = (float) $blocker->good_qty;
+
+            abort(422, sprintf(
+                'Production cannot be recorded for %s because %s (step %d) is still %s%s. Finish %s first, or ask a planner to skip it.',
+                $operation->name,
+                $blocker->name,
+                $blocker->sequence_no,
+                str_replace('_', ' ', $blocker->status),
+                $made > 0
+                    ? sprintf(' with %s %s booked', $this->trim($made), $blocker->unit())
+                    : ' and has produced nothing',
+                $blocker->name,
+            ));
+        }
+
+        // QC1 — the same gate `start` applies. Skipping `start` used to skip it too.
+        if (! $operation->qcClearedUpstream()) {
+            abort(422, sprintf(
+                'Production cannot be recorded for %s because an earlier operation needs an accepted inspection first (QC1). Ask QC to pass it.',
+                $operation->name,
+            ));
+        }
+
+        if ($addedInput <= 0) {
+            return;
+        }
+
+        $available = $operation->inputAvailableFromPredecessor();
+
+        if ($available === null) {
+            return;
+        }
+
+        $predecessor = $operation->feedingPredecessor();
+        $wouldHold = (float) $operation->input_qty + $addedInput;
+
+        if ($wouldHold > $available + 0.000001) {
+            abort(422, sprintf(
+                'Production cannot be recorded for %s because %s has produced %s %s, and %s %s would already have been handed to %s. Record %s\'s output first, or reduce the input.',
+                $operation->name,
+                $predecessor->name,
+                $this->trim($available),
+                $predecessor->unit(),
+                $this->trim($wouldHold),
+                $operation->unit(),
+                $operation->name,
+                $predecessor->name,
+            ));
+        }
+    }
+
+    /** A DECIMAL(18,6) figure as a person would write it. */
+    private function trim(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 6, '.', ','), '0'), '.');
     }
 
     /**

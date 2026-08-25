@@ -8,6 +8,7 @@ import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
+import { consigneeSummary } from '@/plugins/documentActions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ delivery_challans: Object, filters: Object });
@@ -15,6 +16,8 @@ const props = defineProps({ delivery_challans: Object, filters: Object });
 const columns = [
     { key: 'number', label: 'Number', sort: true },
     { key: 'customer_name', label: 'Customer' },
+    { key: 'destination', label: 'Destination' },
+    { key: 'sales_order', label: 'Order' },
     { key: 'challan_date', label: 'Date', sort: true },
     { key: 'mode', label: 'Mode' },
     { key: 'status', label: 'Status', sort: true },
@@ -42,7 +45,17 @@ const columns = [
                 empty="No challans issued."
             >
                 <template #cell:number="{ row, value }"><Link :href="`/delivery-challans/${row.id}`" class="font-medium text-brand-700">{{ value ?? "(draft)" }}</Link></template>
-                <template #cell:customer_name="{ row, value }">{{ row.customer?.name ?? "—" }}</template>
+                <template #cell:customer_name="{ row }">
+                    <Link v-if="row.customer" :href="`/customers/${row.customer.id}`" class="hover:underline">{{ row.customer.name }}</Link>
+                    <span v-else class="text-rose-600">{{ consigneeSummary(row).customer }}</span>
+                </template>
+                <template #cell:destination="{ row }">
+                    <span :class="row.destination ? '' : 'text-rose-600'">{{ consigneeSummary(row).destination }}</span>
+                </template>
+                <template #cell:sales_order="{ row }">
+                    <Link v-if="row.sales_order" :href="`/sales-orders/${row.sales_order.id}`" class="text-brand-700 hover:underline">{{ row.sales_order.number ?? `#${row.sales_order.id}` }}</Link>
+                    <span v-else class="text-ink-400">—</span>
+                </template>
                 <template #cell:challan_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:mode="{ row, value }">{{ titleCase(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>

@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Dispatch\Models\DeliveryChallan;
 use App\Modules\Dispatch\Models\PackingList;
 use App\Modules\Dispatch\States\DeliveryChallanStateMachine;
+use App\Modules\MasterData\Models\CustomerAddress;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
@@ -30,20 +31,40 @@ class DeliveryChallanController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = DeliveryChallan::query();
+        // D4 — every row of a delivery-note list showed "—" for the customer, because the
+        // relation was never loaded and the page was handed raw models. A delivery note whose
+        // destination is not on the list is not a logistics document.
+        $query = DeliveryChallan::query()->with([
+            'customer:id,code,name',
+            'salesOrder:id,number',
+            'deliveryAddress:id,label,city,district',
+        ]);
 
         $this->applyListing(
             $query,
             $request,
             searchable: ['number', 'tracking_no'],
-            filters: ['status' => 'status', 'customer' => 'customer_id'],
+            filters: ['status' => 'status', 'customer' => 'customer_id', 'mode' => 'mode'],
             sortable: ['number', 'challan_date', 'status'],
             defaultSort: '-id',
         );
 
         return Inertia::render('Dispatch/Challans/Index', [
-            'delivery_challans' => $query->paginate($this->perPage($request))->withQueryString(),
-            'filters' => $this->listingFilters($request, ['status', 'customer']),
+            'delivery_challans' => $query->paginate($this->perPage($request))->withQueryString()->through(
+                fn (DeliveryChallan $challan): array => [
+                    ...$challan->only([
+                        'id', 'number', 'challan_date', 'mode', 'total_cartons', 'total_qty',
+                        'status', 'tracking_no',
+                    ]),
+                    'customer' => $challan->customer?->only(['id', 'code', 'name']),
+                    'sales_order' => $challan->salesOrder?->only(['id', 'number']),
+                    'destination' => $challan->deliveryAddress === null ? null : collect([
+                        $challan->deliveryAddress->label,
+                        $challan->deliveryAddress->city,
+                    ])->filter()->join(' · '),
+                ],
+            ),
+            'filters' => $this->listingFilters($request, ['status', 'customer', 'mode']),
         ]);
     }
 
@@ -70,12 +91,35 @@ class DeliveryChallanController extends Controller
             return back()->with('error', 'A challan already exists for this packing list.');
         }
 
-        $challan = DB::transaction(function () use ($packingList, $data, $request): DeliveryChallan {
+        // D4 — a delivery note is a document about a destination. The customer and the
+        // address are the packing list's, which are the order's; deriving them here rather
+        // than accepting them from the request is what makes the challan traceable back to
+        // the order it fulfils, and what stops a challan being pointed at a different buyer.
+        $order = $packingList->sales_order_id === null
+            ? null
+            : DB::table('sales_orders')->where('id', $packingList->sales_order_id)->first();
+
+        if ($order !== null && (int) $order->customer_id !== (int) $packingList->customer_id) {
+            return back()->with('error', sprintf(
+                'This packing list names a different customer from the order it packs (%s). Fix the packing list before raising a delivery note.',
+                $order->number ?? "order #{$order->id}",
+            ));
+        }
+
+        $addressId = $packingList->delivery_address_id;
+
+        if ($addressId === null && $order !== null) {
+            $addressId = $order->delivery_address_id;
+        }
+
+        $addressId ??= CustomerAddress::defaultDeliveryFor((int) $packingList->customer_id)?->id;
+
+        $challan = DB::transaction(function () use ($packingList, $data, $request, $addressId): DeliveryChallan {
             $challan = DeliveryChallan::query()->create([
                 'packing_list_id' => $packingList->id,
                 'sales_order_id' => $packingList->sales_order_id,
                 'customer_id' => $packingList->customer_id,
-                'delivery_address_id' => $packingList->delivery_address_id,
+                'delivery_address_id' => $addressId,
                 'challan_date' => now()->toDateString(),
                 'mode' => $data['mode'],
                 'status' => 'draft',
@@ -120,7 +164,14 @@ class DeliveryChallanController extends Controller
 
     public function show(DeliveryChallan $deliveryChallan): Response
     {
-        $deliveryChallan->load('packingList:id,number,status,cert_claim_scheme,cert_claim_pct');
+        $deliveryChallan->load([
+            'packingList:id,number,status,cert_claim_scheme,cert_claim_pct',
+            'customer:id,code,name',
+            'salesOrder:id,number,status,customer_po_no',
+            'deliveryAddress',
+        ]);
+
+        $address = $deliveryChallan->deliveryAddress;
 
         return Inertia::render('Dispatch/Challans/Show', [
             'challan' => [
@@ -128,6 +179,18 @@ class DeliveryChallanController extends Controller
                     'tracking_no', 'total_cartons', 'total_qty', 'status', 'gate_pass_no', 'remarks']),
                 'packing_list' => $deliveryChallan->packingList?->only(['id', 'number', 'status', 'cert_claim_scheme', 'cert_claim_pct']),
                 'sales_order_id' => $deliveryChallan->sales_order_id,
+                'sales_order' => $deliveryChallan->salesOrder?->only(['id', 'number', 'status', 'customer_po_no']),
+                'customer' => $deliveryChallan->customer?->only(['id', 'code', 'name']),
+                // The consignee is not a second copy of a name and an address: it is the
+                // customer and the `customer_addresses` row this challan points at. D4
+                // refuses to issue without one, so a challan that reaches the gate has it.
+                'consignee' => $address === null ? null : [
+                    'id' => $address->id,
+                    'label' => $address->label,
+                    'address' => $address->oneLine(),
+                    'route_zone' => $address->route_zone,
+                    'transit_days' => $address->transit_days,
+                ],
             ],
             'lines' => DB::table('delivery_challan_lines as dcl')
                 ->leftJoin('stock_lots as sl', 'sl.id', '=', 'dcl.lot_id')

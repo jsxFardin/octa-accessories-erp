@@ -13,8 +13,7 @@ use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\ProductSpec;
 use App\Modules\Sales\Models\Inquiry;
 use App\Modules\Sales\Models\Quotation;
-use App\Modules\Sales\Models\SalesOrder;
-use App\Modules\Sales\Models\SalesOrderLine;
+use App\Modules\Sales\Services\QuotationConversionService;
 use App\Modules\Sales\States\QuotationStateMachine;
 use App\Support\Calculators\CostSheetCalculator;
 use App\Support\Http\ListsResources;
@@ -35,6 +34,7 @@ class QuotationController extends Controller
         private readonly CostSheetService $costSheets,
         private readonly CostSheetCalculator $calculator,
         private readonly Settings $settings,
+        private readonly QuotationConversionService $conversions,
     ) {}
 
     public function index(Request $request): Response
@@ -249,6 +249,19 @@ class QuotationController extends Controller
                 ->where('quotation_id', $quotation->id)
                 ->orderByDesc('id')
                 ->get(['id', 'number', 'status', 'total']),
+            // Q5 — the screen asks the same object the POST handler asks, so the primary
+            // action and the server's answer cannot disagree. A converted quotation offers
+            // the order, not a second conversion.
+            'conversion' => [
+                'convertible' => $this->conversions->isConvertible($quotation),
+                'refusal' => $this->conversions->refusalReason($quotation),
+                'live_orders' => $this->conversions->liveOrders($quotation)
+                    ->map(fn ($order): array => [
+                        'id' => $order->id,
+                        'number' => $order->number,
+                        'status' => $order->status,
+                    ])->values(),
+            ],
         ]);
     }
 
@@ -308,62 +321,18 @@ class QuotationController extends Controller
         return back()->with('success', "Quotation moved to {$data['to']}.");
     }
 
-    /** Q3 — only an accepted quotation converts to a sales order. */
+    /**
+     * Q3 / Q5 — the rules and the writing both live in QuotationConversionService, so a
+     * hand-rolled POST reaches exactly the same guard the button does.
+     */
     public function convert(Request $request, Quotation $quotation): RedirectResponse
     {
-        if ($quotation->status !== 'accepted') {
-            return back()->with('error', 'Q3: only an accepted quotation may be converted to a sales order.');
-        }
-
         $data = $request->validate([
             'customer_po_no' => ['nullable', 'string', 'max:80'],
             'delivery_date' => ['nullable', 'date'],
         ]);
 
-        $order = DB::transaction(function () use ($quotation, $data, $request): SalesOrder {
-            $order = SalesOrder::query()->create([
-                'quotation_id' => $quotation->id,
-                'customer_id' => $quotation->customer_id,
-                'customer_po_no' => $data['customer_po_no'] ?? null,
-                'order_date' => now()->toDateString(),
-                'delivery_date' => $data['delivery_date'] ?? null,
-                'currency_id' => $quotation->currency_id,
-                'exchange_rate' => $quotation->exchange_rate,
-                'payment_term_id' => $quotation->payment_term_id,
-                'merchandiser_id' => $request->user()->id,
-                'priority' => 'normal',
-                'status' => 'draft',
-                'created_by' => $request->user()->id,
-            ]);
-
-            $subtotal = 0.0;
-
-            foreach ($quotation->lines as $index => $line) {
-                $lineTotal = $this->calculator->lineValue((int) $line->qty, (float) $line->rate_per_m)
-                    + (float) $line->tooling_charge;
-                $subtotal += $lineTotal;
-
-                SalesOrderLine::query()->create([
-                    'sales_order_id' => $order->id,
-                    'line_no' => $index + 1,
-                    'product_id' => $line->product_id,
-                    'product_spec_id' => $line->product_spec_id
-                        ?? Product::query()->find($line->product_id)?->currentSpec?->id,
-                    'description' => $line->description,
-                    'ordered_qty' => $line->qty,
-                    'rate_per_m' => $line->rate_per_m,
-                    'tooling_charge' => $line->tooling_charge,
-                    'line_total' => $lineTotal,
-                    'over_tolerance_pct' => $this->settings->decimal('over_tolerance_pct', 5),
-                    'under_tolerance_pct' => $this->settings->decimal('under_tolerance_pct', 5),
-                    'status' => 'open',
-                ]);
-            }
-
-            $order->forceFill(['subtotal' => $subtotal, 'total' => $subtotal])->save();
-
-            return $order;
-        });
+        $order = $this->conversions->convert($quotation, $data, $request->user());
 
         return redirect()
             ->route('sales-orders.show', $order)

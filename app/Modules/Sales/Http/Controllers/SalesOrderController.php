@@ -180,9 +180,16 @@ class SalesOrderController extends Controller
                     'a.id', 'a.revision_no', 'a.changed_field', 'a.old_value', 'a.new_value',
                     'a.reason', 'a.created_at', 'u.name as changed_by',
                 ]),
-            'jobCards' => DB::table('job_cards')
-                ->whereIn('sales_order_line_id', $salesOrder->lines->pluck('id'))
-                ->get(['id', 'number', 'status', 'planned_qty', 'good_qty', 'due_date']),
+            // J6 — a card's output is its final operation's good quantity. Reading
+            // `job_cards.good_qty` here showed 60,457 made against 30,000 planned for a job
+            // that made exactly 30,000, because that column adds metres to pieces.
+            'jobCards' => DB::table('job_cards as jc')
+                ->whereIn('jc.sales_order_line_id', $salesOrder->lines->pluck('id'))
+                ->selectRaw('jc.id, jc.number, jc.status, jc.planned_qty, jc.due_date,
+                    COALESCE((SELECT o.good_qty FROM job_card_operations o
+                              WHERE o.job_card_id = jc.id
+                              ORDER BY o.sequence_no DESC LIMIT 1), 0) as good_qty')
+                ->get(),
             // P0-4 — the fulfilment strip: every figure from its authoritative source, the
             // packed number derived from carton contents rather than cached anywhere.
             'fulfilment' => [

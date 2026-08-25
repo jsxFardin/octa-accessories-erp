@@ -30,6 +30,10 @@ class FgReceiptController extends Controller
             'grade' => ['required', Rule::in(['A', 'B', 'reject'])],
             // Generated when the form mounts; a double-submit replays instead of double-posting.
             'client_ref' => ['required', 'string', 'max:64'],
+            // BR-48 — receiving more than the issued material accounts for is a decision
+            // someone signs for, under `job_card.waive_material`. The service checks the
+            // permission; the field only carries the sentence.
+            'material_waiver_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         try {
@@ -40,6 +44,7 @@ class FgReceiptController extends Controller
                 $data['client_ref'],
                 $data['grade'],
                 userId: $request->user()->id,
+                materialWaiverReason: $data['material_waiver_reason'] ?? null,
             );
         } catch (ValidationException $e) {
             return back()->withErrors($e->errors())->withInput();

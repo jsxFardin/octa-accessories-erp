@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Reporting\Queries;
 
 use Illuminate\Database\Query\Builder;
-use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -66,13 +65,6 @@ class ProductionReport extends ReportQuery
 
     protected function base(Request $request): Builder
     {
-        $finalOp = DB::table('job_card_operations as jco')
-            ->join(DB::raw('(SELECT job_card_id, MAX(sequence_no) as sequence_no FROM job_card_operations GROUP BY job_card_id) as last_op'), function (JoinClause $join): void {
-                $join->on('last_op.job_card_id', '=', 'jco.job_card_id')
-                    ->on('last_op.sequence_no', '=', 'jco.sequence_no');
-            })
-            ->select('jco.job_card_id', 'jco.good_qty', 'jco.machine_id');
-
         $receipts = DB::table('fg_receipts')
             ->where('status', 'posted')
             ->groupBy('job_card_id')
@@ -82,9 +74,9 @@ class ProductionReport extends ReportQuery
             ->join('products as p', 'p.id', '=', 'jc.product_id')
             ->leftJoin('sales_order_lines as sol', 'sol.id', '=', 'jc.sales_order_line_id')
             ->leftJoin('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
-            ->leftJoinSub($finalOp, 'final', 'final.job_card_id', '=', 'jc.id')
+            ->leftJoin('v_job_card_output as final', 'final.job_card_id', '=', 'jc.id')
             ->leftJoinSub($receipts, 'fr', 'fr.job_card_id', '=', 'jc.id')
-            ->leftJoin('machines as m', 'm.id', '=', 'final.machine_id')
+            ->leftJoin('machines as m', 'm.id', '=', 'final.final_machine_id')
             ->selectRaw('
                 jc.id,
                 jc.number,

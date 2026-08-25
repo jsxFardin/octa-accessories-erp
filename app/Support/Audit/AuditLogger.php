@@ -62,6 +62,24 @@ class AuditLogger
     }
 
     /**
+     * One document became another: quotation → sales order, requisition → PO.
+     *
+     * Recorded against the **source**, because that is the document someone is looking at
+     * when they ask what became of it, and it carries the reference of the target so the
+     * answer needs no second query. The target's own `created` row is written by
+     * `Auditable`; the two together are the whole story.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    public function recordConversion(Model $source, Model $target, array $context = []): void
+    {
+        $this->record($source, 'converted', null, [
+            'target_type' => $target::class,
+            'target_id' => $target->getKey(),
+        ] + $context);
+    }
+
+    /**
      * Status transitions are the audit rows anyone actually reads (05-workflows §13).
      *
      * @param  array<string, mixed>  $context

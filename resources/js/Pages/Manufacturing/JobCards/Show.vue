@@ -10,7 +10,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import Modal from '@/Components/Ui/Modal.vue';
-import { date, datetime, pcs, qty, titleCase } from '@/plugins/formatting';
+import { date, datetime, money, pcs, qty, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -378,10 +378,16 @@ const bomColumns = [
                         <Badge v-if="!row.predecessors_complete" tone="neutral" label="blocked" class="ml-1" />
                     </template>
                     <template #cell:machine="{ row }">{{ row.machine?.code ?? row.machine_group ?? '—' }}</template>
-                    <template #cell:planned_qty="{ value }">{{ qty(value) }}</template>
-                    <template #cell:input_qty="{ value }">{{ qty(value) }}</template>
-                    <template #cell:good_qty="{ value }">{{ qty(value) }}</template>
-                    <template #cell:waste_qty="{ value }">{{ qty(value) }}</template>
+                    <!--
+                        Every operation quantity carries its unit. Weaving books metres and
+                        packing books pieces, so a bare column of numbers invites the reader
+                        to add them up — which is how "60,457 good against 30,000 planned"
+                        was ever printed for a job that made exactly 30,000 labels.
+                    -->
+                    <template #cell:planned_qty="{ row, value }">{{ qty(value) }} <span class="text-ink-400">{{ row.unit }}</span></template>
+                    <template #cell:input_qty="{ row, value }">{{ qty(value) }} <span class="text-ink-400">{{ row.unit }}</span></template>
+                    <template #cell:good_qty="{ row, value }">{{ qty(value) }} <span class="text-ink-400">{{ row.unit }}</span></template>
+                    <template #cell:waste_qty="{ row, value }">{{ qty(value) }} <span class="text-ink-400">{{ row.unit }}</span></template>
                     <template #cell:status="{ value }"><Badge :status="value" /></template>
                     <!--
                         QC1 — an in-process verdict releases exactly one operation, so the
@@ -469,11 +475,51 @@ const bomColumns = [
                     </div>
                 </dl>
 
+                <!--
+                    BR-48 — what the issued material can account for, and what a piece
+                    of this job is therefore worth. A lot valued at 0.00 is a job with nothing
+                    issued against it, and that is worth saying on the screen rather than
+                    leaving someone to discover it in a stock valuation.
+                -->
+                <dl
+                    v-if="fgPosition.material_required"
+                    class="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-sm sm:grid-cols-5"
+                >
+                    <div class="sm:col-span-2">
+                        <dt class="text-xs text-ink-500">Material covers</dt>
+                        <dd
+                            class="font-medium tnum"
+                            :class="fgPosition.material_issued_any ? '' : 'text-rose-600'"
+                        >
+                            <template v-if="fgPosition.material_issued_any">{{ pcs(fgPosition.material_supports) }} pcs</template>
+                            <template v-else>Nothing issued</template>
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-ink-500">FG unit cost</dt>
+                        <dd class="font-medium tnum" :class="Number(fgPosition.unit_cost) > 0 ? '' : 'text-rose-600'">
+                            {{ money(fgPosition.unit_cost) }}
+                        </dd>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <dd v-if="!fgPosition.material_issued_any" class="text-xs text-rose-600">
+                            No material has been issued to this job, so finished goods cannot be
+                            received from it and would value at zero.
+                            <Link :href="`/material-issues/create?job_card=${jobCard.id}`" class="underline">Issue material</Link>.
+                        </dd>
+                    </div>
+                </dl>
+
                 <ul v-if="fgReceipts.length" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">
                     <li v-for="receipt in fgReceipts" :key="receipt.id" class="flex items-center justify-between gap-2 py-2">
                         <span class="font-medium text-ink-800">{{ receipt.number }}</span>
                         <span class="tnum">{{ pcs(receipt.qty) }}</span>
-                        <span class="text-xs text-ink-500">lot {{ receipt.lot_no ?? '—' }}</span>
+                        <Link
+                            v-if="receipt.lot_id"
+                            :href="`/lots/${receipt.lot_id}`"
+                            class="text-xs text-brand-700 hover:underline"
+                        >lot {{ receipt.lot_no }}</Link>
+                        <span v-else class="text-xs text-ink-500">lot —</span>
                         <Badge v-if="receipt.grade !== 'A'" tone="warning" :label="`grade ${receipt.grade}`" />
                         <Badge :status="receipt.lot_status ?? receipt.status" />
                         <span class="text-xs text-ink-500">{{ date(receipt.received_on) }}</span>

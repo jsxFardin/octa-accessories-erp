@@ -21,6 +21,9 @@ beforeEach(function (): void {
     $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
     $this->states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'rework walkthrough']);
     $this->states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
+    // BR-48 — a job that produced finished goods consumed material to do it. The store's
+    // issue is the fixture; F-08 is why the FG receipt now insists on it.
+    issueMaterialFor($this->jobCard->refresh(), 60000);
     $this->jobCard->operations()->update(['status' => JobCardOperation::COMPLETED, 'input_qty' => 1000, 'good_qty' => 1000]);
     $this->states->transition($this->jobCard->refresh(), JobCard::QC_PENDING);
 

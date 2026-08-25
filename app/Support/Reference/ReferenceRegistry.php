@@ -533,6 +533,10 @@ class ReferenceRegistry
                     ['name' => 'issued_on', 'label' => 'Issued on', 'type' => 'date', 'rules' => ['required', 'date']],
                     ['name' => 'expires_on', 'label' => 'Expires on', 'type' => 'date', 'rules' => ['required', 'date', 'after:issued_on']],
                     ['name' => 'scope_description', 'label' => 'Scope', 'type' => 'textarea', 'rules' => ['nullable', 'string', 'max:500']],
+                    // BR-43 refuses to ship a certified claim while this is empty, and named
+                    // that as the remedy — but the form had no field for it, so the rule was
+                    // unsatisfiable from inside the application.
+                    ['name' => 'document_path', 'label' => 'Signed certificate', 'type' => 'text', 'rules' => ['nullable', 'string', 'max:500'], 'hint' => 'Where the signed PDF lives. BR-43 will not let a claim ship without it.'],
                     ['name' => 'reminder_days', 'label' => 'Remind before', 'unit' => 'days', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 60],
                     ['name' => 'status', 'label' => 'Status', 'type' => 'select', 'options' => ['active', 'expired', 'suspended', 'withdrawn'], 'default' => 'active'],
                 ],

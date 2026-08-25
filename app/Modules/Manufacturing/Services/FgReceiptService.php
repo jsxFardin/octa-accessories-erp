@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Manufacturing\Services;
 
+use App\Models\User;
 use App\Modules\Dispatch\Models\FgReceipt;
 use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
+use App\Support\Audit\AuditLogger;
 use App\Support\Calculators\ClaimDilutionCalculator;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Support\Facades\Cache;
@@ -39,6 +41,7 @@ class FgReceiptService
         private readonly StockPostingService $posting,
         private readonly NumberAllocator $numbers,
         private readonly ClaimDilutionCalculator $coc,
+        private readonly AuditLogger $audit,
     ) {}
 
     /**
@@ -56,6 +59,7 @@ class FgReceiptService
         string $grade = 'A',
         ?int $qcInspectionId = null,
         int $userId = 0,
+        ?string $materialWaiverReason = null,
     ): FgReceipt {
         $cacheKey = 'fg_receipt:'.hash('sha256', $clientRef);
 
@@ -70,7 +74,7 @@ class FgReceiptService
             }
         }
 
-        $receipt = DB::transaction(function () use ($jobCard, $qty, $warehouseId, $grade, $qcInspectionId, $userId): FgReceipt {
+        $receipt = DB::transaction(function () use ($jobCard, $qty, $warehouseId, $grade, $qcInspectionId, $userId, $materialWaiverReason): FgReceipt {
             // Lock #1 — the job card. Two supervisors posting the last 4,000 pieces at the
             // same moment serialise here, so the ceiling below is checked against the truth.
             /** @var JobCard $locked */
@@ -105,6 +109,12 @@ class FgReceiptService
                     ),
                 ]);
             }
+
+            // BR-48 — labels are not made out of nothing. Five job cards produced 5,000 pieces
+            // apiece with no material issued against them, and their FG lots were valued at
+            // 0.00 because there was no consumption to value them from. Both halves of that
+            // are the same hole: output was received without the input it came from.
+            $this->guardMaterial($locked, $qty, $alreadyReceived, $materialWaiverReason, $userId);
 
             $inspection = $this->resolveInspection($locked, $qcInspectionId);
 
@@ -189,7 +199,7 @@ class FgReceiptService
      * The FG position of a job, for the reconciliation panel: produced vs received vs
      * available, with the gap stated rather than smoothed over.
      *
-     * @return array{produced: float, received: float, available: float, quarantined: float, remaining_receivable: float}
+     * @return array{produced: float, received: float, available: float, quarantined: float, remaining_receivable: float, material_supports: float|null, material_required: bool, material_issued_any: bool, unit_cost: float}
      */
     public function positionFor(JobCard $jobCard): array
     {
@@ -207,13 +217,207 @@ class FgReceiptService
             ->groupBy('status')
             ->pluck(DB::raw('SUM(balance_qty)'), 'status');
 
+        // BR-48 — how far the issued material stretches, stated before someone tries to
+        // receive past it rather than as a refusal afterwards.
+        $material = $this->materialPosition($jobCard);
+
         return [
             'produced' => round($produced, 6),
             'received' => round($received, 6),
             'available' => round((float) ($byStatus['available'] ?? 0), 6),
             'quarantined' => round((float) ($byStatus['quarantine'] ?? 0), 6),
             'remaining_receivable' => round(max(0, $produced - $received), 6),
+            'material_required' => $material['required'],
+            'material_issued_any' => $material['issued_any'],
+            'material_supports' => $material['supported_qty'],
+            // What a piece of this job's output is worth: issued material value over good
+            // output. Zero here is a fact about the job, not a rendering accident (BR-48).
+            'unit_cost' => $this->materialUnitCost($jobCard, $produced),
         ];
+    }
+
+    /**
+     * BR-48 — how much finished output the material actually issued to this job can account
+     * for, item by item.
+     *
+     * The requirement is the job's own BOM, scaled the way every other screen scales it
+     * (`Bom::scaleTo`). Optional lines are not required — that is what the flag on
+     * `bom_lines` means. A job with no BOM, or a BOM with nothing mandatory on it, requires
+     * no issue at all: some processes genuinely consume nothing from the store, and refusing
+     * those would be a rule inventing work rather than preventing an error.
+     *
+     * @return array{
+     *     required: bool,
+     *     issued_any: bool,
+     *     supported_qty: float|null,
+     *     limiting: array{item_code: string, item_name: string, required: float, issued: float, uom: string}|null,
+     *     lines: list<array{item_code: string, item_name: string, per_base: float, per_piece: float, issued: float, supports: float, uom: string}>
+     * }
+     */
+    public function materialPosition(JobCard $jobCard): array
+    {
+        $empty = ['required' => false, 'issued_any' => false, 'supported_qty' => null, 'limiting' => null, 'lines' => []];
+
+        $bom = $jobCard->bom;
+
+        if ($bom === null) {
+            return $empty;
+        }
+
+        $bomLines = DB::table('bom_lines as bl')
+            ->join('items as i', 'i.id', '=', 'bl.item_id')
+            ->leftJoin('uoms as u', 'u.id', '=', 'bl.uom_id')
+            ->where('bl.bom_id', $bom->getKey())
+            ->where('bl.is_optional', false)
+            ->get(['bl.item_id', 'bl.qty_per_base', 'i.code', 'i.name', 'u.code as uom']);
+
+        if ($bomLines->isEmpty()) {
+            return $empty;
+        }
+
+        // IN-3 — a return is unused material coming back, not additional consumption.
+        $issued = DB::table('material_issue_lines as mil')
+            ->join('material_issues as mi', 'mi.id', '=', 'mil.material_issue_id')
+            ->where('mi.job_card_id', $jobCard->getKey())
+            ->where('mi.status', 'posted')
+            ->groupBy('mil.item_id')
+            ->selectRaw("mil.item_id, SUM(CASE WHEN mi.issue_type = 'return' THEN -mil.qty ELSE mil.qty END) as issued_qty")
+            ->pluck('issued_qty', 'item_id');
+
+        $lines = [];
+        $supported = null;
+        $limiting = null;
+
+        foreach ($bomLines as $line) {
+            $perBase = (float) $line->qty_per_base;
+            $issuedQty = (float) ($issued[$line->item_id] ?? 0);
+
+            // Pieces the issue covers, computed from the unrounded ratio. `scaleTo` rounds to
+            // six places, and dividing a rounded requirement back out amplifies that rounding
+            // into whole pieces — which is why the *check* below compares material to
+            // material and only the display goes through this number.
+            $supports = $perBase > 0
+                ? $issuedQty * (float) $bom->base_qty / $perBase
+                : INF;
+
+            $lines[] = [
+                'item_code' => (string) $line->code,
+                'item_name' => (string) $line->name,
+                'per_base' => $perBase,
+                'per_piece' => $bom->scaleTo($perBase, 1.0),
+                'issued' => round($issuedQty, 6),
+                'supports' => is_infinite($supports) ? INF : round($supports, 6),
+                'uom' => (string) ($line->uom ?? ''),
+            ];
+
+            if ($supported === null || $supports < $supported) {
+                $supported = $supports;
+                $limiting = [
+                    'item_code' => (string) $line->code,
+                    'item_name' => (string) $line->name,
+                    'required' => $bom->scaleTo($perBase, 1.0),
+                    'issued' => round($issuedQty, 6),
+                    'uom' => (string) ($line->uom ?? ''),
+                ];
+            }
+        }
+
+        return [
+            'required' => true,
+            'issued_any' => $issued->filter(fn ($qty): bool => (float) $qty > 0)->isNotEmpty(),
+            'supported_qty' => $supported === null || is_infinite($supported) ? null : round($supported, 6),
+            'limiting' => $limiting,
+            'lines' => $lines,
+        ];
+    }
+
+    /**
+     * BR-48 at the moment of receipt.
+     *
+     * A waiver is a real thing — rework fed from a previous run, material moved by a stock
+     * transfer someone will reconcile later — so it exists, but it is a named permission and
+     * a typed sentence, and it lands in the audit trail beside the receipt. What it is not is
+     * silence.
+     *
+     * @throws ValidationException
+     */
+    private function guardMaterial(
+        JobCard $jobCard,
+        float $qty,
+        float $alreadyReceived,
+        ?string $waiverReason,
+        int $userId,
+    ): void {
+        $position = $this->materialPosition($jobCard);
+
+        if (! $position['required']) {
+            return;
+        }
+
+        $supported = $position['supported_qty'];
+        $wantedPieces = $alreadyReceived + $qty;
+
+        // Compared in the material's own unit, using the same `Bom::scaleTo` the issue screen
+        // and the release gate use. A comparison in pieces would go through a division and
+        // fail by a fraction of a label on a perfectly issued job.
+        $short = collect($position['lines'])->first(
+            fn (array $line): bool => $jobCard->bom->scaleTo($line['per_base'], $wantedPieces)
+                > $line['issued'] + 0.000001,
+        );
+
+        if ($short === null) {
+            return;
+        }
+
+        if (filled($waiverReason)) {
+            $user = $userId !== 0 ? User::query()->find($userId) : auth()->user();
+
+            if (! ($user?->hasPermission('job_card.waive_material') ?? false)) {
+                throw ValidationException::withMessages([
+                    'material_waiver_reason' => 'Receiving finished goods beyond what the issued material covers needs the [job_card.waive_material] permission. Ask a planner to record the waiver.',
+                ]);
+            }
+
+            // Against the job card, because that is the document someone opens when they ask
+            // why this job's finished goods cost what they cost.
+            $this->audit->record($jobCard, 'updated', null, [
+                'material_waiver_reason' => $waiverReason,
+                'waived_for' => 'fg_receipt',
+                'qty' => $qty,
+                'material_supports_qty' => $supported,
+            ]);
+
+            return;
+        }
+
+        // The item that actually ran out, not merely the tightest one on paper.
+        $limiting = $short;
+        $wanted = $wantedPieces;
+
+        throw ValidationException::withMessages([
+            'qty' => $position['issued_any']
+                ? sprintf(
+                    'Material cannot account for %s pieces on %s. %s issued to this job covers %s pieces, and %s of %s is needed per piece. Issue the rest, or record a waiver with a reason.',
+                    $this->number($wanted),
+                    $jobCard->reference(),
+                    trim($this->number($limiting['issued']).' '.$limiting['uom']),
+                    $this->number((float) $supported),
+                    trim($this->number($limiting['per_piece'], 8).' '.$limiting['uom']),
+                    $limiting['item_code'],
+                )
+                : sprintf(
+                    'No material has been issued to %s, so there is nothing these %s pieces could have been made from. Its BOM needs %s; issue it from the store, or record a waiver with a reason.',
+                    $jobCard->reference(),
+                    $this->number($qty),
+                    collect($position['lines'])->pluck('item_code')->join(', '),
+                ),
+        ]);
+    }
+
+    /** A DECIMAL figure the way a supervisor writes it. */
+    private function number(float $value, int $decimals = 3): string
+    {
+        return rtrim(rtrim(number_format($value, $decimals, '.', ','), '0'), '.');
     }
 
     /** The quantity production actually reported: the final operation's good output (P0-2). */

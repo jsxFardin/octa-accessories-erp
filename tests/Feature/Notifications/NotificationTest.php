@@ -163,6 +163,9 @@ function p24FulfilChallan(object $test, float $qty): DeliveryChallan
         $states = app(JobCardStateMachine::class);
         $states->transition($test->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'P2-4 notification walkthrough']);
         $states->transition($test->jobCard->refresh(), JobCard::IN_PRODUCTION);
+        // BR-48 — a job that produced finished goods consumed material to do it. The store's
+        // issue is the fixture; F-08 is why the FG receipt now insists on it.
+        issueMaterialFor($test->jobCard->refresh(), 60000);
         $test->jobCard->operations()->reorder('sequence_no', 'desc')->firstOrFail()
             ->forceFill(['input_qty' => 10000, 'good_qty' => 10000])->save();
         DB::table('sales_order_lines')->where('id', $test->soLineId)->increment('produced_qty', 10000);

@@ -43,9 +43,12 @@ it('lets an operator close the final operation of a job card', function (): void
     $operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
     expect($operator->hasPermission('job_card.update'))->toBeFalse();
 
-    $this->jobCard->operations()->update(['status' => JobCardOperation::COMPLETED]);
-
     $final = $this->jobCard->operations()->reorder('sequence_no', 'desc')->firstOrFail();
+
+    // The steps before it ran and handed something over — a predecessor that completed with
+    // nothing booked has nothing to hand on, and since F-04 the API says so (J2).
+    completeOperationsBefore($final);
+
     $final->forceFill(['status' => JobCardOperation::IN_PROGRESS])->save();
 
     // Booked, because an operation that closes empty is refused on its own account (J3).

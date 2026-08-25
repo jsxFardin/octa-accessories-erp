@@ -111,8 +111,74 @@ class DispatchService
             throw TransitionDenied::guard('D3', "This challan cannot be issued.\n• ".implode("\n• ", $blocked));
         }
 
+        $this->guardConsignee($challan);
         $this->guardTolerance($lines, $context);
         $this->guardCertificate($challan);
+    }
+
+    /**
+     * D4 — goods do not leave the gate without a destination on the paperwork.
+     *
+     * Every delivery note in the system read "Customer —" because the list never loaded the
+     * relation, but underneath that there was a real hole: a challan could be issued with no
+     * delivery address at all, and nothing checked that the buyer on the note was the buyer
+     * on the order it fulfils. A driver, a gate guard and an auditor all read this document;
+     * it has to say where the goods went and to whom.
+     *
+     * @throws TransitionDenied
+     */
+    private function guardConsignee(DeliveryChallan $challan): void
+    {
+        $blocked = [];
+
+        $customer = DB::table('customers')->where('id', $challan->customer_id)->first(['id', 'name']);
+
+        if ($customer === null) {
+            $blocked[] = 'This challan names no customer, so there is nobody to deliver it to.';
+        }
+
+        $order = $challan->sales_order_id === null
+            ? null
+            : DB::table('sales_orders')->where('id', $challan->sales_order_id)->first();
+
+        if ($order !== null && (int) $order->customer_id !== (int) $challan->customer_id) {
+            $blocked[] = sprintf(
+                'The challan is addressed to a different customer from %s, the order it fulfils. A delivery note cannot re-address someone else\'s goods.',
+                $order->number ?? "order #{$order->id}",
+            );
+        }
+
+        $packingCustomer = DB::table('packing_lists')
+            ->where('id', $challan->packing_list_id)
+            ->value('customer_id');
+
+        if ($packingCustomer !== null && (int) $packingCustomer !== (int) $challan->customer_id) {
+            $blocked[] = 'The challan is addressed to a different customer from the packing list it carries.';
+        }
+
+        $address = DB::table('customer_addresses')
+            ->where('id', $challan->delivery_address_id)
+            ->first(['id', 'customer_id', 'label']);
+
+        if ($address === null) {
+            $orderName = $order !== null && $order->number !== null ? $order->number : 'the sales order';
+
+            $blocked[] = sprintf(
+                'This challan has no delivery address, so the driver has nowhere to take it. Set one on %s, or add a delivery address for %s.',
+                $orderName,
+                $customer === null ? 'the customer' : $customer->name,
+            );
+        } elseif ((int) $address->customer_id !== (int) $challan->customer_id) {
+            $blocked[] = sprintf(
+                'The delivery address "%s" belongs to another customer. Choose one of %s\'s own addresses.',
+                $address->label,
+                $customer === null ? 'this customer' : $customer->name,
+            );
+        }
+
+        if ($blocked !== []) {
+            throw TransitionDenied::guard('D4', "This challan cannot be issued.\n• ".implode("\n• ", $blocked));
+        }
     }
 
     /**

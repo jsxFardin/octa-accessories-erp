@@ -300,7 +300,11 @@ class LocalProcessSeeder extends Seeder
         $states->transition($job->refresh(), JobCard::IN_PRODUCTION);
 
         $produce = min(5_000, $qty);
-        $job->operations()->update(['input_qty' => $produce, 'good_qty' => $produce]);
+        $this->runProduction($job, $produce);
+
+        // P0-2 — the order line's produced total moves with the *final* operation's good
+        // output, which is what the floor API does. Every operation's output added together
+        // would count the same labels once per step, in two different units.
         DB::table('sales_order_lines')->where('id', $job->sales_order_line_id)->increment('produced_qty', $produce);
 
         if ($i <= 95) {
@@ -308,6 +312,118 @@ class LocalProcessSeeder extends Seeder
         }
 
         $this->dispatchAndInvoice($job->refresh(), $order->refresh(), $produce, $offer);
+    }
+
+    /**
+     * Put a job through its routing and through the store, the way the floor and the
+     * store keeper would.
+     *
+     * This used to be one line — `operations()->update(['input_qty' => n, 'good_qty' => n])`
+     * — and it wrote states the application itself refuses: `pending` steps holding
+     * production behind a predecessor that had produced nothing (J7), metres and pieces
+     * carrying the same figure (J6), and finished goods received against a job with no
+     * material issued, which then valued at 0.00 (BR-48). Seed data that the rules would
+     * reject is not a demo, it is a bug report.
+     */
+    private function runProduction(JobCard $job, int $produce): void
+    {
+        $this->issueMaterial($job, $produce);
+
+        $job->load('operations.routingOperation');
+
+        foreach ($job->operations as $operation) {
+            // Web operations book metres — the consumption plan's gross metres, already
+            // snapshotted onto the operation as its planned quantity. Everything after the
+            // cut books pieces. The two are never added together and never compared.
+            $consumesWeb = (bool) DB::table('routing_operations')
+                ->where('id', $operation->routing_operation_id)
+                ->value('consumes_web');
+
+            $booked = $consumesWeb ? (float) $operation->planned_qty : (float) $produce;
+
+            $operation->forceFill([
+                'input_qty' => $booked,
+                'good_qty' => $booked,
+                'waste_qty' => 0,
+                'status' => JobCardOperation::COMPLETED,
+                'started_at' => now()->subHours(6),
+                'finished_at' => now()->subHours(2),
+            ])->save();
+        }
+
+        // P0-2 — the card's own totals are the final operation's, not a sum across units.
+        $finalGood = (float) $job->operations()->reorder('sequence_no', 'desc')->value('good_qty');
+
+        $job->forceFill([
+            'good_qty' => $finalGood,
+            'waste_qty' => 0,
+            'produced_qty' => $finalGood,
+            'actual_start' => now()->subHours(6),
+        ])->save();
+    }
+
+    /**
+     * Issue the job's BOM material from the store, so BR-48 is satisfied and the finished
+     * goods have a cost to be valued at.
+     */
+    private function issueMaterial(JobCard $job, int $produce): void
+    {
+        $bom = $job->bom;
+
+        if ($bom === null) {
+            return;
+        }
+
+        $lines = DB::table('bom_lines')
+            ->where('bom_id', $bom->getKey())
+            ->where('is_optional', false)
+            ->get(['item_id', 'uom_id', 'qty_per_base']);
+
+        if ($lines->isEmpty()) {
+            return;
+        }
+
+        $warehouseId = (int) DB::table('warehouses')->where('kind', 'raw_material')->value('id');
+
+        // BR-34 — the number is allocated inside the transaction that writes the document, so
+        // a rollback does not burn it.
+        DB::transaction(function () use ($job, $produce, $bom, $lines, $warehouseId): void {
+            $issueId = DB::table('material_issues')->insertGetId([
+                'number' => app(NumberAllocator::class)->next('material_issue'),
+                'job_card_id' => $job->getKey(),
+                'warehouse_id' => $warehouseId,
+                'issued_on' => now()->toDateString(),
+                'issue_type' => 'issue',
+                'status' => 'posted',
+                'issued_by' => $this->userId,
+                'created_at' => now(),
+            ]);
+
+            $lineNo = 0;
+
+            foreach ($lines as $line) {
+                $lot = DB::table('stock_lots')
+                    ->where('item_id', $line->item_id)
+                    ->orderBy('id')
+                    ->first(['id']);
+
+                if ($lot === null) {
+                    continue;
+                }
+
+                DB::table('material_issue_lines')->insert([
+                    'material_issue_id' => $issueId,
+                    'line_no' => ++$lineNo,
+                    'item_id' => $line->item_id,
+                    'lot_id' => $lot->id,
+                    'uom_id' => $line->uom_id,
+                    // The consumption the run actually needed, at the item's standard rate —
+                    // the figure BR-23 and the FG valuation both read.
+                    'qty' => max(0.000001, $bom->scaleTo((float) $line->qty_per_base, (float) $produce)),
+                    'unit_cost' => (float) DB::table('items')->where('id', $line->item_id)->value('std_rate') ?: 0,
+                ]);
+            }
+        });
     }
 
     /**

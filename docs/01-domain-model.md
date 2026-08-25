@@ -146,6 +146,10 @@ Members: `quotation_lines`, `cost_sheets`, `cost_sheet_lines`
 - **Q2** Prices are stored per 1000 pieces (`rate_per_m`) with `DECIMAL(18,4)`.
 - **Q3** A quotation is only convertible to a Sales Order while `accepted`.
 - **Q4** Revising a sent quotation creates revision `n+1`; the prior revision becomes read-only.
+- **Q5** A quotation converts into **one** standing Sales Order. A second conversion is refused
+  while an order raised from it is alive; the schema's one-to-many exists so that a *cancelled*
+  order can be re-raised without revising the quotation, and for nothing else. Enforced under
+  the quotation's row lock, so two simultaneous requests serialise rather than both passing.
 
 ### 3.4 Sales Order (root: `sales_orders`)
 Members: `sales_order_lines`, `so_delivery_schedules`, `so_amendments`
@@ -161,6 +165,15 @@ Members: `job_card_lines`, `job_card_operations`, `operation_logs`, `waste_logs`
 - **J3** `good_qty + waste_qty` of an operation cannot exceed the input quantity handed to it.
 - **J4** Closing a Job Card is blocked while any operation is `in_progress` or any mandatory QC inspection is unresolved.
 - **J5** Cumulative produced quantity may not exceed `planned_qty × (1 + overrun_tolerance_pct)`.
+- **J6** A job card's *output* is its **final operation's** `good_qty`. Operations do not share a
+  unit — `routing_operations.consumes_web` distinguishes metres from pieces — so quantities are
+  never summed or compared across a change of unit. `job_cards.good_qty` / `produced_qty` /
+  `waste_qty` are running totals across every operation and are not the job's output;
+  `v_job_card_output` is.
+- **J7** An operation may only record production while it is open, its predecessors are
+  `completed`/`skipped`/`cancelled` (J2), and any upstream `requires_qc` step has an accepted
+  inspection (QC1). Where an operation and the one feeding it share a unit, cumulative
+  `input_qty` may not exceed the predecessor's `good_qty`.
 
 ### 3.6 Stock (root: `stock_lots`; ledger: `stock_ledger`)
 - **I1** `stock_ledger` is append-only. No UPDATE, no DELETE. Corrections are reversing entries.
@@ -184,6 +197,10 @@ Members: `cartons`, `carton_contents`
 - **D1** A carton's contents must all come from lots that passed final QC.
 - **D2** A carton belongs to exactly one packing list.
 - **D3** A Delivery Challan cannot be issued for a packing list whose cartons total zero pieces.
+- **D4** A Delivery Challan cannot be issued without a customer and a `customer_addresses` row
+  to deliver to, and both must agree with the Sales Order and the Packing List it carries. The
+  consignee is that address, not a second copy of a name — a delivery note whose destination is
+  unknown is not a logistics document.
 
 ---
 

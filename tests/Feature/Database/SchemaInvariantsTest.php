@@ -198,8 +198,10 @@ it('loads every object the specification promises', function (): void {
     //
     // Those eight moved eleven CHECK constraints onto twelve foreign keys: the list a column
     // accepts is a table now, not a constraint body.
+    // The fifth view is `v_job_card_output` (P0-2 / F-03): what a job card made, defined
+    // once in SQL instead of four times in PHP.
     expect($tables)->toBe(155)
-        ->and($views)->toBe(4)
+        ->and($views)->toBe(5)
         ->and($foreignKeys)->toBe(408)
         ->and($checks)->toBe(168);
 });

@@ -26,6 +26,9 @@ beforeEach(function (): void {
     $states = app(JobCardStateMachine::class);
     $states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'Test walkthrough']);
     $states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
+    // BR-48 — a job that produced finished goods consumed material to do it. The store's
+    // issue is the fixture; F-08 is why the FG receipt now insists on it.
+    issueMaterialFor($this->jobCard->refresh(), 60000);
 
     // Shop-floor session for output logging, exactly as the terminal does it.
     $card = DB::table('employees')
@@ -44,6 +47,10 @@ function produceOutput(object $test, float $good): void
 {
     $final = $test->jobCard->operations()->reorder('sequence_no', 'desc')->firstOrFail();
 
+    // J2 — the job reached its last step by running the ones before it. Since F-04 the API
+    // says so out loud; this states the same thing the demo walkthrough always implied.
+    completeOperationsBefore($final);
+
     $test->postJson("/api/v1/operations/{$final->id}/log", [
         'good_qty' => $good, 'waste_qty' => 0, 'input_qty' => $good,
     ], [
@@ -53,8 +60,13 @@ function produceOutput(object $test, float $good): void
 }
 
 /** Post an FG receipt as the production supervisor, through the route. */
-function postReceipt(object $test, float $qty, string $grade = 'A', ?string $clientRef = null): Illuminate\Testing\TestResponse
-{
+function postReceipt(
+    object $test,
+    float $qty,
+    string $grade = 'A',
+    ?string $clientRef = null,
+    ?string $materialWaiver = null,
+): Illuminate\Testing\TestResponse {
     $test->actingAs(User::query()->where('email', 'supervisor@maheenlabel.test')->firstOrFail());
 
     return $test->post("/job-cards/{$test->jobCard->id}/fg-receipts", [
@@ -62,6 +74,7 @@ function postReceipt(object $test, float $qty, string $grade = 'A', ?string $cli
         'warehouse_id' => $test->fgWarehouseId,
         'grade' => $grade,
         'client_ref' => $clientRef ?? (string) Str::uuid(),
+        'material_waiver_reason' => $materialWaiver,
     ]);
 }
 
@@ -230,6 +243,10 @@ it('leaves the order line produced quantity to production, not to receipts', fun
 it('stamps the FG lot with the diluted certification claim of what the job consumed', function (): void {
     produceOutput($this, 1000);
 
+    // This test states the job's whole consumption itself, so the BR-48 fixture issue goes:
+    // the dilution and the valuation below are over exactly these two lots and nothing else.
+    DB::table('material_issues')->where('job_card_id', $this->jobCard->id)->delete();
+
     // Consume two real seeded lots — one GRS-certified, one not — through posted issue lines,
     // which is exactly what the dilution reads (BR-40, rounded down, never up).
     $certified = DB::table('stock_lots')->where('cert_scheme', 'GRS')->whereNotNull('item_id')->first();
@@ -247,7 +264,10 @@ it('stamps the FG lot with the diluted certification claim of what the job consu
         ]);
     }
 
-    postReceipt($this, 1000)->assertSessionHasNoErrors();
+    // Two lots is not the job's whole BOM, so the receipt is taken under an explicit BR-48
+    // waiver — the deliberate, signed-for path, not silence.
+    postReceipt($this, 1000, materialWaiver: 'Dilution fixture: consumption stated line by line.')
+        ->assertSessionHasNoErrors();
 
     $receipt = FgReceipt::query()->where('job_card_id', $this->jobCard->id)->firstOrFail();
     $lot = DB::table('stock_lots')->where('id', $receipt->lot_id)->first();

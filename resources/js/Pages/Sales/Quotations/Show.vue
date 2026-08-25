@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -10,6 +10,7 @@ import Modal from '@/Components/Ui/Modal.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
+import { conversionAction } from '@/plugins/documentActions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 import RuleHint from '@/Components/Ui/RuleHint.vue';
@@ -22,6 +23,8 @@ const props = defineProps({
     inquiry: { type: Object, default: null },
     /** The order(s) it was converted into. */
     orders: { type: Array, default: () => [] },
+    /** Q5, as the server answers it: whether a conversion is still available, and why not. */
+    conversion: { type: Object, default: () => ({ convertible: false, refusal: null, live_orders: [] }) },
 });
 
 const rejectOpen = ref(false);
@@ -30,6 +33,9 @@ function duplicate() {
     router.post(`/quotations/${props.quotation.id}/duplicate`);
 }
 const convertOpen = ref(false);
+
+/** Q5 — what this quotation offers next, decided the same way the server decides it. */
+const convertAction = computed(() => conversionAction(props.quotation, props.conversion, can));
 
 const rejectForm = useForm({ to: 'rejected', reject_reason: '' });
 const convertForm = useForm({ customer_po_no: '', delivery_date: '' });
@@ -60,7 +66,30 @@ async function transition(to) {
         <template #actions>
             <Badge :status="quotation.status" />
             <Button v-if="availableTransitions.includes('sent')" size="sm" variant="primary" @click="transition('sent')">Send</Button>
-            <Button v-if="quotation.status === 'accepted'" size="sm" variant="primary" @click="convertOpen = true">Convert to order</Button>
+            <!--
+                Q5. A quotation that already became an order offers that order; the convert
+                action is not merely hidden here — the POST handler refuses it too. The choice
+                itself lives in `documentActions.js` so it can be tested.
+            -->
+            <Button
+                v-if="convertAction.kind === 'convert'"
+                size="sm"
+                variant="primary"
+                @click="convertOpen = true"
+            >{{ convertAction.label }}</Button>
+            <Button
+                v-else-if="convertAction.kind === 'view-order'"
+                size="sm"
+                variant="primary"
+                :href="convertAction.href"
+            >{{ convertAction.label }}</Button>
+            <Button
+                v-else-if="convertAction.kind === 'already-converted'"
+                size="sm"
+                variant="primary"
+                disabled
+                :title="convertAction.title ?? ''"
+            >{{ convertAction.label }}</Button>
             <Button v-if="availableTransitions.includes('accepted')" size="sm" variant="success" @click="transition('accepted')">Customer accepted</Button>
             <Button v-if="availableTransitions.includes('revised')" size="sm" @click="transition('revised')">Revise</Button>
             <Button v-if="can('quotation.update') && quotation.status === 'draft'" size="sm" :href="`/quotations/${quotation.id}/edit`">Edit</Button>

@@ -9,6 +9,7 @@ use App\Modules\Dispatch\Models\Carton;
 use App\Modules\Dispatch\Models\CartonContent;
 use App\Modules\Dispatch\Models\PackingList;
 use App\Modules\Dispatch\States\PackingListStateMachine;
+use App\Modules\MasterData\Models\CustomerAddress;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
@@ -83,10 +84,17 @@ class PackingListController extends Controller
 
         $order = DB::table('sales_orders')->where('id', $data['sales_order_id'])->first();
 
+        // D4 — the destination travels down the chain from the order. An order raised
+        // before addresses were carried forward has none, so fall back to the customer's
+        // default delivery address rather than starting a packing list that cannot become a
+        // challan (D4).
+        $addressId = $order->delivery_address_id
+            ?? CustomerAddress::defaultDeliveryFor((int) $order->customer_id)?->id;
+
         $list = PackingList::query()->create([
             'sales_order_id' => $order->id,
             'customer_id' => $order->customer_id,
-            'delivery_address_id' => $order->delivery_address_id,
+            'delivery_address_id' => $addressId,
             'packed_on' => now()->toDateString(),
             'status' => 'draft',
             'created_by' => $request->user()->id,

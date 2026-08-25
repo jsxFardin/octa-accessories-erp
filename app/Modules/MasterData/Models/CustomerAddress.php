@@ -58,4 +58,30 @@ class CustomerAddress extends Model
     {
         return $this->belongsTo(Customer::class);
     }
+
+    /** The address on one line, as a challan or a carton label prints it. */
+    public function oneLine(): string
+    {
+        return collect([$this->line1, $this->line2, $this->city, $this->district, $this->postcode, $this->country])
+            ->filter(fn (?string $part): bool => filled($part))
+            ->join(', ');
+    }
+
+    /**
+     * The address a delivery to this customer goes to when nothing more specific was chosen:
+     * their default delivery address, or the only one they have.
+     *
+     * A sales order raised from a quotation names no address — a quotation is a price, not a
+     * shipment — and until this existed the whole chain below it (packing list → challan)
+     * inherited that emptiness and arrived at dispatch with nowhere to go.
+     */
+    public static function defaultDeliveryFor(int $customerId): ?self
+    {
+        return self::query()
+            ->where('customer_id', $customerId)
+            ->whereIn('kind', ['delivery', 'both'])
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->first();
+    }
 }

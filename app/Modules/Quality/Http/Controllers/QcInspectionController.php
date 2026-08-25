@@ -75,10 +75,17 @@ class QcInspectionController extends Controller
      */
     public function create(Request $request): Response
     {
-        $jobCards = DB::table('job_cards')
-            ->whereIn('status', ['in_production', 'qc_pending'])
-            ->orderBy('number')
-            ->get(['id', 'number', 'planned_qty', 'good_qty']);
+        // J6 — the lot in front of the inspector is the final operation's good
+        // output. `job_cards.good_qty` sums every operation, so it offered an AQL lot size of
+        // 60,457 for a job that had made 30,000 labels, and the sample size follows the lot.
+        $jobCards = DB::table('job_cards as jc')
+            ->whereIn('jc.status', ['in_production', 'qc_pending'])
+            ->orderBy('jc.number')
+            ->selectRaw('jc.id, jc.number, jc.planned_qty,
+                COALESCE((SELECT o.good_qty FROM job_card_operations o
+                          WHERE o.job_card_id = jc.id
+                          ORDER BY o.sequence_no DESC LIMIT 1), 0) as good_qty')
+            ->get();
 
         $requestedCard = $request->integer('job_card') ?: null;
         $preselectCard = $jobCards->contains(fn ($card): bool => (int) $card->id === $requestedCard)

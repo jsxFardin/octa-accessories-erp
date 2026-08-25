@@ -82,3 +82,117 @@ expect()->extend('toBeMoney', function (float $expected) {
 expect()->extend('toBeQty', function (float $expected) {
     return $this->toBeFloat()->and(round($this->value, 6))->toBe(round($expected, 6));
 });
+
+/**
+ * Bring every operation before `$target` to `completed` with output booked (J2).
+ *
+ * A test about the packing step should not also be a test of weaving, slitting and folding —
+ * but nor may it pretend those steps never ran, because since F-04 the floor API refuses
+ * production on a step whose predecessor is still open. This is the fixture for "the job got
+ * this far, legitimately"; `tests/Feature/Manufacturing/OperationChainTest.php` is where the
+ * chain itself is walked through the real API.
+ */
+function completeOperationsBefore(
+    App\Modules\Manufacturing\Models\JobCardOperation $target,
+    float $good = 1000000.0,
+): void {
+    $earlier = Illuminate\Support\Facades\DB::table('job_card_operations')
+        ->where('job_card_id', $target->job_card_id)
+        ->where('sequence_no', '<', $target->sequence_no);
+
+    // QC1 — a step flagged `requires_qc` that completed was inspected and passed. Without
+    // this the fixture describes a web that was cut before the inspector saw it, which the
+    // API is right to refuse.
+    foreach ((clone $earlier)->where('requires_qc', true)->get(['id']) as $inspected) {
+        Illuminate\Support\Facades\DB::table('qc_inspections')->insert([
+            'stage' => 'in_process',
+            'job_card_id' => $target->job_card_id,
+            'job_card_operation_id' => $inspected->id,
+            'inspected_on' => now()->toDateString(),
+            'lot_size' => (int) $good,
+            'result' => 'accepted',
+            'created_at' => now(),
+        ]);
+    }
+
+    $earlier->update([
+        'input_qty' => $good,
+        'good_qty' => $good,
+        'waste_qty' => 0,
+        'status' => App\Modules\Manufacturing\Models\JobCardOperation::COMPLETED,
+        'started_at' => now()->subHour(),
+        'finished_at' => now()->subMinutes(30),
+    ]);
+}
+
+/**
+ * Issue enough BOM material to a job card to account for `$coversQty` finished pieces (BR-48).
+ *
+ * Since F-08 the FG receipt refuses output the issued material cannot account for, which is
+ * the whole point of the rule and not the subject of most of these tests. The rows are
+ * written directly rather than through the issue screen: the fixture's job is to say "the
+ * store issued what this run needed", not to re-test the issue workflow, and `tests/Feature/
+ * Manufacturing/MaterialRequiredTest.php` is where the rule itself is exercised.
+ *
+ * Lots are picked from whatever the seed holds for the item; a lot the item has never had is
+ * not a thing the store could have issued, so the line is skipped rather than invented.
+ */
+function issueMaterialFor(
+    App\Modules\Manufacturing\Models\JobCard $jobCard,
+    float $coversQty,
+    float $unitCost = 100.0,
+): ?int {
+    $bom = $jobCard->bom;
+
+    if ($bom === null) {
+        return null;
+    }
+
+    $lines = Illuminate\Support\Facades\DB::table('bom_lines')
+        ->where('bom_id', $bom->getKey())
+        ->where('is_optional', false)
+        ->get(['item_id', 'uom_id', 'qty_per_base']);
+
+    if ($lines->isEmpty()) {
+        return null;
+    }
+
+    $warehouseId = (int) Illuminate\Support\Facades\DB::table('warehouses')
+        ->where('kind', 'raw_material')->value('id')
+        ?: (int) Illuminate\Support\Facades\DB::table('warehouses')->value('id');
+
+    $issueId = Illuminate\Support\Facades\DB::table('material_issues')->insertGetId([
+        'number' => 'MI-FIX-'.Illuminate\Support\Str::random(8),
+        'job_card_id' => $jobCard->getKey(),
+        'warehouse_id' => $warehouseId,
+        'issued_on' => now()->toDateString(),
+        'issue_type' => 'issue',
+        'status' => 'posted',
+        'created_at' => now(),
+    ]);
+
+    $lineNo = 0;
+
+    foreach ($lines as $line) {
+        $lot = Illuminate\Support\Facades\DB::table('stock_lots')
+            ->where('item_id', $line->item_id)
+            ->orderBy('id')
+            ->first(['id']);
+
+        if ($lot === null) {
+            continue;
+        }
+
+        Illuminate\Support\Facades\DB::table('material_issue_lines')->insert([
+            'material_issue_id' => $issueId,
+            'line_no' => ++$lineNo,
+            'item_id' => $line->item_id,
+            'lot_id' => $lot->id,
+            'uom_id' => $line->uom_id,
+            'qty' => max(0.000001, $bom->scaleTo((float) $line->qty_per_base, $coversQty)),
+            'unit_cost' => $unitCost,
+        ]);
+    }
+
+    return $issueId;
+}

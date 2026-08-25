@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A production order for a quantity of one product, bound to a routing and — the point of
@@ -272,6 +273,46 @@ class JobCard extends Model
             'waste' => (float) $final->waste_qty,
             'produced' => (float) $final->good_qty + (float) $final->waste_qty,
         ];
+    }
+
+    /**
+     * The final-operation output, joined for a list.
+     *
+     * `finalOperationOutput()` is the definition read one row at a time; `v_job_card_output`
+     * is the same definition in SQL, so a fifty-row list is one statement rather than
+     * fifty-one. The columns it adds — `final_good_qty`, `final_waste_qty` — are the figures
+     * the job card, the FG receipt ceiling, the order-line rollup and the production report
+     * all already read.
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeWithFinalOutput(Builder $query): void
+    {
+        $query
+            ->leftJoin('v_job_card_output as final_op', 'final_op.job_card_id', '=', 'job_cards.id')
+            ->addSelect([
+                'job_cards.*',
+                DB::raw('COALESCE(final_op.good_qty, 0) as final_good_qty'),
+                DB::raw('COALESCE(final_op.waste_qty, 0) as final_waste_qty'),
+            ]);
+    }
+
+    /**
+     * What a list or an export should print as this job's output, from a row loaded by
+     * `scopeWithFinalOutput()` — or from the operations themselves when it was not.
+     *
+     * @return array{good: float, waste: float, produced: float}
+     */
+    public function reportedOutput(): array
+    {
+        if (! array_key_exists('final_good_qty', $this->attributes)) {
+            return $this->finalOperationOutput();
+        }
+
+        $good = (float) $this->attributes['final_good_qty'];
+        $waste = (float) ($this->attributes['final_waste_qty'] ?? 0);
+
+        return ['good' => $good, 'waste' => $waste, 'produced' => $good + $waste];
     }
 
     public function isOpen(): bool
