@@ -84,8 +84,12 @@ class ComplianceController extends Controller
                 return [
                     'scheme' => $row->scheme,
                     'period' => sprintf('%04d-%02d', $row->period_year, $row->period_month),
+                    // Receipts stay on the row as context; the balance is struck against what
+                    // was actually consumed, which is the question a GRS auditor asks.
+                    'certified_received_qty' => round((float) $row->certified_input_qty, 6),
+                    'certified_consumed_qty' => round((float) $row->certified_consumed_qty, 6),
                     ...$this->coc->reconcile(
-                        (float) $row->certified_input_qty,
+                        (float) $row->certified_basis_qty,
                         (float) $row->certified_output_qty,
                         $max,
                     ),

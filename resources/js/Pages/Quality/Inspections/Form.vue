@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
@@ -14,12 +14,14 @@ import { pcs, titleCase } from '@/plugins/formatting';
 
 const props = defineProps({
     jobCards: { type: Array, default: () => [] },
+    operations: { type: Array, default: () => [] },
     defects: { type: Array, default: () => [] },
     plans: { type: Array, default: () => [] },
 });
 
 const form = useForm({
     job_card_id: '',
+    job_card_operation_id: '',
     stage: 'final',
     lot_size: '',
     critical_found: 0,
@@ -29,6 +31,20 @@ const form = useForm({
     disposition_ref: '',
     remarks: '',
     defects: [],
+});
+
+/** The QC-flagged operations of the selected job card, labelled as the floor sees them. */
+const qcOperations = computed(() =>
+    props.operations
+        .filter((op) => String(op.job_card_id) === String(form.job_card_id))
+        .map((op) => ({ ...op, label: `${op.sequence_no}. ${op.name}` })),
+);
+
+// A stage that is not in-process clears the operation, so a stale id cannot ride along.
+watch(() => [form.stage, form.job_card_id], () => {
+    if (form.stage !== 'in_process' || !qcOperations.value.some((op) => String(op.id) === String(form.job_card_operation_id))) {
+        form.job_card_operation_id = '';
+    }
 });
 
 /**
@@ -154,6 +170,25 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
 
                     <FormField label="Lot size (pieces)" :error="form.errors.lot_size" required>
                         <TextInput v-model="form.lot_size" type="number" numeric min="1" />
+                    </FormField>
+                </div>
+
+                <!-- QC1 — an in-process verdict releases one operation, so it has to say which. -->
+                <div v-if="form.stage === 'in_process'" class="mt-3 grid gap-3 sm:grid-cols-3">
+                    <FormField
+                        label="Operation inspected"
+                        rule="QC1"
+                        hint="Its successor stays blocked until this is accepted."
+                        :error="form.errors.job_card_operation_id"
+                        required
+                    >
+                        <SelectInput
+                            v-model="form.job_card_operation_id"
+                            placeholder="— select —"
+                            :options="qcOperations"
+                            value-key="id"
+                            label-key="label"
+                        />
                     </FormField>
                 </div>
             </Card>

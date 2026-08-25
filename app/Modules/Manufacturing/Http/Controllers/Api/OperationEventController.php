@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
+use App\Support\States\StateMachine;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,6 +35,11 @@ class OperationEventController extends Controller
             // routing marks it parallel.
             if (! $operation->predecessorsComplete()) {
                 abort(422, 'J2: an earlier operation on this job card is still open.');
+            }
+
+            // QC1 — the `QC` badge on the preceding row is a gate, not a note.
+            if (! $operation->qcClearedUpstream()) {
+                abort(422, 'QC1: an earlier operation needs an accepted inspection before this one may start.');
             }
 
             $occurredAt = $this->occurredAt($request);
@@ -96,6 +102,25 @@ class OperationEventController extends Controller
                         $newGood + $newWaste,
                         $newInput,
                     ));
+                }
+
+                // J5 at the moment of booking, not only when the card closes. The terminal
+                // shows the ceiling on every screen, so a refusal that arrives days later at
+                // `closed` — with the goods already made — reads as the rule not existing.
+                $card = $locked->jobCard;
+
+                if ($card !== null) {
+                    $ceiling = $card->overrunCeiling();
+                    $produced = (float) $card->produced_qty + $good + $waste;
+
+                    if ($produced > $ceiling + 0.000001) {
+                        abort(422, sprintf(
+                            'J5: %.3f would take this job past its %.3f ceiling (planned plus %s%% overrun).',
+                            $produced,
+                            $ceiling,
+                            rtrim(rtrim((string) $card->overrun_tolerance_pct, '0'), '.'),
+                        ));
+                    }
                 }
 
                 DB::table('operation_logs')->insert([
@@ -195,7 +220,11 @@ class OperationEventController extends Controller
                     ->exists();
 
                 if (! $stillOpen && $jobCard !== null && $jobCard->status === JobCard::IN_PRODUCTION) {
-                    $this->jobCards->transition($jobCard, JobCard::QC_PENDING);
+                    // The operator finished their operation; the card moving to QC is the
+                    // system's consequence, not their action. `qc_pending` demands
+                    // `job_card.update`, which no operator holds, so charging them for it
+                    // made the last operation of every job unfinishable.
+                    StateMachine::asSystem(fn () => $this->jobCards->transition($jobCard, JobCard::QC_PENDING));
                 }
             });
 

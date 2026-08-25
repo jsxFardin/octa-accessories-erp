@@ -78,6 +78,13 @@ class QuotationController extends Controller
     {
         $data = $this->validated($request);
 
+        // BR-46 — the customer's payment terms follow the quote onto the order and decide the
+        // invoice due date. Left unset it fell through to a hard-coded Net 30 at invoicing,
+        // which billed every Net-60 customer thirty days early and looked correct on screen.
+        $data['payment_term_id'] ??= DB::table('customers')
+            ->where('id', $data['customer_id'])
+            ->value('payment_term_id');
+
         $quotation = DB::transaction(function () use ($data, $request): Quotation {
             $quotation = Quotation::query()->create([
                 ...collect($data)->except('lines')->all(),

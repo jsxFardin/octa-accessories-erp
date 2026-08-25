@@ -38,11 +38,16 @@ it('creates a pre-shipment inspection successfully', function (): void {
 it('accepts every stage the form offers without tripping the CHECK constraint', function (string $stage): void {
     // The list here mirrors the form and the controller; the insert below proves each value
     // also satisfies qc_inspections_stage_chk. Vocabulary drift fails this test, not production.
-    $this->post('/qc-inspections', [
+    // QC1 — an in-process verdict releases one operation, so that stage alone must name it.
+    $operation = DB::table('job_card_operations')->where('requires_qc', true)->first();
+
+    $this->post('/qc-inspections', array_filter([
         'stage' => $stage,
         'lot_size' => 200,
         'major_found' => 0,
-    ])->assertSessionHasNoErrors();
+        'job_card_id' => $stage === 'in_process' ? $operation->job_card_id : null,
+        'job_card_operation_id' => $stage === 'in_process' ? $operation->id : null,
+    ], fn (mixed $value): bool => $value !== null))->assertSessionHasNoErrors();
 
     expect(QcInspection::query()->where('stage', $stage)->exists())->toBeTrue();
 })->with(['incoming', 'in_process', 'final', 'pre_shipment']);

@@ -16,8 +16,9 @@ const props = defineProps({
 const columns = [
     { key: 'scheme', label: 'Scheme' },
     { key: 'period', label: 'Period' },
-    { key: 'certified_input_qty', label: 'Certified in', align: 'right' },
-    { key: 'certified_output_qty', label: 'Certified out', align: 'right' },
+    { key: 'certified_received_qty', label: 'Received', align: 'right' },
+    { key: 'certified_input_qty', label: 'Consumed', align: 'right' },
+    { key: 'certified_output_qty', label: 'Shipped', align: 'right' },
     { key: 'conversion_factor', label: 'Conversion', align: 'right' },
     { key: 'max_conversion_factor', label: 'Max', align: 'right' },
     { key: 'flagged', label: 'Audit' },
@@ -54,6 +55,8 @@ const columns = [
                 <template #cell:scheme="{ value }">
                     <span class="font-medium text-ink-900">{{ value.replace('_', ' ') }}</span>
                 </template>
+                <template #cell:certified_received_qty="{ value }">{{ qty(value) }}</template>
+                <!-- The balance is struck against consumption; receipts are context. -->
                 <template #cell:certified_input_qty="{ value }">{{ qty(value) }}</template>
                 <template #cell:certified_output_qty="{ value }">{{ qty(value) }}</template>
                 <template #cell:conversion_factor="{ value }">{{ Number(value).toFixed(4) }}</template>

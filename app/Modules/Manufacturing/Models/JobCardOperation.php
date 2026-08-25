@@ -8,6 +8,7 @@ use App\Modules\MasterData\Models\Machine;
 use App\Modules\MasterData\Models\MachineGroup;
 use App\Modules\Product\Models\RoutingOperation;
 use App\Modules\Product\Models\Tool;
+use App\Modules\Quality\Models\QcInspection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -160,6 +161,37 @@ class JobCardOperation extends Model
             ->where('sequence_no', '<', $this->sequence_no)
             ->whereNotIn('status', [self::COMPLETED, self::SKIPPED, self::CANCELLED])
             ->exists();
+    }
+
+    /**
+     * QC1 — a predecessor flagged `requires_qc` holds its successor until an inspection has
+     * accepted its output. The flag was rendered on the floor and in the job card for a while
+     * without anything reading it, which made the QC badge advisory: an operator could cut a
+     * web the inspector had not passed.
+     *
+     * A rejected inspection is not a block by itself — rework produces a later accepted one,
+     * and it is the latest verdict per operation that counts.
+     */
+    public function qcClearedUpstream(): bool
+    {
+        $blocking = self::query()
+            ->where('job_card_id', $this->job_card_id)
+            ->where('sequence_no', '<', $this->sequence_no)
+            ->where('requires_qc', true)
+            ->pluck('id');
+
+        if ($blocking->isEmpty()) {
+            return true;
+        }
+
+        $accepted = QcInspection::query()
+            ->where('job_card_id', $this->job_card_id)
+            ->where('result', 'accepted')
+            ->whereIn('job_card_operation_id', $blocking)
+            ->pluck('job_card_operation_id')
+            ->unique();
+
+        return $blocking->diff($accepted)->isEmpty();
     }
 
     /** J3 — how much this operation may still book without breaching its input. */

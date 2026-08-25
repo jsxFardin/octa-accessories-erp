@@ -9,6 +9,9 @@ import { onMounted, onUnmounted, ref } from 'vue';
  * second shift's output.
  */
 const STORAGE_KEY = 'octa.offline_queue';
+// Writes the server actively rejected. They are not retried — a 500 is not a wifi problem,
+// and replaying it forever is what hid an unfinishable job card behind a silent spinner.
+const REJECTED_KEY = 'octa.offline_rejected';
 const MAX_AGE_MS = 4 * 60 * 60 * 1000;
 
 function readQueue() {
@@ -23,6 +26,20 @@ function writeQueue(queue) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
 }
 
+function readRejected() {
+    try {
+        return JSON.parse(localStorage.getItem(REJECTED_KEY) ?? '[]');
+    } catch {
+        return [];
+    }
+}
+
+function reject(entry, status, body) {
+    const rejected = readRejected();
+    rejected.push({ ...entry, status, body, rejectedAt: new Date().toISOString() });
+    localStorage.setItem(REJECTED_KEY, JSON.stringify(rejected));
+}
+
 function session() {
     return JSON.parse(localStorage.getItem('octa.device_session') ?? 'null');
 }
@@ -33,6 +50,7 @@ function idempotencyKey() {
 
 export function useOfflineQueue() {
     const pending = ref(readQueue().length);
+    const rejected = ref(readRejected().length);
     const online = ref(navigator.onLine);
 
     async function post(entry) {
@@ -72,8 +90,10 @@ export function useOfflineQueue() {
             try {
                 const response = await post(entry);
 
-                if (!response.ok && response.status >= 500) {
-                    remaining.push(entry);
+                // Only a transport failure earns a retry. A server that answered — with
+                // anything — has seen this write, and repeating it will not change its mind.
+                if (!response.ok) {
+                    reject(entry, response.status, await response.text().catch(() => ''));
                 }
             } catch {
                 remaining.push(entry);
@@ -82,6 +102,7 @@ export function useOfflineQueue() {
 
         writeQueue(remaining);
         pending.value = remaining.length;
+        rejected.value = readRejected().length;
     }
 
     async function send(url, payload) {
@@ -104,15 +125,21 @@ export function useOfflineQueue() {
         try {
             const response = await post(entry);
 
+            // The server answered and refused. Hand the refusal back so the terminal can show
+            // it; queueing a rejected write only buries the reason.
             if (!response.ok) {
+                const body = await response.json().catch(() => ({}));
+
                 if (response.status >= 500) {
-                    const queue = readQueue();
-                    queue.push(entry);
-                    writeQueue(queue);
-                    pending.value = queue.length;
+                    reject(entry, response.status, JSON.stringify(body));
+                    rejected.value = readRejected().length;
                 }
 
-                return { error: await response.json().catch(() => ({})) };
+                return {
+                    error: true,
+                    status: response.status,
+                    message: body.message ?? `The server refused this (HTTP ${response.status}).`,
+                };
             }
 
             return await response.json();
@@ -146,5 +173,5 @@ export function useOfflineQueue() {
         window.removeEventListener('offline', onOffline);
     });
 
-    return { send, flush, pending, online };
+    return { send, flush, pending, rejected, online };
 }

@@ -86,7 +86,12 @@ class SalesInvoiceController extends Controller
             return back()->with('error', 'This challan is not tied to a sales order; only order deliveries are invoiceable.');
         }
 
-        $netDays = (int) (DB::table('payment_terms')->where('id', $order->payment_term_id)->value('net_days') ?? 30);
+        // The order's terms, then the customer's, and only then a default — an order created
+        // before terms were carried forward must not silently become Net 30.
+        $termId = $order->payment_term_id
+            ?? DB::table('customers')->where('id', $challan->customer_id)->value('payment_term_id');
+
+        $netDays = (int) (DB::table('payment_terms')->where('id', $termId)->value('net_days') ?? 30);
 
         $invoice = DB::transaction(function () use ($challan, $order, $netDays, $request): SalesInvoice {
             /** @var SalesInvoice $invoice */

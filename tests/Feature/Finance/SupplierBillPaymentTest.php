@@ -5,8 +5,6 @@ declare(strict_types=1);
 use App\Models\User;
 use App\Modules\MasterData\Models\Item;
 use App\Modules\MasterData\Models\Supplier;
-use App\Modules\Procurement\Models\Grn;
-use App\Modules\Procurement\Models\PurchaseOrder;
 use App\Modules\Procurement\Models\SupplierBill;
 use Illuminate\Support\Facades\DB;
 

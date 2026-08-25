@@ -321,12 +321,24 @@ class DispatchService
     /**
      * BR-42 — the certified *output* side of the reconciliation, written at shipment and
      * nowhere earlier. Claim comes from the dispatched lot itself; nothing is invented.
+     *
+     * A mass balance only balances in one unit. Certified input is yarn in kilograms;
+     * shipping labels in pieces put "180 in, 41,880 out" in front of an auditor and called it
+     * a conversion factor. The shipped quantity is therefore expressed as the certified
+     * *mass* behind it: this job's certified consumption, allocated by the share of the job's
+     * output that is leaving. Ship everything and output equals consumption exactly.
+     *
+     * Without a consumption leg — a lot produced before this rule existed — there is no mass
+     * to allocate, and the row falls back to the piece basis it always used.
      */
     private function writeCocOutput(DeliveryChallan $challan, object $line, StockLot $lot): void
     {
         if ($lot->cert_scheme === null || (float) $lot->cert_claim_pct <= 0) {
             return;
         }
+
+        $shipped = (float) $line->qty;
+        $basis = $this->certifiedMassBasis($lot, $shipped);
 
         DB::table('coc_transactions')->insert([
             'scheme' => $lot->cert_scheme,
@@ -335,14 +347,51 @@ class DispatchService
             'lot_id' => $lot->getKey(),
             'job_card_id' => $lot->job_card_id,
             'product_id' => $line->product_id,
-            'uom_id' => $lot->uom_id,
-            'qty' => round((float) $line->qty * (float) $lot->cert_claim_pct / 100, 6),
+            'uom_id' => $basis['uom_id'] ?? $lot->uom_id,
+            'qty' => $basis['qty'],
             'claim_pct' => $lot->cert_claim_pct,
             'period_year' => (int) $challan->challan_date->format('Y'),
             'period_month' => (int) $challan->challan_date->format('n'),
             'created_by' => auth()->id(),
             'created_at' => now(),
         ]);
+    }
+
+    /**
+     * The certified mass behind a shipped quantity, and the unit it is measured in.
+     *
+     * @return array{qty: float, uom_id: int|null}
+     */
+    private function certifiedMassBasis(StockLot $lot, float $shippedQty): array
+    {
+        $pieceBasis = ['qty' => round($shippedQty * (float) $lot->cert_claim_pct / 100, 6), 'uom_id' => $lot->uom_id];
+
+        if ($lot->job_card_id === null) {
+            return $pieceBasis;
+        }
+
+        $consumed = DB::table('coc_transactions')
+            ->where('direction', 'conversion')
+            ->where('scheme', $lot->cert_scheme)
+            ->where('job_card_id', $lot->job_card_id)
+            ->selectRaw('SUM(qty) as qty, MIN(uom_id) as uom_id')
+            ->first();
+
+        $produced = (float) DB::table('fg_receipts')
+            ->where('job_card_id', $lot->job_card_id)
+            ->where('status', 'posted')
+            ->sum('qty');
+
+        if ($consumed === null || (float) $consumed->qty <= 0 || $produced <= 0) {
+            return $pieceBasis;
+        }
+
+        return [
+            // Rounded down, like every other certified figure: a claim you cannot evidence is
+            // worse than one that understates.
+            'qty' => floor((float) $consumed->qty * $shippedQty / $produced * 1_000_000) / 1_000_000,
+            'uom_id' => $consumed->uom_id !== null ? (int) $consumed->uom_id : $lot->uom_id,
+        ];
     }
 
     /** @return \Illuminate\Support\Collection<int, \stdClass> */

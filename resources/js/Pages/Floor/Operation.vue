@@ -11,7 +11,7 @@ const props = defineProps({
     shifts: { type: Array, default: () => [] },
 });
 
-const { send, pending, online } = useOfflineQueue();
+const { send, pending, rejected, online } = useOfflineQueue();
 
 const mode = ref(null);
 const goodQty = ref('');
@@ -20,19 +20,33 @@ const inputQty = ref('');
 const downtimeReasonId = ref('');
 const downtimeMinutes = ref('');
 const message = ref(null);
+const error = ref(null);
+
+/**
+ * A refusal is news. The terminal used to treat every non-answer as a wifi blip and retry in
+ * silence, so a server-side block looked exactly like a slow network.
+ */
+function handled(result) {
+    error.value = result?.error ? result.message : null;
+
+    return !result?.error;
+}
 
 async function start() {
-    await send(`/api/v1/operations/${props.operation.id}/start`, {});
+    if (!handled(await send(`/api/v1/operations/${props.operation.id}/start`, {}))) return;
+
     message.value = 'শুরু হয়েছে · Started';
     router.reload();
 }
 
 async function log() {
-    await send(`/api/v1/operations/${props.operation.id}/log`, {
+    const result = await send(`/api/v1/operations/${props.operation.id}/log`, {
         good_qty: Number(goodQty.value || 0),
         waste_qty: Number(wasteQty.value || 0),
         input_qty: Number(inputQty.value || 0),
     });
+
+    if (!handled(result)) return;
 
     message.value = 'রেকর্ড হয়েছে · Logged';
     mode.value = null;
@@ -41,15 +55,18 @@ async function log() {
 }
 
 async function finish() {
-    await send(`/api/v1/operations/${props.operation.id}/finish`, {});
+    if (!handled(await send(`/api/v1/operations/${props.operation.id}/finish`, {}))) return;
+
     router.visit('/floor/queue');
 }
 
 async function logDowntime() {
-    await send(`/api/v1/operations/${props.operation.id}/downtime`, {
+    const result = await send(`/api/v1/operations/${props.operation.id}/downtime`, {
         downtime_reason_id: Number(downtimeReasonId.value),
         minutes: Number(downtimeMinutes.value || 0),
     });
+
+    if (!handled(result)) return;
 
     message.value = 'ডাউনটাইম রেকর্ড · Downtime logged';
     mode.value = null;
@@ -75,6 +92,13 @@ async function logDowntime() {
 
         <div class="space-y-5">
             <p v-if="message" class="rounded-xl bg-emerald-600 px-5 py-4 text-xl font-semibold">{{ message }}</p>
+
+            <!-- Refusals are loud on purpose: the operator is standing at a machine. -->
+            <p v-if="error" class="rounded-xl bg-rose-600 px-5 py-4 text-xl font-semibold">{{ error }}</p>
+
+            <p v-if="rejected" class="rounded-xl bg-amber-500 px-5 py-4 text-lg font-semibold text-slate-900">
+                {{ rejected }} রেকর্ড সার্ভার নেয়নি · {{ rejected }} write(s) refused by the server — call your supervisor
+            </p>
 
             <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <div class="rounded-2xl bg-white/5 p-4">

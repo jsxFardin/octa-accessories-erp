@@ -53,6 +53,41 @@ abstract class StateMachine
     protected function guard(Model $document, string $from, string $to, array $context): void {}
 
     /**
+     * True while a transition is a *consequence* of an action the user was already permitted
+     * to take, rather than an action they chose.
+     *
+     * An operator holds four permissions and none of them is `job_card.update`; closing the
+     * last operation on a card is nonetheless supposed to move that card to `qc_pending`.
+     * Charging the operator for a transition the system decided to make locked the shop floor
+     * out of finishing any job (06-rbac §6). Guards still run — only the permission check is
+     * skipped, and only inside the callback.
+     */
+    private static bool $systemContext = false;
+
+    /**
+     * Run $work with permission checks on state transitions suspended.
+     *
+     * Use it for transitions the system initiates on the user's behalf. Never use it to widen
+     * what a user may deliberately do — that is what roles are for.
+     *
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $work
+     * @return TReturn
+     */
+    public static function asSystem(callable $work): mixed
+    {
+        $previous = self::$systemContext;
+        self::$systemContext = true;
+
+        try {
+            return $work();
+        } finally {
+            self::$systemContext = $previous;
+        }
+    }
+
+    /**
      * Work that must happen *before* the status is written, inside the same transaction.
      *
      * Rare, and always for the same reason: a uniqueness rule that the new status would
@@ -90,7 +125,10 @@ abstract class StateMachine
         }
 
         $this->assertAllowed($document, $from, $to);
-        $this->assertPermitted($to);
+
+        if (! self::$systemContext) {
+            $this->assertPermitted($to);
+        }
 
         DB::transaction(function () use ($document, $column, $from, $to, $context): void {
             $this->guard($document, $from, $to, $context);

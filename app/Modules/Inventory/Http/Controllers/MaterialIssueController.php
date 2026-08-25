@@ -310,6 +310,26 @@ class MaterialIssueController extends Controller
 
             // The physical issue consumes this job's own claim, oldest rows first.
             $this->reservations->consumeForIssue((int) $data['job_card_id'], (int) $lot->id, (float) $line['qty']);
+
+            // BR-42 — the consumption side of the chain of custody. Receipts alone cannot
+            // reconcile: 180 kg received says nothing about the 96 kg that entered a job.
+            // `conversion` is the schema's own name for this leg (`coc_direction_chk`).
+            if ($lot->cert_scheme !== null && (float) $lot->cert_claim_pct > 0) {
+                DB::table('coc_transactions')->insert([
+                    'scheme' => $lot->cert_scheme,
+                    'direction' => 'conversion',
+                    'lot_id' => $lot->id,
+                    'job_card_id' => (int) $data['job_card_id'],
+                    'item_id' => $line['item_id'],
+                    'uom_id' => $line['uom_id'],
+                    'qty' => round((float) $line['qty'] * (float) $lot->cert_claim_pct / 100, 6),
+                    'claim_pct' => $lot->cert_claim_pct,
+                    'period_year' => (int) now()->format('Y'),
+                    'period_month' => (int) now()->format('n'),
+                    'created_by' => $request->user()->id,
+                    'created_at' => now(),
+                ]);
+            }
         }
 
         return $issue;

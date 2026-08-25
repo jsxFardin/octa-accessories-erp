@@ -74,6 +74,13 @@ class QcInspectionController extends Controller
                 ->whereIn('status', ['in_production', 'qc_pending'])
                 ->orderBy('number')
                 ->get(['id', 'number', 'planned_qty', 'good_qty']),
+            // QC1 — an in-process inspection has to name the operation it clears, or the
+            // successor operation has nothing to wait for.
+            'operations' => DB::table('job_card_operations')
+                ->whereIn('job_card_id', DB::table('job_cards')->whereIn('status', ['in_production', 'qc_pending'])->select('id'))
+                ->where('requires_qc', true)
+                ->orderBy('job_card_id')->orderBy('sequence_no')
+                ->get(['id', 'job_card_id', 'sequence_no', 'name', 'good_qty']),
             'defects' => DB::table('defects')->where('is_active', true)
                 ->orderBy('severity')->orderBy('name')
                 ->get(['id', 'code', 'name', 'process', 'severity']),
@@ -98,7 +105,11 @@ class QcInspectionController extends Controller
             'minor_found' => ['integer', 'min:0'],
             'critical_found' => ['integer', 'min:0'],
             'disposition' => ['nullable', Rule::in(['rework', 'concession', 'downgrade', 'scrap'])],
-            'job_card_operation_id' => ['nullable', 'integer', 'exists:job_card_operations,id'],
+            // QC1 — an in-process verdict releases exactly one operation, so it must name it.
+            'job_card_operation_id' => [
+                Rule::requiredIf(fn (): bool => $request->input('stage') === 'in_process'),
+                'nullable', 'integer', 'exists:job_card_operations,id',
+            ],
             'disposition_ref' => ['nullable', 'string', 'max:180'],
             'remarks' => ['nullable', 'string', 'max:500'],
             'defects' => ['array'],
