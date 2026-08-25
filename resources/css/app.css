@@ -120,11 +120,13 @@
      * Line-item cells. A table of bordered boxes reads as a wall of chrome; the borders return
      * on hover and focus, which is when they are load-bearing.
      */
+    /* A faint underline at rest: a fully borderless grid cell gave no sign it was editable
+       until someone happened to click it. */
     .cell-input {
-        @apply block w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-sm text-ink-900
-               transition placeholder:text-ink-400/70
-               hover:border-slate-200 focus:border-brand-500 focus:bg-white focus:ring-1 focus:ring-brand-500/30
-               focus:outline-none;
+        @apply block w-full rounded border border-transparent border-b-slate-200 bg-slate-50/50 px-1.5 py-1
+               text-sm text-ink-900 transition placeholder:text-ink-400/70
+               hover:border-slate-200 hover:bg-white focus:border-brand-500 focus:bg-white
+               focus:ring-1 focus:ring-brand-500/30 focus:outline-none;
     }
 
     .form-input-error {

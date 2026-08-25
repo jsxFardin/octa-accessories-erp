@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import DropdownMenu from '@/Components/Ui/DropdownMenu.vue';
 import Icon from '@/Components/Ui/Icon.vue';
@@ -131,6 +131,31 @@ const compact = ref(localStorage.getItem('octa.table.compact') === '1' || props.
 watch(compact, (value) => localStorage.setItem('octa.table.compact', value ? '1' : '0'));
 
 const rowPadding = computed(() => (compact.value ? 'py-1.5' : 'py-2.5'));
+
+// --- Busy indication ---------------------------------------------------------------------
+// Sort, filter, and pagination visits use `preserveState`, so the old rows stayed on screen
+// with no feedback beyond the delayed top progress bar — a sort click on a slow list looked
+// like a dead click. The table dims itself while a same-page visit is in flight.
+const busy = ref(false);
+let offStart = null;
+let offFinish = null;
+
+onMounted(() => {
+    offStart = router.on('start', (event) => {
+        const visit = event.detail.visit;
+        if (visit.method === 'get' && visit.url.pathname === window.location.pathname) {
+            busy.value = true;
+        }
+    });
+    offFinish = router.on('finish', () => {
+        busy.value = false;
+    });
+});
+
+onUnmounted(() => {
+    offStart?.();
+    offFinish?.();
+});
 </script>
 
 <template>
@@ -191,10 +216,15 @@ const rowPadding = computed(() => (compact.value ? 'py-1.5' : 'py-2.5'));
                     </tr>
                 </thead>
 
-                <tbody class="divide-y divide-slate-100 bg-white">
+                <tbody
+                    class="divide-y divide-slate-100 bg-white transition-opacity"
+                    :class="busy && 'pointer-events-none opacity-50'"
+                    :aria-busy="busy || undefined"
+                >
                     <!-- Skeletons keep the table's shape while it loads, so nothing jumps. -->
                     <template v-if="loading">
                         <tr v-for="index in skeletonRows" :key="`skeleton-${index}`">
+                            <td v-if="selectable" />
                             <td
                                 v-for="column in columns"
                                 :key="column.key"

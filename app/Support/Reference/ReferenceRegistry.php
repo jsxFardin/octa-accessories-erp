@@ -56,7 +56,7 @@ class ReferenceRegistry
                 'label' => 'Factory units',
                 'singular' => 'factory unit',
                 'icon' => 'building',
-                'description' => 'Physical plants. Every document belongs to one, and user scoping follows it (06-rbac §4).',
+                'description' => 'Physical plants. Every document belongs to one, and user scoping follows it.',
                 'searchable' => ['code', 'name'],
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
@@ -90,7 +90,7 @@ class ReferenceRegistry
                 'label' => 'Shifts',
                 'singular' => 'shift',
                 'icon' => 'planning',
-                'description' => 'Working windows. Capacity is computed from shift minutes less breaks and planned downtime (BR-27).',
+                'description' => 'Working windows. Capacity is computed from shift minutes less breaks and planned downtime.',
                 'searchable' => ['code', 'name'],
                 'fields' => [
                     ['name' => 'factory_unit_id', 'label' => 'Factory unit', 'type' => 'reference', 'reference' => 'factory_units', 'rules' => ['required', 'integer', 'exists:factory_units,id']],
@@ -243,7 +243,7 @@ class ReferenceRegistry
                 'singular' => 'unit',
                 'icon' => 'tool',
                 'permission' => 'uom',
-                'description' => 'Every quantity in the system is expressed in one of these (BR-1).',
+                'description' => 'Every quantity in the system is expressed in one of these.',
                 'searchable' => ['code', 'name'],
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
@@ -317,7 +317,7 @@ class ReferenceRegistry
                 'singular' => 'currency',
                 'icon' => 'receipt',
                 'permission' => 'currency',
-                'description' => 'Exactly one is the base currency — the database enforces it — and costs are computed in it (BR-22).',
+                'description' => 'Exactly one is the base currency — the database enforces it — and costs are computed in it.',
                 'searchable' => ['code', 'name'],
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'size:3'], 'unique' => true],
@@ -425,7 +425,7 @@ class ReferenceRegistry
                 'singular' => 'supplier item',
                 'icon' => 'supplier',
                 'permission' => 'supplier',
-                'description' => 'BR-26 — lead time and minimum order quantity are per supplier-item, never global. MRP plans against the figure here, so an empty list means every shortage is planned with a zero lead time.',
+                'description' => 'lead time and minimum order quantity are per supplier-item, never global. MRP plans against the figure here, so an empty list means every shortage is planned with a zero lead time.',
                 'searchable' => ['supplier_code'],
                 'fields' => [
                     ['name' => 'supplier_id', 'label' => 'Supplier', 'type' => 'reference', 'reference' => 'suppliers', 'rules' => ['required', 'integer', 'exists:suppliers,id']],
@@ -501,7 +501,7 @@ class ReferenceRegistry
                 'singular' => 'plan',
                 'icon' => 'inspection',
                 'permission' => 'qc_inspection',
-                'description' => 'BR-30 — ISO 2859-1 sampling bands. The sample size and accept number an inspection uses are looked up here, never typed by the inspector.',
+                'description' => 'ISO 2859-1 sampling bands. The sample size and accept number an inspection uses are looked up here, never typed by the inspector.',
                 'searchable' => ['standard'],
                 'fields' => [
                     ['name' => 'standard', 'label' => 'Standard', 'type' => 'text', 'rules' => ['required', 'string', 'max:30'], 'default' => 'ISO 2859-1'],
@@ -547,7 +547,7 @@ class ReferenceRegistry
                 'singular' => 'scope',
                 'icon' => 'compliance',
                 'permission' => 'certification',
-                'description' => 'What each certificate actually covers. The labelled claim and the maximum conversion factor here are what a reconciliation is checked against (BR-42, BR-43).',
+                'description' => 'What each certificate actually covers. The labelled claim and the maximum conversion factor here are what a reconciliation is checked against.',
                 'searchable' => [],
                 'fields' => [
                     ['name' => 'certification_id', 'label' => 'Certificate', 'type' => 'reference', 'reference' => 'certifications', 'referenceLabel' => 'certificate_no', 'rules' => ['required', 'integer', 'exists:certifications,id']],
@@ -570,7 +570,7 @@ class ReferenceRegistry
                 'label' => 'Product types',
                 'singular' => 'product type',
                 'icon' => 'product',
-                'description' => 'What the factory makes. The flags are the costing rules: whether the type consumes yarn (BR-9) or sheets (BR-11), the ink it lays down (BR-10), and the tools a colour costs (BR-13).',
+                'description' => 'What the factory makes. The flags are the costing rules: whether the type consumes yarn or sheets, the ink it lays down, and the tools a colour costs.',
                 'searchable' => ['code', 'name'],
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true, 'hint' => 'Stored on every product and inquiry line. Changing it rewrites nothing — retire the row instead.'],
@@ -591,7 +591,7 @@ class ReferenceRegistry
                 'label' => 'Cut types',
                 'singular' => 'cut type',
                 'icon' => 'product',
-                'description' => 'BR-4 — the gap each cutting method adds to the label pitch, and whether it needs a die. A product spec may still override the gap.',
+                'description' => 'the gap each cutting method adds to the label pitch, and whether it needs a die. A product spec may still override the gap.',
                 'searchable' => ['code', 'name'],
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
@@ -681,7 +681,7 @@ class ReferenceRegistry
                 'singular' => 'severity',
                 'icon' => 'inspection',
                 'permission' => 'qc_inspection',
-                'description' => 'BR-30, BR-31 — the verdict depends on these two flags: one lot-rejecting defect fails the lot outright, the rest are counted against the AQL accept number or merely recorded.',
+                'description' => 'the verdict depends on these two flags: one lot-rejecting defect fails the lot outright, the rest are counted against the AQL accept number or merely recorded.',
                 'searchable' => ['code', 'name'],
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:10'], 'unique' => true],
@@ -701,7 +701,7 @@ class ReferenceRegistry
                 'singular' => 'disposition',
                 'icon' => 'inspection',
                 'permission' => 'qc_inspection',
-                'description' => 'BR-33 — what happens to a lot that did not pass. The flags are the behaviour: back to an operation, held for customer evidence, re-graded, or written off.',
+                'description' => 'what happens to a lot that did not pass. The flags are the behaviour: back to an operation, held for customer evidence, re-graded, or written off.',
                 'searchable' => ['code', 'name'],
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],

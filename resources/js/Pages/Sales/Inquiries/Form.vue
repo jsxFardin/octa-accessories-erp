@@ -83,7 +83,7 @@ const columns = [
 
         <template #title>{{ isEdit ? `Inquiry ${inquiry.number ?? '(unnumbered)'}` : 'New inquiry' }}</template>
         <template #subtitle>
-            A draft carries no number — one is assigned when it is submitted (BR-34).
+            A draft carries no number — one is assigned when it is submitted.
         </template>
 
         <FormLayout @submit="submit">
@@ -220,7 +220,7 @@ const columns = [
                     </dl>
 
                     <p class="mt-3 text-[11px] leading-relaxed text-ink-500">
-                        The customer's own target rate × quantity ÷ 1000 (BR-1) — what they hope to pay,
+                        The customer's own target rate × quantity ÷ 1000 — what they hope to pay,
                         not a quoted price. The cost sheet decides that.
                     </p>
                 </Card>

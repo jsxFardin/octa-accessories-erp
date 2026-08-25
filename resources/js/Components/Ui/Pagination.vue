@@ -11,7 +11,12 @@ const compact = defineModel('compact', { type: Boolean, default: false });
 
 const PER_PAGE = [25, 50, 100, 200];
 
-const perPage = computed(() => Number(new URLSearchParams(window.location.search).get('per_page') ?? 25));
+/**
+ * From paginator meta, not `window.location` — a computed over the URL has no reactive
+ * dependency, so it cached the first value forever and the select showed a stale size
+ * after navigation.
+ */
+const perPage = computed(() => Number(props.meta?.per_page ?? new URLSearchParams(window.location.search).get('per_page') ?? 25));
 
 /** The server already accepts `per_page` and clamps it; nothing rendered the control. */
 function setPerPage(value) {
@@ -68,12 +73,13 @@ const hasPages = computed(() => (props.meta?.links?.length ?? 0) > 3);
             </button>
         </div>
 
-        <nav v-if="hasPages" class="flex flex-wrap items-center gap-1">
+        <nav v-if="hasPages" aria-label="Pagination" class="flex flex-wrap items-center gap-1">
             <component
                 :is="link.url ? Link : 'span'"
                 v-for="link in meta.links"
                 :key="link.label"
                 :href="link.url ?? undefined"
+                :aria-current="link.active ? 'page' : undefined"
                 preserve-scroll
                 preserve-state
                 class="min-w-7 rounded px-2 py-1 text-center"

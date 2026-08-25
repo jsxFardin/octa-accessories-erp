@@ -10,6 +10,7 @@ import Modal from '@/Components/Ui/Modal.vue';
 import { date, datetime, pcs, qty, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     jobCard: { type: Object, required: true },
@@ -61,7 +62,11 @@ const overrunBreached = computed(
     () => Number(props.jobCard.produced_qty) > Number(props.jobCard.overrun_ceiling),
 );
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.jobCard.number))) return;
+
     router.post(`/job-cards/${props.jobCard.id}/transition`, { to }, { preserveScroll: true });
 }
 
@@ -180,7 +185,7 @@ const bomColumns = [
                 </ul>
 
                 <div v-if="releaseGate.shortages.length" class="mt-3">
-                    <p class="mb-1 text-xs font-medium text-ink-700">Shortages (BR-24)</p>
+                    <p class="mb-1 text-xs font-medium text-ink-700">Shortages</p>
                     <table class="min-w-full text-xs">
                         <thead class="text-ink-500">
                             <tr>

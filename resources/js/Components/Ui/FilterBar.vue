@@ -18,13 +18,28 @@ const state = ref({ ...props.filters });
 /**
  * Filters live in the query string, not in component state, so a filtered list is a URL
  * someone can send to a colleague — which is how half the questions in a factory get asked.
+ *
+ * The query is built by *merging into* the current URL rather than rebuilding from state:
+ * `per_page` (and anything else the bar does not manage) is not in `listingFilters()`, so
+ * rebuilding silently threw it away — set 200 rows, type one character, back to 25.
  */
 const push = useDebounceFn(() => {
-    const query = Object.fromEntries(
-        Object.entries(state.value).filter(([, value]) => value !== '' && value !== null && value !== undefined),
-    );
+    const query = new URLSearchParams(window.location.search);
 
-    router.get(window.location.pathname, query, {
+    query.delete('page'); // a changed filter restarts at page 1
+
+    Object.entries(state.value).forEach(([key, value]) => {
+        if (value === '' || value === null || value === undefined) {
+            query.delete(key);
+        } else {
+            query.set(key, String(value));
+        }
+    });
+
+    // A no-op push (mount-time date normalisation, prop resync) must not cost a request.
+    if (query.toString() === new URLSearchParams(window.location.search).toString()) return;
+
+    router.get(`${window.location.pathname}?${query}`, {}, {
         preserveState: true,
         preserveScroll: true,
         replace: true,
@@ -32,6 +47,19 @@ const push = useDebounceFn(() => {
 }, 250);
 
 watch(state, push, { deep: true });
+
+/**
+ * Re-sync when the server's idea of the filters changes underneath us — browser Back, or a
+ * partial reload that altered them. Without this the chips and inputs show yesterday's values
+ * and the next edit pushes stale state back to the server.
+ */
+watch(
+    () => props.filters,
+    (value) => {
+        const next = { ...value };
+        if (JSON.stringify(next) !== JSON.stringify(state.value)) state.value = next;
+    },
+);
 
 /**
  * What is currently narrowing the list, as removable chips. Without this a user who filtered
@@ -62,7 +90,13 @@ function clearOne(key) {
 }
 
 function reset() {
-    state.value = {};
+    // Clear the filters, keep the view: sort order and per_page are not filters and losing
+    // them on "Clear all" reads as the page misbehaving.
+    state.value = Object.fromEntries(
+        Object.keys(state.value)
+            .filter((key) => key !== 'sort')
+            .map((key) => [key, '']),
+    );
 }
 </script>
 
@@ -77,6 +111,7 @@ function reset() {
                     v-model="state.q"
                     type="search"
                     :placeholder="placeholder"
+                    :aria-label="placeholder || 'Search this list'"
                     class="form-input pl-7.5"
                 >
             </div>

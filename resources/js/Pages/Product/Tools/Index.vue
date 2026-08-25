@@ -28,7 +28,7 @@ const columns = [
         <Head title="Tools" />
 
         <template #title>Tools</template>
-        <template #subtitle>Plates, screens, dies — with the impressions they have left (BR-13)</template>
+        <template #subtitle>Plates, screens, dies — with the impressions they have left</template>
 
         <template #actions>
             <span />

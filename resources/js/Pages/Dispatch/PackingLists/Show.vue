@@ -8,6 +8,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import { date, pcs, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     packingList: { type: Object, required: true },
@@ -48,7 +49,11 @@ function addContent(cartonId) {
     });
 }
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.packingList.number))) return;
+
     router.post(`/packing-lists/${props.packingList.id}/transition`, { to }, { preserveScroll: true });
 }
 

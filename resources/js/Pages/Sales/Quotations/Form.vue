@@ -52,7 +52,7 @@ const form = useForm({
         : [blankLine()],
 });
 
-/** Products belong to exactly one customer (P1), so the picker narrows with the header. */
+/** Products belong to exactly one customer, so the picker narrows with the header. */
 const availableProducts = computed(() =>
     form.customer_id
         ? props.products.filter((product) => product.customer_id === Number(form.customer_id))
@@ -226,7 +226,7 @@ const columns = [
                         :errors="form.errors"
                         add-label="Add line"
                         empty="No lines yet"
-                    empty-hint="Add a product and a quantity — the rate is computed from a cost sheet (BR-14…BR-22), never typed by hand."
+                    empty-hint="Add a product and a quantity — the rate is computed from a cost sheet, never typed by hand."
                         @add="addLine"
                         @remove="removeLine"
                     >

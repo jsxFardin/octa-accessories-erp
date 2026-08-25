@@ -23,7 +23,7 @@ const columns = [
 
         <template #title>Number sequences</template>
         <template #subtitle>
-            BR-34 — allocated under a row lock inside the transaction that inserts the document.
+            Numbers are allocated under a row lock inside the transaction that inserts the document.
             Read-only on purpose: editing a counter by hand is how a VAT series acquires a duplicate.
         </template>
 

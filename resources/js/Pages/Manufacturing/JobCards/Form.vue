@@ -162,11 +162,11 @@ function submit() {
                         </li>
                         <li class="flex gap-2">
                             <Badge tone="info" label="2" />
-                            <span>The consumption plan is computed and <strong>snapshotted</strong> — gross metres, ends, labels per metre (BR-4 … BR-13).</span>
+                            <span>The consumption plan is computed and <strong>snapshotted</strong> — gross metres, ends, labels per metre.</span>
                         </li>
                         <li class="flex gap-2">
                             <Badge tone="info" label="3" />
-                            <span>One operation per routing step is scheduled with its planned minutes (BR-27).</span>
+                            <span>One operation per routing step is scheduled with its planned minutes.</span>
                         </li>
                         <li class="flex gap-2">
                             <Badge tone="neutral" label="4" />

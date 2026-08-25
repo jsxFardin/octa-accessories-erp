@@ -10,6 +10,7 @@ use App\Modules\Manufacturing\Models\JobCardOperation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * What this operator can start right now — released job cards, in J2 order, filtered to the
@@ -23,14 +24,38 @@ class FloorQueueController extends Controller
 
         $operations = JobCardOperation::query()
             ->runnable()
-            ->with(['jobCard:id,number,product_id,colourway,planned_qty,due_date,factory_unit_id', 'jobCard.product:id,code,name', 'machine:id,code,name'])
+            // `routingOperation` is read by predecessorsComplete() below, so it is eager
+            // loaded here — the filter runs per row and would otherwise lazy load (J2).
+            ->with([
+                'jobCard:id,number,product_id,colourway,planned_qty,due_date,factory_unit_id',
+                'jobCard.product:id,code,name',
+                'machine:id,code,name',
+                'routingOperation:id,allow_parallel',
+            ])
             ->whereHas(
                 'jobCard',
                 fn (Builder $query) => $query
                     ->where('factory_unit_id', $session->factoryUnitId)
                     ->whereIn('status', [JobCard::RELEASED, JobCard::IN_PRODUCTION, JobCard::ON_HOLD]),
             )
-            ->when($request->query('machine_code'), fn ($q, $code) => $q->whereHas('machine', fn ($m) => $m->where('code', $code)))
+            // A machine shows its own scheduled work *and* the work of its group that
+            // planning has not pinned to a machine yet. Filtering on `machine_id` alone left
+            // an operator staring at "Nothing to run" while their group's queue was full.
+            ->when($request->query('machine_code'), function (Builder $query, string $code): void {
+                $machine = DB::table('machines')->where('code', $code)->first(['id', 'machine_group_id']);
+
+                if ($machine === null) {
+                    $query->whereRaw('1 = 0');
+
+                    return;
+                }
+
+                $query->where(fn (Builder $q) => $q
+                    ->where('machine_id', $machine->id)
+                    ->orWhere(fn (Builder $unpinned) => $unpinned
+                        ->whereNull('machine_id')
+                        ->where('machine_group_id', $machine->machine_group_id)));
+            })
             ->orderBy('scheduled_start')
             ->limit(40)
             ->get()

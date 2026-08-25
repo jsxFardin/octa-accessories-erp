@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { date as formatDate, isoDate, todayIso } from '@/plugins/formatting';
 
 /**
@@ -25,6 +25,12 @@ const props = defineProps({
     max: { type: String, default: null },
     clearable: { type: Boolean, default: true },
 });
+
+// Adopt the FormField's generated id/description so the label and error are associated.
+const inheritedError = inject('fieldError', null);
+const invalid = computed(() => Boolean(props.error ?? inheritedError?.value));
+const fieldId = inject('fieldId', null);
+const describedBy = inject('fieldDescribedBy', null);
 
 const focused = ref(false);
 const draft = ref('');
@@ -206,14 +212,17 @@ onUnmounted(() => {
         <div class="relative">
             <!-- Typing stays possible: a planner entering thirty dates should never need the mouse. -->
             <input
+                :id="fieldId ?? undefined"
                 ref="field"
                 :value="displayValue"
                 type="text"
                 inputmode="numeric"
                 class="form-input pr-8"
-                :class="error && 'form-input-error'"
+                :class="invalid && 'form-input-error'"
                 :placeholder="placeholder"
                 :disabled="disabled"
+                :aria-invalid="invalid || undefined"
+                :aria-describedby="describedBy?.value ?? undefined"
                 @focus="onFocus"
                 @input="onInput"
                 @blur="onBlur"

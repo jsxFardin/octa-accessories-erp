@@ -59,7 +59,7 @@ const props = defineProps({ customer: Object, products: Array, openOrders: Array
                 </DataTable>
             </Card>
 
-            <Card class="lg:col-span-3" title="Products" subtitle="One product, one customer (P1)" :padded="false">
+            <Card class="lg:col-span-3" title="Products" subtitle="One product, one customer" :padded="false">
                 <DataTable
                     :columns="[
                         { key: 'code', label: 'Code' },

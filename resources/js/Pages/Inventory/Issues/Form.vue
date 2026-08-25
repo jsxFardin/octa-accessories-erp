@@ -223,7 +223,7 @@ function submit() {
         <template #subtitle>
             {{ isReturn
                 ? 'Unused material goes back onto the same lot it was issued from'
-                : 'Shade-first lot suggestion with a FIFO fallback (BR-37)' }}
+                : 'Shade-first lot suggestion with a FIFO fallback' }}
         </template>
 
         <FormLayout @submit="submit">
@@ -274,7 +274,9 @@ function submit() {
                 rule="BR-37"
                 subtitle="Enter what the job needs; the system picks the lots"
             >
-                <div class="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <!-- items-start, not items-end: two of these fields carry a hint and two do
+                     not, and bottom alignment pushed their labels out of line. -->
+                <div class="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     <FormField label="Item">
                         <SelectInput
                             v-model="requestItemId"
@@ -300,9 +302,21 @@ function submit() {
                         <TextInput v-model="requestClaim" type="number" step="0.01" numeric />
                     </FormField>
 
-                    <Button :loading="busy" :disabled="!requestItemId || !requestQty" @click="suggest">
-                        Suggest lots
-                    </Button>
+                    <div class="min-w-0">
+                        <!-- Spacer matching FormField's label, so the button sits on the
+                             same line as the inputs rather than above them. -->
+                        <span aria-hidden="true" class="mb-1 block text-xs font-medium text-transparent select-none">
+                            &nbsp;
+                        </span>
+                        <Button
+                            class="w-full"
+                            :loading="busy"
+                            :disabled="!requestItemId || !requestQty"
+                            @click="suggest"
+                        >
+                            Suggest lots
+                        </Button>
+                    </div>
                 </div>
 
                 <div v-if="suggestion" class="mt-4 rounded-md border border-slate-200">

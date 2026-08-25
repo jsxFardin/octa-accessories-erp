@@ -1,12 +1,19 @@
 <script setup>
 import { Head } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
+import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, money, qty } from '@/plugins/formatting';
+import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
-defineProps({ grn: { type: Object, required: true }, lines: { type: Array, default: () => [] }, lots: { type: Array, default: () => [] } });
+defineProps({
+    grn: { type: Object, required: true },
+    purchaseOrder: { type: Object, default: null },
+    lines: { type: Array, default: () => [] },
+    lots: { type: Array, default: () => [] },
+});
 </script>
 
 <template>
@@ -16,7 +23,24 @@ defineProps({ grn: { type: Object, required: true }, lines: { type: Array, defau
         <template #title>{{ grn.number }}</template>
         <template #subtitle>{{ grn.supplier?.name }} · received {{ date(grn.received_on) }}</template>
 
-        <template #actions><Badge :status="grn.status" /></template>
+        <!-- The receipt sits mid-chain: link up to its PO, forward into the bill it prefills.
+             The `?grn_id=` handler in SupplierBillController existed with nothing pointing at it. -->
+        <template #actions>
+            <Badge :status="grn.status" />
+            <Button
+                v-if="purchaseOrder && can('purchase_order.view')"
+                :href="`/purchase-orders/${purchaseOrder.id}`"
+            >
+                PO {{ purchaseOrder.number }}
+            </Button>
+            <Button
+                v-if="can('supplier_bill.create')"
+                variant="primary"
+                :href="`/supplier-bills/create?grn_id=${grn.id}`"
+            >
+                Create supplier bill
+            </Button>
+        </template>
 
         <div class="space-y-4">
             <Card title="Landed cost" rule="BR-36" subtitle="Apportioned to lines by value before the weighted average moves">

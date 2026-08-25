@@ -36,6 +36,10 @@ const props = defineProps({
 const inheritedError = inject('fieldError', null);
 const invalid = computed(() => Boolean(props.error ?? inheritedError?.value));
 
+// Adopt the FormField's generated id/description so the label and error are associated.
+const fieldId = inject('fieldId', null);
+const describedBy = inject('fieldDescribedBy', null);
+
 const open = ref(false);
 const query = ref('');
 const activeIndex = ref(0);
@@ -192,6 +196,7 @@ onUnmounted(() => {
 <template>
     <div class="relative">
         <button
+            :id="fieldId ?? undefined"
             ref="trigger"
             type="button"
             class="form-select flex w-full items-center justify-between gap-2 text-left"
@@ -200,6 +205,8 @@ onUnmounted(() => {
             role="combobox"
             :aria-expanded="open"
             aria-haspopup="listbox"
+            :aria-invalid="invalid || undefined"
+            :aria-describedby="describedBy?.value ?? undefined"
             @click="toggle"
             @keydown="onKeydown"
         >

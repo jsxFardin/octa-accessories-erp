@@ -43,8 +43,8 @@ const columns = [
             -->
             <div class="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 <span class="font-medium">Invoices are raised from a delivery challan.</span>
-                Packing, challan and invoicing are Phase 2 sprint 13 / Phase 3 sprint 17
-                (docs/10-roadmap.md) and are not built yet — this screen reads the AR subledger only.
+                Challan-based invoicing isn't available yet — this screen shows the receivables
+                ledger only.
             </div>
 
             <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','issued','partially_paid','paid','overdue','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search invoice or Mushak number…" />
@@ -59,8 +59,8 @@ const columns = [
                 <template #cell:customer="{ value }">{{ value ?? "—" }}</template>
                 <template #cell:invoice_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:due_date="{ row, value }">{{ date(value) }}</template>
-                <template #cell:total="{ row, value }">{{ money(value) }}</template>
-                <template #cell:received_amount="{ row, value }">{{ money(value) }}</template>
+                <template #cell:total="{ row, value }">{{ money(value, row.currency) }}</template>
+                <template #cell:received_amount="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
                 <template #empty>
                     <EmptyState

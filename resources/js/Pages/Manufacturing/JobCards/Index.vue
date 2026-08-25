@@ -10,18 +10,21 @@ import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import CodeName from '@/Components/Ui/CodeName.vue';
 
 const props = defineProps({ jobCards: Object, filters: Object });
 
+// Status and Due beside the number — the two columns anyone actually scans were the two
+// that sat behind the horizontal scrollbar.
 const columns = [
     { key: 'number', label: 'Number', sort: true },
+    { key: 'status', label: 'Status', sort: true },
+    { key: 'due_date', label: 'Due', sort: true },
     { key: 'product', label: 'Product' },
     { key: 'colourway', label: 'Colourway' },
     { key: 'planned_qty', label: 'Planned', align: 'right', sort: true },
     { key: 'good_qty', label: 'Good', align: 'right' },
     { key: 'waste_qty', label: 'Waste', align: 'right' },
-    { key: 'due_date', label: 'Due', sort: true },
-    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -30,7 +33,7 @@ const columns = [
         <Head title="Job cards" />
 
         <template #title>Job cards</template>
-        <template #subtitle>Bound to a routing and an approved artwork version (Gate 1)</template>
+        <template #subtitle>Bound to a routing and an approved artwork version</template>
 
         <template #actions>
             <ExportDialog v-if="can('job_card.export')" resource="job-cards" />
@@ -46,8 +49,8 @@ const columns = [
                 row-key="id" :row-href="(row) => `/job-cards/${row.id}`"
                 empty="No job cards match these filters."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}</span></template>
-                <template #cell:product="{ row, value }"><span v-if="row.product"><span class="font-medium">{{ row.product.code }}</span> <span class="text-ink-500">{{ row.product.name }}</span></span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-brand-700">{{ value ?? "(unnumbered)" }}</span></template>
+                <template #cell:product="{ row }"><CodeName v-if="row.product" :code="row.product.code" :name="row.product.name" /></template>
                 <template #cell:planned_qty="{ row, value }">{{ pcs(value) }}</template>
                 <template #cell:good_qty="{ row, value }">{{ pcs(value) }}</template>
                 <template #cell:waste_qty="{ row, value }">{{ pcs(value) }}</template>

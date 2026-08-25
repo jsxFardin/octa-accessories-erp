@@ -31,7 +31,7 @@ class SupplierBillController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = SupplierBill::query()->with(['supplier:id,code,name']);
+        $query = SupplierBill::query()->with(['supplier:id,code,name', 'currency:id,code']);
 
         $this->applyListing(
             $query,
@@ -46,6 +46,7 @@ class SupplierBillController extends Controller
             'bills' => $query->paginate($this->perPage($request))->withQueryString()->through(
                 fn (SupplierBill $bill): array => [
                     ...$bill->only(['id', 'number', 'bill_no', 'bill_date', 'due_date', 'total', 'paid_amount', 'status']),
+                    'currency' => $bill->currency?->code,
                     'supplier' => $bill->supplier?->name,
                     'outstanding' => round((float) $bill->total - (float) $bill->paid_amount, 2),
                 ],
@@ -246,6 +247,7 @@ class SupplierBillController extends Controller
         return Inertia::render('Procurement/Bills/Show', [
             'bill' => [
                 ...$supplierBill->only(['id', 'number', 'bill_no', 'bill_date', 'due_date', 'subtotal', 'tax_amount', 'total', 'paid_amount', 'status']),
+                'currency' => $supplierBill->currency?->code,
                 'supplier' => $supplierBill->supplier,
                 'po_number' => $supplierBill->purchaseOrder?->number,
                 'po_id' => $supplierBill->po_id,

@@ -7,6 +7,7 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, money, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     purchaseOrder: { type: Object, required: true },
@@ -16,7 +17,11 @@ const props = defineProps({
     approval: { type: Object, default: null },
 });
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.purchaseOrder.number))) return;
+
     router.post(`/purchase-orders/${props.purchaseOrder.id}/transition`, { to }, { preserveScroll: true });
 }
 </script>

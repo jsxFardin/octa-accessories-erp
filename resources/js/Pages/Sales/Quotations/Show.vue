@@ -11,6 +11,8 @@ import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
+import RuleHint from '@/Components/Ui/RuleHint.vue';
 
 const props = defineProps({
     quotation: { type: Object, required: true },
@@ -28,7 +30,11 @@ const convertOpen = ref(false);
 const rejectForm = useForm({ to: 'rejected', reject_reason: '' });
 const convertForm = useForm({ customer_po_no: '', delivery_date: '' });
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.quotation.number))) return;
+
     router.post(`/quotations/${props.quotation.id}/transition`, { to }, { preserveScroll: true });
 }
 </script>
@@ -118,7 +124,7 @@ function transition(to) {
                             <div class="flex justify-between border-t border-slate-200 pt-1.5"><dt class="font-medium">Total cost</dt><dd class="tnum font-medium">{{ money(line.cost_sheet.total_cost) }}</dd></div>
                             <div class="flex justify-between"><dt class="text-ink-500">Unit cost</dt><dd class="tnum">{{ Number(line.cost_sheet.unit_cost).toFixed(6) }}</dd></div>
                             <div class="flex justify-between">
-                                <dt class="text-ink-500">Margin <span class="font-mono text-[10px] text-ink-400">BR-20</span></dt>
+                                <dt class="flex items-center gap-1 text-ink-500">Margin <RuleHint rule="BR-20" size="size-3" /></dt>
                                 <dd class="tnum">{{ Number(line.cost_sheet.margin_pct).toFixed(2) }}%</dd>
                             </div>
                             <div class="flex justify-between rounded bg-brand-50 px-2 py-1">

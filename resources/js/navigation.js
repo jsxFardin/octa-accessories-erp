@@ -127,7 +127,7 @@ export const navigation = [
 export const adminNavigation = [
     {
         label: 'Configuration',
-        heading: false,
+        open: true,
         items: [
             { label: 'Lists', href: '/setup', icon: 'sliders', aliases: ['setup'], permissions: ['reference_data.view_any'] },
             { label: 'Settings', href: '/admin/settings', icon: 'settings', permissions: ['setting.view_any'] },
@@ -136,10 +136,16 @@ export const adminNavigation = [
     },
     {
         label: 'Access',
-        heading: false,
+        open: true,
         items: [
             { label: 'Users', href: '/admin/users', icon: 'users', permissions: ['user.view_any'] },
             { label: 'Roles & permissions', href: '/admin/roles', icon: 'roles', permissions: ['role.view_any'] },
+        ],
+    },
+    {
+        label: 'Activity',
+        open: true,
+        items: [
             { label: 'Audit log', href: '/admin/audit-log', icon: 'audit', permissions: ['audit_log.view_any'] },
         ],
     },

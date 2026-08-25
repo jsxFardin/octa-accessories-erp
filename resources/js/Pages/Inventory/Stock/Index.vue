@@ -5,8 +5,9 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
-import { date, money, qty } from '@/plugins/formatting';
+import { date, money, qty, qtyFor } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import CodeName from '@/Components/Ui/CodeName.vue';
 
 const props = defineProps({
     rows: { type: Object, required: true },
@@ -52,7 +53,7 @@ const columns = [
                         :label="reconciliation.mismatched.length ? 'Mismatch' : 'Reconciled'"
                     />
                     <span class="font-medium">
-                        {{ reconciliation.checked }} lot balance(s) checked against
+                        {{ reconciliation.checked }} {{ reconciliation.checked === 1 ? 'lot balance' : 'lot balances' }} checked against
                         the live ledger
                     </span>
                     <span v-if="reconciliation.mismatched.length" class="text-xs">
@@ -95,16 +96,17 @@ const columns = [
                         </Link>
                     </template>
                     <template #cell:item_code="{ row }">
-                        <span class="font-medium">{{ row.item_code }}</span>
-                        <span class="text-ink-500"> {{ row.item_name }}</span>
+                        <CodeName :code="row.item_code" :name="row.item_name" />
                     </template>
                     <template #cell:warehouse="{ row }">
                         {{ row.warehouse }}
                         <!-- BR-24: scrap and transit exist, but MRP may not plan against them -->
                         <Badge v-if="!row.is_nettable" tone="neutral" label="non-net" class="ml-1" />
                     </template>
-                    <template #cell:balance_qty="{ value }">{{ qty(value) }}</template>
-                    <template #cell:value="{ value }">{{ money(value) }}</template>
+                    <template #cell:balance_qty="{ row, value }">
+                        {{ qtyFor(value, row.uom_dimension) }}<span v-if="row.uom" class="ml-1 text-xs text-ink-400">{{ row.uom }}</span>
+                    </template>
+                    <template #cell:value="{ value }">{{ money(value, '৳') }}</template>
                     <template #cell:cert="{ row }">
                         <Badge v-if="row.cert_scheme" tone="success" :label="`${row.cert_scheme} ${row.cert_claim_pct}%`" />
                         <span v-else class="text-ink-400">—</span>

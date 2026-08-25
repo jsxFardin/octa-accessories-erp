@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Models\User;
-use App\Support\Notifications\Inbox;
 use App\Support\Settings\Organisation;
 use App\Support\Settings\Settings;
 use Illuminate\Http\Request;
@@ -65,9 +64,16 @@ class HandleInertiaRequests extends Middleware
                 'warning' => fn () => $request->session()->get('warning'),
             ],
 
-            'notifications' => fn (): array => $user === null
-                ? ['unread' => 0, 'notifications' => []]
-                : Inbox::for($user),
+            /*
+             * Badge count only. The full list was fetched-and-mapped here on every Inertia
+             * request — including each debounced filter keystroke — while the bell already
+             * refetches `/notifications` when it is opened. One COUNT(*) instead of two
+             * queries per request.
+             */
+            'notifications' => fn (): array => [
+                'unread' => $user?->unreadNotifications()->count() ?? 0,
+                'notifications' => [],
+            ],
 
             /*
              * Scoped by config/ziggy.php. Route names are not a secret — every route is

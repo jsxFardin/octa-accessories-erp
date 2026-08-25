@@ -57,6 +57,10 @@ it('guards every application route with a permission', function (): void {
         'exports/{resource}', 'exports/{resource}/columns',
         // Import, for the same reason: `customer.import` for one list, `item.import` for the next.
         'imports/{resource}', 'imports/{resource}/fields', 'imports/{resource}/sample',
+        // The 404 fallback renders the error page for any unmatched URL. A permission gate
+        // here would turn "page not found" into "permission denied" — wrong answer, and it
+        // must work for guests too.
+        '{fallbackPlaceholder}',
     ];
     $unguarded = [];
 

@@ -204,7 +204,7 @@ const columns = [
                         :errors="form.errors"
                         add-label="Add line"
                         empty="No lines yet"
-                    empty-hint="Each line becomes a barcoded lot. Any certification claim entered here is the only legitimate origin of that claim (Gate 2)."
+                    empty-hint="Each line becomes a barcoded lot. Any certification claim entered here is the only legitimate origin of that claim."
                         @add="addLine"
                         @remove="removeLine"
                     >
@@ -328,8 +328,8 @@ const columns = [
                     <div class="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
                         <span class="font-medium">On posting:</span> each line becomes a barcoded lot with a
                         <code class="font-mono">grn_receipt</code> ledger row, the item's weighted average moves
-                        (BR-36), and any certification claim is written to the chain-of-custody ledger as certified
-                        input (BR-42). This is the only legitimate origin of a claim.
+                       , and any certification claim is written to the chain-of-custody ledger as certified
+                        input. This is the only legitimate origin of a claim.
                     </div>
                 </div>
             </Card>

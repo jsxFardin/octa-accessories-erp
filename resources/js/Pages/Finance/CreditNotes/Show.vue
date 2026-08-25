@@ -5,6 +5,7 @@ import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import { date, money, titleCase } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     creditNote: { type: Object, required: true },
@@ -12,7 +13,11 @@ const props = defineProps({
     availableTransitions: { type: Array, default: () => [] },
 });
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.creditNote.number))) return;
+
     router.post(`/credit-notes/${props.creditNote.id}/transition`, { to }, { preserveScroll: true });
 }
 </script>

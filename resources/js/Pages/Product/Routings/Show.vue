@@ -47,7 +47,7 @@ const columns = [
                     <p class="text-2xl font-semibold tnum text-ink-900">{{ Number(totalWastagePct).toFixed(2) }}%</p>
                     <!-- BR-8 is additive, and only over the operations that actually run the web. -->
                     <p class="mt-1 text-[11px] text-ink-500">
-                        BR-8 — additive across web-consuming operations only
+                        Additive across web-consuming operations only
                     </p>
                 </Card>
 
@@ -69,7 +69,7 @@ const columns = [
                 </Card>
             </div>
 
-            <Card title="Operations" subtitle="Executed in sequence order (J2)" :padded="false">
+            <Card title="Operations" subtitle="Executed in sequence order" :padded="false">
                 <DataTable :columns="columns" :rows="operations" row-key="id" empty="No operations." dense>
                     <template #cell:code="{ row }">
                         <span class="font-medium text-ink-900">{{ row.code }}</span>

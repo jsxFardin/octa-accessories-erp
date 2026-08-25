@@ -8,6 +8,7 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, datetime, money, qty, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     count: { type: Object, required: true },
@@ -49,7 +50,11 @@ const columns = computed(() => {
     return base;
 });
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.count.number))) return;
+
     router.post(`/physical-counts/${props.count.id}/transition`, { to }, { preserveScroll: true });
 }
 </script>

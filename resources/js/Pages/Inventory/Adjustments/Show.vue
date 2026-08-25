@@ -7,6 +7,7 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, datetime, money, qty, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     adjustment: { type: Object, required: true },
@@ -19,7 +20,11 @@ const props = defineProps({
 
 const readOnly = ['posted', 'cancelled'].includes(props.adjustment.status);
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.adjustment.number))) return;
+
     router.post(`/stock-adjustments/${props.adjustment.id}/transition`, { to }, { preserveScroll: true });
 }
 

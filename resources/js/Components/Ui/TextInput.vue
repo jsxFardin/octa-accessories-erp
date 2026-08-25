@@ -20,10 +20,16 @@ const props = defineProps({
 // The surrounding FormField already knows; a page should not have to say it twice.
 const inheritedError = inject('fieldError', null);
 const invalid = computed(() => Boolean(props.error ?? inheritedError?.value));
+
+// Adopt the FormField's generated id/description so the label and error are associated.
+const fieldId = inject('fieldId', null);
+const describedBy = inject('fieldDescribedBy', null);
+const required = inject('fieldRequired', null);
 </script>
 
 <template>
     <input
+        :id="fieldId ?? undefined"
         v-model="model"
         :type="type"
         :placeholder="placeholder"
@@ -37,5 +43,7 @@ const invalid = computed(() => Boolean(props.error ?? inheritedError?.value));
             numeric && 'text-right tnum',
         ]"
         :aria-invalid="invalid || undefined"
+        :aria-describedby="describedBy?.value ?? undefined"
+        :aria-required="required?.value || undefined"
     >
 </template>

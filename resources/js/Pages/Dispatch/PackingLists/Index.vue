@@ -26,7 +26,7 @@ const columns = [
         <Head title="Packing lists" />
 
         <template #title>Packing lists</template>
-        <template #subtitle>Every carton's contents name their lot (D1)</template>
+        <template #subtitle>Every carton's contents name their lot</template>
 
         <template #actions>
             <Button v-if="can('packing_list.create')" size="sm" variant="primary" href="/packing-lists/create">New packing list</Button>

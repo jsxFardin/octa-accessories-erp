@@ -34,7 +34,7 @@ class SalesInvoiceController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = SalesInvoice::query()->with(['customer:id,code,name']);
+        $query = SalesInvoice::query()->with(['customer:id,code,name', 'currency:id,code']);
 
         $this->applyListing(
             $query,
@@ -50,6 +50,7 @@ class SalesInvoiceController extends Controller
                 fn (SalesInvoice $invoice): array => [
                     ...$invoice->only(['id', 'number', 'invoice_date', 'due_date', 'subtotal', 'total',
                         'received_amount', 'status']),
+                    'currency' => $invoice->currency?->code,
                     'customer' => $invoice->customer?->name,
                 ],
             ),

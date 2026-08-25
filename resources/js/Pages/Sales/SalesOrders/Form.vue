@@ -206,7 +206,7 @@ const columns = [
                         :can-remove="canRemove"
                         add-label="Add line"
                         empty="No lines yet"
-                    empty-hint="Each line needs a product with a current spec and an approved artwork before the order can be confirmed (S3)."
+                    empty-hint="Each line needs a product with a current spec and an approved artwork before the order can be confirmed."
                         @add="addLine"
                         @remove="removeLine"
                     >
@@ -219,7 +219,7 @@ const columns = [
                                 label-key="code"
                             />
                             <p v-if="Number(line.produced_qty) > 0" class="mt-1 text-[11px] text-ink-500">
-                                {{ pcs(line.produced_qty) }} produced — line cannot be removed (S1)
+                                {{ pcs(line.produced_qty) }} produced — line cannot be removed
                             </p>
                         </template>
 
@@ -267,7 +267,7 @@ const columns = [
 
                     <p class="mt-2 text-xs text-ink-500">
                         Promised dates are computed on confirmation from the delivery date, QC and
-                        packing days, and the address transit time (BR-29) — leave them blank to
+                        packing days, and the address transit time — leave them blank to
                         let the system fill them in.
                     </p>
                 </div>
@@ -309,7 +309,7 @@ const columns = [
                     </dl>
 
                     <p class="mt-3 text-[11px] leading-relaxed text-ink-500">
-                        Ordered quantity, not shipped: BR-44 lets each line land inside its own
+                        Ordered quantity, not shipped: each line may land inside its own
                         tolerance band, which the Lines table shows per line.
                     </p>
                 </Card>

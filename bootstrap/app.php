@@ -25,6 +25,22 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->prefix('portal')
                 ->name('portal.')
                 ->group(base_path('routes/portal.php'));
+
+            /*
+             * Registered after every route file on purpose — a fallback matches anything, so
+             * anything registered later would be unreachable.
+             *
+             * Why it exists: an unmatched URL 404s during routing, before the web middleware
+             * group runs, so the exception renderer below has no session and no user and the
+             * error page treated every signed-in person as a guest. The fallback runs the
+             * full web stack, so the 404 page knows who you are and where your home is.
+             */
+            Illuminate\Support\Facades\Route::fallback(
+                fn () => Inertia::render('Error', [
+                    'status' => 404,
+                    'home' => LandingPage::for(auth()->user()),
+                ])->toResponse(request())->setStatusCode(404),
+            )->middleware('web');
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
@@ -58,9 +74,24 @@ return Application::configure(basePath: dirname(__DIR__))
                 return $response;
             }
 
+            /*
+             * `auth` is passed explicitly: an unmatched route 404s during routing, before
+             * the web middleware group runs, so HandleInertiaRequests::share() never fires
+             * and the error page would treat every signed-in user as a guest — offering
+             * "Sign in" to someone who already is.
+             */
+            $user = $request->user();
+
             return Inertia::render('Error', [
                 'status' => $response->getStatusCode(),
-                'home' => LandingPage::for($request->user()),
+                'home' => LandingPage::for($user),
+                'auth' => [
+                    'user' => $user === null ? null : [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'roles' => $user->roleNames(),
+                    ],
+                ],
             ])
                 ->toResponse($request)
                 ->setStatusCode($response->getStatusCode());

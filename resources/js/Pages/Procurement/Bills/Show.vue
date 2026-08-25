@@ -7,6 +7,8 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, money, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
+import { useConfirm } from '@/composables/useConfirm';
 
 const props = defineProps({
     bill: { type: Object, required: true },
@@ -16,11 +18,27 @@ const props = defineProps({
     availableTransitions: { type: Array, default: () => [] },
 });
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.bill.number))) return;
+
     router.post(`/supplier-bills/${props.bill.id}/transition`, { to }, { preserveScroll: true });
 }
 
-function transitionWithOverride(to) {
+async function transitionWithOverride(to) {
+    // Approving *past* a price variance is the riskier click on this page — it was the only
+    // transition here that skipped even the ordinary confirm.
+    const { confirm } = useConfirm();
+    const accepted = await confirm({
+        title: `Approve ${props.bill.number} despite the variance?`,
+        message: 'The rate variance against the purchase order will be overridden and the bill approved.',
+        confirmLabel: 'Override and approve',
+        tone: 'danger',
+    });
+
+    if (!accepted) return;
+
     router.post(`/supplier-bills/${props.bill.id}/transition`, { to, override: true }, { preserveScroll: true });
 }
 
@@ -75,21 +93,21 @@ const lineColumns = [
             <Card title="Lines" :padded="false">
                 <DataTable :columns="lineColumns" :rows="lines" row-key="id" empty="No lines." dense>
                     <template #cell:qty="{ value }">{{ Number(value).toFixed(2) }}</template>
-                    <template #cell:rate="{ value }">{{ money(value) }}</template>
-                    <template #cell:amount="{ value }">{{ money(value) }}</template>
+                    <template #cell:rate="{ value }">{{ money(value, bill.currency) }}</template>
+                    <template #cell:amount="{ value }">{{ money(value, bill.currency) }}</template>
                 </DataTable>
             </Card>
 
             <div class="grid gap-4 lg:grid-cols-2">
                 <Card title="Totals">
                     <dl class="grid grid-cols-2 gap-2 text-sm">
-                        <div><dt class="text-xs text-ink-500">Subtotal</dt><dd class="font-medium tnum">{{ money(bill.subtotal) }}</dd></div>
-                        <div><dt class="text-xs text-ink-500">Tax</dt><dd class="font-medium tnum">{{ money(bill.tax_amount) }}</dd></div>
-                        <div><dt class="text-xs text-ink-500">Total</dt><dd class="font-medium tnum">{{ money(bill.total) }}</dd></div>
-                        <div><dt class="text-xs text-ink-500">Paid</dt><dd class="font-medium tnum text-emerald-700">{{ money(bill.paid_amount) }}</dd></div>
+                        <div><dt class="text-xs text-ink-500">Subtotal</dt><dd class="font-medium tnum">{{ money(bill.subtotal, bill.currency) }}</dd></div>
+                        <div><dt class="text-xs text-ink-500">Tax</dt><dd class="font-medium tnum">{{ money(bill.tax_amount, bill.currency) }}</dd></div>
+                        <div><dt class="text-xs text-ink-500">Total</dt><dd class="font-medium tnum">{{ money(bill.total, bill.currency) }}</dd></div>
+                        <div><dt class="text-xs text-ink-500">Paid</dt><dd class="font-medium tnum text-emerald-700">{{ money(bill.paid_amount, bill.currency) }}</dd></div>
                         <div>
                             <dt class="text-xs text-ink-500">Outstanding</dt>
-                            <dd class="font-medium tnum" :class="bill.outstanding > 0 ? 'text-rose-600' : ''">{{ money(bill.outstanding) }}</dd>
+                            <dd class="font-medium tnum" :class="bill.outstanding > 0 ? 'text-rose-600' : ''">{{ money(bill.outstanding, bill.currency) }}</dd>
                         </div>
                     </dl>
                 </Card>
@@ -130,7 +148,7 @@ const lineColumns = [
                                     <span v-else-if="row.qty_ok === false" class="text-rose-600">✗</span>
                                     <span v-else class="text-ink-400">—</span>
                                 </td>
-                                <td class="px-3 py-1.5 text-right tnum">{{ row.po_rate != null ? money(row.po_rate) : '—' }}</td>
+                                <td class="px-3 py-1.5 text-right tnum">{{ row.po_rate != null ? money(row.po_rate, bill.currency) : '—' }}</td>
                                 <td class="px-3 py-1.5 text-right tnum">{{ money(row.bill_rate) }}</td>
                                 <td class="px-3 py-1.5 text-right tnum" :class="row.rate_variance_pct > 2 ? 'text-rose-600 font-semibold' : ''">
                                     {{ row.rate_variance_pct != null ? `${row.rate_variance_pct}%` : '—' }}

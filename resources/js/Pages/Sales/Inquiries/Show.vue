@@ -10,6 +10,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import { date, money, pcs, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     inquiry: { type: Object, required: true },
@@ -20,7 +21,11 @@ const props = defineProps({
 const lostOpen = ref(false);
 const lostForm = useForm({ status: 'lost', lost_reason: '' });
 
-function transition(status) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(status) {
+    if (!(await confirmTransition(status, props.inquiry.number))) return;
+
     router.post(`/inquiries/${props.inquiry.id}/transition`, { status }, { preserveScroll: true });
 }
 

@@ -54,7 +54,7 @@ const columns = [
         <Head title="Routings" />
 
         <template #title>Routings</template>
-        <template #subtitle>One default routing per product type, carrying the BR-8 wastage defaults</template>
+        <template #subtitle>One default routing per product type, carrying the wastage defaults</template>
 
         <template #actions>
             <Button v-if="can('routing.create')" variant="primary" href="/routings/create">New routing</Button>

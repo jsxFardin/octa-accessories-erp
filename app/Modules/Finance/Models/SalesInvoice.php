@@ -79,4 +79,10 @@ class SalesInvoice extends Model
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\Customer::class, 'customer_id');
     }
+
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Currency, $this> */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Currency::class, 'currency_id');
+    }
 }

@@ -91,7 +91,7 @@ const columns = [
         <Head :title="isEdit ? `Edit ${routing.code}` : 'New routing'" />
 
         <template #title>{{ isEdit ? `Routing ${routing.code}` : 'New routing' }}</template>
-        <template #subtitle>Operations execute in the order listed here (J2)</template>
+        <template #subtitle>Operations execute in the order listed here</template>
 
         <FormLayout @submit="submit">
 
@@ -242,7 +242,7 @@ const columns = [
 
                     <p class="mt-2 text-xs text-ink-500">
                         Manning level is operators per machine — a loom watched one-in-four is 0.25,
-                        a screen table needing two people is 2.0 (BR-17).
+                        a screen table needing two people is 2.0.
                     </p>
                 </div>
             </Card>

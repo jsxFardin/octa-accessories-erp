@@ -25,7 +25,7 @@ const columns = [
         <Head title="Material issues" />
 
         <template #title>Material issues</template>
-        <template #subtitle>Shade-first suggestions with a FIFO fallback; overrides are logged (BR-37)</template>
+        <template #subtitle>Shade-first suggestions with a FIFO fallback; overrides are logged</template>
 
         <template #actions>
             <Button v-if="can('stock_issue.create')" variant="primary" href="/material-issues/create">New issue</Button>

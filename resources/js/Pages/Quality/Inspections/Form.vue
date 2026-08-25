@@ -123,7 +123,7 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
         <Head title="New inspection" />
 
         <template #title>New inspection</template>
-        <template #subtitle>The verdict is computed, never typed (BR-30)</template>
+        <template #subtitle>The verdict is computed, never typed</template>
 
         <FormLayout @submit="submit">
 

@@ -45,7 +45,7 @@ const columns = [
     { key: 'lot_no', label: 'Lot' },
     { key: 'qty', label: 'Quantity', align: 'right' },
     { key: 'cartons', label: 'Cartons', align: 'right' },
-    { key: 'band', label: 'BR-44' },
+    { key: 'band', label: 'Band' },
 ];
 </script>
 
@@ -92,7 +92,7 @@ const columns = [
                 <p class="text-sm text-ink-700">
                     Ships under <b>{{ challan.packing_list.cert_claim_scheme }}</b> at
                     {{ challan.packing_list.cert_claim_pct }}% — a certificate must be valid on the
-                    challan date (BR-43), and issuing writes the CoC output side (BR-42).
+                    challan date, and issuing writes the CoC output side.
                 </p>
             </Card>
 
@@ -109,7 +109,7 @@ const columns = [
             </p>
             <FormField
                 v-if="lines.some(overBand)"
-                label="Override reason (required — a line is over the BR-44 band)"
+                label="Override reason (required — a line is over its tolerance band)"
                 :error="issueForm.errors.override_reason"
                 class="mt-3"
             >

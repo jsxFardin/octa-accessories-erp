@@ -103,10 +103,12 @@ class MaterialIssueController extends Controller
 
         $item = Item::query()->findOrFail($data['item_id']);
 
+        // Query-string values arrive as strings; validation does not cast them, and both
+        // arguments below are typed.
         $candidates = $this->availability->candidateLots(
             (int) $data['item_id'],
-            $data['warehouse_id'] ?? null,
-            $data['required_claim_pct'] ?? null,
+            isset($data['warehouse_id']) ? (int) $data['warehouse_id'] : null,
+            isset($data['required_claim_pct']) ? (float) $data['required_claim_pct'] : null,
         );
 
         $picks = $this->valuator->suggestLots(
@@ -114,7 +116,7 @@ class MaterialIssueController extends Controller
             (float) $data['qty'],
             isShadeCritical: (bool) $item->is_shade_critical,
             preferredShade: $data['preferred_shade'] ?? null,
-            requiredClaimPct: $data['required_claim_pct'] ?? null,
+            requiredClaimPct: isset($data['required_claim_pct']) ? (float) $data['required_claim_pct'] : null,
         );
 
         $lots = StockLot::query()->whereIn('id', array_column($picks, 'id'))->get()->keyBy('id');

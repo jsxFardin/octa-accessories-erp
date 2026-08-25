@@ -49,6 +49,13 @@ const message = computed(() => MESSAGES[props.status] ?? MESSAGES[500]);
 function logout() {
     router.post('/logout');
 }
+
+function goBack() {
+    window.history.back();
+}
+
+/** What was asked for — the copyable line a support ticket needs. */
+const requestedPath = window.location.pathname + window.location.search;
 </script>
 
 <template>
@@ -69,9 +76,17 @@ function logout() {
                 <Button v-if="status === 419 || !signedIn" variant="primary" href="/login">Sign in</Button>
                 <Button v-else variant="primary" :href="home">Go to my home page</Button>
 
+                <!-- A 404 usually means one wrong segment in an otherwise right journey:
+                     the previous page is the best destination on offer. -->
+                <Button v-if="status === 404 && signedIn" @click="goBack">Go back</Button>
+
                 <!-- The way out that a blank 403 never offered. -->
                 <Button v-if="signedIn" @click="logout">Sign out</Button>
             </div>
+
+            <p v-if="status === 404" class="mt-4 font-mono text-xs break-all text-ink-400">
+                {{ requestedPath }}
+            </p>
 
             <p v-if="status === 403 && signedIn" class="mt-4 text-xs text-ink-500">
                 Signed in as <span class="font-medium">{{ page.props.auth.user.name }}</span>

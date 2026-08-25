@@ -21,15 +21,17 @@ function rowActions(row) {
     ];
 }
 
+// Status and Due sit beside the number: they are what the eye scans for, and on a
+// narrow screen the rightmost columns are the first to fall off the edge.
 const columns = [
     { key: 'number', label: 'Number', sort: true },
+    { key: 'status', label: 'Status', sort: true },
+    { key: 'delivery_date', label: 'Due', sort: true },
     { key: 'customer', label: 'Customer' },
     { key: 'customer_po_no', label: 'Customer PO' },
     { key: 'order_date', label: 'Ordered', sort: true },
-    { key: 'delivery_date', label: 'Due', sort: true },
     { key: 'lines_count', label: 'Lines', align: 'center' },
     { key: 'total', label: 'Value', align: 'right', sort: true },
-    { key: 'status', label: 'Status', sort: true },
 ];
 </script>
 
@@ -38,7 +40,7 @@ const columns = [
         <Head title="Sales orders" />
 
         <template #title>Sales orders</template>
-        <template #subtitle>Confirmed orders need a current spec and an approved artwork on every line (S3)</template>
+        <template #subtitle>Confirmed orders need a current spec and an approved artwork on every line</template>
 
         <template #actions>
             <ExportDialog v-if="can('sales_order.export')" resource="sales-orders" />
@@ -54,10 +56,10 @@ const columns = [
                 row-key="id" :actions="rowActions" :row-href="(row) => `/sales-orders/${row.id}`"
                 empty="No orders match these filters."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}<span v-if="row.revision_no" class="text-ink-400">/R{{ row.revision_no }}</span></span></template>
+                <template #cell:number="{ row, value }"><span class="font-medium text-brand-700">{{ value ?? "(unnumbered)" }}<span v-if="row.revision_no" class="text-ink-400">/R{{ row.revision_no }}</span></span></template>
                 <template #cell:order_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:delivery_date="{ row, value }">{{ date(value) }}</template>
-                <template #cell:total="{ row, value }">{{ money(value) }}</template>
+                <template #cell:total="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
                 <template #empty>
                     <EmptyState

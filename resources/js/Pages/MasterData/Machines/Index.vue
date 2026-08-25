@@ -56,7 +56,7 @@ const columns = [
         <Head title="Machines" />
 
         <template #title>Machines</template>
-        <template #subtitle>Rates, kW and efficiency live here, not in a config file (BR-16, BR-18, BR-27)</template>
+        <template #subtitle>Rates, kW and efficiency live here, not in a config file</template>
 
         <template #actions>
             <Button v-if="can('machine.create')" variant="primary" href="/machines/create">New machine</Button>

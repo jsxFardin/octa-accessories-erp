@@ -40,7 +40,19 @@ const columns = [
         </template>
 
         <template #actions>
-            <input v-model="form.horizon_days" type="number" class="form-input w-24 text-right tnum" min="7" max="180">
+            <!-- A bare "60" box next to Run MRP told nobody what it did. -->
+            <label class="flex items-center gap-1.5 text-xs text-ink-600">
+                Horizon
+                <input
+                    v-model="form.horizon_days"
+                    type="number"
+                    class="form-input w-20 text-right tnum"
+                    min="7"
+                    max="180"
+                    title="How many days of open job cards the run plans for"
+                >
+                days
+            </label>
             <Button v-if="can('mrp.run')" variant="primary" :loading="form.processing" @click="form.post('/mrp/run')">
                 Run MRP
             </Button>

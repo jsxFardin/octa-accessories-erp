@@ -25,11 +25,26 @@ class StockEnquiryController extends Controller
 
     public function __invoke(Request $request): Response
     {
+        /*
+         * Explicit select, because five joins with `select *` stack four `code` and three
+         * `name` columns and PDO keeps the last one — the "item" on this screen was silently
+         * showing the *warehouse's* code and name.
+         */
         $rows = DB::table('stock_balances as sb')
             ->join('stock_lots as sl', 'sl.id', '=', 'sb.lot_id')
             ->leftJoin('items as i', 'i.id', '=', 'sb.item_id')
+            ->leftJoin('uoms as u', 'u.id', '=', 'sl.uom_id')
             ->leftJoin('products as p', 'p.id', '=', 'sb.product_id')
             ->join('warehouses as w', 'w.id', '=', 'sb.warehouse_id')
+            ->select([
+                'sb.lot_id', 'sb.lot_no', 'sb.shade_code', 'sb.cert_scheme', 'sb.cert_claim_pct',
+                'sb.balance_qty', 'sb.received_on',
+                'sl.unit_cost', 'sl.expiry_date',
+                'i.code', 'i.name',
+                'p.code as product_code',
+                'w.code as warehouse_code', 'w.is_nettable',
+                'u.code as uom_code', 'u.dimension as uom_dimension',
+            ])
             ->when($request->query('q'), fn ($q, $term) => $q->where(function ($sub) use ($term): void {
                 $sub->where('i.code', 'like', "%{$term}%")
                     ->orWhere('i.name', 'like', "%{$term}%")
@@ -50,6 +65,9 @@ class StockEnquiryController extends Controller
                 'item_code' => $row->code ?? $row->product_code ?? null,
                 'item_name' => $row->name ?? null,
                 'warehouse' => $row->warehouse_code ?? null,
+                'uom' => $row->uom_code ?? null,
+                // Piece counts render whole; metres and kilograms keep their decimals.
+                'uom_dimension' => $row->uom_dimension ?? null,
                 'is_nettable' => (bool) $row->is_nettable,
                 'shade_code' => $row->shade_code,
                 'balance_qty' => (float) $row->balance_qty,

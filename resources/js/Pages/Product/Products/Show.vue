@@ -8,6 +8,7 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, mm, pcs, qty, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import RuleHint from '@/Components/Ui/RuleHint.vue';
 
 const props = defineProps({
     product: { type: Object, required: true },
@@ -69,8 +70,8 @@ const bomColumns = [
                 <div class="grid gap-2 sm:grid-cols-3">
                     <div
                         v-for="[key, label, note] in [
-                            ['spec', 'Current spec (P2)', 'Exactly one spec is current at a time'],
-                            ['artwork', 'Approved artwork (A2)', 'The version production is welded to'],
+                            ['spec', 'Current spec', 'Exactly one spec is current at a time'],
+                            ['artwork', 'Approved artwork', 'The version production is welded to'],
                             ['bom', 'Active BOM (PD-3)', 'Needed to release a job card, not to confirm an order'],
                         ]"
                         :key="key"
@@ -113,10 +114,10 @@ const bomColumns = [
 
                                     <!-- BR-4/5/6 shown beside the inputs that produced them -->
                                     <div class="mt-2 flex flex-wrap gap-3 rounded bg-slate-50 px-2 py-1.5 text-xs">
-                                        <span><span class="text-ink-500">pitch</span> <span class="tnum font-medium">{{ spec.derived.pitch_mm }} mm</span> <span class="font-mono text-[10px] text-ink-400">BR-4</span></span>
-                                        <span><span class="text-ink-500">labels/m</span> <span class="tnum font-medium">{{ spec.derived.labels_per_metre }}</span> <span class="font-mono text-[10px] text-ink-400">BR-4</span></span>
-                                        <span><span class="text-ink-500">ends</span> <span class="tnum font-medium">{{ spec.ends ?? spec.derived.suggested_ends }}</span> <span class="font-mono text-[10px] text-ink-400">BR-5</span></span>
-                                        <span><span class="text-ink-500">labels/web m</span> <span class="tnum font-medium">{{ spec.derived.labels_per_web_metre }}</span> <span class="font-mono text-[10px] text-ink-400">BR-6</span></span>
+                                        <span><span class="text-ink-500">pitch</span> <span class="tnum font-medium">{{ spec.derived.pitch_mm }} mm</span> <RuleHint rule="BR-4" size="size-3" /></span>
+                                        <span><span class="text-ink-500">labels/m</span> <span class="tnum font-medium">{{ spec.derived.labels_per_metre }}</span> <RuleHint rule="BR-4" size="size-3" /></span>
+                                        <span><span class="text-ink-500">ends</span> <span class="tnum font-medium">{{ spec.ends ?? spec.derived.suggested_ends }}</span> <RuleHint rule="BR-5" size="size-3" /></span>
+                                        <span><span class="text-ink-500">labels/web m</span> <span class="tnum font-medium">{{ spec.derived.labels_per_web_metre }}</span> <RuleHint rule="BR-6" size="size-3" /></span>
                                     </div>
                                 </div>
 
@@ -185,7 +186,7 @@ const bomColumns = [
                 </div>
 
                 <p v-if="boms.length === 0" class="px-3 py-6 text-center text-sm text-ink-500">
-                    No BOM yet. A job card cannot be released without an active one (J1).
+                    No BOM yet. A job card cannot be released without an active one.
                 </p>
             </Card>
         </div>

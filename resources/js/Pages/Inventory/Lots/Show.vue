@@ -68,7 +68,7 @@ const props = defineProps({ lot: Object, ledger: Array, ledgerBalance: Number, g
                 <p v-if="lot.cert_scheme" class="text-sm text-ink-700">
                     This lot carries a <strong>{{ lot.cert_scheme }}</strong> claim of
                     <strong>{{ lot.cert_claim_pct }}%</strong>, inherited from its GRN line. Output made from
-                    it dilutes by consumption-weighted average (BR-40) and rounds down.
+                    it dilutes by consumption-weighted average and rounds down.
                 </p>
                 <p v-else class="text-sm text-ink-500">
                     No certification claim. Output made from this lot cannot carry one — nothing downstream

@@ -120,8 +120,10 @@ describe('sidebar visibility', () => {
         }
     });
 
-    it('opens Access without a heading, and keeps old names as search aliases', () => {
-        expect(adminNavigation.every((section) => section.heading === false)).toBe(true);
+    it('keeps every admin group permanently open, and keeps old names as search aliases', () => {
+        // The admin shell is six rows across three labelled groups; a collapsed group would
+        // hide half the shell, so every section is pinned open.
+        expect(adminNavigation.every((section) => section.open === true)).toBe(true);
 
         const items = [...navigation, ...adminNavigation].flatMap((section) => section.items);
         const byHref = Object.fromEntries(items.map((item) => [item.href, item]));

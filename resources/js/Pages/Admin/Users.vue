@@ -111,6 +111,7 @@ const columns = [
     { key: 'role', label: 'Role' },
     { key: 'permission_count', label: 'Permissions', align: 'right' },
     { key: 'factory_unit', label: 'Unit' },
+    { key: 'card_no', label: 'Badge' },
     { key: 'locale', label: 'Locale' },
     { key: 'last_login_at', label: 'Last sign-in' },
     { key: 'actions', label: '', align: 'right', width: '3rem' },
@@ -149,6 +150,11 @@ const columns = [
                 <template #cell:role="{ value }">
                     <Badge v-if="value" tone="info" :label="value.label" />
                     <span v-else class="text-xs text-ink-400">no role</span>
+                </template>
+
+                <template #cell:card_no="{ value }">
+                    <span v-if="value" class="font-mono text-xs text-ink-700">{{ value }}</span>
+                    <span v-else class="text-xs text-ink-400">—</span>
                 </template>
 
                 <template #cell:last_login_at="{ value }">{{ value ? datetime(value) : 'never' }}</template>

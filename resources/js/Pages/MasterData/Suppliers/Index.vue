@@ -57,7 +57,7 @@ const columns = [
         <Head title="Suppliers" />
 
         <template #title>Suppliers</template>
-        <template #subtitle>Yarn, ribbon, ink and chemicals — lead time is per supplier-item (BR-26)</template>
+        <template #subtitle>Yarn, ribbon, ink and chemicals — lead time is per supplier-item</template>
 
         <template #actions>
             <ImportDialog v-if="can('supplier.import')" resource="suppliers" label="Suppliers" />

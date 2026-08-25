@@ -137,7 +137,7 @@ function openReject(version) {
             </Card>
 
             <!-- Version rail -->
-            <Card class="lg:col-span-2" title="Versions" subtitle="Numbered contiguously from 1, never renumbered (A1)" :padded="false">
+            <Card class="lg:col-span-2" title="Versions" subtitle="Numbered contiguously from 1, never renumbered" :padded="false">
                 <template #actions>
                     <form v-if="can('artwork.create')" class="flex items-center gap-2" @submit.prevent="upload">
                         <input
@@ -254,7 +254,7 @@ function openReject(version) {
         <Modal
             v-model:open="approveOpen"
             title="Approve this version"
-            subtitle="Approving supersedes the current approved version in the same transaction (A2)."
+            subtitle="Approving supersedes the current approved version in the same transaction."
         >
             <FormField
                 label="Customer reference"
@@ -289,7 +289,7 @@ function openReject(version) {
         <Modal
             v-model:open="editOpen"
             title="Edit artwork"
-            subtitle="Versions are immutable (A1); only the record that carries them is edited here."
+            subtitle="Versions are immutable; only the record that carries them is edited here."
         >
             <form class="space-y-3" @submit.prevent="saveArtwork">
                 <FormField

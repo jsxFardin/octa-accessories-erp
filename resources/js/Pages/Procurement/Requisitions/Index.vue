@@ -62,7 +62,7 @@ const columns = [
         <Head title="Purchase requisitions" />
 
         <template #title>Purchase requisitions</template>
-        <template #subtitle>Shortages raised by an MRP run arrive here (BR-24)</template>
+        <template #subtitle>Shortages raised by an MRP run arrive here</template>
 
         <template #actions>
             <Button v-if="can('purchase_requisition.create')" variant="primary" href="/purchase-requisitions/create">

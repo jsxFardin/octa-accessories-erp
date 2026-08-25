@@ -7,9 +7,17 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
-import { date, money, pcs, ratePerM } from '@/plugins/formatting';
+import { date, isoDate, money, pcs, ratePerM, relative, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
+
+/** A date-shaped amendment value renders as a date; anything else renders as itself. */
+function amendValue(value) {
+    if (value === null || value === undefined || value === '') return '—';
+
+    return /^\d{4}-\d{2}-\d{2}/.test(String(value)) ? date(isoDate(value)) : value;
+}
 
 const props = defineProps({
     order: { type: Object, required: true },
@@ -28,7 +36,11 @@ const releaseForm = useForm({ to: 'confirmed', release_reason: '' });
 
 const notReady = computed(() => props.readiness.filter((r) => !r.spec || !r.artwork));
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.order.number))) return;
+
     router.post(`/sales-orders/${props.order.id}/transition`, { to }, { preserveScroll: true });
 }
 
@@ -75,7 +87,7 @@ const lineColumns = [
                 v-if="notReady.length && order.status === 'draft'"
                 class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900"
             >
-                <p class="font-medium">S3 · Gate 1 — this order cannot be confirmed yet.</p>
+                <p class="font-medium">This order cannot be confirmed yet.</p>
                 <ul class="mt-1 list-disc pl-5 text-xs">
                     <li v-for="row in notReady" :key="row.line_no">
                         Line {{ row.line_no }} ({{ row.product }}):
@@ -91,9 +103,9 @@ const lineColumns = [
                 v-if="creditCheck.on_hold"
                 class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-900"
             >
-                <span class="font-medium">BR-46 — credit exposure {{ money(creditCheck.exposure) }}</span>
-                against a limit of {{ money(creditCheck.credit_limit) }}. Over by
-                <strong>{{ money(creditCheck.excess) }}</strong>. Only Accounts or the MD may release it.
+                <span class="font-medium">Credit exposure {{ money(creditCheck.exposure, order.currency) }}</span>
+                against a limit of {{ money(creditCheck.credit_limit, order.currency) }}. Over by
+                <strong>{{ money(creditCheck.excess, order.currency) }}</strong>. Only Accounts or the MD may release it.
             </div>
 
             <!-- P0-4: every figure from its authoritative source; gaps shown, never smoothed -->
@@ -105,7 +117,7 @@ const lineColumns = [
                     <div><dt class="text-xs text-ink-500">FG available</dt><dd class="font-medium tnum text-emerald-700">{{ pcs(fulfilment.fg_available) }}</dd></div>
                     <div><dt class="text-xs text-ink-500">Packed</dt><dd class="font-medium tnum">{{ pcs(fulfilment.packed) }}</dd></div>
                     <div><dt class="text-xs text-ink-500">Delivered</dt><dd class="font-medium tnum">{{ pcs(fulfilment.delivered) }}</dd></div>
-                    <div v-if="fulfilment.credited_value > 0"><dt class="text-xs text-ink-500">Credited value</dt><dd class="font-medium tnum text-amber-700">{{ money(fulfilment.credited_value) }}</dd></div>
+                    <div v-if="fulfilment.credited_value > 0"><dt class="text-xs text-ink-500">Credited value</dt><dd class="font-medium tnum text-amber-700">{{ money(fulfilment.credited_value, order.currency) }}</dd></div>
                     <div><dt class="text-xs text-ink-500">Remaining</dt><dd class="font-medium tnum" :class="fulfilment.ordered - fulfilment.delivered > 0 ? 'text-rose-600' : ''">{{ pcs(Math.max(0, fulfilment.ordered - fulfilment.delivered)) }}</dd></div>
                 </dl>
                 <ul v-if="challans.length" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">
@@ -121,10 +133,12 @@ const lineColumns = [
             <Card title="Lines" rule="BR-1 · BR-44" :padded="false">
                 <DataTable :columns="lineColumns" :rows="lines" row-key="id" empty="No lines." dense>
                     <template #cell:product="{ row }">
-                        <Link v-if="row.product" :href="`/products/${row.product.id}`" class="font-medium text-brand-700">
-                            {{ row.product.code }}
-                        </Link>
-                        <span class="text-ink-500"> {{ row.description ?? row.product?.name }}</span>
+                        <span class="inline-flex min-w-0 items-baseline gap-1.5">
+                            <Link v-if="row.product" :href="`/products/${row.product.id}`" class="shrink-0 font-medium text-brand-700 hover:underline">
+                                {{ row.product.code }}
+                            </Link>
+                            <span class="truncate text-ink-500">{{ row.description ?? row.product?.name }}</span>
+                        </span>
                     </template>
                     <template #cell:ordered_qty="{ value }">{{ pcs(value) }}</template>
                     <template #cell:produced_qty="{ value }">{{ pcs(value) }}</template>
@@ -134,7 +148,7 @@ const lineColumns = [
                         <span class="text-xs text-ink-500">{{ pcs(row.delivery_band.min) }}–{{ pcs(row.delivery_band.max) }}</span>
                     </template>
                     <template #cell:rate_per_m="{ value }">{{ ratePerM(value) }}</template>
-                    <template #cell:line_total="{ value }">{{ money(value) }}</template>
+                    <template #cell:line_total="{ value }">{{ money(value, order.currency) }}</template>
                     <template #cell:gate="{ row }">
                         <span class="flex gap-1">
                             <Badge :tone="row.spec_is_current ? 'success' : 'danger'" :label="`v${row.spec_version ?? '?'}`" />
@@ -147,7 +161,7 @@ const lineColumns = [
                 <template #footer>
                     <tr>
                         <td colspan="7" class="px-3 py-2 text-right text-ink-700">Order total</td>
-                        <td class="px-3 py-2 text-right tnum font-semibold">{{ money(order.total) }}</td>
+                        <td class="px-3 py-2 text-right tnum font-semibold">{{ money(order.total, order.currency) }}</td>
                         <td colspan="2" />
                     </tr>
                 </template>
@@ -181,12 +195,22 @@ const lineColumns = [
                     <ul class="divide-y divide-slate-100 text-sm">
                         <li v-for="amendment in amendments" :key="amendment.id" class="px-3 py-2">
                             <p class="font-medium text-ink-800">
-                                R{{ amendment.revision_no }} · {{ amendment.changed_field }}
+                                R{{ amendment.revision_no }} · {{ titleCase(amendment.changed_field) }}
                             </p>
+                            <!-- Both sides formatted the same way: `2026-08-31 00:00:00 → 2026-08-31`
+                                 read like a database diff, not a change to an order. -->
                             <p class="text-xs text-ink-500">
-                                {{ amendment.old_value || '—' }} → {{ amendment.new_value || '—' }}
+                                <template v-if="amendValue(amendment.old_value) === amendValue(amendment.new_value)">
+                                    No effective change — the value was re-saved in a different format.
+                                </template>
+                                <template v-else>
+                                    {{ amendValue(amendment.old_value) }} → {{ amendValue(amendment.new_value) }}
+                                </template>
                             </p>
                             <p class="mt-0.5 text-xs text-ink-700">{{ amendment.reason }}</p>
+                            <p v-if="amendment.changed_by || amendment.created_at" class="mt-0.5 text-[11px] text-ink-400">
+                                <template v-if="amendment.changed_by">{{ amendment.changed_by }} · </template>{{ relative(amendment.created_at) }}
+                            </p>
                         </li>
                         <li v-if="amendments.length === 0" class="px-3 py-6 text-center text-ink-500">
                             No amendments.
@@ -196,7 +220,7 @@ const lineColumns = [
             </div>
         </div>
 
-        <Modal v-model:open="releaseOpen" title="Release the credit hold" subtitle="BR-46 — audit-logged, and only Accounts or the MD may do it.">
+        <Modal v-model:open="releaseOpen" title="Release the credit hold" subtitle="Audit-logged, and only Accounts or the MD may do it.">
             <FormField label="Reason" :error="releaseForm.errors.release_reason" required>
                 <textarea v-model="releaseForm.release_reason" rows="3" class="form-textarea" />
             </FormField>

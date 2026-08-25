@@ -18,15 +18,19 @@ const props = defineProps({
     machineLoad: { type: Array, default: () => [] },
 });
 
+// Each href lands on the list *already narrowed to the number on the tile* — "Late orders: 14"
+// opening 400 unfiltered rows made the tile a decoration. Tiles whose count spans several
+// statuses (open orders, on the floor) link to the bare list because the filter bar is
+// single-status; the WorkQueue above stays the precise surface.
 const tiles = computed(() => [
     { label: 'Open orders', value: pcs(props.tiles.open_orders), href: '/sales-orders', tone: 'brand' },
-    { label: 'Late orders', value: pcs(props.tiles.late_orders), href: '/sales-orders', tone: props.tiles.late_orders > 0 ? 'danger' : 'muted' },
+    { label: 'Late orders', value: pcs(props.tiles.late_orders), href: '/sales-orders?late=1', tone: props.tiles.late_orders > 0 ? 'danger' : 'muted' },
     { label: 'Job cards on the floor', value: pcs(props.tiles.on_floor), href: '/job-cards', tone: 'brand' },
-    { label: 'Waiting on material', value: pcs(props.tiles.material_pending), href: '/job-cards', tone: props.tiles.material_pending > 0 ? 'warning' : 'muted' },
-    { label: 'Artwork awaiting approval', value: pcs(props.tiles.artwork_pending), href: '/artworks', tone: props.tiles.artwork_pending > 0 ? 'warning' : 'muted' },
-    { label: 'Quotations out', value: pcs(props.tiles.quotations_open), href: '/quotations', tone: 'muted' },
+    { label: 'Waiting on material', value: pcs(props.tiles.material_pending), href: '/job-cards?status=material_pending', tone: props.tiles.material_pending > 0 ? 'warning' : 'muted' },
+    { label: 'Artwork awaiting approval', value: pcs(props.tiles.artwork_pending), href: '/artworks?state=awaiting_approval', tone: props.tiles.artwork_pending > 0 ? 'warning' : 'muted' },
+    { label: 'Quotations out', value: pcs(props.tiles.quotations_open), href: '/quotations?status=sent', tone: 'muted' },
     { label: 'Stock value', value: money(props.tiles.stock_value, '৳'), href: '/stock', tone: 'muted' },
-    { label: 'Open job cards', value: pcs(props.tiles.open_job_cards), href: '/job-cards', tone: 'muted' },
+    { label: 'Open job cards', value: pcs(props.tiles.open_job_cards), href: '/job-cards?open=1', tone: 'muted' },
 ]);
 
 const TONES = {
@@ -111,9 +115,13 @@ const loadByMachine = computed(() => {
                     v-for="tile in tiles"
                     :key="tile.label"
                     :href="tile.href"
-                    class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:border-brand-300 hover:shadow"
+                    class="group rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-px hover:border-brand-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                 >
-                    <p class="truncate text-[11px] text-ink-500">{{ tile.label }}</p>
+                    <p class="flex items-center justify-between gap-1 text-[11px] text-ink-500">
+                        <span class="truncate">{{ tile.label }}</span>
+                        <!-- The chevron is the promise: this number opens the filtered list behind it. -->
+                        <Icon name="right" size="size-3" class="shrink-0 text-ink-300 transition group-hover:translate-x-0.5 group-hover:text-brand-500" />
+                    </p>
                     <p class="mt-1 text-xl font-semibold tnum" :class="TONES[tile.tone]">{{ tile.value }}</p>
                 </Link>
             </div>

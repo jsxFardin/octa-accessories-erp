@@ -21,7 +21,7 @@ defineProps({
         <Head title="Laboratory" />
 
         <template #title>Laboratory</template>
-        <template #subtitle>BR-32 — the nine tests the factory advertises, with their methods and thresholds</template>
+        <template #subtitle>The nine tests the factory advertises, with their methods and thresholds</template>
 
         <template #actions>
             <Button v-if="can('test_report.create')" size="sm" variant="primary" :href="'/lab/reports/create'">

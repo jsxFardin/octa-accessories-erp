@@ -7,6 +7,7 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, datetime, money, qty, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     transfer: { type: Object, required: true },
@@ -17,7 +18,11 @@ const props = defineProps({
 
 const readOnly = ['in_transit', 'received', 'cancelled'].includes(props.transfer.status);
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.transfer.number))) return;
+
     router.post(`/stock-transfers/${props.transfer.id}/transition`, { to }, { preserveScroll: true });
 }
 </script>

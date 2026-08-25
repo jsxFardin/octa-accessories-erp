@@ -157,6 +157,15 @@ export function money(value, currency = null) {
     return currency ? `${currency} ${formatted}` : formatted;
 }
 
+/**
+ * Quantity formatted for its unit's dimension: counted units (pieces, sheets, cones) are
+ * whole numbers — `3,000.000 pcs` reads as a precision claim that does not exist — while
+ * measured units (metres, kilograms) genuinely carry three decimals.
+ */
+export function qtyFor(value, dimension) {
+    return dimension === 'count' ? pcs(value) : qty(value);
+}
+
 /** The per-1000 rate carries four decimals — the difference between 3.2500 and 3.2512 is
  *  real money at 500,000 pieces. */
 export function ratePerM(value) {
@@ -253,6 +262,7 @@ export default {
         app.config.globalProperties.$fmt = {
             pcs,
             qty,
+            qtyFor,
             money,
             ratePerM,
             pct,

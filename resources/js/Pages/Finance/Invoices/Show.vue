@@ -8,6 +8,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import { date, money, pcs, ratePerM } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     invoice: { type: Object, required: true },
@@ -23,7 +24,11 @@ const creditForm = useForm({
     amount: null,
 });
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.invoice.number))) return;
+
     router.post(`/invoices/${props.invoice.id}/transition`, { to }, { preserveScroll: true });
 }
 

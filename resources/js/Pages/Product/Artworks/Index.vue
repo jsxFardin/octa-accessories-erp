@@ -55,7 +55,6 @@ function create() {
 const columns = [
     { key: 'code', label: 'Code', sort: true },
     { key: 'title', label: 'Title', sort: true },
-    { key: 'product', label: 'Product' },
     { key: 'customer', label: 'Customer' },
     { key: 'version_count', label: 'Versions', align: 'center' },
     { key: 'latest_version', label: 'Latest' },
@@ -97,10 +96,7 @@ const columns = [
                         @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
-                <template #cell:code="{ value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
-                <template #cell:product="{ row }">
-                    <span v-if="row.product"><span class="font-medium">{{ row.product.code }}</span> {{ row.product.name }}</span>
-                </template>
+                <template #cell:code="{ value }"><span class="font-medium text-brand-700">{{ value }}</span></template>
                 <template #cell:latest_version="{ value }">
                     <span v-if="value" class="flex items-center gap-1">
                         <span class="tnum text-xs">v{{ value.version_no }}</span>

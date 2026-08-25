@@ -31,7 +31,7 @@ const columns = [
         <Head title="QC inspections" />
 
         <template #title>QC inspections</template>
-        <template #subtitle>The verdict is computed from the AQL plan, never typed (BR-30)</template>
+        <template #subtitle>The verdict is computed from the AQL plan, never typed</template>
 
         <template #actions>
             <Button v-if="can('qc_inspection.create')" variant="primary" href="/qc-inspections/create">New inspection</Button>

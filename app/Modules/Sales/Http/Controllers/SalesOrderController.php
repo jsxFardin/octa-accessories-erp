@@ -36,7 +36,7 @@ class SalesOrderController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = SalesOrder::query()->with(['customer:id,code,name'])->withCount('lines');
+        $query = SalesOrder::query()->with(['customer:id,code,name', 'currency:id,code'])->withCount('lines');
 
         $this->applyListing(
             $query,
@@ -63,6 +63,9 @@ class SalesOrderController extends Controller
                     'order_date' => $order->order_date,
                     'delivery_date' => $order->delivery_date,
                     'total' => $order->total,
+                    // The list mixes BDT and USD orders; a bare 52.33 beside a 27,020.66
+                    // says nothing about which is which.
+                    'currency' => $order->currency?->code,
                     'status' => $order->status,
                     'lines_count' => $order->lines_count,
                 ],
@@ -107,6 +110,7 @@ class SalesOrderController extends Controller
     {
         $salesOrder->load([
             'customer',
+            'currency:id,code',
             'lines.product.artworks.versions',
             'lines.product.customer',
             'lines.spec',
@@ -119,6 +123,7 @@ class SalesOrderController extends Controller
                     'subtotal', 'tax_amount', 'total', 'priority', 'status', 'confirmed_at',
                     'closed_at', 'close_reason', 'notes',
                 ]),
+                'currency' => $salesOrder->currency?->code,
                 'customer' => $salesOrder->customer?->only(['id', 'code', 'name', 'credit_limit', 'min_order_value']),
             ],
             'lines' => $salesOrder->lines->map(fn (SalesOrderLine $line): array => [
@@ -152,10 +157,14 @@ class SalesOrderController extends Controller
             ]),
             'creditCheck' => $this->states->creditCheck($salesOrder),
             'availableTransitions' => $this->states->available($salesOrder),
-            'amendments' => DB::table('so_amendments')
-                ->where('sales_order_id', $salesOrder->id)
-                ->orderByDesc('id')
-                ->get(),
+            'amendments' => DB::table('so_amendments as a')
+                ->leftJoin('users as u', 'u.id', '=', 'a.created_by')
+                ->where('a.sales_order_id', $salesOrder->id)
+                ->orderByDesc('a.id')
+                ->get([
+                    'a.id', 'a.revision_no', 'a.changed_field', 'a.old_value', 'a.new_value',
+                    'a.reason', 'a.created_at', 'u.name as changed_by',
+                ]),
             'jobCards' => DB::table('job_cards')
                 ->whereIn('sales_order_line_id', $salesOrder->lines->pluck('id'))
                 ->get(['id', 'number', 'status', 'planned_qty', 'good_qty', 'due_date']),

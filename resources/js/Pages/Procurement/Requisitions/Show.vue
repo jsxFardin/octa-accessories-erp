@@ -7,13 +7,18 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, qty, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     requisition: { type: Object, required: true },
     lines: { type: Array, default: () => [] },
 });
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.requisition.number))) return;
+
     router.post(`/purchase-requisitions/${props.requisition.id}/transition`, { to }, { preserveScroll: true });
 }
 

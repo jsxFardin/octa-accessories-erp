@@ -191,7 +191,7 @@ const columns = [
                     </dl>
 
                     <p class="mt-3 text-[11px] leading-relaxed text-ink-500">
-                        Quantities are rounded up to the item's order multiple (BR-25) — a requisition
+                        Quantities are rounded up to the item's order multiple — a requisition
                         for 7 kg of a 25 kg drum asks for the drum.
                     </p>
                 </Card>

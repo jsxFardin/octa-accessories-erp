@@ -30,7 +30,7 @@ const columns = [
 
         <template #title>Chain of custody reconciliation</template>
         <template #subtitle>
-            Certified input against certified output, per scheme per period — the exact figure a GRS or FSC auditor asks for (BR-42)
+            Certified input against certified output, per scheme per period — the exact figure a GRS or FSC auditor asks for
         </template>
 
         <template #actions>

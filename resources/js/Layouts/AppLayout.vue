@@ -90,16 +90,25 @@ const crumbs = computed(() => {
 });
 
 // --- Sidebar state -----------------------------------------------------------------------
-// The rail persists. Section expand does not: only the group you are in starts open, so a
-// nine-heading sidebar does not dump every row onto the floor before you have clicked.
+// The rail persists, and so does which groups are expanded: a click on a heading only ever
+// toggles it, never navigates, so open/closed state survives across pages and reloads the
+// same way the rail does. The group containing the active page always shows regardless.
 const railed = ref(localStorage.getItem('octa.sidebar.railed') === '1');
 const mobileOpen = ref(false);
-const extraOpen = ref(new Set());
+
+function loadOpenSections() {
+    try {
+        return new Set(JSON.parse(localStorage.getItem('octa.sidebar.open') ?? '[]'));
+    } catch {
+        return new Set();
+    }
+}
+
+const openSections = ref(loadOpenSections());
 
 watch(railed, (value) => localStorage.setItem('octa.sidebar.railed', value ? '1' : '0'));
 watch(currentUrl, () => {
     mobileOpen.value = false;
-    extraOpen.value = new Set();
 });
 
 function isSectionActive(section) {
@@ -107,23 +116,29 @@ function isSectionActive(section) {
 }
 
 function toggleSection(section) {
-    if (section.heading === false || isSectionActive(section)) {
+    if (section.heading === false || section.open === true) {
         return;
     }
 
-    const next = new Set(extraOpen.value);
+    const next = new Set(openSections.value);
 
     next.has(section.label) ? next.delete(section.label) : next.add(section.label);
-    extraOpen.value = next;
+    openSections.value = next;
+    localStorage.setItem('octa.sidebar.open', JSON.stringify([...next]));
 }
 
-/** Hubs with no heading are always visible. The active group is always visible. Others wait. */
+/**
+ * Hubs with no heading are always visible. The active group is always visible, so you never
+ * lose sight of where you are. Sections marked `open: true` (the small admin shell, where
+ * collapsing three groups would hide three of six rows) never close. Others follow whatever
+ * the user last chose, remembered across navigation and reload.
+ */
 function isOpen(section) {
-    if (section.heading === false || isSectionActive(section)) {
+    if (section.heading === false || section.open === true || isSectionActive(section)) {
         return true;
     }
 
-    return extraOpen.value.has(section.label);
+    return openSections.value.has(section.label);
 }
 
 // --- Account menu ------------------------------------------------------------------------
@@ -283,35 +298,33 @@ const paletteHint = computed(() =>
                         no grouping is twenty identical rows.
                     -->
                     <!--
-                        The heading is a destination: it opens the first screen in the group.
-                        The chevron peeks without leaving the page you are on.
+                        The heading is a toggle, not a destination: click anywhere on the row
+                        opens or closes the group without leaving the page you are on. Pick a
+                        child row to actually navigate.
                     -->
-                    <div
+                    <button
                         v-if="!railed && section.heading !== false"
-                        class="flex items-center gap-0.5"
+                        type="button"
+                        class="flex w-full items-center gap-0.5 rounded px-2 py-1 text-left transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                        :class="section.open === true ? 'cursor-default' : 'hover:bg-slate-50'"
+                        :aria-expanded="isOpen(section)"
+                        :disabled="section.open === true"
+                        @click="toggleSection(section)"
                     >
-                        <Link
-                            :href="section.items[0].href"
-                            class="min-w-0 flex-1 rounded px-2 py-1 text-[11px] font-semibold tracking-[0.08em] uppercase transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                            :class="isSectionActive(section) ? 'text-ink-800' : 'text-ink-600 hover:text-ink-800'"
+                        <span
+                            class="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-[0.08em] uppercase"
+                            :class="isSectionActive(section) ? 'text-ink-800' : 'text-ink-600'"
                         >
                             {{ section.label }}
-                        </Link>
-                        <button
-                            type="button"
-                            class="rounded p-0.5 text-ink-500 transition hover:bg-slate-100 hover:text-ink-800 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                            :aria-expanded="isOpen(section)"
-                            :aria-label="`Toggle ${section.label}`"
-                            @click="toggleSection(section)"
-                        >
-                            <Icon
-                                name="down"
-                                size="size-3"
-                                class="transition"
-                                :class="isOpen(section) ? '' : '-rotate-90'"
-                            />
-                        </button>
-                    </div>
+                        </span>
+                        <Icon
+                            v-if="section.open !== true"
+                            name="down"
+                            size="size-3"
+                            class="shrink-0 text-ink-500 transition"
+                            :class="isOpen(section) ? '' : '-rotate-90'"
+                        />
+                    </button>
 
                     <ul v-show="railed || isOpen(section)" class="mt-0.5 space-y-px">
                         <li v-for="item in section.items" :key="item.href">
@@ -360,6 +373,24 @@ const paletteHint = computed(() =>
                         </kbd>
                     </template>
                 </button>
+
+                <!--
+                    The terminal is a different application on a different device, so it opens
+                    in its own tab rather than replacing this one. Without a link here the only
+                    way to reach it was to know the URL.
+                -->
+                <a
+                    v-if="!inAdminShell && canAny('job_card.view_any')"
+                    href="/floor"
+                    target="_blank"
+                    rel="noopener"
+                    class="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-ink-800 transition hover:bg-white hover:text-ink-900 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                    :class="railed && 'justify-center px-0'"
+                    :title="railed ? 'Shop-floor terminal' : undefined"
+                >
+                    <Icon name="machine" class="shrink-0 text-ink-500 transition-colors group-hover:text-ink-700" />
+                    <span v-if="!railed">Shop floor</span>
+                </a>
 
                 <!--
                     Configuration is entered deliberately and left deliberately. Six admin rows

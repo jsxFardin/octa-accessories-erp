@@ -97,6 +97,12 @@ class SupplierBill extends Model
         return $this->belongsTo(\App\Modules\MasterData\Models\Supplier::class, 'supplier_id');
     }
 
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Currency, $this> */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Currency::class, 'currency_id');
+    }
+
     /** @return BelongsTo<PurchaseOrder, $this> */
     public function purchaseOrder(): BelongsTo
     {

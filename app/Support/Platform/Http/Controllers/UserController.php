@@ -53,6 +53,9 @@ class UserController extends Controller
                     'role_id' => $user->roles->first()?->id,
                     'role' => $user->roles->first()?->only(['id', 'name', 'label']),
                     'factory_unit' => $user->employee?->factoryUnit?->code,
+                    // The badge is what the shop-floor terminal signs in with, so a
+                    // supervisor has to be able to read it off this screen.
+                    'card_no' => $user->employee?->card_no,
                     'permission_count' => count($user->permissionNames()),
                     'employee' => $user->employee?->only([
                         'id', 'code', 'card_no', 'designation', 'factory_unit_id', 'department_id',

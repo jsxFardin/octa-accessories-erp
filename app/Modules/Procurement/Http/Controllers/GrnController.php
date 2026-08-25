@@ -225,6 +225,11 @@ class GrnController extends Controller
 
         return Inertia::render('Procurement/Grns/Show', [
             'grn' => $grn,
+            // The receipt's place in the chain: without these two the page was a dead end —
+            // no way up to the PO it received against, no way on to the bill it should seed.
+            'purchaseOrder' => $grn->po_id
+                ? DB::table('purchase_orders')->where('id', $grn->po_id)->first(['id', 'number'])
+                : null,
             'lines' => DB::table('grn_lines as gl')
                 ->join('items as i', 'i.id', '=', 'gl.item_id')
                 ->leftJoin('uoms as u', 'u.id', '=', 'gl.uom_id')

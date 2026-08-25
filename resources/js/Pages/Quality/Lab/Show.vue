@@ -7,6 +7,7 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     report: { type: Object, required: true },
@@ -14,7 +15,11 @@ const props = defineProps({
     availableTransitions: { type: Array, default: () => [] },
 });
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.report.number))) return;
+
     router.post(`/lab/reports/${props.report.id}/transition`, { to }, { preserveScroll: true });
 }
 

@@ -301,7 +301,7 @@ const columns = [
 
                     <div class="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-ink-700">
                         A line that demands a certification claim makes the GRN's certification fields
-                        mandatory — that is the only door a claim enters the system through (Gate 2).
+                        mandatory — that is the only door a claim enters the system through.
                     </div>
                 </div>
             </Card>

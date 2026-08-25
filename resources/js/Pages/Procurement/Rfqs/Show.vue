@@ -12,6 +12,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, money, qty, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
+import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
     rfq: { type: Object, required: true },
@@ -40,7 +41,11 @@ const quoteForm = useForm({
 
 const override = reactive({ quotation_id: null, reason: '' });
 
-function transition(to) {
+const confirmTransition = useTransitionConfirm();
+
+async function transition(to) {
+    if (!(await confirmTransition(to, props.rfq.number))) return;
+
     router.post(`/rfqs/${props.rfq.id}/transition`, { to }, { preserveScroll: true });
 }
 
