@@ -53,6 +53,8 @@ const STATUS_TONES = {
     received: 'success',
     posted: 'success',
     paid: 'success',
+    // Settled by credit, not by money: warning, because the receivable was written off.
+    credited: 'warning',
     issued: 'success',
     packed: 'success',
     won: 'success',

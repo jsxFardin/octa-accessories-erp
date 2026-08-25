@@ -137,6 +137,8 @@ Route::middleware('auth')->group(function (): void {
         ->middlewareFor(['edit', 'update'], 'can:product.update')
         ->middlewareFor('destroy', 'can:product.delete');
 
+    Route::get('products/{product}/specs/create', [ProductSpecController::class, 'create'])
+        ->middleware('can:product_spec.create')->name('products.specs.create');
     Route::post('products/{product}/specs', [ProductSpecController::class, 'store'])
         ->middleware('can:product_spec.create')->name('products.specs.store');
     Route::post('specs/{spec}/make-current', [ProductSpecController::class, 'makeCurrent'])
@@ -162,6 +164,8 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('boms', [BomController::class, 'index'])
         ->middleware('can:bom.view_any')->name('boms.index');
+    Route::get('products/{product}/boms/create', [BomController::class, 'create'])
+        ->middleware('can:bom.create')->name('products.boms.create');
     Route::post('products/{product}/boms', [BomController::class, 'store'])
         ->middleware('can:bom.create')->name('products.boms.store');
     Route::post('boms/{bom}/activate', [BomController::class, 'activate'])

@@ -12,9 +12,9 @@ verifying that each business gate fires. Report defects; do not fix anything.
 
 `/login` — `admin@maheenlabel.test` / `password` (super admin, all permissions).
 
-The shop-floor terminal is a separate app at `/floor`: badge `BADGE-0009`, PIN `0009`
-(the PIN is the last four characters of the badge). Leave its machine picker **empty** so
-every runnable operation is visible.
+The shop-floor terminal is a separate app at `/floor`: badge `BADGE-0009`, PIN `0009`. PINs are
+stored hashed and set at Configuration → Users; the seed happens to use the badge's last four
+digits. Leave the machine picker **empty** so every runnable operation is visible.
 
 ## Naming
 
@@ -91,32 +91,42 @@ Check each of these and say pass/fail with the observed value.
 - Challan line shows band `within` when the quantity is inside the customer's ±tolerance.
 - Issuing the challan moves the sales order's delivered quantity — it is never typed.
 - Invoice due date = challan date + the customer's payment terms.
-- CoC reconciliation shows input and output agreeing, with the same claim percentage.
+- CoC reconciliation balances **shipped against consumed**, in the same unit, with a conversion
+  factor of 1 or less. Received is context, not the basis.
+- A certified shipment is refused when its certificate is inactive, out of date, or has no
+  document on file (BR-43).
+- Job card completion is refused when a non-optional BOM item was never issued, unless waived
+  with a documented reason (I7).
+- An operator — four permissions, no `job_card.update` — can close the final operation.
 
-## Known defects — confirm each still reproduces
+## Known defects — each carries its current status
 
-1. **Challan band double-counts after issue.** `Challans/Show.vue → overBand()` adds the
+An earlier run found all ten; six have been fixed since. Try every one. A *(fixed)* item that
+reproduces is a regression; a *(still open)* item is expected and needs no new report unless it
+behaves differently from the description.
+
+1. **Challan band double-counts after issue.** *(fixed — a posted challan should read `within`.)* `Challans/Show.vue → overBand()` adds the
    challan's own quantity to `delivered_qty`, which already includes it once issued. A
    challan reading `within` as a draft flips to `over band` the moment it posts.
-2. **Invoice shows "Paid" when fully credited.** Apply a credit note for the invoice total:
+2. **Invoice shows "Paid" when fully credited.** *(still open — a fully credited invoice is reported as a collection.)* Apply a credit note for the invoice total:
    status becomes `paid` with `received_amount = 0`. A write-off is reported as a collection.
-3. **FINISH with no output.** On the floor, press START then FINISH without SAVE. The
+3. **FINISH with no output.** *(still open — an operation may close with good = 0 and no warning.)* On the floor, press START then FINISH without SAVE. The
    operation closes with good = 0 and no warning; utilisation is understated permanently.
-4. **Failed trip stop vs delivered order.** Mark a stop failed (type anything in the failure
+4. **Failed trip stop vs delivered order.** *(fixed — a failed stop now returns the challan: stock comes back, delivered_qty falls, the CoC claim is withdrawn.)* Mark a stop failed (type anything in the failure
    reason). Stock has already left on the challan and the sales order still reads delivered;
    the challan is stranded in `in_transit` with no route to `delivered` and no retry action.
-5. **Operation input has no ceiling.** Book an input far above the operation's planned
+5. **Operation input has no ceiling.** *(still open for input; output is now refused at J5 when booked.)* Book an input far above the operation's planned
    quantity (e.g. 5000 against a plan of 121). Accepted silently; only good + waste ≤ input
    is enforced.
-6. **Job card output sums mixed units.** With one operation booked in metres and another in
+6. **Job card output sums mixed units.** *(still open — the header total is not unit-aware.)* With one operation booked in metres and another in
    pieces, the header "Good against planned" adds them, and the J5 ceiling is evaluated on
    that sum.
-7. **No spec or BOM screens**, so a newly created product can never be quoted through the UI.
-8. **PIN equals the last four of the badge** (`DeviceSessionRegistry::issue`), and the badge
+7. **No spec or BOM screens** *(still open.)*, so a newly created product can never be quoted through the UI.
+8. **PIN equals the last four of the badge** *(fixed — PINs are hashed and set at Configuration → Users; the seed value is still the badge's last four until changed.)* (`DeviceSessionRegistry::issue`), and the badge
    is printed on the card the operator wears. Any operator can sign in as any other.
-9. **Certificates are placeholders** — `*-PENDING`, `document_path` null. Validity is checked;
+9. **Certificates are placeholders** *(fixed — a claimed shipment is refused unless the certificate is active, in date, and has a document on file.)* — `*-PENDING`, `document_path` null. Validity is checked;
    whether a signed certificate was ever uploaded is not.
-10. **BOM completeness is not enforced at completion.** Issue only some BOM items (e.g. yarn
+10. **BOM completeness is not enforced at completion.** *(fixed — completion is refused under I7 unless every non-optional BOM item was issued or the shortfall waived.)* Issue only some BOM items (e.g. yarn
     but not cartons); the job still completes with material unaccounted for.
 
 ## Report format

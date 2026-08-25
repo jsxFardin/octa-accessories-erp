@@ -7,6 +7,7 @@ namespace App\Modules\Manufacturing\Services;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
@@ -37,9 +38,10 @@ class DeviceSessionRegistry
             return null;
         }
 
-        // The PIN is the last four of the badge in this build. Constant-time comparison, and
-        // one method to change when a stored PIN hash replaces it.
-        if (! hash_equals(substr($cardNo, -4), $pin)) {
+        // The PIN is a stored hash, not a function of the badge. It used to be the badge's
+        // last four characters — printed on the card the operator wears — so reading someone's
+        // badge was enough to book output as them (06-rbac §6).
+        if ($employee->pin_hash === null || ! Hash::check($pin, (string) $employee->pin_hash)) {
             return null;
         }
 

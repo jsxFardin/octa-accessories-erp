@@ -507,6 +507,10 @@ class ReferenceDataSeeder extends Seeder
                     'issued_on' => now()->startOfYear()->toDateString(),
                     'expires_on' => now()->startOfYear()->addYear()->toDateString(),
                     'scope_description' => 'Placeholder pending upload of the signed certificate.',
+                    // A shipment cannot claim a scheme whose certificate has no evidence on
+                    // file (BR-43), so the demo registry carries a stand-in document. Replace
+                    // it with the signed PDF before this is anything but a demo.
+                    'document_path' => "certifications/demo/{$cert['certificate_no']}.pdf",
                     'reminder_days' => 60,
                     'status' => 'active',
                 ],

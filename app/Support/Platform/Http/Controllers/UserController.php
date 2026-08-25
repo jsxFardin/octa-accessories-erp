@@ -14,6 +14,7 @@ use App\Support\Http\ListsResources;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
@@ -201,6 +202,9 @@ class UserController extends Controller
             // shop-floor terminal signs in with.
             'employee_code' => ['nullable', 'string', 'max:30', Rule::unique('employees', 'code')->ignore($user?->employee?->id)],
             'card_no' => ['nullable', 'string', 'max:40', Rule::unique('employees', 'card_no')->ignore($user?->employee?->id)],
+            // Four to ten digits, and deliberately not derived from the badge: the badge is
+            // worn where anyone can read it (06-rbac §6). Blank leaves the existing PIN alone.
+            'floor_pin' => ['nullable', 'string', 'min:4', 'max:10', 'regex:/^[0-9]+$/'],
             'designation' => ['nullable', 'string', 'max:120'],
             'factory_unit_id' => ['nullable', 'integer', 'exists:factory_units,id', 'required_with:employee_code'],
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
@@ -220,17 +224,21 @@ class UserController extends Controller
             return;
         }
 
-        DB::table('employees')->updateOrInsert(
-            ['user_id' => $user->id],
-            [
-                'factory_unit_id' => $data['factory_unit_id'],
-                'department_id' => $data['department_id'] ?? null,
-                'code' => $data['employee_code'],
-                'name' => $data['name'],
-                'designation' => $data['designation'] ?? null,
-                'card_no' => $data['card_no'] ?? null,
-                'is_active' => $data['is_active'] ?? true,
-            ],
-        );
+        $attributes = [
+            'factory_unit_id' => $data['factory_unit_id'],
+            'department_id' => $data['department_id'] ?? null,
+            'code' => $data['employee_code'],
+            'name' => $data['name'],
+            'designation' => $data['designation'] ?? null,
+            'card_no' => $data['card_no'] ?? null,
+            'is_active' => $data['is_active'] ?? true,
+        ];
+
+        // Only ever written, never read back to the screen.
+        if (filled($data['floor_pin'] ?? null)) {
+            $attributes['pin_hash'] = Hash::make((string) $data['floor_pin']);
+        }
+
+        DB::table('employees')->updateOrInsert(['user_id' => $user->id], $attributes);
     }
 }

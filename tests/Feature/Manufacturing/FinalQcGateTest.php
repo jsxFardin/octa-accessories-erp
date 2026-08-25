@@ -48,7 +48,7 @@ it('blocks completion when required final QC has not happened', function (): voi
 it('allows completion after an accepted final inspection', function (): void {
     finalInspection($this, (int) $this->jobCard->id, majors: 0);
 
-    $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED);
+    $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED, ['material_waiver_reason' => 'Fixture: this job models QC, not material issue.']);
 
     expect($this->jobCard->refresh()->status)->toBe(JobCard::COMPLETED);
 });
@@ -66,7 +66,7 @@ it('blocks completion while the latest final verdict is an unresolved rejection'
     // A later inspection accepts what survived — the gate opens.
     finalInspection($this, (int) $this->jobCard->id, majors: 0);
 
-    $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED);
+    $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED, ['material_waiver_reason' => 'Fixture: this job models QC, not material issue.']);
     expect($this->jobCard->refresh()->status)->toBe(JobCard::COMPLETED);
 });
 
@@ -104,7 +104,7 @@ it('leaves QC-free routings alone unless the factory default demands otherwise',
     // Strip the QC flags: existing behavior — completion needs no inspection.
     $this->jobCard->operations()->update(['requires_qc' => false]);
 
-    $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED);
+    $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED, ['material_waiver_reason' => 'Fixture: this job models QC, not material issue.']);
     expect($this->jobCard->refresh()->status)->toBe(JobCard::COMPLETED);
 });
 

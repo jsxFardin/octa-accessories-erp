@@ -47,7 +47,7 @@ const columns = [
                 ledger only.
             </div>
 
-            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','issued','partially_paid','paid','overdue','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search invoice or Mushak number…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','issued','partially_paid','paid','credited','overdue','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search invoice or Mushak number…" />
 
             <DataTable
                 :columns="columns"

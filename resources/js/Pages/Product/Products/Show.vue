@@ -61,6 +61,8 @@ const bomColumns = [
 
         <template #actions>
             <Badge :status="product.status" />
+            <Button v-if="can('product_spec.create')" size="sm" :href="`/products/${product.id}/specs/create`">New spec</Button>
+            <Button v-if="can('bom.create')" size="sm" :href="`/products/${product.id}/boms/create`">New BOM</Button>
             <Button v-if="can('product.update')" size="sm" :href="`/products/${product.id}/edit`">Edit</Button>
         </template>
 
@@ -132,7 +134,8 @@ const bomColumns = [
                         </li>
 
                         <li v-if="specs.length === 0" class="p-6 text-center text-sm text-ink-500">
-                            No spec yet. This product cannot be quoted or ordered until one exists.
+                            No spec yet. This product cannot be quoted or ordered until one exists —
+                            start one with <strong>New spec</strong>.
                         </li>
                     </ul>
                 </Card>

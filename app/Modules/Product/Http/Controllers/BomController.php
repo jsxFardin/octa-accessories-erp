@@ -60,6 +60,35 @@ class BomController extends Controller
     }
 
     /**
+     * PD-3 — one BOM per product may be active, so this screen creates a draft and the
+     * product page activates it. Quantities are per `base_qty` finished pieces (BR-1).
+     */
+    public function create(Product $product): Response
+    {
+        $product->load(['currentSpec', 'activeBom.lines']);
+
+        return Inertia::render('Product/Boms/Form', [
+            'product' => $product->only(['id', 'code', 'name', 'product_type']),
+            'spec' => $product->currentSpec?->only(['id', 'version_no', 'colours', 'colour_list']),
+            // A new BOM opens on the active one: most revisions swap an item or a quantity.
+            'activeLines' => $product->activeBom?->lines->map(fn ($line): array => [
+                'item_id' => $line->item_id,
+                'uom_id' => $line->uom_id,
+                'qty_per_base' => $line->qty_per_base,
+                'wastage_pct' => $line->wastage_pct,
+                'colour_index' => $line->colour_index,
+                'is_optional' => (bool) $line->is_optional,
+            ])->all() ?? [],
+            'items' => DB::table('items as i')
+                ->leftJoin('item_categories as c', 'c.id', '=', 'i.item_category_id')
+                ->where('i.is_active', true)
+                ->orderBy('i.code')
+                ->get(['i.id', 'i.code', 'i.name', 'i.base_uom_id', 'c.item_class']),
+            'uoms' => DB::table('uoms')->orderBy('code')->get(['id', 'code', 'name']),
+        ]);
+    }
+
+    /**
      * BOM quantities are per `base_qty` finished pieces — 1000 by default (BR-1).
      *
      * `formula_ref` marks a line whose quantity is *derived* rather than fixed: MRP recomputes

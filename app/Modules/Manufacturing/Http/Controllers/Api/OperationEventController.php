@@ -104,11 +104,28 @@ class OperationEventController extends Controller
                     ));
                 }
 
+                $card = $locked->jobCard;
+
+                // The input a step receives is bounded too. A mis-keyed 5000 against a plan
+                // of 121 was accepted in silence, and every later booking on that step then
+                // measured itself against a false ceiling.
+                if ($addedInput > 0 && $card !== null) {
+                    $inputCeiling = (float) $locked->planned_qty * (1 + (float) $card->overrun_tolerance_pct / 100);
+
+                    if ($locked->planned_qty > 0
+                        && $newInput > $inputCeiling + 0.000001
+                        && blank($request->input('input_override_reason'))) {
+                        abort(422, sprintf(
+                            'J3: %.3f handed to this operation exceeds its %.3f plan. Re-check the figure, or record why more was fed in.',
+                            $newInput,
+                            $inputCeiling,
+                        ));
+                    }
+                }
+
                 // J5 at the moment of booking, not only when the card closes. The terminal
                 // shows the ceiling on every screen, so a refusal that arrives days later at
                 // `closed` — with the goods already made — reads as the rule not existing.
-                $card = $locked->jobCard;
-
                 if ($card !== null) {
                     $ceiling = $card->overrunCeiling();
                     $produced = (float) $card->produced_qty + $good + $waste;
@@ -146,7 +163,7 @@ class OperationEventController extends Controller
                     'waste_qty' => $newWaste,
                 ])->save();
 
-                $jobCard = $locked->jobCard;
+                $jobCard = $card;
 
                 if ($jobCard !== null) {
                     // The job card's running totals are maintained in the same transaction as
@@ -192,6 +209,16 @@ class OperationEventController extends Controller
     {
         return $this->idempotent($request, function () use ($request, $operation): array {
             $occurredAt = $this->occurredAt($request);
+
+            // An operation that closes with nothing booked reports a machine that ran a shift
+            // and made nothing: BR-27 utilisation is understated for good, and the operation
+            // that follows inherits an input of zero. Closing empty is a real thing — a job
+            // pulled off the machine — so it is allowed, but only when said out loud.
+            $booked = (float) $operation->good_qty + (float) $operation->waste_qty;
+
+            if ($booked <= 0 && blank($request->input('no_output_reason'))) {
+                abort(422, 'J3: nothing has been booked against this operation. Record the output, or finish with a reason.');
+            }
 
             DB::transaction(function () use ($operation, $occurredAt): void {
                 $operation->forceFill([

@@ -11,6 +11,7 @@ use App\Modules\Dispatch\Models\TripStop;
 use App\Modules\Dispatch\States\DeliveryChallanStateMachine;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
+use App\Support\States\StateMachine;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -225,6 +226,24 @@ class TripController extends Controller
                     'failure_reason' => $data['failure_reason'],
                     'departed_at' => now(),
                 ])->save();
+
+                // The goods are back on the truck, so the challan is a return: stock comes
+                // back to the lot, delivered_qty falls, the certified claim is withdrawn and
+                // a credit note is drafted if it was already invoiced. Recording a failed
+                // drop while the sales order still read "delivered" was a lie with the stock
+                // already gone. The driver holds three permissions and `delivery_challan.return`
+                // is not among them — the return is the system's consequence of their POD.
+                if ($stop->delivery_challan_id !== null) {
+                    $challan = DeliveryChallan::query()->find($stop->delivery_challan_id);
+
+                    if ($challan !== null && in_array($challan->status, ['issued', 'in_transit'], true)) {
+                        StateMachine::asSystem(fn () => $this->challanStates->transition(
+                            $challan,
+                            'returned',
+                            ['return_reason' => "Delivery failed at stop {$stop->sequence_no}: {$data['failure_reason']}"],
+                        ));
+                    }
+                }
 
                 return;
             }

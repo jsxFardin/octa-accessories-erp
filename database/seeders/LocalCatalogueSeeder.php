@@ -710,7 +710,7 @@ class LocalCatalogueSeeder extends Seeder
             return $po;
         });
 
-        DB::transaction(function () use ($numbers, $pack, $carton, $pcs): void {
+        DB::transaction(function () use ($pack, $carton, $pcs): void {
             $po = PurchaseOrder::query()->create([
                 'supplier_id' => $pack,
                 'factory_unit_id' => $this->unitId,

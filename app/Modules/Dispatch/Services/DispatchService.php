@@ -167,16 +167,28 @@ class DispatchService
             return;
         }
 
-        $valid = DB::table('certifications')
+        $certificate = DB::table('certifications')
             ->where('scheme', $scheme)
+            ->where('status', 'active')
             ->whereDate('issued_on', '<=', $challan->challan_date)
             ->whereDate('expires_on', '>=', $challan->challan_date)
-            ->exists();
+            ->first(['certificate_no', 'document_path']);
 
-        if (! $valid) {
+        if ($certificate === null) {
             throw TransitionDenied::guard(
                 'BR-43',
-                "This shipment claims {$scheme}, but no {$scheme} certificate is valid on the challan date. Ship without the claim or renew the certificate.",
+                "This shipment claims {$scheme}, but no active {$scheme} certificate is valid on the challan date. Ship without the claim or renew the certificate.",
+            );
+        }
+
+        // Validity dates without the certificate behind them prove nothing. The registry
+        // happily held rows reading "pending upload of the signed certificate" while shipments
+        // claimed against them all year — and the signed PDF is the first thing an auditor
+        // asks for.
+        if (blank($certificate->document_path)) {
+            throw TransitionDenied::guard(
+                'BR-43',
+                "Certificate {$certificate->certificate_no} has no document on file. Upload the signed certificate before shipping a {$scheme} claim.",
             );
         }
     }
@@ -238,6 +250,14 @@ class DispatchService
                 $this->rollupSchedules((int) $line->sales_order_line_id, -((float) $line->qty));
             }
         }
+
+        // Gate 2 — goods that came back never left. A claim that stays on the output side
+        // for a shipment sitting in the yard is exactly the overstatement the reconciliation
+        // exists to catch.
+        DB::table('coc_transactions')
+            ->where('direction', 'output')
+            ->where('packing_list_id', $challan->packing_list_id)
+            ->delete();
 
         $this->draftReturnCreditNote($challan);
     }

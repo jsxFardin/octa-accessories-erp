@@ -35,10 +35,12 @@ class SalesInvoiceStateMachine extends StateMachine
     {
         return [
             'draft' => ['issued', 'cancelled'],
-            'issued' => ['partially_paid', 'paid', 'overdue', 'cancelled'],
-            'partially_paid' => ['paid', 'overdue'],
-            'overdue' => ['partially_paid', 'paid'],
+            'issued' => ['partially_paid', 'paid', 'credited', 'overdue', 'cancelled'],
+            'partially_paid' => ['paid', 'credited', 'overdue'],
+            'overdue' => ['partially_paid', 'paid', 'credited'],
             'paid' => [],
+            // Terminal, like `paid`, and deliberately not the same word: the money never came.
+            'credited' => [],
             'cancelled' => [],
         ];
     }
@@ -52,6 +54,7 @@ class SalesInvoiceStateMachine extends StateMachine
             // Payment statuses move as receipts allocate — the allocator's right, not a typist's.
             'partially_paid' => 'receipt.allocate',
             'paid' => 'receipt.allocate',
+            'credited' => 'credit_note.apply',
             'overdue' => 'sales_invoice.update',
         ];
     }
@@ -159,9 +162,14 @@ class SalesInvoiceStateMachine extends StateMachine
      */
     public function reflectPayment(SalesInvoice $invoice): void
     {
-        $settled = (float) $invoice->received_amount + $this->appliedCredits($invoice);
+        $received = (float) $invoice->received_amount;
+        $credited = $this->appliedCredits($invoice);
+        $settled = $received + $credited;
 
         $target = match (true) {
+            // Settled by credit alone is a write-off, not a collection. Reporting it as `paid`
+            // put a quality claim in the receivables total as money received (P2-1).
+            $settled >= (float) $invoice->total - 0.0001 && $received <= 0.0001 && $credited > 0 => 'credited',
             $settled >= (float) $invoice->total - 0.0001 => 'paid',
             $settled > 0 => 'partially_paid',
             default => null,

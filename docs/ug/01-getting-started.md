@@ -54,7 +54,9 @@ Use **admin** to see every screen. Use **merchandiser** if you want the commerci
 
 1. Open `/floor`.
 2. Scan or type the badge (`card_no` on the employee record).
-3. Enter the PIN (in this build: the **last four digits of the badge**).
+3. Enter the PIN. The seed sets it to the **last four digits of the badge**; it is stored as a
+   hash and changed at **Configuration → Users → Floor PIN**. Change it before this is anything
+   but a demo — a badge is worn where anyone can read it.
 4. Optionally pick a machine, so the queue is only that machine’s work.
 5. **শুরু · SIGN IN**.
 

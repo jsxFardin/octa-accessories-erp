@@ -39,6 +39,7 @@ const BLANK = {
     role_id: '',
     employee_code: '',
     card_no: '',
+    floor_pin: '',
     designation: '',
     factory_unit_id: '',
     department_id: '',
@@ -65,6 +66,8 @@ function openEdit(user) {
         role_id: user.role_id ?? '',
         employee_code: user.employee?.code ?? '',
         card_no: user.employee?.card_no ?? '',
+        // Never populated from the server: a PIN that can be read back is not a PIN.
+        floor_pin: '',
         designation: user.employee?.designation ?? '',
         factory_unit_id: user.employee?.factory_unit_id ?? '',
         department_id: user.employee?.department_id ?? '',
@@ -242,6 +245,15 @@ const columns = [
 
                         <FormField label="Badge number" hint="Signs in at the shop-floor terminal." :error="form.errors.card_no">
                             <TextInput v-model="form.card_no" placeholder="BADGE-0022" />
+                        </FormField>
+
+                        <FormField
+                            label="Floor PIN"
+                            rule="06-rbac §6"
+                            hint="Digits only. Leave blank to keep the current PIN. Do not reuse the badge number — it is worn where anyone can read it."
+                            :error="form.errors.floor_pin"
+                        >
+                            <TextInput v-model="form.floor_pin" type="password" autocomplete="new-password" placeholder="••••" />
                         </FormField>
 
                         <FormField label="Designation" :error="form.errors.designation">

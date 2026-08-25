@@ -16,10 +16,36 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class ProductSpecController extends Controller
 {
     public function __construct(private readonly ConsumptionCalculator $consumption) {}
+
+    /**
+     * The spec screen. Its own page rather than a modal: the derived panel (BR-4/5/6) is the
+     * point of the exercise, and a designer needs room to watch it move while they type.
+     */
+    public function create(Product $product): Response
+    {
+        $product->load('currentSpec');
+
+        return Inertia::render('Product/Specs/Form', [
+            'product' => $product->only(['id', 'code', 'name', 'product_type']),
+            // A new version starts from the current one — most revisions change one dimension.
+            'current' => $product->currentSpec?->only([
+                'id', 'version_no', 'label_width_mm', 'label_height_mm', 'web_width_mm',
+                'selvedge_mm', 'lane_gap_mm', 'cut_gap_mm', 'ends', 'base_material',
+                'fabric_gsm', 'warp_ratio', 'colours', 'colour_list', 'cut_type', 'fold_type',
+                'finish', 'coverage_pct', 'bundle_size', 'bundles_per_carton', 'care_symbols',
+                'fibre_composition', 'country_of_origin', 'claims', 'notes',
+            ]),
+            'cutTypes' => Vocabulary::options('cut_type'),
+            'foldTypes' => ['flat', 'centre_fold', 'end_fold', 'loop', 'mitre', 'manhattan', 'book_cover'],
+            'schemes' => DB::table('certifications')->distinct()->orderBy('scheme')->pluck('scheme'),
+        ]);
+    }
 
     /**
      * A new version. P3 — a spec is immutable once anything references it, so an edit is

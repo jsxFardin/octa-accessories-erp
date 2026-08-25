@@ -12,6 +12,7 @@ use App\Support\Numbering\NumberAllocator;
 use App\Support\States\StateMachine;
 use App\Support\States\TransitionDenied;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 /**
  * 05-workflows §6 — the most guarded transition in the system.
@@ -76,7 +77,7 @@ class JobCardStateMachine extends StateMachine
             JobCard::RELEASED => $this->guardReleased($document, $context),
             JobCard::ON_HOLD => $this->guardHold($context),
             JobCard::QC_PENDING => $this->guardQcPending($document),
-            JobCard::COMPLETED => $this->guardCompleted($document),
+            JobCard::COMPLETED => $this->guardCompleted($document, $context),
             JobCard::CLOSED => $this->guardClosed($document),
             JobCard::CANCELLED => $this->guardCancelled($document, $context),
             default => null,
@@ -139,18 +140,74 @@ class JobCardStateMachine extends StateMachine
     }
 
     /**
+     * I7 — every material the active BOM calls for has to have been issued, or the shortfall
+     * waived by someone who may waive it.
+     *
+     * A job completing with cartons on its BOM and none ever issued leaves the store's records
+     * holding packaging that physically left the shelf. Nothing complained, and the drift only
+     * surfaced at the next physical count.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function guardMaterialIssued(JobCard $jobCard, array $context): void
+    {
+        $bom = $jobCard->bom;
+
+        if ($bom === null) {
+            return;
+        }
+
+        $issued = DB::table('material_issue_lines as mil')
+            ->join('material_issues as mi', 'mi.id', '=', 'mil.material_issue_id')
+            ->where('mi.job_card_id', $jobCard->getKey())
+            ->where('mi.status', 'posted')
+            ->groupBy('mil.item_id')
+            ->selectRaw("mil.item_id, SUM(CASE WHEN mi.issue_type = 'return' THEN -mil.qty ELSE mil.qty END) as qty")
+            ->pluck('qty', 'mil.item_id');
+
+        $missing = $bom->lines
+            ->filter(fn ($line): bool => ! (bool) $line->is_optional && (float) ($issued[$line->item_id] ?? 0) <= 0)
+            ->map(fn ($line): string => (string) ($line->item?->code ?? "item #{$line->item_id}"))
+            ->values();
+
+        if ($missing->isEmpty()) {
+            return;
+        }
+
+        // The same permission that waives material at release waives it here; a job that ran
+        // on substitutes is a real thing, and saying so is the price.
+        if (filled($context['material_waiver_reason'] ?? null)) {
+            if (! (auth()->user()?->hasPermission('job_card.waive_material') ?? false)) {
+                throw TransitionDenied::notPermitted('job_card.waive_material');
+            }
+
+            return;
+        }
+
+        throw TransitionDenied::guard(
+            'I7',
+            'Nothing was issued against '.$missing->implode(', ').
+            '. Issue the material, or complete with a documented waiver.',
+        );
+    }
+
+    /**
      * P1-1 — a job whose routing demands QC cannot complete without an accepted final
      * verdict. The requirement comes from the routing's own `requires_qc` flags (explicit
      * configuration is authoritative); `qc_final_required_default` extends it to every job
      * when the factory turns the setting on. An unresolved rejection blocks until rework
      * produces a later accepted inspection.
+     *
+     * @param  array<string, mixed>  $context
      */
-    private function guardCompleted(JobCard $jobCard): void
+    private function guardCompleted(JobCard $jobCard, array $context): void
     {
         $required = $jobCard->operations()->where('requires_qc', true)->exists()
             || app(\App\Support\Settings\Settings::class)->bool('qc_final_required_default', false);
 
         if (! $required) {
+            $this->guardMaterialIssued($jobCard, $context);
+
             return;
         }
 
@@ -178,6 +235,10 @@ class JobCardStateMachine extends StateMachine
         if (! in_array($latest->result, ['accepted', 'accepted_with_concession'], true)) {
             throw TransitionDenied::guard('P1-1 · QC1', "Final inspection {$latest->number} is still {$latest->result}.");
         }
+
+        // Last, so a job that is both unin­spected and short of material hears about the
+        // inspection first — that is the one that keeps defective labels off a garment.
+        $this->guardMaterialIssued($jobCard, $context);
     }
 
     /** J4, J5 */

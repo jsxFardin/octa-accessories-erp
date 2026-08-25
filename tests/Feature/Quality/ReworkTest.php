@@ -104,7 +104,7 @@ it('accepted rework flows through the normal completion pipeline', function (): 
     postFinal($this, majors: 0);
 
     $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
-    $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED);
+    $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED, ['material_waiver_reason' => 'Fixture: this job models QC, not material issue.']);
 
     expect($this->jobCard->refresh()->status)->toBe(JobCard::COMPLETED);
 });

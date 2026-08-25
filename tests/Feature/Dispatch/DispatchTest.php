@@ -239,3 +239,96 @@ it('reconciles: sum of dispatch ledger equals sum of challan lines equals delive
     expect(-$ledger)->toBeQty($lines)->toBeQty($delivered)->toBeQty(2500.0)
         ->and((float) DB::table('stock_lots')->where('id', $this->lot->id)->value('balance_qty'))->toBeQty(2500.0);
 });
+
+/**
+ * A stop that fails is goods coming back, not paperwork.
+ *
+ * Recording a failed drop used to change nothing but the stop row: stock stayed gone, the
+ * sales order still read delivered, and the challan sat in `in_transit` with no route out and
+ * no retry. The driver's own record said the customer never received it.
+ */
+function failedStopFor(object $test, DeliveryChallan $challan): array
+{
+    $vehicleId = DB::table('vehicles')->value('id') ?? DB::table('vehicles')->insertGetId([
+        'registration_no' => 'DHAKA-TEST-0001',
+        'kind' => 'pickup',
+        'is_owned' => true,
+        'is_active' => true,
+    ]);
+
+    $driverId = DB::table('drivers')->value('id') ?? DB::table('drivers')->insertGetId([
+        'employee_id' => DB::table('employees')->value('id'),
+        'name' => 'Test Driver',
+        'licence_no' => 'DL-TEST-0001',
+        'is_active' => true,
+    ]);
+
+    $trip = DB::table('trips')->insertGetId([
+        'number' => 'TRP-TEST-'.$challan->id,
+        'vehicle_id' => $vehicleId,
+        'driver_id' => $driverId,
+        'trip_date' => now()->toDateString(),
+        'status' => 'in_transit',
+    ]);
+
+    $stop = DB::table('trip_stops')->insertGetId([
+        'trip_id' => $trip,
+        'sequence_no' => 1,
+        'delivery_challan_id' => $challan->id,
+        'customer_id' => $challan->customer_id,
+        'status' => 'pending',
+    ]);
+
+    return [$trip, $stop];
+}
+
+it('returns the goods when a delivery fails', function (): void {
+    $challan = packAndDraftChallan($this, 2000);
+    $this->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])->assertSessionHas('success');
+
+    [$trip, $stop] = failedStopFor($this, $challan->refresh());
+
+    $line = DB::table('delivery_challan_lines')->where('delivery_challan_id', $challan->id)->firstOrFail();
+    $deliveredBefore = (float) DB::table('sales_order_lines')->where('id', $line->sales_order_line_id)->value('delivered_qty');
+    $lotBefore = (float) DB::table('stock_lots')->where('id', $line->lot_id)->value('balance_qty');
+
+    $driver = User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail();
+
+    // Three permissions, and `delivery_challan.return` is not among them: the return is the
+    // system's consequence of the driver's POD, not an action they chose.
+    expect($driver->hasPermission('delivery_challan.return'))->toBeFalse();
+
+    $this->actingAs($driver)
+        ->post("/trips/{$trip}/stops/{$stop}/deliver", [
+            'received_by_name' => 'Nobody',
+            'failure_reason' => 'Gate closed; customer warehouse shut.',
+        ])->assertSessionHasNoErrors();
+
+    expect(DB::table('trip_stops')->where('id', $stop)->value('status'))->toBe('failed')
+        ->and($challan->refresh()->status)->toBe('returned')
+        // The stock came back, and the order stopped claiming a delivery that never happened.
+        ->and((float) DB::table('stock_lots')->where('id', $line->lot_id)->value('balance_qty'))
+        ->toBeQty($lotBefore + (float) $line->qty)
+        ->and((float) DB::table('sales_order_lines')->where('id', $line->sales_order_line_id)->value('delivered_qty'))
+        ->toBeQty($deliveredBefore - (float) $line->qty);
+
+    // Gate 2 — a claim for goods sitting in the yard is exactly the overstatement the
+    // reconciliation exists to catch.
+    expect(DB::table('coc_transactions')
+        ->where('direction', 'output')
+        ->where('packing_list_id', $challan->packing_list_id)
+        ->count())->toBe(0);
+});
+
+it('refuses a certified shipment when the certificate has no document on file', function (): void {
+    // Validity dates without the certificate behind them prove nothing, and the registry
+    // happily held rows reading "pending upload of the signed certificate".
+    DB::table('certifications')->where('scheme', 'GRS')->update(['document_path' => null]);
+
+    $challan = packAndDraftChallan($this, 1000);
+
+    $this->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])
+        ->assertSessionHas('error');
+
+    expect($challan->refresh()->status)->toBe('draft');
+});

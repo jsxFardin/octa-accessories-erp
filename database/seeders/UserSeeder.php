@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 /**
  * One user per role, so every screen can be opened as the persona it was designed for and
@@ -77,6 +78,10 @@ class UserSeeder extends Seeder
                     'name' => $seed['name'],
                     'designation' => str_replace('_', ' ', ucfirst($seed['role'])),
                     'card_no' => 'BADGE-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT),
+                    // Demo PIN: the badge's last four digits, hashed. It is a seed value, not
+                    // a rule — the terminal checks the stored hash, so a real deployment sets
+                    // a PIN the badge does not reveal (06-rbac §6).
+                    'pin_hash' => Hash::make(str_pad((string) $sequence, 4, '0', STR_PAD_LEFT)),
                     'is_active' => true,
                 ],
             );
