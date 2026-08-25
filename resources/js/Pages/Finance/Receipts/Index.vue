@@ -7,8 +7,11 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
+import DateInput from '@/Components/Ui/DateInput.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
+import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, money, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -29,6 +32,14 @@ const columns = [
     { key: 'status', label: 'Status' },
 ];
 
+const METHODS = [
+    { value: 'bank_transfer', label: 'Bank transfer' },
+    { value: 'cash', label: 'Cash' },
+    { value: 'cheque', label: 'Cheque' },
+    { value: 'lc', label: 'LC' },
+    { value: 'adjustment', label: 'Adjustment' },
+];
+
 const createOpen = ref(false);
 
 const form = useForm({
@@ -41,11 +52,41 @@ const form = useForm({
     allocations: [{ sales_invoice_id: null, amount: null }],
 });
 
-// The picker narrows to the chosen invoice's customer; outstanding shown per invoice.
+function outstandingOf(invoice) {
+    return (Number(invoice.total) - Number(invoice.received_amount) - Number(invoice.credited_amount ?? 0)).toFixed(2);
+}
+
+// The picker narrows to the chosen invoice's customer; outstanding shown per invoice. The
+// customer is the second line rather than a suffix, so a list of forty invoices scans by
+// number down one column instead of by eye across a run-on string.
 const invoiceOptions = computed(() => props.openInvoices.map((invoice) => ({
-    ...invoice,
-    outstanding: (Number(invoice.total) - Number(invoice.received_amount) - Number(invoice.credited_amount ?? 0)).toFixed(2),
+    value: invoice.id,
+    label: `${invoice.number} · ${outstandingOf(invoice)} outstanding`,
+    hint: invoice.customer_name,
 })));
+
+const chosenInvoice = computed(() => props.openInvoices.find(
+    (invoice) => invoice.id === form.allocations[0].sales_invoice_id,
+) ?? null);
+
+/**
+ * P2-1 — the server refuses an allocation above the receipt or above the invoice's
+ * outstanding, under a row lock. This is the same arithmetic said early; the write still
+ * decides.
+ */
+const overAllocated = computed(() => {
+    const allocation = Number(form.allocations[0].amount) || 0;
+
+    if (allocation === 0) return null;
+    if (Number(form.amount) && allocation > Number(form.amount)) {
+        return 'More than the receipt itself.';
+    }
+    if (chosenInvoice.value && allocation > Number(outstandingOf(chosenInvoice.value))) {
+        return `More than this invoice's ${outstandingOf(chosenInvoice.value)} outstanding.`;
+    }
+
+    return null;
+});
 
 function pickInvoice(allocation) {
     const invoice = props.openInvoices.find((row) => row.id === allocation.sales_invoice_id);
@@ -104,45 +145,56 @@ function submit() {
 
         <Modal v-model:open="createOpen" title="Record a receipt" subtitle="Allocation cannot exceed the receipt or an invoice's outstanding balance" width="max-w-xl">
             <div class="flex flex-col gap-3">
-                <FormField label="Invoice" :error="form.errors.allocations">
-                    <select
+                <FormField
+                    label="Invoice"
+                    :error="form.errors.allocations"
+                    required
+                    :hint="chosenInvoice ? `${chosenInvoice.customer_name} · ${outstandingOf(chosenInvoice)} outstanding` : 'Searchable — type a number or a customer.'"
+                >
+                    <SelectInput
                         v-model="form.allocations[0].sales_invoice_id"
-                        class="w-full rounded-md border-slate-300 text-sm"
-                        @change="pickInvoice(form.allocations[0])"
-                    >
-                        <option :value="null" disabled>Choose an open invoice…</option>
-                        <option v-for="invoice in invoiceOptions" :key="invoice.id" :value="invoice.id">
-                            {{ invoice.number }} — {{ invoice.customer_name }} · {{ invoice.outstanding }} outstanding
-                        </option>
-                    </select>
+                        :options="invoiceOptions"
+                        hint-key="hint"
+                        placeholder="Choose an open invoice…"
+                        @update:model-value="pickInvoice(form.allocations[0])"
+                    />
                 </FormField>
                 <div class="grid grid-cols-2 gap-3">
                     <FormField label="Amount received" :error="form.errors.amount" required>
-                        <input v-model="form.amount" type="number" min="0.01" step="any" class="w-full rounded-md border-slate-300 text-sm" />
+                        <TextInput v-model="form.amount" type="number" min="0.01" step="any" numeric placeholder="0.00" />
                     </FormField>
-                    <FormField label="Allocate to invoice" required>
-                        <input v-model="form.allocations[0].amount" type="number" min="0.01" step="any" class="w-full rounded-md border-slate-300 text-sm" />
+                    <FormField
+                        label="Allocate to invoice"
+                        required
+                        :error="overAllocated"
+                        hint="Defaults to the whole outstanding balance."
+                    >
+                        <TextInput v-model="form.allocations[0].amount" type="number" min="0.01" step="any" numeric placeholder="0.00" />
                     </FormField>
                     <FormField label="Date" :error="form.errors.receipt_date" required>
-                        <input v-model="form.receipt_date" type="date" class="w-full rounded-md border-slate-300 text-sm" />
+                        <DateInput v-model="form.receipt_date" :max="todayIso()" />
                     </FormField>
                     <FormField label="Method" :error="form.errors.method" required>
-                        <select v-model="form.method" class="w-full rounded-md border-slate-300 text-sm">
-                            <option value="bank_transfer">Bank transfer</option>
-                            <option value="cash">Cash</option>
-                            <option value="cheque">Cheque</option>
-                            <option value="lc">LC</option>
-                            <option value="adjustment">Adjustment</option>
-                        </select>
+                        <SelectInput v-model="form.method" :options="METHODS" :placeholder="null" />
                     </FormField>
-                    <FormField label="Reference" :error="form.errors.reference_no" class="col-span-2">
-                        <input v-model="form.reference_no" type="text" class="w-full rounded-md border-slate-300 text-sm" />
+                    <FormField
+                        label="Reference"
+                        :error="form.errors.reference_no"
+                        class="col-span-2"
+                        hint="Cheque number, transfer reference — whatever the bank statement will show."
+                    >
+                        <TextInput v-model="form.reference_no" />
                     </FormField>
                 </div>
             </div>
             <template #footer>
                 <Button @click="createOpen = false">Back</Button>
-                <Button variant="primary" :disabled="form.processing" @click="submit">Post receipt</Button>
+                <Button
+                    variant="primary"
+                    :loading="form.processing"
+                    :disabled="form.processing || !form.amount || !form.allocations[0].sales_invoice_id"
+                    @click="submit"
+                >Post receipt</Button>
             </template>
         </Modal>
     </AppLayout>

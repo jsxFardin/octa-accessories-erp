@@ -1,13 +1,21 @@
 <script setup>
+import { computed } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ orders: { type: Array, default: () => [] } });
 
 const form = useForm({ sales_order_id: null });
+
+const orderOptions = computed(() => props.orders.map((order) => ({
+    value: order.id,
+    label: order.number ?? `(draft #${order.id})`,
+    hint: order.customer_name,
+})));
 
 function submit() {
     form.post('/packing-lists');
@@ -24,16 +32,16 @@ function submit() {
         <Card>
             <form class="flex max-w-xl flex-col gap-4" @submit.prevent="submit">
                 <FormField label="Sales order" :error="form.errors.sales_order_id" required>
-                    <select v-model="form.sales_order_id" class="w-full rounded-md border-slate-300 text-sm">
-                        <option :value="null" disabled>Choose an open order…</option>
-                        <option v-for="order in orders" :key="order.id" :value="order.id">
-                            {{ order.number ?? `(draft #${order.id})` }} — {{ order.customer_name }}
-                        </option>
-                    </select>
+                    <SelectInput
+                        v-model="form.sales_order_id"
+                        :options="orderOptions"
+                        hint-key="hint"
+                        placeholder="Choose an open order…"
+                    />
                 </FormField>
 
                 <div>
-                    <Button type="submit" variant="primary" :disabled="form.processing">Create draft</Button>
+                    <Button type="submit" variant="primary" :loading="form.processing" :disabled="form.processing || !form.sales_order_id">Create draft</Button>
                 </div>
             </form>
         </Card>

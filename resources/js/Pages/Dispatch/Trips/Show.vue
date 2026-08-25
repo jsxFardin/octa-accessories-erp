@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
+import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -31,6 +32,13 @@ function submitComplete() {
 
 const podStop = ref(null);
 const podForm = useForm({ received_by_name: '', failure_reason: '' });
+
+/*
+ * One dialog, two outcomes. Both fields used to sit open at once with a single "Confirm"
+ * button, so a driver could name a receiver *and* a failure reason and have no idea which one
+ * the system would believe. The reason decides, and the dialog now says so.
+ */
+const podFailing = computed(() => Boolean(podForm.failure_reason));
 
 function openPod(stop) {
     podStop.value = stop;
@@ -104,31 +112,45 @@ function submitPod() {
 
         <Modal v-if="podStop" v-model:open="podStop" title="Capture POD" width="max-w-md" @update:open="(v) => { if (!v) podStop = null; }">
             <div class="flex flex-col gap-3">
-                <FormField label="Received by" :error="podForm.errors.received_by_name" required>
-                    <input v-model="podForm.received_by_name" type="text" class="w-full rounded-md border-slate-300 text-sm" placeholder="Receiver name" />
+                <FormField
+                    label="Received by"
+                    :error="podForm.errors.received_by_name"
+                    :required="!podFailing"
+                    :hint="podFailing ? 'Not needed — this stop is being recorded as failed.' : 'The name written on the gate copy.'"
+                >
+                    <TextInput v-model="podForm.received_by_name" placeholder="Receiver name" :disabled="podFailing" />
                 </FormField>
-                <FormField label="Failure reason (leave blank if delivered)" :error="podForm.errors.failure_reason">
-                    <input v-model="podForm.failure_reason" type="text" class="w-full rounded-md border-slate-300 text-sm" placeholder="Optional — marks as failed" />
+                <FormField
+                    label="Failure reason"
+                    :error="podForm.errors.failure_reason"
+                    hint="Fill this in only if the stop did not deliver — it marks the stop failed."
+                >
+                    <TextInput v-model="podForm.failure_reason" placeholder="Refused at the gate, address closed…" />
                 </FormField>
             </div>
             <template #footer>
                 <Button @click="podStop = null">Cancel</Button>
-                <Button variant="primary" :disabled="podForm.processing" @click="submitPod">Confirm</Button>
+                <Button
+                    :variant="podFailing ? 'danger' : 'primary'"
+                    :loading="podForm.processing"
+                    :disabled="podForm.processing || (!podFailing && !podForm.received_by_name)"
+                    @click="submitPod"
+                >{{ podFailing ? 'Mark failed' : 'Confirm delivery' }}</Button>
             </template>
         </Modal>
 
         <Modal v-model:open="completeOpen" title="Complete trip" width="max-w-sm">
             <div class="flex flex-col gap-3">
-                <FormField label="End odometer">
-                    <input v-model="completeForm.end_odometer" type="number" min="0" step="any" class="w-full rounded-md border-slate-300 text-sm" />
+                <FormField label="End odometer" hint="Feeds distance per trip; leave blank if the vehicle has no working meter.">
+                    <TextInput v-model="completeForm.end_odometer" type="number" min="0" step="any" numeric placeholder="0" />
                 </FormField>
                 <FormField label="Fuel cost">
-                    <input v-model="completeForm.fuel_cost" type="number" min="0" step="any" class="w-full rounded-md border-slate-300 text-sm" />
+                    <TextInput v-model="completeForm.fuel_cost" type="number" min="0" step="any" numeric placeholder="0.00" />
                 </FormField>
             </div>
             <template #footer>
                 <Button @click="completeOpen = false">Cancel</Button>
-                <Button variant="primary" :disabled="completeForm.processing" @click="submitComplete">Complete</Button>
+                <Button variant="primary" :loading="completeForm.processing" :disabled="completeForm.processing" @click="submitComplete">Complete</Button>
             </template>
         </Modal>
     </AppLayout>

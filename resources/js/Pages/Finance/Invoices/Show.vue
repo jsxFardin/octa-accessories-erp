@@ -5,7 +5,9 @@ import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import FormField from '@/Components/Ui/FormField.vue';
-import { date, money, pcs, ratePerM } from '@/plugins/formatting';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
+import TextInput from '@/Components/Ui/TextInput.vue';
+import { date, money, pcs, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -17,6 +19,11 @@ const props = defineProps({
     creditNotes: { type: Array, default: () => [] },
     availableTransitions: { type: Array, default: () => [] },
 });
+
+// Underscored enum values were rendered raw in the picker — "short_delivery" is a column
+// name, not a sentence.
+const CREDIT_REASONS = ['quality_claim', 'short_delivery', 'rate_difference', 'discount', 'other']
+    .map((value) => ({ value, label: titleCase(value) }));
 
 const creditForm = useForm({
     sales_invoice_id: props.invoice.id,
@@ -85,15 +92,21 @@ const columns = [
                         class="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3"
                         @submit.prevent="creditForm.post('/credit-notes')"
                     >
-                        <FormField label="Credit reason" class="w-40">
-                            <select v-model="creditForm.reason" class="w-full rounded-md border-slate-300 text-xs">
-                                <option v-for="reason in ['quality_claim','short_delivery','rate_difference','discount','other']" :key="reason" :value="reason">{{ reason }}</option>
-                            </select>
+                        <FormField label="Credit reason" :error="creditForm.errors.reason" class="w-44">
+                            <SelectInput v-model="creditForm.reason" :options="CREDIT_REASONS" :placeholder="null" />
                         </FormField>
-                        <FormField label="Amount" class="w-32">
-                            <input v-model="creditForm.amount" type="number" min="0.01" step="any" class="w-full rounded-md border-slate-300 text-xs" :placeholder="`≤ ${invoice.outstanding}`" />
+                        <FormField label="Amount" :error="creditForm.errors.amount" class="w-32">
+                            <TextInput
+                                v-model="creditForm.amount"
+                                type="number"
+                                min="0.01"
+                                step="any"
+                                numeric
+                                :max="invoice.outstanding"
+                                :placeholder="`≤ ${invoice.outstanding}`"
+                            />
                         </FormField>
-                        <Button type="submit" size="xs" :disabled="creditForm.processing">Draft credit note</Button>
+                        <Button type="submit" size="xs" :loading="creditForm.processing" :disabled="creditForm.processing">Draft credit note</Button>
                     </form>
                 </Card>
 

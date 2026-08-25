@@ -38,6 +38,8 @@ async function move(row, status) {
         title: `Cancel ${row.number}?`,
         message: 'The record stays; it stops counting towards spend.',
         confirmLabel: 'Cancel expense',
+        // Both buttons read "Cancel" otherwise, and the safe one is the ambiguous one.
+        cancelLabel: 'Keep it',
     })) return;
 
     busy.value = row.id;

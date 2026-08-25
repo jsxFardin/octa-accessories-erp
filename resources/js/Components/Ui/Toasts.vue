@@ -1,6 +1,7 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
+import { pushToast, removeToast, toasts } from '@/composables/useToasts';
 
 const page = usePage();
 
@@ -8,15 +9,13 @@ const page = usePage();
  * Toasts are keyed by an arriving sequence id, not by message text. Keying the dismissed set
  * by text meant the second "Order released." of a session was suppressed forever — the flash
  * for a repeated action never showed again after the first one was dismissed or timed out.
+ *
+ * The stack itself lives in `useToasts` so the global validation-error handler in `app.js`
+ * can push into the same place.
  */
-let sequence = 0;
-const toasts = ref([]);
-
 const flash = computed(() => page.props.flash ?? {});
 
-function remove(id) {
-    toasts.value = toasts.value.filter((toast) => toast.id !== id);
-}
+const remove = removeToast;
 
 /**
  * Errors stay until dismissed. A blocked release or a negative-stock rejection names the rule
@@ -26,16 +25,7 @@ function remove(id) {
 watch(
     flash,
     (value) => {
-        ['success', 'warning', 'error'].forEach((tone) => {
-            if (!value?.[tone]) return;
-
-            const id = ++sequence;
-            toasts.value.push({ id, tone, message: value[tone] });
-
-            if (tone !== 'error') {
-                setTimeout(() => remove(id), 5000);
-            }
-        });
+        ['success', 'warning', 'error'].forEach((tone) => pushToast(tone, value?.[tone]));
     },
     { immediate: true },
 );

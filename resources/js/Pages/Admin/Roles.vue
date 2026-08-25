@@ -297,7 +297,7 @@ function accessPct(role) {
                                         <input
                                             v-if="row.actions[action]"
                                             type="checkbox"
-                                            class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                            class="form-checkbox"
                                             :checked="has(row.actions[action])"
                                             @change="toggle(row.actions[action])"
                                         >
@@ -332,7 +332,7 @@ function accessPct(role) {
                                             >
                                                 <input
                                                     type="checkbox"
-                                                    class="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                                                    class="form-checkbox accent-amber-600"
                                                     :checked="has(extra.name)"
                                                     @change="toggle(extra.name)"
                                                 >

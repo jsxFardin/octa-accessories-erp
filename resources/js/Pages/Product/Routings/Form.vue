@@ -120,11 +120,11 @@ const columns = [
 
                     <div class="space-y-1 pt-5">
                         <label class="flex items-center gap-2 text-sm text-ink-700">
-                            <input v-model="form.is_default" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                            <input v-model="form.is_default" type="checkbox" class="form-checkbox">
                             Default for this type
                         </label>
                         <label class="flex items-center gap-2 text-sm text-ink-700">
-                            <input v-model="form.is_active" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                            <input v-model="form.is_active" type="checkbox" class="form-checkbox">
                             Active
                         </label>
                     </div>
@@ -176,15 +176,15 @@ const columns = [
                             <div class="space-y-1 text-xs">
                                 <!-- The flag that decides whether this step's wastage counts at all. -->
                                 <label class="flex items-center gap-1.5 text-ink-700">
-                                    <input v-model="line.consumes_web" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                    <input v-model="line.consumes_web" type="checkbox" class="form-checkbox">
                                     Consumes web
                                 </label>
                                 <label class="flex items-center gap-1.5 text-ink-700">
-                                    <input v-model="line.allow_parallel" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                    <input v-model="line.allow_parallel" type="checkbox" class="form-checkbox">
                                     May run in parallel
                                 </label>
                                 <label class="flex items-center gap-1.5 text-ink-700">
-                                    <input v-model="line.requires_qc" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                    <input v-model="line.requires_qc" type="checkbox" class="form-checkbox">
                                     Requires QC
                                 </label>
                             </div>

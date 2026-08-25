@@ -130,7 +130,7 @@ defineExpose({ show });
                     >
                         <input
                             type="checkbox"
-                            class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                            class="form-checkbox"
                             :checked="chosen.has(column)"
                             @change="toggle(column)"
                         >
@@ -156,7 +156,7 @@ defineExpose({ show });
                                 v-model="format"
                                 type="radio"
                                 :value="option.value"
-                                class="border-slate-300 text-brand-600 focus:ring-brand-500"
+                                class="form-radio"
                             >
                             <span class="text-sm font-medium text-ink-900">{{ option.label }}</span>
                         </span>

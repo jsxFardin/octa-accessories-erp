@@ -7,8 +7,11 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
+import DateInput from '@/Components/Ui/DateInput.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
+import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, money, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -29,6 +32,14 @@ const columns = [
     { key: 'status', label: 'Status' },
 ];
 
+const METHODS = [
+    { value: 'bank_transfer', label: 'Bank transfer' },
+    { value: 'cash', label: 'Cash' },
+    { value: 'cheque', label: 'Cheque' },
+    { value: 'lc', label: 'LC' },
+    { value: 'adjustment', label: 'Adjustment' },
+];
+
 const createOpen = ref(false);
 
 const form = useForm({
@@ -43,10 +54,39 @@ const form = useForm({
     allocations: [{ supplier_bill_id: null, amount: null }],
 });
 
+function outstandingOf(bill) {
+    return (Number(bill.total) - Number(bill.paid_amount)).toFixed(2);
+}
+
+// Supplier on the second line: bills are found by their own number far more often than by
+// the supplier's name, and a run-on label makes both harder to scan.
 const billOptions = computed(() => props.openBills.map((bill) => ({
-    ...bill,
-    outstanding: (Number(bill.total) - Number(bill.paid_amount)).toFixed(2),
+    value: bill.id,
+    label: `${bill.number ?? bill.bill_no} · ${outstandingOf(bill)} outstanding`,
+    hint: bill.supplier_name,
 })));
+
+const chosenBill = computed(() => props.openBills.find(
+    (bill) => bill.id === form.allocations[0].supplier_bill_id,
+) ?? null);
+
+/**
+ * The server refuses an allocation above the payment or above the bill's outstanding, under a
+ * row lock. This is the same arithmetic said early; the write still decides.
+ */
+const overAllocated = computed(() => {
+    const allocation = Number(form.allocations[0].amount) || 0;
+
+    if (allocation === 0) return null;
+    if (Number(form.amount) && allocation > Number(form.amount)) {
+        return 'More than the payment itself.';
+    }
+    if (chosenBill.value && allocation > Number(outstandingOf(chosenBill.value))) {
+        return `More than this bill's ${outstandingOf(chosenBill.value)} outstanding.`;
+    }
+
+    return null;
+});
 
 function pickBill(allocation) {
     const bill = props.openBills.find((row) => row.id === allocation.supplier_bill_id);
@@ -105,48 +145,59 @@ function submit() {
 
         <Modal v-model:open="createOpen" title="Record a payment" subtitle="Allocation cannot exceed the payment or a bill's outstanding balance" width="max-w-xl">
             <div class="flex flex-col gap-3">
-                <FormField label="Supplier bill" :error="form.errors.allocations">
-                    <select
+                <FormField
+                    label="Supplier bill"
+                    :error="form.errors.allocations"
+                    required
+                    :hint="chosenBill ? `${chosenBill.supplier_name} · ${outstandingOf(chosenBill)} outstanding` : 'Searchable — type a bill number or a supplier.'"
+                >
+                    <SelectInput
                         v-model="form.allocations[0].supplier_bill_id"
-                        class="w-full rounded-md border-slate-300 text-sm"
-                        @change="pickBill(form.allocations[0])"
-                    >
-                        <option :value="null" disabled>Choose an approved bill…</option>
-                        <option v-for="bill in billOptions" :key="bill.id" :value="bill.id">
-                            {{ bill.number ?? bill.bill_no }} — {{ bill.supplier_name }} · {{ bill.outstanding }} outstanding
-                        </option>
-                    </select>
+                        :options="billOptions"
+                        hint-key="hint"
+                        placeholder="Choose an approved bill…"
+                        @update:model-value="pickBill(form.allocations[0])"
+                    />
                 </FormField>
                 <div class="grid grid-cols-2 gap-3">
                     <FormField label="Amount" :error="form.errors.amount" required>
-                        <input v-model="form.amount" type="number" min="0.01" step="any" class="w-full rounded-md border-slate-300 text-sm" />
+                        <TextInput v-model="form.amount" type="number" min="0.01" step="any" numeric placeholder="0.00" />
                     </FormField>
-                    <FormField label="Allocate to bill" required>
-                        <input v-model="form.allocations[0].amount" type="number" min="0.01" step="any" class="w-full rounded-md border-slate-300 text-sm" />
+                    <FormField
+                        label="Allocate to bill"
+                        required
+                        :error="overAllocated"
+                        hint="Defaults to the whole outstanding balance."
+                    >
+                        <TextInput v-model="form.allocations[0].amount" type="number" min="0.01" step="any" numeric placeholder="0.00" />
                     </FormField>
                     <FormField label="Date" :error="form.errors.payment_date" required>
-                        <input v-model="form.payment_date" type="date" class="w-full rounded-md border-slate-300 text-sm" />
+                        <DateInput v-model="form.payment_date" :max="todayIso()" />
                     </FormField>
                     <FormField label="Method" :error="form.errors.method" required>
-                        <select v-model="form.method" class="w-full rounded-md border-slate-300 text-sm">
-                            <option value="bank_transfer">Bank transfer</option>
-                            <option value="cash">Cash</option>
-                            <option value="cheque">Cheque</option>
-                            <option value="lc">LC</option>
-                            <option value="adjustment">Adjustment</option>
-                        </select>
+                        <SelectInput v-model="form.method" :options="METHODS" :placeholder="null" />
                     </FormField>
-                    <FormField label="Reference" :error="form.errors.reference_no" class="col-span-2">
-                        <input v-model="form.reference_no" type="text" class="w-full rounded-md border-slate-300 text-sm" />
+                    <FormField
+                        label="Reference"
+                        :error="form.errors.reference_no"
+                        class="col-span-2"
+                        hint="Cheque number, transfer reference — whatever the bank statement will show."
+                    >
+                        <TextInput v-model="form.reference_no" />
                     </FormField>
                     <FormField label="Remarks" :error="form.errors.remarks" class="col-span-2">
-                        <input v-model="form.remarks" type="text" class="w-full rounded-md border-slate-300 text-sm" />
+                        <TextInput v-model="form.remarks" />
                     </FormField>
                 </div>
             </div>
             <template #footer>
                 <Button @click="createOpen = false">Back</Button>
-                <Button variant="primary" :disabled="form.processing" @click="submit">Post payment</Button>
+                <Button
+                    variant="primary"
+                    :loading="form.processing"
+                    :disabled="form.processing || !form.amount || !form.allocations[0].supplier_bill_id"
+                    @click="submit"
+                >Post payment</Button>
             </template>
         </Modal>
     </AppLayout>

@@ -192,7 +192,7 @@ const needsThree = computed(() => {
                         </FormField>
                     </div>
                 </div>
-                <Button class="mt-4" variant="primary" :disabled="quoteForm.processing" @click="recordQuote">Save quotation</Button>
+                <Button class="mt-4" variant="primary" :loading="quoteForm.processing" :disabled="quoteForm.processing" @click="recordQuote">Save quotation</Button>
             </Card>
         </div>
     </AppLayout>

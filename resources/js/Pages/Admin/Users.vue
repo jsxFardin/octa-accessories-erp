@@ -226,7 +226,7 @@ const columns = [
 
                     <FormField label="Status">
                         <label class="flex items-center gap-2 py-1.5 text-sm text-ink-700">
-                            <input v-model="form.is_active" type="checkbox" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                            <input v-model="form.is_active" type="checkbox" class="form-checkbox">
                             Active — may sign in
                         </label>
                     </FormField>

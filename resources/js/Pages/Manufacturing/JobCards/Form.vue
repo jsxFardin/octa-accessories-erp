@@ -73,7 +73,7 @@ function submit() {
                     >
                         <input
                             type="radio"
-                            class="mt-1 border-slate-300 text-brand-600 focus:ring-brand-500"
+                            class="form-radio mt-1"
                             :checked="Number(form.sales_order_line_id) === line.id"
                             @change="pickLine(line.id)"
                         >

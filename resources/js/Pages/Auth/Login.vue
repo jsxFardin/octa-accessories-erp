@@ -53,7 +53,7 @@ function submit() {
                 </FormField>
 
                 <label class="flex items-center gap-2 text-xs text-slate-600">
-                    <input v-model="form.remember" type="checkbox" class="rounded border-slate-300">
+                    <input v-model="form.remember" type="checkbox" class="form-checkbox">
                     Keep me signed in
                 </label>
 

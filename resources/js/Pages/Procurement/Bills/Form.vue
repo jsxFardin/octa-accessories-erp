@@ -109,13 +109,13 @@ function submit() {
                                 <tr v-for="(line, index) in form.lines" :key="index">
                                     <td class="px-3 py-1.5 text-center text-ink-400">{{ index + 1 }}</td>
                                     <td class="px-3 py-1.5">
-                                        <input v-model="line.description" type="text" class="w-full rounded border-slate-300 text-sm" :placeholder="line.item_code || 'Description'" />
+                                        <input v-model="line.description" type="text" class="form-input" :placeholder="line.item_code || 'Description'" />
                                     </td>
                                     <td class="px-3 py-1.5">
-                                        <input v-model="line.qty" type="number" min="0" step="any" class="w-full rounded border-slate-300 text-right text-sm" />
+                                        <input v-model="line.qty" type="number" min="0" step="any" class="form-input text-right tnum" />
                                     </td>
                                     <td class="px-3 py-1.5">
-                                        <input v-model="line.rate" type="number" min="0" step="any" class="w-full rounded border-slate-300 text-right text-sm" />
+                                        <input v-model="line.rate" type="number" min="0" step="any" class="form-input text-right tnum" />
                                     </td>
                                     <td class="px-3 py-1.5 text-right tnum">{{ lineAmount(line) }}</td>
                                     <td class="px-3 py-1.5">

@@ -80,7 +80,7 @@ function submit() {
                     >
                         <!-- A checkbox aligns to the 36px control row so the grid stays level. -->
                         <label v-if="field.type === 'checkbox'" class="flex h-9 items-center gap-2 text-sm text-ink-700">
-                            <input v-model="form[field.key]" type="checkbox" class="rounded border-slate-300">
+                            <input v-model="form[field.key]" type="checkbox" class="form-checkbox">
                             {{ field.checkboxLabel ?? 'Yes' }}
                         </label>
 

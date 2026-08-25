@@ -129,6 +129,28 @@
                focus:ring-1 focus:ring-brand-500/30 focus:outline-none;
     }
 
+    /*
+     * Checkboxes and radios. Tailwind 4 ships no forms plugin here, so `text-brand-600` and
+     * `focus:ring-*` were painting nothing: a native control ignores both. `accent-color` is
+     * what actually tints the box, and the focus ring has to be an outline because the
+     * control draws its own background.
+     */
+    .form-checkbox,
+    .form-radio {
+        @apply size-4 shrink-0 border-slate-300 align-middle;
+        accent-color: var(--color-brand-600);
+    }
+
+    .form-checkbox:focus-visible,
+    .form-radio:focus-visible {
+        @apply outline-2 outline-offset-2 outline-brand-500;
+    }
+
+    .form-checkbox:disabled,
+    .form-radio:disabled {
+        @apply opacity-50;
+    }
+
     .form-input-error {
         @apply border-rose-400 focus:border-rose-500 focus:ring-rose-500/25;
     }

@@ -370,7 +370,7 @@ const byLine = computed(() => {
                 </FormField>
                 <FormField label="Goes into stock cost" hint="Off for demurrage, LC charges and other period costs.">
                     <label class="flex h-9 items-center gap-2 text-sm text-ink-700">
-                        <input v-model="costForm.is_allocable" type="checkbox" class="rounded border-slate-300">
+                        <input v-model="costForm.is_allocable" type="checkbox" class="form-checkbox">
                         Allocable to the goods
                     </label>
                 </FormField>

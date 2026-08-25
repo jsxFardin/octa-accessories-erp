@@ -6,6 +6,8 @@ import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import FormField from '@/Components/Ui/FormField.vue';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
+import TextInput from '@/Components/Ui/TextInput.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import { date, datetime, pcs, qty, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -27,6 +29,19 @@ const props = defineProps({
 });
 
 // P0-3 — client_ref makes a double-submit a replay, not a second lot.
+const GRADES = [
+    { value: 'A', label: 'A' },
+    { value: 'B', label: 'B' },
+    { value: 'reject', label: 'Reject' },
+];
+
+// The code is what a store keeper types; the name is what tells two "FG-2" apart.
+const warehouseOptions = computed(() => props.fgWarehouses.map((warehouse) => ({
+    value: warehouse.id,
+    label: warehouse.code,
+    hint: warehouse.name,
+})));
+
 const fgForm = useForm({
     qty: null,
     warehouse_id: props.fgWarehouses[0]?.id ?? null,
@@ -390,23 +405,29 @@ const bomColumns = [
                     class="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3"
                     @submit.prevent="postFgReceipt"
                 >
-                    <FormField label="Quantity" :error="fgForm.errors.qty" class="w-36">
-                        <input v-model="fgForm.qty" type="number" min="0.000001" step="any"
-                               class="w-full rounded-md border-slate-300 text-sm" :placeholder="`≤ ${fgPosition.remaining_receivable}`" />
+                    <FormField
+                        label="Quantity"
+                        :error="fgForm.errors.qty"
+                        rule="P0-3"
+                        class="w-36"
+                    >
+                        <TextInput
+                            v-model="fgForm.qty"
+                            type="number"
+                            min="0.000001"
+                            step="any"
+                            numeric
+                            :max="fgPosition.remaining_receivable"
+                            :placeholder="`≤ ${fgPosition.remaining_receivable}`"
+                        />
                     </FormField>
-                    <FormField label="Warehouse" :error="fgForm.errors.warehouse_id" class="w-44">
-                        <select v-model="fgForm.warehouse_id" class="w-full rounded-md border-slate-300 text-sm">
-                            <option v-for="wh in fgWarehouses" :key="wh.id" :value="wh.id">{{ wh.code }} — {{ wh.name }}</option>
-                        </select>
+                    <FormField label="Warehouse" :error="fgForm.errors.warehouse_id" class="w-52">
+                        <SelectInput v-model="fgForm.warehouse_id" :options="warehouseOptions" hint-key="hint" :placeholder="null" />
                     </FormField>
                     <FormField label="Grade" :error="fgForm.errors.grade" class="w-28">
-                        <select v-model="fgForm.grade" class="w-full rounded-md border-slate-300 text-sm">
-                            <option value="A">A</option>
-                            <option value="B">B</option>
-                            <option value="reject">Reject</option>
-                        </select>
+                        <SelectInput v-model="fgForm.grade" :options="GRADES" :placeholder="null" />
                     </FormField>
-                    <Button type="submit" size="sm" variant="primary" :disabled="fgForm.processing">Receive to FG</Button>
+                    <Button type="submit" size="sm" variant="primary" :loading="fgForm.processing" :disabled="fgForm.processing">Receive to FG</Button>
                 </form>
             </Card>
 

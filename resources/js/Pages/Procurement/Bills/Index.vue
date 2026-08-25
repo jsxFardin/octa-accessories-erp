@@ -52,7 +52,7 @@ const columns = [
                 <template #cell:bill_date="{ value }">{{ date(value) }}</template>
                 <template #cell:due_date="{ value }">{{ value ? date(value) : '—' }}</template>
                 <template #cell:total="{ row, value }">{{ money(value, row.currency) }}</template>
-                <template #cell:outstanding="{ value }">
+                <template #cell:outstanding="{ row, value }">
                     <span :class="value > 0 ? 'text-rose-600' : ''">{{ money(value, row.currency) }}</span>
                 </template>
                 <template #cell:status="{ value }"><Badge :status="value" /></template>

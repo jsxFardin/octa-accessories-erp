@@ -1,10 +1,12 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
+import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, pcs, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -20,6 +22,28 @@ const props = defineProps({
 });
 
 const isDraft = props.packingList.status === 'draft';
+
+/*
+ * `total_cartons` / `total_qty` are denormalised and only rewritten when the list transitions
+ * to `packed`, so a draft with three loaded cartons read "0 cartons, 0 pieces" — the one
+ * screen where the number is being built is the one screen that could not show it. The stored
+ * columns stay authoritative for every other reader; here the display derives from the rows
+ * it is already rendering.
+ */
+const totals = computed(() => {
+    const contents = props.cartons.flatMap((carton) => carton.contents ?? []);
+    const sum = (rows, key) => rows.reduce((total, row) => total + (Number(row[key]) || 0), 0);
+    const weight = (key) => (props.cartons.some((carton) => carton[key] !== null)
+        ? sum(props.cartons, key)
+        : null);
+
+    return {
+        cartons: props.cartons.length,
+        qty: sum(contents, 'qty'),
+        gross: weight('gross_weight_kg'),
+        net: weight('net_weight_kg'),
+    };
+});
 
 const cartonForm = useForm({ gross_weight_kg: null, net_weight_kg: null });
 const contentForms = ref({});
@@ -48,6 +72,23 @@ function addContent(cartonId) {
         onSuccess: () => contentForm(cartonId).reset('lot_id', 'qty', 'bundles'),
     });
 }
+
+/*
+ * Lot lists run long once a week's output is in finished goods, and a native <select> makes
+ * the packer scroll for a number they can spell. Both pickers carry their second line — what
+ * is on hand, which scheme it carries — where the packer needs it: in the list, not after.
+ */
+const lineOptions = computed(() => props.orderLines.map((line) => ({
+    value: line.id,
+    label: `#${line.line_no} ${line.product_code}`,
+    hint: `${pcs(line.ordered_qty)} ordered · ${pcs(line.delivered_qty)} delivered`,
+})));
+
+const lotOptions = computed(() => props.availableLots.map((lot) => ({
+    value: lot.id,
+    label: lot.lot_no,
+    hint: `${qty(lot.balance_qty)} on hand${lot.cert_scheme ? ` · ${lot.cert_scheme}` : ''}`,
+})));
 
 const confirmTransition = useTransitionConfirm();
 
@@ -86,7 +127,7 @@ function createChallan() {
             </Button>
             <Button
                 v-if="packingList.status === 'packed' && challans.length === 0 && can('delivery_challan.create')"
-                size="sm" variant="primary" :disabled="challanForm.processing" @click="createChallan"
+                size="sm" variant="primary" :loading="challanForm.processing" :disabled="challanForm.processing" @click="createChallan"
             >
                 Create challan
             </Button>
@@ -95,10 +136,10 @@ function createChallan() {
         <div class="space-y-4">
             <Card title="Totals" rule="AC4 · computed, never typed">
                 <dl class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
-                    <div><dt class="text-xs text-ink-500">Cartons</dt><dd class="font-medium tnum">{{ packingList.total_cartons }}</dd></div>
-                    <div><dt class="text-xs text-ink-500">Pieces</dt><dd class="font-medium tnum">{{ pcs(packingList.total_qty) }}</dd></div>
-                    <div><dt class="text-xs text-ink-500">Gross kg</dt><dd class="font-medium tnum">{{ packingList.gross_weight_kg ?? '—' }}</dd></div>
-                    <div><dt class="text-xs text-ink-500">Net kg</dt><dd class="font-medium tnum">{{ packingList.net_weight_kg ?? '—' }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Cartons</dt><dd class="font-medium tnum">{{ totals.cartons }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Pieces</dt><dd class="font-medium tnum">{{ pcs(totals.qty) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Gross kg</dt><dd class="font-medium tnum">{{ totals.gross ?? '—' }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Net kg</dt><dd class="font-medium tnum">{{ totals.net ?? '—' }}</dd></div>
                     <div>
                         <dt class="text-xs text-ink-500">Claim</dt>
                         <dd class="font-medium">
@@ -140,24 +181,25 @@ function createChallan() {
                             @submit.prevent="addContent(carton.id)"
                         >
                             <FormField label="Order line" class="w-40">
-                                <select v-model="contentForm(carton.id).sales_order_line_id" class="w-full rounded-md border-slate-300 text-xs">
-                                    <option v-for="line in orderLines" :key="line.id" :value="line.id">
-                                        #{{ line.line_no }} {{ line.product_code }}
-                                    </option>
-                                </select>
+                                <SelectInput
+                                    v-model="contentForm(carton.id).sales_order_line_id"
+                                    :options="lineOptions"
+                                    hint-key="hint"
+                                    :placeholder="null"
+                                />
                             </FormField>
                             <FormField label="Available FG lot" class="w-56">
-                                <select v-model="contentForm(carton.id).lot_id" class="w-full rounded-md border-slate-300 text-xs">
-                                    <option :value="null" disabled>Pick a lot…</option>
-                                    <option v-for="lot in availableLots" :key="lot.id" :value="lot.id">
-                                        {{ lot.lot_no }} · {{ qty(lot.balance_qty) }} on hand<template v-if="lot.cert_scheme"> · {{ lot.cert_scheme }}</template>
-                                    </option>
-                                </select>
+                                <SelectInput
+                                    v-model="contentForm(carton.id).lot_id"
+                                    :options="lotOptions"
+                                    hint-key="hint"
+                                    placeholder="Pick a lot…"
+                                />
                             </FormField>
                             <FormField label="Qty" class="w-28">
-                                <input v-model="contentForm(carton.id).qty" type="number" min="1" step="any" class="w-full rounded-md border-slate-300 text-xs" />
+                                <TextInput v-model="contentForm(carton.id).qty" type="number" min="1" step="any" numeric placeholder="0" />
                             </FormField>
-                            <Button type="submit" size="xs" variant="primary">Add</Button>
+                            <Button type="submit" size="xs" variant="primary" :loading="contentForm(carton.id).processing">Add</Button>
                         </form>
                     </div>
 
@@ -172,12 +214,12 @@ function createChallan() {
                     @submit.prevent="addCarton"
                 >
                     <FormField label="Gross kg" class="w-28">
-                        <input v-model="cartonForm.gross_weight_kg" type="number" min="0" step="any" class="w-full rounded-md border-slate-300 text-xs" />
+                        <TextInput v-model="cartonForm.gross_weight_kg" type="number" min="0" step="any" numeric placeholder="0.00" />
                     </FormField>
                     <FormField label="Net kg" class="w-28">
-                        <input v-model="cartonForm.net_weight_kg" type="number" min="0" step="any" class="w-full rounded-md border-slate-300 text-xs" />
+                        <TextInput v-model="cartonForm.net_weight_kg" type="number" min="0" step="any" numeric placeholder="0.00" />
                     </FormField>
-                    <Button type="submit" size="sm">Add carton</Button>
+                    <Button type="submit" size="sm" :loading="cartonForm.processing">Add carton</Button>
                 </form>
             </Card>
 

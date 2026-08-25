@@ -178,7 +178,7 @@ onUnmounted(() => {
                         <th v-if="selectable" scope="col" class="w-9 px-3 py-2">
                             <input
                                 type="checkbox"
-                                class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                class="form-checkbox"
                                 :checked="allSelected"
                                 :indeterminate="someSelected"
                                 aria-label="Select all rows on this page"
@@ -257,7 +257,7 @@ onUnmounted(() => {
                         <td v-if="selectable" class="px-3" :class="rowPadding">
                             <input
                                 type="checkbox"
-                                class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                class="form-checkbox"
                                 :checked="selection.includes(row[rowKey])"
                                 :aria-label="`Select row ${row[rowKey]}`"
                                 @change="toggleRow(row[rowKey])"

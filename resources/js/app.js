@@ -1,11 +1,12 @@
 import '../css/app.css';
 
 import { createApp, h } from 'vue';
-import { createInertiaApp } from '@inertiajs/vue3';
+import { createInertiaApp, router } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createPinia } from 'pinia';
 import { ZiggyVue } from 'ziggy';
 
+import { pushToast } from '@/composables/useToasts';
 import permissions from '@/plugins/permissions';
 import formatting, { configureFormatting } from '@/plugins/formatting';
 
@@ -13,6 +14,23 @@ const fallbackName = import.meta.env.VITE_APP_NAME || 'Octa ERP';
 
 /** The tab title follows the organisation profile, so a rebrand needs no deploy. */
 let appName = fallbackName;
+
+/*
+ * A validation failure has to be visible on every page, not only the ones that thought to
+ * render `form.errors`. Pages that run a form inline — a challan's remarks box, the packing
+ * list's carton rows — showed nothing at all when the server answered 422, so the operator
+ * pressed the button again. The inline field errors still render where a page renders them;
+ * this is the floor under them.
+ */
+router.on('error', (event) => {
+    const messages = Object.values(event.detail?.errors ?? {}).flat().filter(Boolean);
+
+    if (messages.length === 0) return;
+
+    pushToast('error', messages.length === 1
+        ? messages[0]
+        : `${messages[0]}\n(and ${messages.length - 1} more field${messages.length > 2 ? 's' : ''} to fix)`);
+});
 
 createInertiaApp({
     title: (title) => (title ? `${title} · ${appName}` : appName),

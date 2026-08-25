@@ -109,27 +109,44 @@ const columns = [
             </p>
             <FormField
                 v-if="lines.some(overBand)"
-                label="Override reason (required — a line is over its tolerance band)"
+                label="Override reason"
                 :error="issueForm.errors.override_reason"
+                hint="A line is over its tolerance band. The reason is stored on the challan and read at invoicing."
+                required
                 class="mt-3"
             >
-                <textarea v-model="issueForm.override_reason" rows="2" class="w-full rounded-md border-slate-300 text-sm" />
+                <textarea v-model="issueForm.override_reason" rows="2" class="form-textarea" placeholder="Customer accepted the overrun on the phone — …" />
             </FormField>
             <template #footer>
                 <Button @click="issueOpen = false">Keep as draft</Button>
-                <Button variant="primary" :disabled="issueForm.processing" @click="post(issueForm, () => (issueOpen = false))">
+                <Button
+                    variant="primary"
+                    :loading="issueForm.processing"
+                    :disabled="issueForm.processing || (lines.some(overBand) && !issueForm.override_reason)"
+                    @click="post(issueForm, () => (issueOpen = false))"
+                >
                     Issue and post dispatch
                 </Button>
             </template>
         </Modal>
 
         <Modal v-model:open="returnOpen" title="Return this delivery" subtitle="Reverses the dispatch and restores stock." width="max-w-lg">
-            <FormField label="Failure reason" :error="returnForm.errors.return_reason" required>
-                <textarea v-model="returnForm.return_reason" rows="2" class="w-full rounded-md border-slate-300 text-sm" />
+            <FormField
+                label="Failure reason"
+                :error="returnForm.errors.return_reason"
+                hint="Refused at the gate, wrong address, damaged in transit — it travels with the reversal."
+                required
+            >
+                <textarea v-model="returnForm.return_reason" rows="2" class="form-textarea" placeholder="Refused at the gate — …" />
             </FormField>
             <template #footer>
                 <Button @click="returnOpen = false">Back</Button>
-                <Button variant="danger" :disabled="returnForm.processing" @click="post(returnForm, () => (returnOpen = false))">
+                <Button
+                    variant="danger"
+                    :loading="returnForm.processing"
+                    :disabled="returnForm.processing || !returnForm.return_reason"
+                    @click="post(returnForm, () => (returnOpen = false))"
+                >
                     Confirm return
                 </Button>
             </template>

@@ -92,7 +92,7 @@ function submit() {
                                         <input
                                             v-model="line.result_value"
                                             type="text"
-                                            class="w-full rounded border-slate-300 text-sm"
+                                            class="form-input"
                                             :placeholder="scalePlaceholder(line._scale)"
                                         />
                                     </td>
@@ -103,7 +103,7 @@ function submit() {
                 </Card>
 
                 <FormField label="Remarks" :error="form.errors.remarks" class="mt-4">
-                    <textarea v-model="form.remarks" rows="2" class="w-full rounded-md border-slate-300 text-sm" />
+                    <textarea v-model="form.remarks" rows="2" class="form-textarea" />
                 </FormField>
 
             <template #footer>

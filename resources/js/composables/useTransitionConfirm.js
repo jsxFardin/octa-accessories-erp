@@ -47,6 +47,9 @@ export function useTransitionConfirm() {
                 ? 'This cannot be undone from this screen.'
                 : 'The state machine will still apply its own checks.',
             confirmLabel: verb.startsWith('Move to') ? 'Continue' : verb,
+            // Cancelling a document put "Cancel" on both buttons — the destructive one and the
+            // safe one — on every screen that can cancel anything.
+            cancelLabel: to === 'cancelled' ? 'Keep it' : 'Back',
             tone: destructive ? 'danger' : 'default',
         });
     };
