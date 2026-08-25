@@ -54,7 +54,9 @@ class SalesInvoiceStateMachine extends StateMachine
             // Payment statuses move as receipts allocate — the allocator's right, not a typist's.
             'partially_paid' => 'receipt.allocate',
             'paid' => 'receipt.allocate',
-            'credited' => 'credit_note.apply',
+            // Same permission as `paid`: both are reached by applying money or credit, and
+            // `receipt.allocate` is what the credit-note machine itself requires.
+            'credited' => 'receipt.allocate',
             'overdue' => 'sales_invoice.update',
         ];
     }

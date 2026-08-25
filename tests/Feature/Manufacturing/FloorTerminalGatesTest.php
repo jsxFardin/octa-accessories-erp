@@ -48,6 +48,13 @@ it('lets an operator close the final operation of a job card', function (): void
     $final = $this->jobCard->operations()->reorder('sequence_no', 'desc')->firstOrFail();
     $final->forceFill(['status' => JobCardOperation::IN_PROGRESS])->save();
 
+    // Booked, because an operation that closes empty is refused on its own account (J3).
+    $this->postJson("/api/v1/operations/{$final->id}/log", [
+        'good_qty' => 1,
+        'waste_qty' => 0,
+        'input_qty' => 1,
+    ], ($this->headers)('finish-final-log'))->assertOk();
+
     $this->postJson("/api/v1/operations/{$final->id}/finish", [], ($this->headers)('finish-final'))
         ->assertOk();
 

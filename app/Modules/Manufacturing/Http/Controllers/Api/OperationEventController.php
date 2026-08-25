@@ -78,6 +78,7 @@ class OperationEventController extends Controller
             'input_lot_id' => ['nullable', 'integer', 'exists:stock_lots,id'],
             'output_lot_id' => ['nullable', 'integer', 'exists:stock_lots,id'],
             'remarks' => ['nullable', 'string', 'max:255'],
+            'input_override_reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         return $this->idempotent($request, function () use ($request, $operation, $data): array {
@@ -114,7 +115,7 @@ class OperationEventController extends Controller
 
                     if ($locked->planned_qty > 0
                         && $newInput > $inputCeiling + 0.000001
-                        && blank($request->input('input_override_reason'))) {
+                        && blank($data['input_override_reason'] ?? null)) {
                         abort(422, sprintf(
                             'J3: %.3f handed to this operation exceeds its %.3f plan. Re-check the figure, or record why more was fed in.',
                             $newInput,
@@ -126,9 +127,15 @@ class OperationEventController extends Controller
                 // J5 at the moment of booking, not only when the card closes. The terminal
                 // shows the ceiling on every screen, so a refusal that arrives days later at
                 // `closed` — with the goods already made — reads as the rule not existing.
-                if ($card !== null) {
+                // Only the last operation makes pieces; the ones before it make metres, and a
+                // ceiling in pieces has nothing to say about them (P0-2).
+                $isFinal = $locked->sequence_no === (int) JobCardOperation::query()
+                    ->where('job_card_id', $locked->job_card_id)
+                    ->max('sequence_no');
+
+                if ($card !== null && $isFinal) {
                     $ceiling = $card->overrunCeiling();
-                    $produced = (float) $card->produced_qty + $good + $waste;
+                    $produced = (float) $locked->good_qty + (float) $locked->waste_qty + $good + $waste;
 
                     if ($produced > $ceiling + 0.000001) {
                         abort(422, sprintf(

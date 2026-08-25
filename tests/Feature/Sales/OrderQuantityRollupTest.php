@@ -38,6 +38,10 @@ function logOutput(object $test, JobCardOperation $operation, float $good, strin
         'good_qty' => $good,
         'waste_qty' => 0,
         'input_qty' => $good, // J3 — output cannot exceed what was handed to the operation
+        // These fixtures book round numbers rather than the operation's planned metres, which
+        // is exactly the shape the input ceiling refuses; the reason is what a supervisor
+        // would type for a genuine re-feed.
+        'input_override_reason' => 'Fixture quantity, not the routing plan.',
     ], [
         'Authorization' => "Bearer {$test->token}",
         'Idempotency-Key' => $key,

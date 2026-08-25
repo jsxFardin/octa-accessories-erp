@@ -248,6 +248,32 @@ class JobCard extends Model
         return (float) $this->planned_qty * (1 + (float) $this->overrun_tolerance_pct / 100);
     }
 
+    /**
+     * What this job has actually made, in pieces.
+     *
+     * `good_qty` and `produced_qty` on this row are running totals across every operation, and
+     * operations do not share a unit: weaving books metres, cutting books the pieces it cut
+     * out of them. Summing the two answered "60,457 / 30,000" for a job that made exactly
+     * 30,000 labels. Only the last operation states the job's output (P0-2), which is the same
+     * figure the sales order rollup and the FG receipt ceiling already read.
+     *
+     * @return array{good: float, waste: float, produced: float}
+     */
+    public function finalOperationOutput(): array
+    {
+        $final = $this->operations()->reorder('sequence_no', 'desc')->first();
+
+        if ($final === null) {
+            return ['good' => 0.0, 'waste' => 0.0, 'produced' => 0.0];
+        }
+
+        return [
+            'good' => (float) $final->good_qty,
+            'waste' => (float) $final->waste_qty,
+            'produced' => (float) $final->good_qty + (float) $final->waste_qty,
+        ];
+    }
+
     public function isOpen(): bool
     {
         return ! in_array($this->status, [self::CLOSED, self::CANCELLED], true);

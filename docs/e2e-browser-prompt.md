@@ -32,10 +32,10 @@ assigned and whether the status changed as expected.
    product. Save, then **Submit**.
 3. **Product** — Products → Products → New, customer = your test customer, type `woven`,
    pick any woven routing.
-4. **Spec and BOM** — expect to be **blocked**: no UI exists to create a product spec
-   (`POST products/{product}/specs` has no screen) or a BOM (list only). Record this, then
-   switch to a seeded product for the rest of the run: `CUST-L-01` / `PRD-L-01`, which has a
-   current spec, active BOM, routing and approved artwork.
+4. **Spec and BOM** — on the product page, **New spec**: geometry, material, colours, packing.
+   Watch the derived panel (pitch, labels/metre, ends) recompute as you type, then make the
+   version current. Then **New BOM**: one line per material, quantity per 1,000 pieces;
+   activate it. Both are draft-first.
 5. **Artwork** — Products → Artwork → New, upload version 1, Submit, Approve. (Already
    present on seeded products; do it once on a new artwork to exercise the state machine.)
 6. **Quotation** — Sales → Quotations → New. Customer, currency BDT, exchange rate 1,
@@ -101,27 +101,26 @@ Check each of these and say pass/fail with the observed value.
 
 ## Known defects — each carries its current status
 
-An earlier run found all ten; six have been fixed since. Try every one. A *(fixed)* item that
-reproduces is a regression; a *(still open)* item is expected and needs no new report unless it
-behaves differently from the description.
+An earlier run found all ten; every one has been fixed since. Try every one: anything that still
+reproduces is a regression.
 
 1. **Challan band double-counts after issue.** *(fixed — a posted challan should read `within`.)* `Challans/Show.vue → overBand()` adds the
    challan's own quantity to `delivered_qty`, which already includes it once issued. A
    challan reading `within` as a draft flips to `over band` the moment it posts.
-2. **Invoice shows "Paid" when fully credited.** *(still open — a fully credited invoice is reported as a collection.)* Apply a credit note for the invoice total:
+2. **Invoice shows "Paid" when fully credited.** *(fixed — settled by credit alone now reads `credited`.)* Apply a credit note for the invoice total:
    status becomes `paid` with `received_amount = 0`. A write-off is reported as a collection.
-3. **FINISH with no output.** *(still open — an operation may close with good = 0 and no warning.)* On the floor, press START then FINISH without SAVE. The
+3. **FINISH with no output.** *(fixed — finishing an empty operation is refused until a reason is typed.)* On the floor, press START then FINISH without SAVE. The
    operation closes with good = 0 and no warning; utilisation is understated permanently.
 4. **Failed trip stop vs delivered order.** *(fixed — a failed stop now returns the challan: stock comes back, delivered_qty falls, the CoC claim is withdrawn.)* Mark a stop failed (type anything in the failure
    reason). Stock has already left on the challan and the sales order still reads delivered;
    the challan is stranded in `in_transit` with no route to `delivered` and no retry action.
-5. **Operation input has no ceiling.** *(still open for input; output is now refused at J5 when booked.)* Book an input far above the operation's planned
+5. **Operation input has no ceiling.** *(fixed — input beyond the operation's plan needs a written reason; output is refused at J5 when booked.)* Book an input far above the operation's planned
    quantity (e.g. 5000 against a plan of 121). Accepted silently; only good + waste ≤ input
    is enforced.
-6. **Job card output sums mixed units.** *(still open — the header total is not unit-aware.)* With one operation booked in metres and another in
+6. **Job card output sums mixed units.** *(fixed — output and the J5 ceiling read the final operation only, in pieces.)* With one operation booked in metres and another in
    pieces, the header "Good against planned" adds them, and the J5 ceiling is evaluated on
    that sum.
-7. **No spec or BOM screens** *(still open.)*, so a newly created product can never be quoted through the UI.
+7. **No spec or BOM screens** *(fixed — Products → a product → New spec / New BOM.)*, so a newly created product can never be quoted through the UI.
 8. **PIN equals the last four of the badge** *(fixed — PINs are hashed and set at Configuration → Users; the seed value is still the badge's last four until changed.)* (`DeviceSessionRegistry::issue`), and the badge
    is printed on the card the operator wears. Any operator can sign in as any other.
 9. **Certificates are placeholders** *(fixed — a claimed shipment is refused unless the certificate is active, in date, and has a document on file.)* — `*-PENDING`, `document_path` null. Validity is checked;

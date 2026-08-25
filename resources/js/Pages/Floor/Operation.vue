@@ -19,6 +19,8 @@ const wasteQty = ref('');
 const inputQty = ref('');
 const downtimeReasonId = ref('');
 const downtimeMinutes = ref('');
+const overrideReason = ref('');
+const noOutputReason = ref('');
 const message = ref(null);
 const error = ref(null);
 
@@ -44,18 +46,31 @@ async function log() {
         good_qty: Number(goodQty.value || 0),
         waste_qty: Number(wasteQty.value || 0),
         input_qty: Number(inputQty.value || 0),
+        input_override_reason: overrideReason.value || null,
     });
 
     if (!handled(result)) return;
 
     message.value = 'রেকর্ড হয়েছে · Logged';
     mode.value = null;
-    goodQty.value = wasteQty.value = inputQty.value = '';
+    goodQty.value = wasteQty.value = inputQty.value = overrideReason.value = '';
     router.reload();
 }
 
 async function finish() {
-    if (!handled(await send(`/api/v1/operations/${props.operation.id}/finish`, {}))) return;
+    const result = await send(`/api/v1/operations/${props.operation.id}/finish`, {
+        no_output_reason: noOutputReason.value || null,
+    });
+
+    // Nothing booked: ask why rather than closing a shift's worth of machine time at zero.
+    if (result?.error && result.status === 422 && !noOutputReason.value) {
+        mode.value = 'no-output';
+        error.value = null;
+
+        return;
+    }
+
+    if (!handled(result)) return;
 
     router.visit('/floor/queue');
 }
@@ -154,9 +169,35 @@ async function logDowntime() {
                 <p class="text-lg text-slate-400">
                     J3: এই ধাপে সর্বোচ্চ {{ Number(operation.remaining_allowance).toLocaleString() }} বুক করা যাবে
                 </p>
+
+                <!-- Input beyond the plan is allowed, but it has to be explained (J3). -->
+                <div v-if="Number(inputQty) > Number(operation.planned_qty) * 1.03">
+                    <label class="mb-1 block text-xl">
+                        কারণ · Why more than {{ Number(operation.planned_qty).toLocaleString() }}?
+                    </label>
+                    <input v-model="overrideReason" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
+                </div>
                 <div class="grid grid-cols-2 gap-3">
                     <button class="floor-btn bg-slate-600" @click="mode = null">বাতিল · CANCEL</button>
                     <button class="floor-btn bg-emerald-500" @click="log">সেভ · SAVE</button>
+                </div>
+            </div>
+
+            <div v-else-if="mode === 'no-output'" class="space-y-4">
+                <p class="rounded-xl bg-amber-500 px-5 py-4 text-xl font-semibold text-slate-900">
+                    কিছু রেকর্ড হয়নি · Nothing was booked against this operation.
+                </p>
+
+                <div>
+                    <label class="mb-1 block text-xl">কারণ · Reason</label>
+                    <input v-model="noOutputReason" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <button class="floor-btn bg-slate-600" @click="mode = null">বাতিল · CANCEL</button>
+                    <button class="floor-btn bg-emerald-500 disabled:opacity-30" :disabled="!noOutputReason" @click="finish">
+                        শেষ · FINISH
+                    </button>
                 </div>
             </div>
 

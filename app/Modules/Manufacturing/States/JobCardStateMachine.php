@@ -257,12 +257,17 @@ class JobCardStateMachine extends StateMachine
             throw TransitionDenied::guard('J4', 'A mandatory QC inspection is unresolved.');
         }
 
-        if ((float) $jobCard->produced_qty > $jobCard->overrunCeiling() + 0.000001) {
+        // P0-2 — the job's output is the final operation's, in pieces. The row's running
+        // totals sum metres and pieces across operations, so measuring a piece ceiling
+        // against them failed jobs that had produced exactly what was planned.
+        $produced = $jobCard->finalOperationOutput()['produced'];
+
+        if ($produced > $jobCard->overrunCeiling() + 0.000001) {
             throw TransitionDenied::guard(
                 'J5',
                 sprintf(
                     'Produced %s exceeds the planned quantity plus %s%% overrun tolerance.',
-                    rtrim(rtrim((string) $jobCard->produced_qty, '0'), '.'),
+                    rtrim(rtrim(number_format($produced, 6, '.', ''), '0'), '.'),
                     $jobCard->overrun_tolerance_pct,
                 ),
             );

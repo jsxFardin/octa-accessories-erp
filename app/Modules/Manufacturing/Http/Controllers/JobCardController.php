@@ -195,14 +195,22 @@ class JobCardController extends Controller
             'salesOrderLine',
         ]);
 
+        // P0-2 — output is the final operation's, in pieces. The row's own running totals add
+        // metres to pieces across operations and read as a wild overrun on a job that made
+        // exactly what was planned.
+        $output = $jobCard->finalOperationOutput();
+
         return Inertia::render('Manufacturing/JobCards/Show', [
             'jobCard' => [
                 ...$jobCard->only([
-                    'id', 'number', 'colourway', 'planned_qty', 'produced_qty', 'good_qty',
-                    'waste_qty', 'overrun_tolerance_pct', 'planned_start', 'planned_finish',
+                    'id', 'number', 'colourway', 'planned_qty',
+                    'overrun_tolerance_pct', 'planned_start', 'planned_finish',
                     'actual_start', 'actual_finish', 'due_date', 'priority', 'gross_metres',
                     'ends', 'labels_per_metre', 'status', 'hold_reason', 'material_waiver_reason',
                 ]),
+                'good_qty' => $output['good'],
+                'waste_qty' => $output['waste'],
+                'produced_qty' => $output['produced'],
                 'product' => $jobCard->product?->only(['id', 'code', 'name', 'product_type']),
                 'customer' => $jobCard->product?->customer?->only(['id', 'name']),
                 'spec_version' => $jobCard->spec?->version_no,

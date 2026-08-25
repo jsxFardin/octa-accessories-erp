@@ -219,10 +219,11 @@ it('refuses over-credit at application time, under the invoice lock', function (
     expect($third->refresh()->status)->toBe('approved');
     identity($invoice);
 
-    // The 300 fits exactly → fully credited invoice becomes paid.
+    // The 300 fits exactly → settled by credit alone, which is `credited`, not `paid`: no
+    // money arrived, and receivables must not count a write-off as a collection (P2-1).
     $this->post("/credit-notes/{$second->id}/transition", ['to' => 'applied'])->assertSessionHas('success');
     identity($invoice);
-    expect($invoice->refresh()->status)->toBe('paid')
+    expect($invoice->refresh()->status)->toBe('credited')
         ->and($first->refresh()->status)->toBe('applied');
 
     // Credit after fully settled: a fresh application finds nothing outstanding.
