@@ -17,8 +17,11 @@ use App\Modules\Dispatch\States\PackingListStateMachine;
 use App\Modules\Finance\Models\SalesInvoice;
 use App\Modules\Finance\Models\SalesInvoiceLine;
 use App\Modules\Finance\States\SalesInvoiceStateMachine;
+use App\Modules\Inventory\Models\StockLot;
+use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
+use App\Modules\Manufacturing\Models\MaterialIssue;
 use App\Modules\Manufacturing\Services\FgReceiptService;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
 use App\Modules\Product\Models\Artwork;
@@ -239,24 +242,27 @@ class LocalProcessSeeder extends Seeder
         }
 
         if ($i <= 40) {
+            // "No bid" is a decision the merchandiser makes about the inquiry itself
+            // (05-workflows §1, `open → lost`), not a consequence of a quotation.
             $inquiry->update([
-                'status' => 'lost',
+                'status' => Inquiry::LOST,
                 'lost_reason' => ['Price', 'Lead time', 'Capacity', 'Lost to competitor'][($i - 1) % 4],
             ]);
 
             return;
         }
 
+        // From here the inquiry's status is nobody's to write: raising a quotation moves it
+        // to `quoted`, accepting one moves it to `won`, and rejecting the last one loses it
+        // (05-workflows §1). Setting the column by hand here is what made a wired-up inquiry
+        // and an unwired one sit side by side on the same list saying different things.
         $quote = $this->quotation($inquiry, $buyer['id'], $qty, $day, $offer);
 
         if ($i <= 52) {
-            $inquiry->update(['status' => 'quoted']);
-
             return;
         }
 
         app(QuotationStateMachine::class)->transition($quote, 'sent');
-        $inquiry->update(['status' => 'quoted']);
 
         if ($i <= 62) {
             return;
@@ -266,13 +272,11 @@ class LocalProcessSeeder extends Seeder
             app(QuotationStateMachine::class)->transition($quote->refresh(), 'rejected', [
                 'reject_reason' => 'Customer placed with another mill.',
             ]);
-            $inquiry->update(['status' => 'lost', 'lost_reason' => 'Quote rejected']);
 
             return;
         }
 
         app(QuotationStateMachine::class)->transition($quote->refresh(), 'accepted');
-        $inquiry->update(['status' => 'won']);
 
         $order = $this->salesOrder($quote->refresh(), $buyer, $i, $day, $offer);
 
@@ -355,9 +359,9 @@ class LocalProcessSeeder extends Seeder
         $finalGood = (float) $job->operations()->reorder('sequence_no', 'desc')->value('good_qty');
 
         $job->forceFill([
-            'good_qty' => $finalGood,
-            'waste_qty' => 0,
-            'produced_qty' => $finalGood,
+            'good_qty_running' => $finalGood,
+            'waste_qty_running' => 0,
+            'produced_qty_running' => $finalGood,
             'actual_start' => now()->subHours(6),
         ])->save();
     }
@@ -365,6 +369,12 @@ class LocalProcessSeeder extends Seeder
     /**
      * Issue the job's BOM material from the store, so BR-48 is satisfied and the finished
      * goods have a cost to be valued at.
+     *
+     * Posted through `StockPostingService`, not written straight into the tables: a posted
+     * material issue with no `issue_to_job` ledger row behind it is a document claiming a
+     * consumption the ledger never saw, which is the same class of defect as everything else
+     * this pass is about. One issue per store, because the header names a warehouse and the
+     * yarn and the packaging live in different ones.
      */
     private function issueMaterial(JobCard $job, int $produce): void
     {
@@ -374,56 +384,80 @@ class LocalProcessSeeder extends Seeder
             return;
         }
 
-        $lines = DB::table('bom_lines')
-            ->where('bom_id', $bom->getKey())
-            ->where('is_optional', false)
-            ->get(['item_id', 'uom_id', 'qty_per_base']);
+        $lines = DB::table('bom_lines as bl')
+            ->join('items as i', 'i.id', '=', 'bl.item_id')
+            ->where('bl.bom_id', $bom->getKey())
+            ->where('bl.is_optional', false)
+            ->get(['bl.item_id', 'bl.uom_id', 'bl.qty_per_base', 'i.std_rate']);
 
         if ($lines->isEmpty()) {
             return;
         }
 
-        $warehouseId = (int) DB::table('warehouses')->where('kind', 'raw_material')->value('id');
+        // Group the picks by the store the stock actually sits in.
+        $byWarehouse = [];
 
-        // BR-34 — the number is allocated inside the transaction that writes the document, so
-        // a rollback does not burn it.
-        DB::transaction(function () use ($job, $produce, $bom, $lines, $warehouseId): void {
-            $issueId = DB::table('material_issues')->insertGetId([
-                'number' => app(NumberAllocator::class)->next('material_issue'),
-                'job_card_id' => $job->getKey(),
-                'warehouse_id' => $warehouseId,
-                'issued_on' => now()->toDateString(),
-                'issue_type' => 'issue',
-                'status' => 'posted',
-                'issued_by' => $this->userId,
-                'created_at' => now(),
-            ]);
+        foreach ($lines as $line) {
+            $required = max(0.000001, $bom->scaleTo((float) $line->qty_per_base, (float) $produce));
 
-            $lineNo = 0;
+            $lot = StockLot::query()
+                ->where('item_id', $line->item_id)
+                ->where('status', 'available')
+                ->where('balance_qty', '>=', $required)
+                ->orderBy('received_on')
+                ->first();
 
-            foreach ($lines as $line) {
-                $lot = DB::table('stock_lots')
-                    ->where('item_id', $line->item_id)
-                    ->orderBy('id')
-                    ->first(['id']);
+            if ($lot === null) {
+                // Not enough on hand to tell this part of the story honestly; the job keeps
+                // its planner's waiver and simply produces nothing, rather than being handed
+                // material the store does not have (BR-38).
+                continue;
+            }
 
-                if ($lot === null) {
-                    continue;
+            $byWarehouse[(int) $lot->warehouse_id][] = [
+                'lot' => $lot,
+                'item_id' => (int) $line->item_id,
+                'uom_id' => (int) $line->uom_id,
+                'qty' => $required,
+                'unit_cost' => (float) ($line->std_rate ?: $lot->unit_cost),
+            ];
+        }
+
+        foreach ($byWarehouse as $warehouseId => $picks) {
+            DB::transaction(function () use ($job, $warehouseId, $picks): void {
+                /** @var MaterialIssue $issue */
+                $issue = MaterialIssue::query()->create([
+                    'number' => app(NumberAllocator::class)->next('material_issue'),
+                    'job_card_id' => $job->getKey(),
+                    'warehouse_id' => $warehouseId,
+                    'issued_on' => now()->toDateString(),
+                    'issue_type' => 'issue',
+                    'status' => 'posted',
+                    'issued_by' => $this->userId,
+                ]);
+
+                $lineNo = 0;
+
+                foreach ($picks as $pick) {
+                    DB::table('material_issue_lines')->insert([
+                        'material_issue_id' => $issue->getKey(),
+                        'line_no' => ++$lineNo,
+                        'item_id' => $pick['item_id'],
+                        'lot_id' => $pick['lot']->getKey(),
+                        'uom_id' => $pick['uom_id'],
+                        'qty' => $pick['qty'],
+                        // BR-23 / the FG valuation both read this.
+                        'unit_cost' => $pick['unit_cost'],
+                    ]);
                 }
 
-                DB::table('material_issue_lines')->insert([
-                    'material_issue_id' => $issueId,
-                    'line_no' => ++$lineNo,
-                    'item_id' => $line->item_id,
-                    'lot_id' => $lot->id,
-                    'uom_id' => $line->uom_id,
-                    // The consumption the run actually needed, at the item's standard rate —
-                    // the figure BR-23 and the FG valuation both read.
-                    'qty' => max(0.000001, $bom->scaleTo((float) $line->qty_per_base, (float) $produce)),
-                    'unit_cost' => (float) DB::table('items')->where('id', $line->item_id)->value('std_rate') ?: 0,
-                ]);
-            }
-        });
+                // The ledger movement the document is a claim about (I1/I2, BR-38).
+                app(StockPostingService::class)->issueToJob(
+                    array_map(fn (array $pick): array => ['lot' => $pick['lot'], 'qty' => $pick['qty']], $picks),
+                    $issue,
+                );
+            });
+        }
     }
 
     /**

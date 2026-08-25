@@ -32,9 +32,11 @@ CREATE TABLE job_cards (
     routing_id              BIGINT UNSIGNED NOT NULL,
     colourway               VARCHAR(80),
     planned_qty             DECIMAL(18,6) NOT NULL,
-    produced_qty            DECIMAL(18,6) NOT NULL DEFAULT 0,
-    good_qty                DECIMAL(18,6) NOT NULL DEFAULT 0,
-    waste_qty               DECIMAL(18,6) NOT NULL DEFAULT 0,
+    -- Running totals across EVERY operation, so they mix units (metres woven, pieces packed)
+    -- and are never the job's output. J6: `v_job_card_output` is.
+    produced_qty_running    DECIMAL(18,6) NOT NULL DEFAULT 0,
+    good_qty_running        DECIMAL(18,6) NOT NULL DEFAULT 0,
+    waste_qty_running       DECIMAL(18,6) NOT NULL DEFAULT 0,
     overrun_tolerance_pct   DECIMAL(9,4) NOT NULL DEFAULT 3,
     planned_start           DATETIME(3),
     planned_finish          DATETIME(3),

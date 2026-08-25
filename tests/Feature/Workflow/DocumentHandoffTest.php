@@ -339,8 +339,10 @@ it('opens the inspection form on the job card it was raised from', function (): 
             $page->component('Quality/Inspections/Form')
                 ->where('preselect.job_card_id', (int) $card->id)
                 // The lot in front of the inspector is what the card has made, not a number
-                // they retype off the screen they just left.
-                ->where('preselect.lot_size', (int) $card->good_qty);
+                // they retype off the screen they just left — and what it has made is its
+                // final operation's output (J6), never the card's cross-unit running total.
+                ->where('preselect.lot_size', (int) DB::table('v_job_card_output')
+                    ->where('job_card_id', $card->id)->value('good_qty'));
 
             if ($operation !== null) {
                 $page->where('preselect.job_card_operation_id', (int) $operation->id)

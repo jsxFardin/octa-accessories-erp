@@ -43,7 +43,7 @@ class JobCardController extends Controller
     public function index(Request $request): Response
     {
         // J6 — the list prints the job's output, and the job's output is the final
-        // operation's. `job_cards.good_qty` is a running total across operations that do not
+        // operation's. `job_cards.good_qty_running` is a running total across operations that
         // share a unit: 407 m woven + 30,050 pcs folded + 30,000 pcs packed once read as
         // "60,457 good" against a plan of 30,000 for a job that made exactly 30,000 labels.
         $query = JobCard::query()

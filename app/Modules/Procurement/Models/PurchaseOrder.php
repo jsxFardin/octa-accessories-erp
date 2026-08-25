@@ -59,6 +59,12 @@ class PurchaseOrder extends Model
         'created_by',
     ];
 
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Currency, $this> */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Currency::class, 'currency_id');
+    }
+
     /** @return array<string, string> */
     protected function casts(): array
     {

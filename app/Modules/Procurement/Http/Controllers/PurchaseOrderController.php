@@ -38,7 +38,8 @@ class PurchaseOrderController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = PurchaseOrder::query()->with(['supplier:id,code,name'])->withCount('lines');
+        // BR-47 — a PO placed in USD next to one in BDT needs no arithmetic to tell apart.
+        $query = PurchaseOrder::query()->with(['supplier:id,code,name', 'currency:id,code'])->withCount('lines');
 
         $this->applyListing(
             $query,
@@ -146,6 +147,8 @@ class PurchaseOrderController extends Controller
     public function show(PurchaseOrder $purchaseOrder): Response
     {
         $purchaseOrder->load('supplier');
+
+        $purchaseOrder->load('currency:id,code,name,symbol');
 
         return Inertia::render('Procurement/PurchaseOrders/Show', [
             'purchaseOrder' => $purchaseOrder,

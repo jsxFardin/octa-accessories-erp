@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
  *
  * P0-2 / J6 — what a job card actually made, in one place.
  *
- * `job_cards.good_qty` is a running total across every operation, and operations do not
+ * `job_cards.good_qty_running` is a running total across every operation, and operations do not
  * share a unit: weaving books metres, packing books pieces. On a card that wove 407 m and
  * packed 30,000 labels it read 60,457 — against a plan of 30,000. Only the last operation
  * states the job's output, and that definition had been written out by hand in the job card

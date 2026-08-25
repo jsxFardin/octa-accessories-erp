@@ -44,9 +44,9 @@ use Illuminate\Support\Facades\DB;
  * @property int $routing_id
  * @property string|null $colourway
  * @property string $planned_qty
- * @property string $produced_qty
- * @property string $good_qty
- * @property string $waste_qty
+ * @property string $produced_qty_running
+ * @property string $good_qty_running
+ * @property string $waste_qty_running
  * @property string $overrun_tolerance_pct
  * @property \Illuminate\Support\Carbon|null $planned_start
  * @property \Illuminate\Support\Carbon|null $planned_finish
@@ -105,9 +105,9 @@ class JobCard extends Model
         'routing_id',
         'colourway',
         'planned_qty',
-        'produced_qty',
-        'good_qty',
-        'waste_qty',
+        'produced_qty_running',
+        'good_qty_running',
+        'waste_qty_running',
         'overrun_tolerance_pct',
         'planned_start',
         'planned_finish',
@@ -139,9 +139,9 @@ class JobCard extends Model
             'bom_id' => 'integer',
             'routing_id' => 'integer',
             'planned_qty' => 'decimal:6',
-            'produced_qty' => 'decimal:6',
-            'good_qty' => 'decimal:6',
-            'waste_qty' => 'decimal:6',
+            'produced_qty_running' => 'decimal:6',
+            'good_qty_running' => 'decimal:6',
+            'waste_qty_running' => 'decimal:6',
             'overrun_tolerance_pct' => 'decimal:4',
             'planned_start' => 'datetime',
             'planned_finish' => 'datetime',
@@ -252,11 +252,12 @@ class JobCard extends Model
     /**
      * What this job has actually made, in pieces.
      *
-     * `good_qty` and `produced_qty` on this row are running totals across every operation, and
-     * operations do not share a unit: weaving books metres, cutting books the pieces it cut
-     * out of them. Summing the two answered "60,457 / 30,000" for a job that made exactly
-     * 30,000 labels. Only the last operation states the job's output (P0-2), which is the same
-     * figure the sales order rollup and the FG receipt ceiling already read.
+     * `good_qty_running` and `produced_qty_running` on this row are running totals across
+     * every operation, and operations do not share a unit: weaving books metres, cutting books
+     * the pieces it cut out of them. Summing the two answered "60,457 / 30,000" for a job that
+     * made exactly 30,000 labels. Only the last operation states the job's output (J6), which
+     * is the same figure the sales order rollup and the FG receipt ceiling already read — and
+     * why those columns carry the `_running` suffix rather than the bare name.
      *
      * @return array{good: float, waste: float, produced: float}
      */

@@ -30,6 +30,19 @@ class Inquiry extends Model
 {
     use Auditable;
 
+    /** 05-workflows §1. `won`, `lost` and `cancelled` are decided; the rest can still move. */
+    public const DRAFT = 'draft';
+
+    public const OPEN = 'open';
+
+    public const QUOTED = 'quoted';
+
+    public const WON = 'won';
+
+    public const LOST = 'lost';
+
+    public const CANCELLED = 'cancelled';
+
     protected $table = 'inquiries';
 
     protected $fillable = [

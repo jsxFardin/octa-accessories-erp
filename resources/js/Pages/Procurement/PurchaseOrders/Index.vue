@@ -84,7 +84,7 @@ const columns = [
                 <template #cell:supplier_name="{ row, value }">{{ row.supplier?.name ?? "—" }}</template>
                 <template #cell:order_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:expected_date="{ row, value }">{{ date(value) }}</template>
-                <template #cell:total="{ row, value }">{{ money(value) }}</template>
+                <template #cell:total="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
                 <template #empty>
                     <EmptyState

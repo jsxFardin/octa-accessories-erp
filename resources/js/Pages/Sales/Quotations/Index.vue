@@ -61,7 +61,7 @@ const columns = [
                 <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value ?? "(unnumbered)" }}<span v-if="row.revision_no" class="text-ink-400">/R{{ row.revision_no }}</span></span></template>
                 <template #cell:quotation_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:valid_until="{ row, value }">{{ date(value) }}</template>
-                <template #cell:total="{ row, value }">{{ money(value) }}</template>
+                <template #cell:total="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
                 <template #empty>
                     <EmptyState

@@ -167,9 +167,18 @@ Members: `job_card_lines`, `job_card_operations`, `operation_logs`, `waste_logs`
 - **J5** Cumulative produced quantity may not exceed `planned_qty × (1 + overrun_tolerance_pct)`.
 - **J6** A job card's *output* is its **final operation's** `good_qty`. Operations do not share a
   unit — `routing_operations.consumes_web` distinguishes metres from pieces — so quantities are
-  never summed or compared across a change of unit. `job_cards.good_qty` / `produced_qty` /
-  `waste_qty` are running totals across every operation and are not the job's output;
-  `v_job_card_output` is.
+  never summed or compared across a change of unit. The four quantities a job card carries are
+  spelled so they cannot be confused:
+
+  | Question | Where the answer lives |
+  |---|---|
+  | What was it raised to make? | `job_cards.planned_qty` |
+  | What has been booked against it, across all steps? | `job_cards.*_qty_running` — mixes units; only ever "has anything happened" |
+  | What did it actually make? | `v_job_card_output.good_qty` — the final operation's |
+  | How much of that reached the store? | `SUM(fg_receipts.qty)` where `status = 'posted'` |
+
+  The `_running` suffix is load-bearing: `SELECT good_qty FROM job_cards` once read exactly
+  like "the good quantity" and was not.
 - **J7** An operation may only record production while it is open, its predecessors are
   `completed`/`skipped`/`cancelled` (J2), and any upstream `requires_qc` step has an accepted
   inspection (QC1). Where an operation and the one feeding it share a unit, cumulative

@@ -6,6 +6,7 @@ namespace App\Modules\Inventory\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Inventory\Models\StockLot;
+use App\Modules\Inventory\Services\LotHoldExplainer;
 use App\Support\Http\ListsResources;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,8 @@ use Inertia\Response;
 class StockLotController extends Controller
 {
     use ListsResources;
+
+    public function __construct(private readonly LotHoldExplainer $holds) {}
 
     public function index(Request $request): Response
     {
@@ -50,11 +53,16 @@ class StockLotController extends Controller
         ]);
     }
 
-    public function show(StockLot $lot): Response
+    public function show(Request $request, StockLot $lot): Response
     {
         $lot->load(['item', 'warehouse', 'product']);
 
         return Inertia::render('Inventory/Lots/Show', [
+            // "Blocked" with nothing beside it turned a correct piece of history into a
+            // reported defect: a dispatch dated before the freeze read as a shipment of frozen
+            // stock. The hold now states when, by whom, why, and what to do — from the record
+            // that caused it, or says plainly that no such record exists.
+            'hold' => $this->holds->explain($lot, $request->user()),
             'lot' => $lot,
             // I1/I3 — the ledger is the truth; this is the audit trail a traceability query
             // walks. Append-only, so it reads as a history rather than a current state.

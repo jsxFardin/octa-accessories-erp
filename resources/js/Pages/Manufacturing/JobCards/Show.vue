@@ -48,6 +48,29 @@ const fgForm = useForm({
     warehouse_id: props.fgWarehouses[0]?.id ?? null,
     grade: 'A',
     client_ref: (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`),
+    material_waiver_reason: '',
+});
+
+/**
+ * BR-48 — the waiver field is offered whenever the rule could refuse this receipt, to someone
+ * holding the permission it names.
+ *
+ * "Could" rather than "will": keying it off the typed quantity alone hid the field at the one
+ * moment it is needed, the refusal, because the refused quantity is not in the box any more.
+ * So it appears as soon as the issued material fails to cover everything still receivable —
+ * and always after a refusal that named it.
+ */
+const needsMaterialWaiver = computed(() => {
+    if (!props.fgPosition.material_required || !can('job_card.waive_material')) return false;
+    if (fgForm.errors.material_waiver_reason || fgForm.errors.qty) return true;
+
+    const covered = Number(props.fgPosition.material_supports ?? 0);
+    const received = Number(props.fgPosition.received ?? 0);
+    const receivable = Number(props.fgPosition.remaining_receivable ?? 0);
+    const typed = Number(fgForm.qty ?? 0);
+
+    // Short for the whole remaining run, or short for what is actually being keyed in.
+    return received + receivable > covered + 0.000001 || received + typed > covered + 0.000001;
 });
 
 function postFgReceipt() {
@@ -64,6 +87,24 @@ const releaseOpen = ref(false);
 const holdOpen = ref(false);
 
 const releaseForm = useForm({ to: 'released', material_waiver_reason: '' });
+
+const completeOpen = ref(false);
+const completeForm = useForm({ to: 'completed', material_waiver_reason: '' });
+
+/** I7 will refuse completion: a mandatory BOM item has had nothing issued against it. */
+const completeUnissued = computed(
+    () => props.fgPosition.material_required && Number(props.fgPosition.material_supports ?? 0) <= 0,
+);
+
+function completeWithWaiver() {
+    completeForm.post(`/job-cards/${props.jobCard.id}/transition`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            completeOpen.value = false;
+            completeForm.reset('material_waiver_reason');
+        },
+    });
+}
 const holdForm = useForm({ to: 'on_hold', hold_reason: '' });
 
 const checks = computed(() => Object.values(props.releaseGate.checks));
@@ -200,7 +241,17 @@ const bomColumns = [
             <Button v-if="availableTransitions.includes('qc_pending')" size="sm" variant="primary" @click="transition('qc_pending')">
                 Send to QC
             </Button>
-            <Button v-if="availableTransitions.includes('completed')" size="sm" variant="success" @click="transition('completed')">
+            <!--
+                I7 refuses completion when a mandatory BOM item had nothing issued, and tells
+                the supervisor to "complete with a documented waiver" — so when that is going
+                to happen, the click opens somewhere to write one instead of a dead refusal.
+            -->
+            <Button
+                v-if="availableTransitions.includes('completed')"
+                size="sm"
+                variant="success"
+                @click="completeUnissued ? (completeOpen = true) : transition('completed')"
+            >
                 Complete
             </Button>
             <Button v-if="availableTransitions.includes('closed')" size="sm" @click="transition('closed')">
@@ -553,6 +604,22 @@ const bomColumns = [
                     <FormField label="Grade" :error="fgForm.errors.grade" class="w-28">
                         <SelectInput v-model="fgForm.grade" :options="GRADES" :placeholder="null" />
                     </FormField>
+                    <!--
+                        BR-48 refuses a receipt the issued material cannot account for and tells
+                        the supervisor to "record a waiver with a reason" — so there has to be
+                        somewhere to record it. Offered only when the material actually falls
+                        short, and only to someone who holds the permission the rule names.
+                    -->
+                    <FormField
+                        v-if="needsMaterialWaiver"
+                        label="Material waiver reason"
+                        :error="fgForm.errors.material_waiver_reason"
+                        rule="BR-48"
+                        class="w-full sm:w-96"
+                        hint="Material issued covers less than this receipt. Say why it is being received anyway."
+                    >
+                        <TextInput v-model="fgForm.material_waiver_reason" placeholder="Rework fed from a previous run…" />
+                    </FormField>
                     <Button type="submit" size="sm" variant="primary" :loading="fgForm.processing" :disabled="fgForm.processing">Receive to FG</Button>
                 </form>
             </Card>
@@ -607,6 +674,39 @@ const bomColumns = [
             <template #footer="{ close }">
                 <Button @click="close">Cancel</Button>
                 <Button variant="primary" :loading="releaseForm.processing" @click="release">Release</Button>
+            </template>
+        </Modal>
+
+        <Modal
+            v-model:open="completeOpen"
+            title="Complete this job card"
+            subtitle="I7: nothing was issued against part of this job's BOM."
+        >
+            <div class="space-y-3">
+                <p class="text-sm text-ink-700">
+                    A job that ran on substitutes, or on material issued through another route, is a
+                    real thing. Completing it anyway needs the <code>job_card.waive_material</code>
+                    permission and a sentence saying what happened.
+                </p>
+
+                <FormField
+                    label="Material waiver reason"
+                    rule="I7"
+                    required
+                    :error="completeForm.errors.material_waiver_reason"
+                >
+                    <textarea v-model="completeForm.material_waiver_reason" rows="2" class="form-textarea" />
+                </FormField>
+            </div>
+
+            <template #footer="{ close }">
+                <Button @click="close">Cancel</Button>
+                <Button
+                    variant="success"
+                    :loading="completeForm.processing"
+                    :disabled="!completeForm.material_waiver_reason"
+                    @click="completeWithWaiver"
+                >Complete</Button>
             </template>
         </Modal>
 

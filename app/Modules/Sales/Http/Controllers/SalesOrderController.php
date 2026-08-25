@@ -181,7 +181,7 @@ class SalesOrderController extends Controller
                     'a.reason', 'a.created_at', 'u.name as changed_by',
                 ]),
             // J6 — a card's output is its final operation's good quantity. Reading
-            // `job_cards.good_qty` here showed 60,457 made against 30,000 planned for a job
+            // `job_cards.good_qty_running` here showed 60,457 made against 30,000 planned for a job
             // that made exactly 30,000, because that column adds metres to pieces.
             'jobCards' => DB::table('job_cards as jc')
                 ->whereIn('jc.sales_order_line_id', $salesOrder->lines->pluck('id'))

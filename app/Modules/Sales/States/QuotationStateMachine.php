@@ -6,6 +6,7 @@ namespace App\Modules\Sales\States;
 
 use App\Modules\Costing\Models\CostSheet;
 use App\Modules\Sales\Models\Quotation;
+use App\Modules\Sales\Services\InquiryProgression;
 use App\Support\Audit\AuditLogger;
 use App\Support\Numbering\NumberAllocator;
 use App\Support\States\StateMachine;
@@ -27,6 +28,7 @@ class QuotationStateMachine extends StateMachine
     public function __construct(
         AuditLogger $audit,
         private readonly NumberAllocator $numbers,
+        private readonly InquiryProgression $inquiries,
     ) {
         parent::__construct($audit);
     }
@@ -107,13 +109,34 @@ class QuotationStateMachine extends StateMachine
     {
         match ($to) {
             'sent' => $this->onSent($document),
-            'accepted' => $document->forceFill(['decided_at' => now()])->save(),
-            'rejected' => $document->forceFill([
-                'decided_at' => now(),
-                'reject_reason' => $context['reject_reason'],
-            ])->save(),
+            'accepted' => $this->onAccepted($document),
+            'rejected' => $this->onRejected($document, $context),
             default => null,
         };
+    }
+
+    /** 05-workflows §1 — `quoted` → `won`, in the same transaction as the acceptance. */
+    private function onAccepted(Quotation $quotation): void
+    {
+        $quotation->forceFill(['decided_at' => now()])->save();
+
+        $this->inquiries->won($quotation);
+    }
+
+    /**
+     * 05-workflows §1/§2 — the inquiry is lost only if no other quotation on it is still
+     * standing. A rejected revision beside an accepted one has not lost the customer.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function onRejected(Quotation $quotation, array $context): void
+    {
+        $quotation->forceFill([
+            'decided_at' => now(),
+            'reject_reason' => $context['reject_reason'],
+        ])->save();
+
+        $this->inquiries->lost($quotation, $context['reject_reason'] ?? null);
     }
 
     private function onSent(Quotation $quotation): void

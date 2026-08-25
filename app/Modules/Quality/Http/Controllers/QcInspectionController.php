@@ -76,7 +76,7 @@ class QcInspectionController extends Controller
     public function create(Request $request): Response
     {
         // J6 — the lot in front of the inspector is the final operation's good
-        // output. `job_cards.good_qty` sums every operation, so it offered an AQL lot size of
+        // output. `job_cards.good_qty_running` sums every operation, so it offered a lot size of
         // 60,457 for a job that had made 30,000 labels, and the sample size follows the lot.
         $jobCards = DB::table('job_cards as jc')
             ->whereIn('jc.status', ['in_production', 'qc_pending'])

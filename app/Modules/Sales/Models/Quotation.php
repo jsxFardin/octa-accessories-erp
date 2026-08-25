@@ -92,6 +92,23 @@ class Quotation extends Model
     }
 
     /**
+     * 05-workflows §1 — raising a quotation moves its inquiry to `quoted`.
+     *
+     * A model event rather than a line in the controller, for the same reason `Auditable` is
+     * one: a quotation is created from the form, from a duplicate, from a revision and from
+     * the seeders, and a hook in one of those paths is a hook three of them forget. The
+     * progression only ever moves an inquiry forward, so the extra paths cost nothing.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (self $quotation): void {
+            if ($quotation->inquiry_id !== null) {
+                app(\App\Modules\Sales\Services\InquiryProgression::class)->quoted($quotation);
+            }
+        });
+    }
+
+    /**
      * How this quotation is named in a message a customer or an auditor will read: the number
      * with its revision suffix (BR-35), or a plain statement that it has none yet.
      */
@@ -105,6 +122,12 @@ class Quotation extends Model
         // two drift apart.
         return app(\App\Support\Numbering\NumberAllocator::class)
             ->withRevision($this->number, (int) $this->revision_no);
+    }
+
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Currency, $this> */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Currency::class, 'currency_id');
     }
 
     /** @return HasMany<QuotationLine, $this> */

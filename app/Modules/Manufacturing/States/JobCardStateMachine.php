@@ -277,7 +277,9 @@ class JobCardStateMachine extends StateMachine
     /** @param array<string, mixed> $context */
     private function guardCancelled(JobCard $jobCard, array $context): void
     {
-        $hasProduction = (float) $jobCard->produced_qty > 0;
+        // "Has anything at all been booked against this card?" — the one question the
+        // cross-unit running total is the right answer to (J6).
+        $hasProduction = (float) $jobCard->produced_qty_running > 0;
 
         if ($hasProduction && blank($context['reason'] ?? null)) {
             throw TransitionDenied::guard(

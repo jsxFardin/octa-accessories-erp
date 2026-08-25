@@ -62,7 +62,7 @@ it('rolls final-operation good output up to the sales order line', function (): 
 
     expect($after)->toBeQty($before + 1000)
         // The job card's own totals move too, in the same transaction.
-        ->and((float) $this->jobCard->refresh()->good_qty)->toBeGreaterThanOrEqual(1000.0);
+        ->and((float) $this->jobCard->refresh()->good_qty_running)->toBeGreaterThanOrEqual(1000.0);
 });
 
 it('does not count intermediate operations as production', function (): void {

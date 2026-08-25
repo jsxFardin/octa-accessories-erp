@@ -1,12 +1,19 @@
 <script setup>
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, datetime, money, pcs, qty, titleCase } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
-const props = defineProps({ lot: Object, ledger: Array, ledgerBalance: Number, genealogy: Object });
+const props = defineProps({
+    lot: Object,
+    ledger: Array,
+    ledgerBalance: Number,
+    genealogy: Object,
+    /** Why this lot is not available, from the record that made it so. Null when it is. */
+    hold: { type: Object, default: null },
+});
 
 </script>
 
@@ -16,6 +23,45 @@ const props = defineProps({ lot: Object, ledger: Array, ledgerBalance: Number, g
 
         <template #title>{{ lot.lot_no }}</template>
         <template #subtitle>{{ lot.item?.code }} — {{ lot.item?.name }} · {{ lot.warehouse?.code }}</template>
+
+        <!--
+            "Blocked" on its own read as a defect: an auditor saw this status beside a dispatch
+            and reported stock shipped while frozen. The dispatch predated the freeze by two
+            days and the ledger said so, but the status carried no date to compare it with.
+        -->
+        <div
+            v-if="hold"
+            class="mb-4 rounded-lg border px-4 py-3 text-sm"
+            :class="lot.status === 'blocked' ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-amber-200 bg-amber-50 text-amber-900'"
+        >
+            <div class="flex flex-wrap items-center gap-2">
+                <Badge :status="lot.status" />
+                <span class="font-medium">{{ hold.headline }}</span>
+                <span v-if="hold.since" class="text-xs opacity-80">since {{ datetime(hold.since) }}</span>
+                <span v-if="hold.actor" class="text-xs opacity-80">· by {{ hold.actor }}</span>
+            </div>
+
+            <p class="mt-1.5">{{ hold.reason }}</p>
+
+            <p v-if="hold.movements_predating_hold" class="mt-1.5 text-xs opacity-80">
+                {{ hold.movements_predating_hold }} outward movement(s) on this lot happened
+                <em>before</em> the hold began and are unaffected by it.
+            </p>
+
+            <p class="mt-1.5">
+                <span class="font-medium">Next:</span> {{ hold.next_action }}
+                <Link
+                    v-if="hold.reference?.href"
+                    :href="hold.reference.href"
+                    class="ml-1 font-medium underline"
+                >{{ hold.reference.label }}</Link>
+                <span v-else-if="hold.reference" class="ml-1 font-medium">{{ hold.reference.label }}</span>
+            </p>
+
+            <p v-if="!hold.can_resolve && hold.reference" class="mt-1 text-xs opacity-70">
+                You do not hold the permission to resolve this; the reference above is who can.
+            </p>
+        </div>
 
         <div class="grid gap-4 lg:grid-cols-3">
             <Card title="Lot" rule="I5">

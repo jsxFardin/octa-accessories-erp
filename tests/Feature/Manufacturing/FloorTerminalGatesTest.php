@@ -70,7 +70,7 @@ it('refuses output that would breach the J5 overrun ceiling at the moment it is 
     $operation = $this->jobCard->operations()->reorder('sequence_no', 'asc')->firstOrFail();
     $operation->forceFill(['status' => JobCardOperation::IN_PROGRESS])->save();
 
-    $over = $this->jobCard->overrunCeiling() - (float) $this->jobCard->produced_qty + 1;
+    $over = $this->jobCard->overrunCeiling() - (float) $this->jobCard->produced_qty_running + 1;
 
     $this->postJson("/api/v1/operations/{$operation->id}/log", [
         'good_qty' => $over,
@@ -80,7 +80,7 @@ it('refuses output that would breach the J5 overrun ceiling at the moment it is 
         ->assertStatus(422)
         ->assertSee('J5', escape: false);
 
-    expect((float) $this->jobCard->refresh()->produced_qty)
+    expect((float) $this->jobCard->refresh()->produced_qty_running)
         ->toBeLessThanOrEqual($this->jobCard->overrunCeiling());
 });
 

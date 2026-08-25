@@ -39,7 +39,10 @@ class QuotationController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = Quotation::query()->with(['customer:id,code,name'])->withCount('lines');
+        // BR-47 — a quotation in USD sits in the same list as one in BDT, and an unlabelled
+        // 3,630,453.60 beside an unlabelled 52.33 reads as corrupted data rather than as two
+        // currencies. Every amount on this list says which one it is.
+        $query = Quotation::query()->with(['customer:id,code,name', 'currency:id,code'])->withCount('lines');
 
         $this->applyListing(
             $query,
@@ -58,6 +61,7 @@ class QuotationController extends Controller
                         'subtotal', 'total', 'status', 'sent_at',
                     ]),
                     'customer' => $quotation->customer?->name,
+                    'currency' => $quotation->currency?->code,
                     'lines_count' => $quotation->lines_count,
                 ],
             ),
@@ -206,7 +210,7 @@ class QuotationController extends Controller
 
     public function show(Quotation $quotation): Response
     {
-        $quotation->load(['customer', 'lines.product:id,code,name,product_type']);
+        $quotation->load(['customer', 'currency:id,code,name,symbol', 'lines.product:id,code,name,product_type']);
 
         $sheets = CostSheet::query()
             ->whereIn('quotation_line_id', $quotation->lines->pluck('id'))
@@ -223,6 +227,9 @@ class QuotationController extends Controller
                 ]),
                 'reference' => app(\App\Support\Numbering\NumberAllocator::class)
                     ->withRevision($quotation->number, (int) $quotation->revision_no),
+                // The document's currency, and the rate that ties it to the factory's books
+                // (BR-22/Q1 — snapshotted, so this is what it was quoted at, not today's).
+                'currency' => $quotation->currency?->only(['id', 'code', 'name', 'symbol']),
                 'customer' => $quotation->customer?->only(['id', 'code', 'name', 'min_order_value']),
             ],
             'lines' => $quotation->lines->map(fn ($line): array => [

@@ -90,11 +90,11 @@ async function transition(to) {
                 <div class="grid gap-3 sm:grid-cols-3">
                     <div>
                         <p class="text-xs text-ink-500">Order value</p>
-                        <p class="text-lg font-semibold tnum text-ink-900">{{ money(approval.value) }}</p>
+                        <p class="text-lg font-semibold tnum text-ink-900">{{ money(approval.value, purchaseOrder.currency) }}</p>
                     </div>
                     <div>
                         <p class="text-xs text-ink-500">Purchase manager band</p>
-                        <p class="text-lg font-semibold tnum text-ink-700">{{ money(approval.band) }}</p>
+                        <p class="text-lg font-semibold tnum text-ink-700">{{ money(approval.band, purchaseOrder.currency) }}</p>
                     </div>
                     <div>
                         <p class="text-xs text-ink-500">Signs off</p>
@@ -131,8 +131,8 @@ async function transition(to) {
                     </template>
                     <template #cell:qty="{ row }">{{ qty(row.qty) }} {{ row.uom }}</template>
                     <template #cell:received_qty="{ value }">{{ qty(value) }}</template>
-                    <template #cell:rate="{ value }">{{ money(value) }}</template>
-                    <template #cell:amount="{ value }">{{ money(value) }}</template>
+                    <template #cell:rate="{ value }">{{ money(value, purchaseOrder.currency) }}</template>
+                    <template #cell:amount="{ value }">{{ money(value, purchaseOrder.currency) }}</template>
                     <template #cell:expected_date="{ value }">{{ value ? date(value) : '—' }}</template>
                     <template #cell:cert_claim="{ value }">
                         <!-- A line that demands a claim makes the GRN's certification fields mandatory -->

@@ -8,7 +8,7 @@ import DateInput from '@/Components/Ui/DateInput.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
+import { baseCurrency, date, inBaseCurrency, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { conversionAction } from '@/plugins/documentActions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -112,14 +112,27 @@ async function transition(to) {
                 >{{ order.number ?? `draft order #${order.id}` }}</Link> ({{ titleCase(order.status) }})</template>.
             </div>
 
-            <!-- Q1: a sent quotation is a snapshot, not a live query -->
-            <div
-                v-if="quotation.status !== 'draft'"
-                class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-ink-700"
-            >
-                <span class="font-medium">Snapshotted</span> on send (Q1): item rates, machine rates,
-                overhead percentages and the exchange rate ({{ Number(quotation.exchange_rate).toFixed(4) }})
-                are copies. Master data moving since then has not changed a number on this document.
+            <!--
+                BR-22/Q1 — the cost sheet is computed in the factory's currency and the document
+                is quoted in the customer's. Hiding the conversion is how an unlabelled 52.33
+                came to sit beside an unlabelled 3,630,453.60 and read as corrupted data. This
+                is true of a draft as much as of a sent quotation, so it is stated on both.
+            -->
+            <div class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-ink-700">
+                Quoted in <span class="font-medium">{{ quotation.currency?.code ?? baseCurrency() }}</span><template
+                    v-if="quotation.currency && quotation.currency.code !== baseCurrency()"
+                >, converted to {{ baseCurrency() }} at
+                    <span class="font-medium tnum">{{ Number(quotation.exchange_rate).toFixed(4) }}</span>
+                    — {{ money(quotation.total, quotation.currency) }} is
+                    {{ inBaseCurrency(quotation.total, quotation.currency, quotation.exchange_rate) }} in the books</template>.
+
+                <!-- Q1: a sent quotation is a snapshot, not a live query -->
+                <template v-if="quotation.status !== 'draft'">
+                    <br>
+                    <span class="font-medium">Snapshotted</span> on send (Q1): item rates, machine
+                    rates, overhead percentages and that exchange rate are copies. Master data
+                    moving since then has not changed a number on this document.
+                </template>
             </div>
 
             <Card
@@ -130,7 +143,7 @@ async function transition(to) {
                 :padded="false"
             >
                 <template #actions>
-                    <span class="text-sm font-semibold tnum text-ink-900">{{ money(line.line_total) }}</span>
+                    <span class="text-sm font-semibold tnum text-ink-900">{{ money(line.line_total, quotation.currency) }}</span>
                     <Badge v-if="line.cost_sheet?.is_locked" tone="neutral" label="Locked" />
                 </template>
 
@@ -154,7 +167,7 @@ async function transition(to) {
                                     <td class="px-3 py-1.5 text-ink-500">{{ cl.basis_uom }}</td>
                                     <td class="px-3 py-1.5 text-right tnum">{{ qty(cl.qty) }}</td>
                                     <td class="px-3 py-1.5 text-right tnum">{{ Number(cl.rate).toFixed(4) }}</td>
-                                    <td class="px-3 py-1.5 text-right tnum font-medium">{{ money(cl.amount) }}</td>
+                                    <td class="px-3 py-1.5 text-right tnum font-medium">{{ money(cl.amount, quotation.currency) }}</td>
                                     <td class="px-3 py-1.5">
                                         <span v-if="cl.formula_ref" class="rounded bg-slate-100 px-1 font-mono text-[10px] text-ink-700">
                                             {{ cl.formula_ref }}
@@ -169,10 +182,10 @@ async function transition(to) {
                         <dl class="space-y-1.5">
                             <div class="flex justify-between"><dt class="text-ink-500">Gross metres</dt><dd class="tnum">{{ qty(line.cost_sheet.gross_metres) }}</dd></div>
                             <div class="flex justify-between"><dt class="text-ink-500">Total wastage</dt><dd class="tnum">{{ Number(line.cost_sheet.total_wastage_pct).toFixed(2) }}%</dd></div>
-                            <div class="flex justify-between"><dt class="text-ink-500">Material</dt><dd class="tnum">{{ money(line.cost_sheet.material_cost) }}</dd></div>
-                            <div class="flex justify-between"><dt class="text-ink-500">Machine + labour + energy</dt><dd class="tnum">{{ money(Number(line.cost_sheet.machine_cost) + Number(line.cost_sheet.labour_cost) + Number(line.cost_sheet.energy_cost)) }}</dd></div>
-                            <div class="flex justify-between"><dt class="text-ink-500">Overheads</dt><dd class="tnum">{{ money(line.cost_sheet.overhead_amount) }}</dd></div>
-                            <div class="flex justify-between border-t border-slate-200 pt-1.5"><dt class="font-medium">Total cost</dt><dd class="tnum font-medium">{{ money(line.cost_sheet.total_cost) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-ink-500">Material</dt><dd class="tnum">{{ money(line.cost_sheet.material_cost, quotation.currency) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-ink-500">Machine + labour + energy</dt><dd class="tnum">{{ money(Number(line.cost_sheet.machine_cost) + Number(line.cost_sheet.labour_cost) + Number(line.cost_sheet.energy_cost), quotation.currency) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-ink-500">Overheads</dt><dd class="tnum">{{ money(line.cost_sheet.overhead_amount, quotation.currency) }}</dd></div>
+                            <div class="flex justify-between border-t border-slate-200 pt-1.5"><dt class="font-medium">Total cost</dt><dd class="tnum font-medium">{{ money(line.cost_sheet.total_cost, quotation.currency) }}</dd></div>
                             <div class="flex justify-between"><dt class="text-ink-500">Unit cost</dt><dd class="tnum">{{ Number(line.cost_sheet.unit_cost).toFixed(6) }}</dd></div>
                             <div class="flex justify-between">
                                 <dt class="flex items-center gap-1 text-ink-500">Margin <RuleHint rule="BR-20" size="size-3" /></dt>
@@ -198,9 +211,9 @@ async function transition(to) {
 
             <Card title="Document total">
                 <dl class="flex flex-wrap gap-8 text-sm">
-                    <div><dt class="text-ink-500">Subtotal</dt><dd class="text-lg font-semibold tnum">{{ money(quotation.subtotal) }}</dd></div>
-                    <div><dt class="text-ink-500">Tax</dt><dd class="text-lg font-semibold tnum">{{ money(quotation.tax_amount) }}</dd></div>
-                    <div><dt class="text-ink-500">Total</dt><dd class="text-lg font-semibold tnum text-brand-800">{{ money(quotation.total) }}</dd></div>
+                    <div><dt class="text-ink-500">Subtotal</dt><dd class="text-lg font-semibold tnum">{{ money(quotation.subtotal, quotation.currency) }}</dd></div>
+                    <div><dt class="text-ink-500">Tax</dt><dd class="text-lg font-semibold tnum">{{ money(quotation.tax_amount, quotation.currency) }}</dd></div>
+                    <div><dt class="text-ink-500">Total</dt><dd class="text-lg font-semibold tnum text-brand-800">{{ money(quotation.total, quotation.currency) }}</dd></div>
                     <div><dt class="text-ink-500">Valid until</dt><dd class="text-lg font-semibold">{{ date(quotation.valid_until) }}</dd></div>
                 </dl>
             </Card>

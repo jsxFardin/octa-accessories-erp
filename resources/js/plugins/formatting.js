@@ -21,6 +21,14 @@ const settings = {
     timezone: 'Asia/Dhaka',
     dateFormat: 'd M Y',
     timeFormat: 'HH:mm',
+    /*
+     * Every amount says which currency it is. A quotation in USD sits in the same list as one
+     * in BDT, and `3,630,453.60` beside `52.33` reads as corrupted data rather than as two
+     * currencies — which is exactly how it was reported. Documents that carry their own
+     * currency pass it; everything else falls back to the factory's base currency, so a bare
+     * `money(x)` is never ambiguous.
+     */
+    baseCurrency: 'BDT',
 };
 
 export function configureFormatting(values = {}) {
@@ -28,6 +36,7 @@ export function configureFormatting(values = {}) {
     if (values.timezone) settings.timezone = values.timezone;
     if (values.date_format) settings.dateFormat = values.date_format;
     if (values.time_format) settings.timeFormat = values.time_format;
+    if (values.base_currency) settings.baseCurrency = values.base_currency;
 }
 
 export function formattingSettings() {
@@ -148,13 +157,52 @@ export function qty(value, decimals = 3) {
     });
 }
 
-export function money(value, currency = null) {
+/**
+ * Money, always labelled with its currency.
+ *
+ * `currency` may be a code (`'USD'`), a currency object (`{ code: 'USD' }`), or omitted — in
+ * which case the amount is in the factory's base currency and says so. Pass `false` for the
+ * rare place where the currency is already stated once for a whole block and repeating it on
+ * every row would be noise.
+ */
+export function money(value, currency = undefined) {
     const formatted = toNumber(value).toLocaleString(locale(), {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     });
 
-    return currency ? `${currency} ${formatted}` : formatted;
+    if (currency === false) return formatted;
+
+    const code = currencyCode(currency) ?? settings.baseCurrency;
+
+    return code ? `${code} ${formatted}` : formatted;
+}
+
+/** The code out of whatever a page happens to hold: a string, a currency row, or nothing. */
+export function currencyCode(currency) {
+    if (!currency) return null;
+    if (typeof currency === 'string') return currency;
+
+    return currency.code ?? currency.currency_code ?? null;
+}
+
+/** The factory's own currency, for labelling a total that has no document behind it. */
+export function baseCurrency() {
+    return settings.baseCurrency;
+}
+
+/**
+ * A foreign-currency document also states what it is worth in the factory's books, so nobody
+ * has to multiply by the exchange rate in their head. Returns null when there is nothing to
+ * convert — the document is already in the base currency.
+ */
+export function inBaseCurrency(value, currency, exchangeRate) {
+    const code = currencyCode(currency);
+    const rate = toNumber(exchangeRate);
+
+    if (!code || code === settings.baseCurrency || rate === 1 || rate === 0) return null;
+
+    return money(toNumber(value) * rate, settings.baseCurrency);
 }
 
 /**
@@ -264,6 +312,9 @@ export default {
             qty,
             qtyFor,
             money,
+            currencyCode,
+            baseCurrency,
+            inBaseCurrency,
             ratePerM,
             pct,
             mm,

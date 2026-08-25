@@ -212,12 +212,14 @@ class OperationEventController extends Controller
                 $jobCard = $card;
 
                 if ($jobCard !== null) {
-                    // The job card's running totals are maintained in the same transaction as
-                    // the event that moves them, so they reconcile against the logs.
+                    // The card's running totals are maintained in the same transaction as the
+                    // event that moves them, so they reconcile against the logs. They are
+                    // running totals and nothing more: J6 says the job's output is the final
+                    // operation's, which is why these columns carry the `_running` suffix.
                     $jobCard->forceFill([
-                        'good_qty' => (float) $jobCard->good_qty + $good,
-                        'waste_qty' => (float) $jobCard->waste_qty + $waste,
-                        'produced_qty' => (float) $jobCard->produced_qty + $good + $waste,
+                        'good_qty_running' => (float) $jobCard->good_qty_running + $good,
+                        'waste_qty_running' => (float) $jobCard->waste_qty_running + $waste,
+                        'produced_qty_running' => (float) $jobCard->produced_qty_running + $good + $waste,
                     ])->save();
 
                     // P0-2 — the order line's produced total moves with the *final* operation's
