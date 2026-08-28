@@ -12,6 +12,7 @@ use App\Modules\Manufacturing\States\JobCardStateMachine;
 use App\Modules\Quality\Models\Ncr;
 use App\Modules\Quality\Models\QcInspection;
 use App\Support\Calculators\AqlResolver;
+use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Notifications\Notifier;
 use App\Support\Numbering\NumberAllocator;
@@ -31,6 +32,7 @@ use Inertia\Response;
  */
 class QcInspectionController extends Controller
 {
+    use ContextualId;
     use ListsResources;
 
     public function __construct(
@@ -87,7 +89,7 @@ class QcInspectionController extends Controller
                           ORDER BY o.sequence_no DESC LIMIT 1), 0) as good_qty')
             ->get();
 
-        $requestedCard = $request->integer('job_card') ?: null;
+        $requestedCard = $this->contextualId($request, 'job_card');
         $preselectCard = $jobCards->contains(fn ($card): bool => (int) $card->id === $requestedCard)
             ? $requestedCard
             : null;
@@ -122,7 +124,7 @@ class QcInspectionController extends Controller
     /** The QC-flagged operation named by `?operation=`, if it belongs to the chosen card. */
     private function preselectOperation(Request $request, int $jobCardId): ?int
     {
-        $id = $request->integer('operation') ?: null;
+        $id = $this->contextualId($request, 'operation');
 
         if ($id === null) {
             return null;

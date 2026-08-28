@@ -53,7 +53,7 @@ async function transition(to) {
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="quotation.reference">
         <Head :title="quotation.reference" />
 
         <template #title>{{ quotation.reference }}</template>

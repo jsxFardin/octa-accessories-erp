@@ -61,13 +61,28 @@ const fgForm = useForm({
  * and always after a refusal that named it.
  */
 const needsMaterialWaiver = computed(() => {
-    if (!props.fgPosition.material_required || !can('job_card.waive_material')) return false;
+    // The permission the rules name. Without it there is nothing to offer: the waiver would
+    // be refused server-side anyway, and a field that cannot be used is worse than none.
+    if (!can('job_card.waive_material')) return false;
+
+    // After a refusal that named the waiver, always — whichever rule raised it.
     if (fgForm.errors.material_waiver_reason || fgForm.errors.qty) return true;
+
+    // BR-52 — the receipt would take stock in at no value, because nothing issued to this job
+    // carries a cost. This is the case BR-48 says nothing about: a job whose BOM has nothing
+    // mandatory on it requires no issue, so `material_required` is false, and the waiver used
+    // to stay hidden for exactly the receipts that need it. The rule told the supervisor to
+    // record a waiver and the form gave them nowhere to record it.
+    const receivable = Number(props.fgPosition.remaining_receivable ?? 0);
+    const typed = Number(fgForm.qty ?? 0);
+
+    if (Number(props.fgPosition.unit_cost ?? 0) <= 0 && (receivable > 0 || typed > 0)) return true;
+
+    // BR-48 — the issued material does not stretch to what is being received.
+    if (!props.fgPosition.material_required) return false;
 
     const covered = Number(props.fgPosition.material_supports ?? 0);
     const received = Number(props.fgPosition.received ?? 0);
-    const receivable = Number(props.fgPosition.remaining_receivable ?? 0);
-    const typed = Number(fgForm.qty ?? 0);
 
     // Short for the whole remaining run, or short for what is actually being keyed in.
     return received + receivable > covered + 0.000001 || received + typed > covered + 0.000001;
@@ -194,7 +209,7 @@ const bomColumns = [
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="jobCard.number ?? 'Draft job card'">
         <Head :title="jobCard.number ?? 'Job card'" />
 
         <template #title>{{ jobCard.number ?? '(unnumbered)' }}</template>
@@ -609,18 +624,21 @@ const bomColumns = [
                         <SelectInput v-model="fgForm.grade" :options="GRADES" :placeholder="null" />
                     </FormField>
                     <!--
-                        BR-48 refuses a receipt the issued material cannot account for and tells
-                        the supervisor to "record a waiver with a reason" — so there has to be
-                        somewhere to record it. Offered only when the material actually falls
-                        short, and only to someone who holds the permission the rule names.
+                        BR-48 and BR-52 both refuse a receipt and both name the same remedy —
+                        "record a waiver with a reason" — so there has to be somewhere to record
+                        it, in both cases. Offered when the material falls short *or* when the
+                        goods would enter stock at no value, and only to someone holding the
+                        permission the rules name.
                     -->
                     <FormField
                         v-if="needsMaterialWaiver"
                         label="Material waiver reason"
                         :error="fgForm.errors.material_waiver_reason"
-                        rule="BR-48"
+                        :rule="Number(fgPosition.unit_cost ?? 0) <= 0 ? 'BR-52' : 'BR-48'"
                         class="w-full sm:w-96"
-                        hint="Material issued covers less than this receipt. Say why it is being received anyway."
+                        :hint="Number(fgPosition.unit_cost ?? 0) <= 0
+                            ? 'Nothing issued to this job carries a cost, so these goods would enter stock at no value. Say why.'
+                            : 'Material issued covers less than this receipt. Say why it is being received anyway.'"
                     >
                         <TextInput v-model="fgForm.material_waiver_reason" placeholder="Rework fed from a previous run…" />
                     </FormField>

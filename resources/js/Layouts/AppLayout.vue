@@ -14,6 +14,18 @@ import { ADMIN_PREFIXES, adminNavigation, navigation, visibleSections } from '@/
  * (08-architecture §4). The shop floor gets FloorLayout instead, which shares nothing with
  * this on purpose.
  */
+/**
+ * An optional name for the page below the list — the document's own reference, usually.
+ *
+ * A crumb reading "Detail" tells the reader nothing they did not already know from having
+ * clicked; worse, an edit form carried the same word, so the trail said "Detail" for a screen
+ * that was not one. Pages that have a name pass it; the rest fall back to what the URL says
+ * they are, which is at least accurate.
+ */
+const props = defineProps({
+    crumb: { type: String, default: null },
+});
+
 const page = usePage();
 
 const user = computed(() => page.props.auth?.user);
@@ -65,6 +77,15 @@ function isActive(item) {
  * and list a screen belongs to are already known, and a crumb that drifts out of date is
  * worse than none.
  */
+/** What the URL says this screen is, when the page has not named itself. */
+function depthLabel(path) {
+    if (path.endsWith('/create')) return 'New';
+    if (path.endsWith('/edit')) return 'Edit';
+    if (path.endsWith('/print')) return 'Print';
+
+    return 'Detail';
+}
+
 const crumbs = computed(() => {
     const item = activeItem.value;
 
@@ -80,10 +101,11 @@ const crumbs = computed(() => {
         ? [{ label: item.label, href: item.href }]
         : [{ label: section.label }, { label: item.label, href: item.href }];
 
-    // Anything below the list itself — a detail page, a form — is the current page,
-    // whose name is already the <h1>; the crumb just marks the depth.
-    if (currentUrl.value.replace(/\?.*$/, '') !== item.href) {
-        trail.push({ label: currentUrl.value.endsWith('/create') ? 'New' : 'Detail' });
+    // Anything below the list itself — a detail page, a form — is the current page.
+    const path = currentUrl.value.replace(/\?.*$/, '');
+
+    if (path !== item.href) {
+        trail.push({ label: props.crumb ?? depthLabel(path) });
     }
 
     return trail;

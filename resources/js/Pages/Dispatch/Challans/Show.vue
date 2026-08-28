@@ -50,7 +50,7 @@ const columns = [
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="challan.number ?? 'Draft challan'">
         <Head :title="challan.number ?? 'Delivery challan'" />
 
         <template #title>{{ challan.number ?? '(draft challan)' }}</template>

@@ -9,6 +9,7 @@ use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\MasterData\Models\Item;
 use App\Modules\Procurement\Models\Grn;
 use App\Support\Calculators\InventoryValuator;
+use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Http\RedirectResponse;
@@ -27,6 +28,7 @@ use Inertia\Response;
  */
 class GrnController extends Controller
 {
+    use ContextualId;
     use ListsResources;
 
     public function __construct(
@@ -71,7 +73,7 @@ class GrnController extends Controller
             ->orderByDesc('po.id')
             ->get(['po.id', 'po.number', 'po.supplier_id', 'cur.code as currency', 'po.exchange_rate']);
 
-        $requested = $request->integer('po') ?: null;
+        $requested = $this->contextualId($request, 'po');
 
         // Only an order still open to receiving; anything else would leave the picker showing
         // an id it does not list and the supplier filter with nothing to match.

@@ -578,6 +578,10 @@ and makes the job's cost variance (BR-23) meaningless.
 | **Exception** | a typed waiver reason, and the `job_card.waive_material` permission — the **same** waiver BR-48 uses, deliberately not a second mechanism beside it |
 | **Audit** | recorded against the job card as `waived_for: fg_receipt_zero_value`, with the quantity |
 
+The waiver field on the FG receipt form is shown for this case as well as BR-48's. It was keyed
+on `material_required`, which is false for exactly the jobs BR-52 catches — so the rule named a
+remedy the screen then hid, which makes a rule unsatisfiable from inside the application.
+
 A job that genuinely consumes nothing from the store is a real thing, which is why this is a
 waiver rather than a refusal. Tests:
 `tests/Feature/Manufacturing/ZeroValueFinishedGoodsTest.php`.
@@ -603,3 +607,36 @@ excess = committed - allowance        -- committed and allowance as defined by B
 Reported by `JobCardPlanningGuard::overAllocation()` and shown on the affected order line.
 BR-49 continues to prevent any *new* card being raised into the conflict. Tests:
 `tests/Feature/Sales/OrderReductionTest.php`.
+
+### BR-54 — A contextual handoff parameter names a record, or nothing
+
+`?inquiry=`, `?po=`, `?job_card=` and the rest are chosen by whoever types the URL, so each is
+resolved on three separate questions before it preselects anything:
+
+| Question | Answered by |
+|---|---|
+| Does the parameter **name an id** at all? | `ContextualId::contextualId()` — digits only |
+| May this viewer **read** that record? | the source document's own permission |
+| Is the record in a **state** this handoff allows? | the same rule the write path enforces |
+
+`$request->integer()` casts with PHP's rules, which are forgiving in a way a URL is not:
+`1.5`, `1 OR 1=1` and `1'` all became the integer `1`. No privilege was gained — the same user
+could pass `1` outright — but a request for a record that does not exist was being answered with
+a different record that does, which is a screen that no longer describes the request that
+produced it. `contextualId()` accepts a parameter only when it is written exactly as the id is:
+digits, no sign, no decimal point, no tail. (Surrounding whitespace never reaches it: Laravel's
+global `TrimStrings` middleware normalises `%201` to `1` before any controller runs, as it does
+for every other field in the application.)
+
+The third question is the one `?pr_id=` on the RFQ form failed. `assertRequisition()` allows an
+RFQ to be raised only from an **approved** requisition, while the prefill called a bare
+`find()` — so a draft or rejected requisition's number, status and every line it carries were
+handed to the screen, and the buyer discovered the refusal only after filling the form in. That
+is both a read-around and a **dead remedy**: a form offering a workflow the save will refuse.
+
+Applied to every handoff: inquiry → quotation, order → job card, order line → job card, job card
+→ material issue, job card → QC, PO → GRN, customer → inquiry, customer → product, supplier →
+PO, requisition → PO, requisition → RFQ, order → packing list.
+
+Tests: `tests/Feature/Gates/ContextualHandoffSafetyTest.php` (269 cases — every handoff against
+every malformed shape, plus the RFQ state and permission rules).

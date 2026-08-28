@@ -124,6 +124,18 @@ does that a raw query does not:
 
 Mounted on quotation, sales order, inquiry and material issue detail pages.
 
+### Contextual handoffs
+
+A handoff carries the record someone came from as a query parameter, so the next form opens on
+what they were already looking at. `App\Support\Http\ContextualId` decides whether the
+parameter names an id at all; the controller then decides whether this viewer may read that
+record and whether it is in a state the handoff allows — the second and third questions differ
+per handoff, so they stay with the controller rather than being generalised into the trait.
+
+The rule that binds them (BR-54): a prefill is resolved through the **same** rule the write path
+enforces. A form that offers a workflow the save will refuse is a dead remedy, and a prefill
+that reads further than the viewer's permissions is a read-around.
+
 ---
 
 ## 4. Frontend

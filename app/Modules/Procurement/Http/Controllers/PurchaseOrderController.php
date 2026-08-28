@@ -13,6 +13,7 @@ use App\Modules\MasterData\Models\Supplier;
 use App\Modules\MasterData\Models\Uom;
 use App\Modules\Procurement\Models\PurchaseOrder;
 use App\Modules\Procurement\States\PurchaseOrderStateMachine;
+use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Settings\Settings;
 use App\Support\States\TransitionDenied;
@@ -29,6 +30,7 @@ use Inertia\Response;
  */
 class PurchaseOrderController extends Controller
 {
+    use ContextualId;
     use ListsResources;
 
     public function __construct(
@@ -72,7 +74,7 @@ class PurchaseOrderController extends Controller
                 'prl.required_by', 'pr.number as pr_number', 'i.code as item_code', 'i.name as item_name',
             ]);
 
-        $prId = $request->integer('pr') ?: null;
+        $prId = $this->contextualId($request, 'pr');
         $requisition = null;
 
         if ($prId !== null && $lines->contains(fn ($line): bool => (int) $line->pr_id === $prId)) {
@@ -112,7 +114,7 @@ class PurchaseOrderController extends Controller
      */
     private function preselectSupplier(Request $request, $suppliers): ?int
     {
-        $id = $request->integer('supplier') ?: null;
+        $id = $this->contextualId($request, 'supplier');
 
         if ($id === null) {
             return null;

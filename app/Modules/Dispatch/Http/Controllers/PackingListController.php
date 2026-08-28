@@ -10,6 +10,7 @@ use App\Modules\Dispatch\Models\CartonContent;
 use App\Modules\Dispatch\Models\PackingList;
 use App\Modules\Dispatch\States\PackingListStateMachine;
 use App\Modules\MasterData\Models\CustomerAddress;
+use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
@@ -26,6 +27,7 @@ use Inertia\Response;
  */
 class PackingListController extends Controller
 {
+    use ContextualId;
     use ListsResources;
 
     public function __construct(private readonly PackingListStateMachine $states) {}
@@ -64,7 +66,7 @@ class PackingListController extends Controller
             ->orderByDesc('so.id')
             ->get(['so.id', 'so.number', 'so.customer_id', 'so.delivery_address_id', 'c.name as customer_name']);
 
-        $requested = $request->integer('sales_order') ?: null;
+        $requested = $this->contextualId($request, 'sales_order');
 
         return Inertia::render('Dispatch/PackingLists/Form', [
             'orders' => $orders,

@@ -44,7 +44,7 @@ function lineValue(line) {
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="issue.number ?? 'Issue'">
         <Head :title="issue.number ?? 'Material issue'" />
 
         <template #title>{{ issue.number ?? `(unnumbered issue #${issue.id})` }}</template>

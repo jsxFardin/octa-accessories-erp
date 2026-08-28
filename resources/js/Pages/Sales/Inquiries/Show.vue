@@ -69,7 +69,7 @@ const orderColumns = [
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="inquiry.number ?? 'Draft inquiry'">
         <Head :title="inquiry.number ?? 'Inquiry'" />
 
         <template #title>{{ inquiry.number ?? '(unnumbered)' }}</template>

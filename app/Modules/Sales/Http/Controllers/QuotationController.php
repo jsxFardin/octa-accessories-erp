@@ -18,6 +18,7 @@ use App\Modules\Sales\Services\QuotationConversionService;
 use App\Modules\Sales\States\QuotationStateMachine;
 use App\Support\Audit\DocumentTrail;
 use App\Support\Calculators\CostSheetCalculator;
+use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Settings\Settings;
 use App\Support\States\TransitionDenied;
@@ -29,6 +30,7 @@ use Inertia\Response;
 
 class QuotationController extends Controller
 {
+    use ContextualId;
     use ListsResources;
 
     public function __construct(
@@ -83,7 +85,7 @@ class QuotationController extends Controller
         // inquiries still arrives here from a legitimate `Quote it`, and the quotation must
         // still be filed against the inquiry it answers; what they must not get is its
         // contents. That distinction is deliberate and is covered by `DocumentHandoffTest`.
-        $requestedId = $request->integer('inquiry') ?: null;
+        $requestedId = $this->contextualId($request, 'inquiry');
         $inquiryExists = $requestedId !== null
             && DB::table('inquiries')->where('id', $requestedId)->exists();
 
@@ -145,7 +147,7 @@ class QuotationController extends Controller
      */
     private function prefillInquiry(Request $request): ?array
     {
-        $id = $request->integer('inquiry') ?: null;
+        $id = $this->contextualId($request, 'inquiry');
 
         if ($id === null || ! $request->user()?->hasPermission('inquiry.view_any')) {
             return null;

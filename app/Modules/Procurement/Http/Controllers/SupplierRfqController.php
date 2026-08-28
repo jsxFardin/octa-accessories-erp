@@ -16,6 +16,7 @@ use App\Modules\Procurement\Models\SupplierQuotationLine;
 use App\Modules\Procurement\Models\SupplierRfq;
 use App\Modules\Procurement\Models\SupplierRfqLine;
 use App\Modules\Procurement\States\SupplierRfqStateMachine;
+use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Settings\Settings;
 use App\Support\States\TransitionDenied;
@@ -31,6 +32,7 @@ use Inertia\Response;
  */
 class SupplierRfqController extends Controller
 {
+    use ContextualId;
     use ListsResources;
 
     public function __construct(
@@ -66,10 +68,19 @@ class SupplierRfqController extends Controller
 
     public function create(Request $request): Response
     {
-        $prId = $request->integer('pr_id') ?: null;
-        $requisition = $prId !== null
-            ? PurchaseRequisition::query()->with('lines')->find($prId)
-            : null;
+        // `?pr_id=` carries the requisition the buyer came from.
+        //
+        // It is resolved through the *same* rule `store()` enforces — an RFQ may only be raised
+        // from an approved requisition (`assertRequisition()`) — and through the permission that
+        // guards reading one. A bare `find()` did neither: it prefilled the form from a draft or
+        // rejected requisition and let the buyer fill it in before the save refused them, and it
+        // returned that requisition's number, status and every line it carries to anybody who
+        // could reach this screen, whatever their rights over requisitions.
+        //
+        // Nothing here is authoritative; `store()` revalidates. It exists so the form opens with
+        // what the buyer was already looking at, and stays silent when it may not.
+        $requisition = $this->prefillRequisition($request);
+        $prId = $requisition?->id;
 
         return Inertia::render('Procurement/Rfqs/Form', [
             'rfq' => null,
@@ -81,6 +92,36 @@ class SupplierRfqController extends Controller
             ])->all() ?? [],
             ...$this->options(),
         ]);
+    }
+
+    /**
+     * The requisition behind `?pr_id=`, when the buyer may see it and it may actually be quoted.
+     *
+     * Returns null for a missing, zero, negative, non-numeric or stale id, for one this user
+     * may not read, and for one that is not approved — all with the same silence, so the
+     * parameter cannot be used to tell those cases apart.
+     */
+    private function prefillRequisition(Request $request): ?PurchaseRequisition
+    {
+        $id = $this->contextualId($request, 'pr_id');
+
+        if ($id === null) {
+            return null;
+        }
+
+        $user = $request->user();
+
+        if (! ($user?->hasPermission('purchase_requisition.view_any')
+            || $user?->hasPermission('purchase_requisition.view'))) {
+            return null;
+        }
+
+        return PurchaseRequisition::query()
+            ->with('lines')
+            // The same state rule `assertRequisition()` holds on save, asked before the buyer
+            // has typed anything rather than after.
+            ->where('status', 'approved')
+            ->find($id);
     }
 
     public function store(Request $request): RedirectResponse

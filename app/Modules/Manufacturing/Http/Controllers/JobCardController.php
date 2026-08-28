@@ -16,6 +16,7 @@ use App\Modules\Product\Models\Product;
 use App\Modules\Sales\Models\SalesOrderLine;
 use App\Support\Calculators\CapacityCalculator;
 use App\Support\Calculators\ConsumptionCalculator;
+use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
@@ -31,6 +32,7 @@ use Inertia\Response;
  */
 class JobCardController extends Controller
 {
+    use ContextualId;
     use ListsResources;
 
     public function __construct(
@@ -121,8 +123,8 @@ class JobCardController extends Controller
             return $line;
         });
 
-        $orderId = $request->integer('sales_order') ?: null;
-        $lineId = $request->integer('sales_order_line') ?: null;
+        $orderId = $this->contextualId($request, 'sales_order');
+        $lineId = $this->contextualId($request, 'sales_order_line');
 
         // A line id that names an order the planner did not ask for is still honoured; an id
         // that is not on the eligible list at all is not, because nothing can be done with it.

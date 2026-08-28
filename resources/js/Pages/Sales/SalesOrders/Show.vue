@@ -94,7 +94,7 @@ const lineColumns = [
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="order.number ?? 'Draft order'">
         <Head :title="order.number ?? 'Sales order'" />
 
         <template #title>{{ order.number ?? '(unnumbered)' }}<span v-if="order.revision_no" class="text-ink-400">/R{{ order.revision_no }}</span></template>

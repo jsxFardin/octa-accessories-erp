@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Customer;
 use App\Modules\Sales\Models\Inquiry;
 use App\Support\Audit\DocumentTrail;
+use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use App\Support\Reference\Vocabulary;
@@ -24,6 +25,7 @@ use Inertia\Response;
  */
 class InquiryController extends Controller
 {
+    use ContextualId;
     use ListsResources;
 
     public function __construct(
@@ -61,7 +63,7 @@ class InquiryController extends Controller
     public function create(Request $request): Response
     {
         $customers = Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']);
-        $requested = $request->integer('customer') ?: null;
+        $requested = $this->contextualId($request, 'customer');
 
         return Inertia::render('Sales/Inquiries/Form', [
             'inquiry' => null,

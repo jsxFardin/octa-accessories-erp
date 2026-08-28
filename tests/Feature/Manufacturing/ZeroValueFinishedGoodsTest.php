@@ -165,6 +165,22 @@ it('br52: leaves a properly valued receipt alone', function (): void {
     expect((float) $fgLot->unit_cost)->toBeGreaterThan(0.0);
 });
 
+it('br52: hands the screen the figures its waiver field is shown from', function (): void {
+    // A dead remedy is a dead rule. BR-52 refuses the receipt and tells the supervisor to
+    // "record a waiver with a reason", and the form decides whether to show that field from
+    // `fgPosition`. It was keyed on `material_required`, which is false for exactly the jobs
+    // BR-52 catches — so the rule named a remedy the screen then hid.
+    $position = $this->service->positionFor($this->jobCard->refresh());
+
+    expect($position)->toHaveKey('unit_cost')
+        // The condition the field is shown from: no value behind the goods, and something
+        // still to receive.
+        ->and((float) $position['unit_cost'])->toBe(0.0)
+        ->and((float) $position['remaining_receivable'])->toBeGreaterThan(0.0)
+        // And the case that used to hide it.
+        ->and($position['material_required'])->toBeFalse();
+});
+
 it('br52: leaves the historical zero-cost lots exactly as they are', function (): void {
     // Append-only stock history. The lots that predate this guard are explained, not rewritten.
     $before = DB::table('stock_lots')->where('kind', 'finished_goods')->where('unit_cost', '<=', 0)->count();

@@ -15,6 +15,7 @@ use App\Modules\Manufacturing\Models\MaterialIssue;
 use App\Modules\MasterData\Models\Item;
 use App\Support\Audit\DocumentTrail;
 use App\Support\Calculators\InventoryValuator;
+use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Http\JsonResponse;
@@ -35,6 +36,7 @@ use Inertia\Response;
  */
 class MaterialIssueController extends Controller
 {
+    use ContextualId;
     use ListsResources;
 
     /** @var list<string> */
@@ -138,7 +140,7 @@ class MaterialIssueController extends Controller
             ->orderBy('number')
             ->get(['id', 'number', 'status', 'product_id', 'planned_qty', 'bom_id']);
 
-        $requested = $request->integer('job_card') ?: null;
+        $requested = $this->contextualId($request, 'job_card');
 
         return Inertia::render('Inventory/Issues/Form', [
             'jobCards' => $jobCards,

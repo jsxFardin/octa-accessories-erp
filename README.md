@@ -75,7 +75,7 @@ The shop-floor terminal is at `/floor` and signs in by badge (`BADGE-0009`, PIN 
 | Area | State |
 |---|---|
 | Schema | Complete — 129 tables, 4 views, 364 foreign keys, 165 check constraints, loaded from `docs/02a-schema.sql` |
-| Business rules | `BR-1` … `BR-53` implemented as pure calculators and guards, 108 unit tests, one per rule ID |
+| Business rules | `BR-1` … `BR-54` implemented as pure calculators and guards, 108 unit tests, one per rule ID |
 | Gate 1 — artwork approval | Complete: generated key column, state machine, release gate, UI |
 | Gate 2 — certified input | Complete: claim inheritance, dilution, reconciliation report |
 | RBAC | 23 roles, 418 permissions, permission middleware on every route |
@@ -123,7 +123,7 @@ app/
       States/         state machines — nothing changes status by assignment
       Http/           thin controllers, form requests
   Support/
-    Calculators/      BR-1 … BR-53, pure, no persistence, no framework
+    Calculators/      BR-1 … BR-54, pure, no persistence, no framework
     Numbering/        BR-34 sequence allocator
     Audit/            audit_logs writer and the Auditable trait
     States/           state machine base class

@@ -41,7 +41,7 @@ async function transition(to) {
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="purchaseOrder.number ?? 'Draft order'">
         <Head :title="purchaseOrder.number ?? 'Purchase order'" />
 
         <template #title>{{ purchaseOrder.number ?? '(unnumbered)' }}</template>

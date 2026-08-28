@@ -9,6 +9,7 @@ use App\Modules\MasterData\Models\Brand;
 use App\Modules\MasterData\Models\Customer;
 use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\Routing;
+use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Reference\Vocabulary;
 use Illuminate\Http\RedirectResponse;
@@ -19,6 +20,7 @@ use Inertia\Response;
 
 class ProductController extends Controller
 {
+    use ContextualId;
     use ListsResources;
 
     public function index(Request $request): Response
@@ -54,12 +56,19 @@ class ProductController extends Controller
         ]);
     }
 
+    /** `?customer=` carries the customer whose page the product was started from. */
     public function create(Request $request): Response
     {
+        $options = $this->formOptions();
+        $requested = $this->contextualId($request, 'customer');
+
         return Inertia::render('Product/Products/Form', [
             'product' => null,
-            'preselectedCustomer' => $request->integer('customer') ?: null,
-            ...$this->formOptions(),
+            // Only a customer the picker actually offers. The raw parameter used to be echoed
+            // straight through, so an archived or unknown id left the select showing a value
+            // it could not resolve — and then failed validation on save.
+            'preselectedCustomer' => $options['customers']->contains('id', $requested) ? $requested : null,
+            ...$options,
         ]);
     }
 
