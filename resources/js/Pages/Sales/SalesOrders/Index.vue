@@ -13,9 +13,23 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ orders: Object, filters: Object, customers: Array });
 
-/** Built per row so the menu never offers what this user may not do, or the record will not allow. */
+/**
+ * Built per row so the menu never offers what this user may not do, or the record will not
+ * allow.
+ *
+ * F-08 — the dashboard queue "Confirmed orders with no job card" lands here, and the menu
+ * offered Open and Edit: the one thing the queue exists for was not on it, so clearing the
+ * queue meant opening the order, finding the line, and navigating to planning by hand. The
+ * action prefills from the order server-side (`JobCardController::create()`), which is also
+ * where the permission is enforced — this only decides whether to show it.
+ */
 function rowActions(row) {
     return [
+        {
+            label: 'Create job card',
+            hidden: !can('job_card.create') || !row.awaits_job_card,
+            onSelect: () => router.visit(`/job-cards/create?sales_order=${row.id}`),
+        },
         { label: 'Open', onSelect: () => router.visit(`/sales-orders/${row.id}`) },
         { label: 'Edit', hidden: !can('sales_order.update') || ['closed', 'cancelled'].includes(row.status), onSelect: () => router.visit(`/sales-orders/${row.id}/edit`) },
     ];
@@ -56,7 +70,7 @@ const columns = [
                 row-key="id" :actions="rowActions" :row-href="(row) => `/sales-orders/${row.id}`"
                 empty="No orders match these filters."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-brand-700">{{ value ?? "(unnumbered)" }}<span v-if="row.revision_no" class="text-ink-400">/R{{ row.revision_no }}</span></span></template>
+                <template #cell:number="{ row, value }"><span class="doc-link-quiet">{{ value ?? "(unnumbered)" }}<span v-if="row.revision_no" class="text-ink-400">/R{{ row.revision_no }}</span></span></template>
                 <template #cell:order_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:delivery_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:total="{ row, value }">{{ money(value, row.currency) }}</template>

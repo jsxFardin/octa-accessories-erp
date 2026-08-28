@@ -205,7 +205,7 @@ const bomColumns = [
             <!-- The order this card is making, one click away rather than a search. -->
             <span v-if="jobCard.sales_order">
                 ·
-                <Link :href="`/sales-orders/${jobCard.sales_order.id}`" class="hover:underline">
+                <Link :href="`/sales-orders/${jobCard.sales_order.id}`" class="doc-link">
                     {{ jobCard.sales_order.number ?? '(unnumbered order)' }}</Link><span
                     v-if="jobCard.sales_order_line_no"> line {{ jobCard.sales_order_line_no }}</span>
             </span>
@@ -368,7 +368,7 @@ const bomColumns = [
                 <Card title="Bound artwork" rule="Gate 1 · A2">
                     <div class="space-y-2 text-sm">
                         <div class="flex items-center gap-2">
-                            <Link :href="`/artworks/${jobCard.artwork.id}`" class="font-medium text-brand-700 hover:underline">
+                            <Link :href="`/artworks/${jobCard.artwork.id}`" class="doc-link-quiet">
                                 {{ jobCard.artwork.code }} v{{ jobCard.artwork.version_no }}
                             </Link>
                             <Badge :status="jobCard.artwork.status" />
@@ -479,8 +479,12 @@ const bomColumns = [
                     </template>
 
                     <ul class="divide-y divide-slate-100 text-sm">
+                        <!-- Each issue now opens: which lots it moved is the shade-traceability
+                             record, and it used to be a dead line of text. -->
                         <li v-for="issue in issues" :key="issue.id" class="flex items-center justify-between px-3 py-2">
-                            <span class="font-medium text-ink-800">{{ issue.number }}</span>
+                            <Link :href="`/material-issues/${issue.id}`" class="doc-link-quiet">
+                                {{ issue.number ?? `issue #${issue.id}` }}
+                            </Link>
                             <span class="text-xs text-ink-500">{{ date(issue.issued_on) }}</span>
                             <Badge :status="issue.status" />
                         </li>
@@ -627,7 +631,7 @@ const bomColumns = [
             <Card v-if="ncrs.length" title="NCRs" subtitle="Raised when QC rejected output from this job">
                 <ul class="divide-y divide-slate-100 text-sm">
                     <li v-for="ncr in ncrs" :key="ncr.id" class="flex items-center justify-between py-2">
-                        <Link :href="`/ncrs/${ncr.id}`" class="font-medium text-brand-700">{{ ncr.number }}</Link>
+                        <Link :href="`/ncrs/${ncr.id}`" class="doc-link-quiet">{{ ncr.number }}</Link>
                         <Badge
                             :tone="ncr.severity === 'critical' ? 'danger' : ncr.severity === 'major' ? 'warning' : 'neutral'"
                             :label="titleCase(ncr.severity)"

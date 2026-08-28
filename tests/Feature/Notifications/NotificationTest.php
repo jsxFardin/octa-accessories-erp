@@ -562,6 +562,72 @@ it('tells the people who can release a credit hold that an order is on one', fun
     expect(p24Notes($this->operator, 'credit_hold'))->toHaveCount(0);
 });
 
+/*
+ * Every notification is read away from the document it is about, with none of the context the
+ * screen would have given. Four of the six said only that something had happened — "Credit note
+ * awaiting approval", "NCR X is closed" — which leaves the reader to open the record to find
+ * out whether it needs them at all. The two that did explain themselves were the two a previous
+ * round had touched; the rest were left behind.
+ */
+it('every notification says why it matters and what to do, not just that it happened', function (): void {
+    $notifier = app(Notifier::class);
+
+    $notifier->notifyOrderOnCreditHold(SalesOrder::query()->firstOrFail(), 42_500.00);
+    $notifier->notifyNcrRaised(p24OpenNcr($this->qc->id));
+    $notifier->notifyNcrVerificationRequired(p24OpenNcr($this->qc->id));
+    $notifier->notifyNcrClosed(p24OpenNcr($this->qc->id));
+
+    $notes = DB::table('notifications')->get();
+
+    expect($notes)->not->toBeEmpty();
+
+    foreach ($notes as $note) {
+        $data = json_decode($note->data, true, 512, JSON_THROW_ON_ERROR);
+
+        expect($data['title'] ?? null)->not->toBeEmpty("a notification with no title: {$note->id}")
+            ->and($data['body'] ?? null)->not->toBeEmpty(
+                "notification \"{$data['title']}\" says what happened and nothing else",
+            )
+            ->and($data['href'] ?? null)->not->toBeEmpty(
+                "notification \"{$data['title']}\" does not link to the record",
+            );
+    }
+});
+
+it('labels the money in a notification with its currency', function (): void {
+    // BR-47 — read away from the document, an unlabelled 1,240.00 is two different debts
+    // depending on whether the invoice behind it was raised in dollars or taka.
+    // Built in a non-base currency on purpose: an invoice in the factory's own currency would
+    // pass this test by accident, since that is the fallback when nothing is known.
+    $usd = DB::table('currencies')->where('is_base', false)->value('id');
+    $order = SalesOrder::query()->firstOrFail();
+
+    $invoice = SalesInvoice::query()->create([
+        'number' => 'INV-TEST-0001',
+        'customer_id' => $order->customer_id,
+        'sales_order_id' => $order->id,
+        'invoice_date' => now()->toDateString(),
+        'due_date' => now()->subDays(10)->toDateString(),
+        'currency_id' => $usd,
+        'exchange_rate' => 120,
+        'subtotal' => 1240,
+        'tax_amount' => 0,
+        'total' => 1240,
+        'received_amount' => 0,
+        'status' => 'overdue',
+        'created_by' => $this->accounts->id,
+    ]);
+
+    $currency = DB::table('currencies')->where('id', $usd)->value('code');
+
+    app(Notifier::class)->notifyInvoiceOverdue($invoice);
+
+    $note = DB::table('notifications')->orderByDesc('created_at')->first();
+    $data = json_decode($note->data, true, 512, JSON_THROW_ON_ERROR);
+
+    expect($data['body'])->toContain($currency);
+});
+
 it('does not tell the same person twice about the same credit hold', function (): void {
     $notifier = app(Notifier::class);
     $order = SalesOrder::query()->firstOrFail();

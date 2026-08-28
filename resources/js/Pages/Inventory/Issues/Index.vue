@@ -12,10 +12,15 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ issues: Object, filters: Object });
 
+// The list said "number, date, type, status" and nothing about what the material was *for*,
+// which is the column anyone scanning it is looking for.
 const columns = [
     { key: 'number', label: 'Number', sort: true },
     { key: 'issued_on', label: 'Date', sort: true },
+    { key: 'job_card_number', label: 'Job card' },
+    { key: 'warehouse', label: 'From' },
     { key: 'issue_type', label: 'Type' },
+    { key: 'line_count', label: 'Lots', align: 'center' },
     { key: 'status', label: 'Status', sort: true },
 ];
 </script>
@@ -38,9 +43,20 @@ const columns = [
                 :columns="columns"
                 :rows="issues"
                 row-key="id"
+                :row-href="(row) => `/material-issues/${row.id}`"
                 empty="No issues posted."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
+                <template #cell:number="{ row, value }"><span class="doc-link-quiet">{{ value ?? `(unnumbered #${row.id})` }}</span></template>
+                <template #cell:job_card_number="{ row, value }">
+                    <Link
+                        v-if="row.job_card_id"
+                        :href="`/job-cards/${row.job_card_id}`"
+                        class="doc-link-quiet"
+                    >{{ value ?? `#${row.job_card_id}` }}</Link>
+                    <span v-else class="text-ink-400">—</span>
+                </template>
+                <template #cell:warehouse="{ value }">{{ value ?? '—' }}</template>
+                <template #cell:line_count="{ value }">{{ value }}</template>
                 <template #cell:issued_on="{ row, value }">{{ date(value) }}</template>
                 <template #cell:issue_type="{ row, value }">{{ titleCase(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>

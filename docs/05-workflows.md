@@ -32,6 +32,24 @@ stateDiagram-v2
 | quoted → won | Quotation `accepted` | — |
 | → lost | `lost_reason` present | Feeds win/loss analysis |
 
+### Traceability, in both directions
+
+An inquiry detail page shows the quotations raised against it **and the sales orders those
+became**, so a won inquiry names the order it was won with rather than stopping at the quote.
+One quotation may hold more than one order over its life — Q5 lets a cancelled order be
+re-raised — so this is a list, not a field.
+
+`quotation_lines.inquiry_line_id` records which inquiry line each quotation line answers.
+**Quoting a different quantity from the one inquired is legitimate and is not blocked**: a
+customer asks for a sample volume and is quoted at the minimum order quantity, or at the annual
+programme the tooling is amortised over. The column exists so the change can be *seen* — the
+quotation shows what was originally asked for beside what was quoted — not so it can be
+prevented. The inquiry's own lines are never rewritten to make the two documents agree.
+
+The column is nullable: a quotation may be raised cold, a line may be added that the customer
+never asked for, and quotations raised before the column existed have no recorded pairing.
+Those fall back to a document-level comparison, which is all that can honestly be said.
+
 ---
 
 ## 2. Quotation
@@ -290,7 +308,15 @@ stateDiagram-v2
 | PL draft → packed | ≥ 1 carton; all lots passed final QC (D1) | Compute totals; validate certification claim (BR-40, BR-41) |
 | DC draft → issued | Packing list `packed` (D3); quantity within delivery tolerance (BR-44) or override; certificate valid on challan date (BR-43) | Assign number; post `dispatch` ledger movement; increment `delivered_qty`; write CoC `output` transaction |
 | DC → in_transit | Assigned to a started trip, or handed to courier | — |
-| DC → delivered | POD captured (per customer policy) | Update delivery schedule; may auto-close the order line (BR-45) |
+| DC → delivered | Consignee complete (D4, re-checked); POD captured (per customer policy) | Update delivery schedule; may auto-close the order line (BR-45) |
+
+**D4 is checked at issue *and* at delivery.** Guarding only `draft → issued` let
+`issued → delivered` and `in_transit → delivered` past it entirely, and an address removed from
+the order after issue would never be noticed again. Two challans in the live database are
+`delivered` with no delivery address at all; they are dispatch history with stock movements
+behind them, so they are explained on screen as a historical exception rather than rewritten.
+No challan can reach `delivered` without a consignee today.
+Tests: `tests/Feature/Dispatch/DeliveryConsigneeAtDeliveryTest.php`.
 | DC → returned | Failure reason recorded | Reverse the dispatch movement; return stock |
 
 ---

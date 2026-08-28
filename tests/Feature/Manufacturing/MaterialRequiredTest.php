@@ -114,12 +114,19 @@ it('caps a partial issue at the quantity it covers, and lets the rest through on
 
 it('lets a job with no BOM produce freely', function (): void {
     // Not every process consumes from the store; a rule that assumed otherwise would invent
-    // work rather than prevent an error.
+    // work rather than prevent an error. BR-48 is what is under test here — that a job with no
+    // BOM *requires* nothing — and it still holds.
+    //
+    // The material issued below is not part of that rule: it is what makes this a valid
+    // workflow rather than one that quietly takes worthless stock into inventory. BR-52 covers
+    // the zero-value case separately, with a waiver.
     DB::table('job_cards')->where('id', $this->jobCard->id)->update(['bom_id' => null]);
 
     $position = $this->receipts->materialPosition($this->jobCard->refresh());
 
     expect($position['required'])->toBeFalse();
+
+    issueAnyMaterialFor($this->jobCard->refresh());
 
     receiveFg($this, 5000)->assertSessionHasNoErrors();
 
@@ -130,6 +137,10 @@ it('ignores optional BOM lines when deciding what is required', function (): voi
     DB::table('bom_lines')->where('bom_id', $this->jobCard->bom_id)->update(['is_optional' => true]);
 
     expect($this->receipts->materialPosition($this->jobCard->refresh())['required'])->toBeFalse();
+
+    // As above: the optional material was genuinely taken from the store, so the receipt has a
+    // cost behind it. What is asserted is that BR-48 did not *require* it.
+    issueAnyMaterialFor($this->jobCard->refresh());
 
     receiveFg($this, 5000)->assertSessionHasNoErrors();
 });
@@ -181,7 +192,11 @@ it('only produces a zero-cost finished-goods lot when someone signed for it', fu
 
     expect($waiver)->not->toBeNull()
         ->and($waiver->user_id)->toBe($this->supervisor->id)
-        ->and(json_decode((string) $waiver->new_values, true)['waived_for'])->toBe('fg_receipt');
+        // Either marker is the same waiver: BR-48 records `fg_receipt` when the material falls
+        // short, BR-52 records `fg_receipt_zero_value` when there is no value behind the goods
+        // at all. A job with nothing issued trips the second first.
+        ->and(json_decode((string) $waiver->new_values, true)['waived_for'])
+        ->toBeIn(['fg_receipt', 'fg_receipt_zero_value']);
 });
 
 it('refuses the waiver to a user without job_card.waive_material', function (): void {

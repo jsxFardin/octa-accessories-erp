@@ -325,7 +325,7 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
                 </Card>
 
                 <Card title="Remarks">
-                    <FormField :error="form.errors.remarks">
+                    <FormField label="Inspector remarks" :error="form.errors.remarks">
                         <textarea
                             v-model="form.remarks"
                             rows="6"

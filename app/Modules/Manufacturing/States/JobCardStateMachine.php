@@ -167,7 +167,7 @@ class JobCardStateMachine extends StateMachine
 
         $missing = $bom->lines
             ->filter(fn ($line): bool => ! (bool) $line->is_optional && (float) ($issued[$line->item_id] ?? 0) <= 0)
-            ->map(fn ($line): string => (string) ($line->item?->code ?? "item #{$line->item_id}"))
+            ->map(fn ($line): string => (string) ($line->item->code ?? "item #{$line->item_id}"))
             ->values();
 
         if ($missing->isEmpty()) {

@@ -55,7 +55,7 @@ const columns = [
                 row-key="id"
                 empty="No invoices issued."
             >
-                <template #cell:number="{ row, value }"><Link :href="`/invoices/${row.id}`" class="font-medium text-brand-700">{{ value ?? "(draft)" }}</Link></template>
+                <template #cell:number="{ row, value }"><Link :href="`/invoices/${row.id}`" class="doc-link-quiet">{{ value ?? "(draft)" }}</Link></template>
                 <template #cell:customer="{ value }">{{ value ?? "—" }}</template>
                 <template #cell:invoice_date="{ row, value }">{{ date(value) }}</template>
                 <template #cell:due_date="{ row, value }">{{ date(value) }}</template>

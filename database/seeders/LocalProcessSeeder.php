@@ -108,17 +108,17 @@ class LocalProcessSeeder extends Seeder
         $done = (int) Inquiry::query()->where('notes', 'like', 'local-volume:%')->count();
 
         if ($done >= 100) {
-            $this->command?->info('Local process volume already seeded (100 inquiries).');
+            $this->command->info('Local process volume already seeded (100 inquiries).');
         } else {
             for ($i = $done + 1; $i <= 100; $i++) {
                 DB::transaction(fn () => $this->journey($i));
 
                 if ($i % 20 === 0) {
-                    $this->command?->info("Local volume: {$i}/100");
+                    $this->command->info("Local volume: {$i}/100");
                 }
             }
 
-            $this->command?->info('100 local journeys seeded (inquiry → quote → order → job → dispatch → invoice).');
+            $this->command->info('100 local journeys seeded (inquiry → quote → order → job → dispatch → invoice).');
         }
 
         $this->trips();

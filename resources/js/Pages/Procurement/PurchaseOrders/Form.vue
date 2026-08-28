@@ -369,7 +369,7 @@ const columns = [
                 </Card>
 
                 <Card title="Remarks">
-                    <FormField :error="form.errors.remarks">
+                    <FormField label="Remarks to the supplier" :error="form.errors.remarks">
                         <textarea
                             v-model="form.remarks"
                             rows="6"

@@ -85,7 +85,7 @@ class LocalCatalogueSeeder extends Seeder
         $this->import();
         $this->qualityAndExpenses();
 
-        $this->command?->info('Local catalogue seeded (products, machines, import, buying, lab, fleet).');
+        $this->command->info('Local catalogue seeded (products, machines, import, buying, lab, fleet).');
     }
 
     private function fleetAndBanks(): void
@@ -196,7 +196,9 @@ class LocalCatalogueSeeder extends Seeder
                     'kw_rating' => $kw,
                     'efficiency_pct' => $eff,
                     'status' => $status,
-                    'is_active' => $status !== 'retired',
+                    // Every status this seeder produces is a working one; a retired machine is
+                    // not part of the demo estate, so this was always true and said otherwise.
+                    'is_active' => true,
                 ],
             );
         }
@@ -256,6 +258,7 @@ class LocalCatalogueSeeder extends Seeder
         ];
     }
 
+    /** @return array<string, mixed> */
     private function typeDef(string $type): array
     {
         foreach ($this->typeCycle() as $def) {

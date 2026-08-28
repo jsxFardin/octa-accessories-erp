@@ -75,7 +75,7 @@ const summary = [
 
             <DataTable :columns="columns" :rows="ncrs" row-key="id" :row-href="(row) => `/ncrs/${row.id}`" empty="No NCRs match these filters.">
                 <template #cell:number="{ row, value }">
-                    <Link :href="`/ncrs/${row.id}`" class="font-medium text-brand-700">{{ value }}</Link>
+                    <Link :href="`/ncrs/${row.id}`" class="doc-link-quiet">{{ value }}</Link>
                 </template>
                 <template #cell:status="{ value }"><Badge :status="value" /></template>
                 <template #cell:severity="{ value }">

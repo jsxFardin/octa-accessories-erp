@@ -7,6 +7,7 @@ namespace App\Modules\Sales\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Customer;
 use App\Modules\Sales\Models\Inquiry;
+use App\Support\Audit\DocumentTrail;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use App\Support\Reference\Vocabulary;
@@ -25,7 +26,10 @@ class InquiryController extends Controller
 {
     use ListsResources;
 
-    public function __construct(private readonly NumberAllocator $numbers) {}
+    public function __construct(
+        private readonly NumberAllocator $numbers,
+        private readonly DocumentTrail $trail,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -90,21 +94,53 @@ class InquiryController extends Controller
         return redirect()->route('inquiries.show', $inquiry)->with('success', 'Inquiry saved as a draft.');
     }
 
-    public function show(Inquiry $inquiry): Response
+    public function show(Request $request, Inquiry $inquiry): Response
     {
-        $inquiry->load(['customer', 'lines.product:id,code,name']);
+        $inquiry->load(['customer.currency:id,code,name,symbol', 'lines.product:id,code,name']);
+
+        // F-06 — a Won inquiry listed its quotations and stopped there, so the order it was
+        // won with was reachable only by searching for it. The chain is walked in one query:
+        // an inquiry's orders are the orders of its quotations, and a quotation may legitimately
+        // have more than one over its life (Q5 — a cancelled order can be re-raised).
+        $quotations = DB::table('quotations as q')
+            ->leftJoin('currencies as cur', 'cur.id', '=', 'q.currency_id')
+            ->where('q.inquiry_id', $inquiry->id)
+            ->orderByDesc('q.id')
+            ->get([
+                'q.id', 'q.number', 'q.revision_no', 'q.quotation_date', 'q.total', 'q.status',
+                // BR-47 — most quotations here are raised in USD; without this the total was
+                // rendered against the base currency and every one of them read as BDT.
+                'cur.code as currency',
+            ]);
+
+        $orders = DB::table('sales_orders as so')
+            ->join('quotations as q', 'q.id', '=', 'so.quotation_id')
+            ->leftJoin('currencies as cur', 'cur.id', '=', 'so.currency_id')
+            ->where('q.inquiry_id', $inquiry->id)
+            ->orderByDesc('so.id')
+            ->get([
+                'so.id', 'so.number', 'so.status', 'so.order_date', 'so.delivery_date',
+                'so.total', 'cur.code as currency', 'so.quotation_id',
+                'q.number as quotation_number',
+            ]);
 
         return Inertia::render('Sales/Inquiries/Show', [
             'inquiry' => [
                 ...$inquiry->only(['id', 'number', 'inquiry_date', 'required_by', 'source', 'status', 'lost_reason', 'notes']),
                 'customer' => $inquiry->customer?->only(['id', 'code', 'name']),
+                // An inquiry names no currency of its own; a target rate is understood in the
+                // currency the customer trades in, and saying so is the difference between a
+                // target of 100 and a target of 100 of *something*.
+                'currency' => $inquiry->customer?->currency?->only(['id', 'code', 'name', 'symbol']),
             ],
             'lines' => $inquiry->lines->map(fn ($line): array => [
                 ...$line->only(['id', 'line_no', 'description', 'product_type', 'qty', 'target_rate_per_m', 'notes']),
                 'product' => $line->product?->only(['id', 'code', 'name']),
             ]),
-            'quotations' => DB::table('quotations')->where('inquiry_id', $inquiry->id)
-                ->orderByDesc('id')->get(['id', 'number', 'revision_no', 'quotation_date', 'total', 'status']),
+            'quotations' => $quotations,
+            'orders' => $orders,
+            // F-01/F-02 — when it came in, when it was quoted, when it was won or lost.
+            'trail' => $this->trail->for($inquiry, $request->user()),
         ]);
     }
 

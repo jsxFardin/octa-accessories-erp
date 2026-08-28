@@ -29,8 +29,13 @@ const tiles = computed(() => [
     { label: 'Waiting on material', value: pcs(props.tiles.material_pending), href: '/job-cards?status=material_pending', tone: props.tiles.material_pending > 0 ? 'warning' : 'muted' },
     { label: 'Artwork awaiting approval', value: pcs(props.tiles.artwork_pending), href: '/artworks?state=awaiting_approval', tone: props.tiles.artwork_pending > 0 ? 'warning' : 'muted' },
     { label: 'Quotations out', value: pcs(props.tiles.quotations_open), href: '/quotations?status=sent', tone: 'muted' },
-    { label: 'Stock value', value: money(props.tiles.stock_value, '৳'), href: '/stock', tone: 'muted' },
-    { label: 'Open job cards', value: pcs(props.tiles.open_job_cards), href: '/job-cards?open=1', tone: 'muted' },
+    // BR-47 — every other amount on this dashboard is labelled with a currency code; this one
+    // passed the taka symbol, so the same figure read `৳ 1,234` here and `BDT 1,234` elsewhere.
+    { label: 'Stock value', value: money(props.tiles.stock_value), href: '/stock', tone: 'muted' },
+    // F-12 — "Open job cards" read as "cards in production", so the two `completed` cards
+    // inside it looked like a counting error. They are not: a completed card still has to be
+    // closed, and closing it is somebody's job. The tile is named after what it counts.
+    { label: 'Job cards not yet closed', value: pcs(props.tiles.open_job_cards), href: '/job-cards?open=1', tone: 'muted', hint: 'Everything except closed and cancelled — a completed card still needs closing.' },
 ]);
 
 const TONES = {
@@ -115,6 +120,7 @@ const loadByMachine = computed(() => {
                     v-for="tile in tiles"
                     :key="tile.label"
                     :href="tile.href"
+                    :title="tile.hint ?? null"
                     class="group rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-px hover:border-brand-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                 >
                     <p class="flex items-center justify-between gap-1 text-[11px] text-ink-500">
@@ -137,7 +143,7 @@ const loadByMachine = computed(() => {
                     <DataTable :columns="orderBookColumns" :rows="orderBook" row-key="sales_order_line_id" dense
                                empty="No open order lines.">
                         <template #cell:so_number="{ row }">
-                            <Link :href="`/sales-orders/${row.sales_order_id}`" class="font-medium text-brand-700">
+                            <Link :href="`/sales-orders/${row.sales_order_id}`" class="doc-link-quiet">
                                 {{ row.so_number }}
                             </Link>
                         </template>
@@ -175,9 +181,14 @@ const loadByMachine = computed(() => {
                         </ul>
                     </Card>
 
-                    <!-- Job cards by status -->
-                    <Card title="Job cards by status">
-                        <p v-if="jobCardsByStatus.length === 0" class="text-sm text-ink-500">No job cards yet.</p>
+                    <!--
+                        F-12 — the same population as the "not yet closed" tile above, and
+                        titled so. It used to count every card ever raised while sitting under
+                        a tile that counted only open ones; they agreed only for as long as
+                        nothing had been closed.
+                    -->
+                    <Card title="Open job cards by status" subtitle="Closed and cancelled cards are not counted here.">
+                        <p v-if="jobCardsByStatus.length === 0" class="text-sm text-ink-500">No open job cards.</p>
                         <ul v-else class="space-y-1.5">
                             <li v-for="row in jobCardsByStatus" :key="row.status" class="flex items-center justify-between gap-2">
                                 <Badge :status="row.status" />

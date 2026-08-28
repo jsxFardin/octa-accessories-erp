@@ -60,7 +60,7 @@ const columns = [
             </Link>
             <span v-else class="text-rose-600">No customer</span>
             ·
-            <Link v-if="challan.packing_list" :href="`/packing-lists/${challan.packing_list.id}`" class="hover:underline">
+            <Link v-if="challan.packing_list" :href="`/packing-lists/${challan.packing_list.id}`" class="doc-link">
                 {{ challan.packing_list.number }}
             </Link>
             · {{ date(challan.challan_date) }} · {{ titleCase(challan.mode) }}
@@ -110,6 +110,24 @@ const columns = [
                         <dd v-if="challan.consignee" class="text-ink-800">
                             <span class="font-medium">{{ challan.consignee.label }}</span> — {{ challan.consignee.address }}
                         </dd>
+                        <!--
+                            D4. A challan that has already left says something different from
+                            one that has not: the first is a record with a gap in it and the
+                            second is a document that cannot be issued yet. Telling a delivered
+                            challan it "cannot be issued" described a future that had already
+                            happened, which is how this read as a live rule violation rather
+                            than as history.
+                        -->
+                        <dd v-else-if="['delivered', 'returned'].includes(challan.status)" class="text-amber-700">
+                            <span class="font-medium">Not recorded.</span>
+                            This delivery predates the D4 check at the point of delivery, so it left
+                            the factory without a destination on the paperwork. The record is kept as
+                            it happened; no challan can reach this state without an address today.
+                        </dd>
+                        <dd v-else-if="challan.status === 'in_transit'" class="text-rose-600">
+                            None set. This challan cannot be marked delivered until the order names a
+                            delivery address (D4).
+                        </dd>
                         <dd v-else class="text-rose-600">
                             None set. This challan cannot be issued until the order names a delivery address (D4).
                         </dd>
@@ -123,7 +141,7 @@ const columns = [
                     <div>
                         <dt class="text-xs text-ink-500">Sales order</dt>
                         <dd>
-                            <Link v-if="challan.sales_order" :href="`/sales-orders/${challan.sales_order.id}`" class="font-medium text-brand-700 hover:underline">
+                            <Link v-if="challan.sales_order" :href="`/sales-orders/${challan.sales_order.id}`" class="doc-link-quiet">
                                 {{ challan.sales_order.number ?? `#${challan.sales_order.id}` }}
                             </Link>
                             <span v-else class="text-ink-400">—</span>
@@ -136,7 +154,7 @@ const columns = [
                     <div>
                         <dt class="text-xs text-ink-500">Packing list</dt>
                         <dd>
-                            <Link v-if="challan.packing_list" :href="`/packing-lists/${challan.packing_list.id}`" class="font-medium text-brand-700 hover:underline">
+                            <Link v-if="challan.packing_list" :href="`/packing-lists/${challan.packing_list.id}`" class="doc-link-quiet">
                                 {{ challan.packing_list.number ?? `#${challan.packing_list.id}` }}
                             </Link>
                             <span v-else class="text-ink-400">—</span>

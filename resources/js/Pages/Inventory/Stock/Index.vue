@@ -91,7 +91,7 @@ const columns = [
                         />
                     </template>
                     <template #cell:lot_no="{ row }">
-                        <Link :href="`/lots/${row.lot_id}`" class="font-mono text-xs font-medium text-brand-700">
+                        <Link :href="`/lots/${row.lot_id}`" class="doc-link-quiet font-mono text-xs">
                             {{ row.lot_no }}
                         </Link>
                     </template>

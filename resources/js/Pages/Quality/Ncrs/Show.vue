@@ -178,7 +178,7 @@ function closeNcr() {
                     <div>
                         <dt class="text-xs text-ink-500">QC inspection</dt>
                         <dd>
-                            <Link v-if="inspection" :href="`/qc-inspections/${inspection.id}`" class="font-medium text-brand-700">
+                            <Link v-if="inspection" :href="`/qc-inspections/${inspection.id}`" class="doc-link-quiet">
                                 {{ inspection.number }}
                             </Link>
                             <span v-else>—</span>
@@ -188,7 +188,7 @@ function closeNcr() {
                     <div>
                         <dt class="text-xs text-ink-500">Job card</dt>
                         <dd>
-                            <Link v-if="jobCard" :href="`/job-cards/${jobCard.id}`" class="font-medium text-brand-700">
+                            <Link v-if="jobCard" :href="`/job-cards/${jobCard.id}`" class="doc-link-quiet">
                                 {{ jobCard.number }}
                             </Link>
                             <span v-else>—</span>
@@ -201,7 +201,7 @@ function closeNcr() {
                     <div>
                         <dt class="text-xs text-ink-500">Product</dt>
                         <dd>
-                            <Link v-if="product" :href="`/products/${product.id}`" class="font-medium text-brand-700">
+                            <Link v-if="product" :href="`/products/${product.id}`" class="doc-link-quiet">
                                 {{ product.code }}
                             </Link>
                             <span v-else>—</span>
@@ -210,7 +210,7 @@ function closeNcr() {
                     <div>
                         <dt class="text-xs text-ink-500">Sales order</dt>
                         <dd>
-                            <Link v-if="salesOrder" :href="`/sales-orders/${salesOrder.id}`" class="font-medium text-brand-700">
+                            <Link v-if="salesOrder" :href="`/sales-orders/${salesOrder.id}`" class="doc-link-quiet">
                                 {{ salesOrder.number }}
                             </Link>
                             <span v-else>—</span>

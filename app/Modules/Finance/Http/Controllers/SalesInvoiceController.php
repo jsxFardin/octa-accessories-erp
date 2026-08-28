@@ -153,14 +153,18 @@ class SalesInvoiceController extends Controller
 
     public function show(SalesInvoice $invoice): Response
     {
-        $invoice->load('customer:id,code,name,credit_limit');
+        $invoice->load(['customer:id,code,name,credit_limit', 'currency:id,code,name,symbol']);
 
         return Inertia::render('Finance/Invoices/Show', [
             'invoice' => [
                 ...$invoice->only(['id', 'number', 'invoice_date', 'due_date', 'subtotal', 'tax_amount',
                     'total', 'received_amount', 'status', 'lc_no', 'mushak_no', 'remarks',
-                    'sales_order_id', 'delivery_challan_id']),
+                    'sales_order_id', 'delivery_challan_id', 'exchange_rate']),
                 'customer' => $invoice->customer?->only(['id', 'code', 'name']),
+                // BR-47 — most invoices on this system are raised in USD. Rendering them
+                // against the base currency labelled every one of them BDT, which is not an
+                // omission but a wrong number on a document someone is going to be paid on.
+                'currency' => $invoice->currency?->only(['id', 'code', 'name', 'symbol']),
                 // P2-1 — the one formula: total = received + credited + outstanding.
                 'credited' => $this->states->appliedCredits($invoice),
                 'outstanding' => $this->states->outstanding($invoice),

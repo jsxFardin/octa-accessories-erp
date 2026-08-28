@@ -1019,6 +1019,12 @@ CREATE TABLE quotations (
 CREATE TABLE quotation_lines (
     id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     quotation_id    BIGINT UNSIGNED NOT NULL,
+    -- Which inquiry line this answers, when it answers one. Nullable and unconstrained beyond
+    -- the key: quoting a quantity other than the one inquired is legitimate (a sample volume
+    -- quoted at the minimum order quantity), so this records the change rather than policing
+    -- it. Null for a quotation raised cold, for a line the customer never asked for, and for
+    -- quotations raised before the column existed.
+    inquiry_line_id BIGINT UNSIGNED,
     line_no         SMALLINT UNSIGNED NOT NULL,
     product_id      BIGINT UNSIGNED,
     product_spec_id BIGINT UNSIGNED,
@@ -1032,8 +1038,10 @@ CREATE TABLE quotation_lines (
     UNIQUE KEY quotation_lines_uq (quotation_id, line_no),
     KEY quotation_lines_product_idx (product_id),
     KEY quotation_lines_spec_idx (product_spec_id),
+    KEY quotation_lines_inquiry_line_idx (inquiry_line_id),
     KEY quotation_lines_tax_idx (tax_id),
     CONSTRAINT quotation_lines_quotation_fk FOREIGN KEY (quotation_id)    REFERENCES quotations(id) ON DELETE CASCADE,
+    CONSTRAINT quotation_lines_inquiry_line_fk FOREIGN KEY (inquiry_line_id) REFERENCES inquiry_lines(id) ON DELETE SET NULL,
     CONSTRAINT quotation_lines_product_fk   FOREIGN KEY (product_id)      REFERENCES products(id),
     CONSTRAINT quotation_lines_spec_fk      FOREIGN KEY (product_spec_id) REFERENCES product_specs(id),
     CONSTRAINT quotation_lines_tax_fk       FOREIGN KEY (tax_id)          REFERENCES taxes(id),
@@ -1530,6 +1538,10 @@ CREATE TABLE grn_lines (
     id                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     grn_id            BIGINT UNSIGNED NOT NULL,
     line_no           SMALLINT UNSIGNED NOT NULL,
+    -- Which purchase-order line this receipt answers. Populated by the PO → GRN handoff and
+    -- validated against the order the GRN names, so it cannot be pointed at another order's
+    -- line; it is what makes `purchase_order_lines.received_qty` and "remaining to receive"
+    -- computable at all. Null for a delivery that arrived against no order.
     po_line_id        BIGINT UNSIGNED,
     item_id           BIGINT UNSIGNED NOT NULL,
     uom_id            BIGINT UNSIGNED NOT NULL,

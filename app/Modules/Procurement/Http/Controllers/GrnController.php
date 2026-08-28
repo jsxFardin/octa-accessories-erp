@@ -62,9 +62,14 @@ class GrnController extends Controller
 
     public function create(Request $request): Response
     {
-        $orders = DB::table('purchase_orders')
-            ->whereIn('status', ['approved', 'sent', 'partially_received'])
-            ->orderByDesc('id')->get(['id', 'number', 'supplier_id']);
+        // The order's own currency travels with it: a USD order priced its lines in dollars and
+        // the receiving form rendered them against the factory's currency, so the storekeeper
+        // was asked to confirm a rate in a unit the order never used (BR-50).
+        $orders = DB::table('purchase_orders as po')
+            ->leftJoin('currencies as cur', 'cur.id', '=', 'po.currency_id')
+            ->whereIn('po.status', ['approved', 'sent', 'partially_received'])
+            ->orderByDesc('po.id')
+            ->get(['po.id', 'po.number', 'po.supplier_id', 'cur.code as currency', 'po.exchange_rate']);
 
         $requested = $request->integer('po') ?: null;
 
@@ -73,6 +78,32 @@ class GrnController extends Controller
         $preselect = $orders->contains(fn ($order): bool => (int) $order->id === $requested)
             ? $requested
             : null;
+
+        // The lines of that order, with what is still outstanding on each.
+        //
+        // The handoff used to carry the supplier and the order number and stop there, so the
+        // storekeeper retyped every item, quantity and rate from the paperwork in front of
+        // them — which is where a wrong item code or a transposed rate comes from. Resolved
+        // server-side and scoped to the *same* set the picker offers, so a stale or
+        // out-of-scope `?po=` yields nothing rather than the wrong order's lines.
+        $poLines = $preselect === null ? collect() : DB::table('purchase_order_lines as pol')
+            ->join('items as i', 'i.id', '=', 'pol.item_id')
+            ->leftJoin('uoms as u', 'u.id', '=', 'pol.uom_id')
+            ->where('pol.po_id', $preselect)
+            ->orderBy('pol.line_no')
+            ->get([
+                'pol.id', 'pol.line_no', 'pol.item_id', 'pol.uom_id', 'pol.qty',
+                'pol.received_qty', 'pol.rate', 'pol.description',
+                'i.code as item_code', 'i.name as item_name',
+                'u.code as uom_code',
+            ])
+            ->map(function (object $line): object {
+                // What is left to receive. A fully received line is offered but not ticked:
+                // an over-receipt is a real thing and is the buyer's decision, not a silent one.
+                $line->remaining_qty = round(max(0.0, (float) $line->qty - (float) $line->received_qty), 6);
+
+                return $line;
+            });
 
         return Inertia::render('Procurement/Grns/Form', [
             'suppliers' => DB::table('suppliers')->where('is_active', true)->orderBy('name')
@@ -86,7 +117,89 @@ class GrnController extends Controller
             // `?po=` carries the order the storekeeper is receiving against, so the supplier
             // and the order are already chosen when the goods are on the bench.
             'preselectPoId' => $preselect,
+            // …and the lines, so they are checked rather than transcribed.
+            'poLines' => $poLines->values(),
             'schemes' => ['GRS', 'FSC', 'OEKO_TEX', 'SCOPE'],
+        ]);
+    }
+
+    /**
+     * A GRN line may only answer a line of the purchase order it names.
+     *
+     * Without this the field is an id the client chooses, and pointing it at another supplier's
+     * order line would credit that line's receipt and move its outstanding quantity. Ids that
+     * do not belong are dropped, not refused — losing the provenance must not lose the goods
+     * receipt, which has stock behind it.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @return list<array<string, mixed>>
+     */
+    private function scopePoLines(?int $poId, array $lines): array
+    {
+        $permitted = $poId === null
+            ? []
+            : DB::table('purchase_order_lines')->where('po_id', $poId)->pluck('id')
+                ->map(fn ($id): int => (int) $id)->all();
+
+        return array_map(function (array $line) use ($permitted): array {
+            $candidate = isset($line['po_line_id']) ? (int) $line['po_line_id'] : null;
+
+            $line['po_line_id'] = $candidate !== null && in_array($candidate, $permitted, true)
+                ? $candidate
+                : null;
+
+            return $line;
+        }, $lines);
+    }
+
+    /**
+     * Refresh a purchase order's received quantities, and its status, from its goods receipts.
+     *
+     * The order is `received` once every line has its full quantity, `partially_received` while
+     * something has arrived and something has not, and otherwise left alone — an order nobody
+     * has received against keeps whatever the buyer set.
+     */
+    private function rollUpReceipts(?int $poId): void
+    {
+        if ($poId === null) {
+            return;
+        }
+
+        $lines = DB::table('purchase_order_lines')->where('po_id', $poId)->get(['id', 'qty']);
+
+        if ($lines->isEmpty()) {
+            return;
+        }
+
+        $received = DB::table('grn_lines as gl')
+            ->join('grns as g', 'g.id', '=', 'gl.grn_id')
+            ->whereIn('gl.po_line_id', $lines->pluck('id'))
+            ->where('g.status', 'posted')
+            ->groupBy('gl.po_line_id')
+            ->selectRaw('gl.po_line_id, SUM(gl.received_qty) AS qty')
+            ->pluck('qty', 'po_line_id');
+
+        $complete = true;
+        $any = false;
+
+        foreach ($lines as $line) {
+            $qty = (float) ($received[$line->id] ?? 0);
+
+            DB::table('purchase_order_lines')->where('id', $line->id)->update(['received_qty' => $qty]);
+
+            $qty > 0 ? $any = true : null;
+
+            if ($qty + 0.000001 < (float) $line->qty) {
+                $complete = false;
+            }
+        }
+
+        if (! $any) {
+            return;
+        }
+
+        DB::table('purchase_orders')->where('id', $poId)->update([
+            'status' => $complete ? 'received' : 'partially_received',
         ]);
     }
 
@@ -105,6 +218,11 @@ class GrnController extends Controller
             'duty_amount' => ['numeric', 'min:0'],
             'clearing_amount' => ['numeric', 'min:0'],
             'lines' => ['required', 'array', 'min:1'],
+            // Which purchase-order line this receipt answers. The column has been on
+            // `grn_lines` all along and nothing ever wrote it, so a GRN knew its order and not
+            // what on that order it was receiving — and the outstanding quantity per line could
+            // not be worked out at all.
+            'lines.*.po_line_id' => ['nullable', 'integer', 'exists:purchase_order_lines,id'],
             'lines.*.item_id' => ['required', 'integer', 'exists:items,id'],
             'lines.*.uom_id' => ['required', 'integer', 'exists:uoms,id'],
             'lines.*.qty' => ['required', 'numeric', 'gt:0'],
@@ -117,6 +235,11 @@ class GrnController extends Controller
             'lines.*.cert_claim_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'lines.*.cert_document_no' => ['nullable', 'string', 'max:80'],
         ]);
+
+        // A line id belonging to a different order would read that order's quantities onto
+        // this receipt. Ids that do not belong are dropped rather than refused: the pairing is
+        // provenance the form filled in, not something the storekeeper typed.
+        $data['lines'] = $this->scopePoLines($data['po_id'] ?? null, $data['lines']);
 
         $grn = DB::transaction(function () use ($data, $request): Grn {
             $grn = Grn::query()->create([
@@ -155,6 +278,7 @@ class GrnController extends Controller
                 $grnLineId = DB::table('grn_lines')->insertGetId([
                     'grn_id' => $grn->id,
                     'line_no' => $index + 1,
+                    'po_line_id' => $line['po_line_id'] ?? null,
                     'item_id' => $line['item_id'],
                     'uom_id' => $line['uom_id'],
                     'received_qty' => $qty,
@@ -223,6 +347,16 @@ class GrnController extends Controller
             }
 
             $grn->update(['status' => 'posted']);
+
+            // What the order has now had against it. Recomputed from the receipts rather than
+            // incremented, so it is the same answer however many times it is asked and a
+            // corrected GRN cannot leave the figure drifting.
+            //
+            // Without this `purchase_order_lines.received_qty` never moved, so every line
+            // looked fully outstanding for ever: the second receipt against an order offered
+            // the whole quantity again, and "partially received" was a status nothing could
+            // reach.
+            $this->rollUpReceipts($data['po_id'] ?? null);
 
             return $grn;
         });

@@ -214,13 +214,44 @@ export function qtyFor(value, dimension) {
     return dimension === 'count' ? pcs(value) : qty(value);
 }
 
-/** The per-1000 rate carries four decimals — the difference between 3.2500 and 3.2512 is
- *  real money at 500,000 pieces. */
-export function ratePerM(value) {
-    return toNumber(value).toLocaleString(locale(), {
+/**
+ * The per-1000 rate, labelled with its currency and its unit.
+ *
+ * Four decimals, because the difference between 3.2500 and 3.2512 is real money at 500,000
+ * pieces — and a currency, because `Rate /M 270.2066` beside `Rate /M 17.4429` said nothing
+ * about which document was in USD. Same contract as `money()`: pass a code or a currency row,
+ * omit it for the factory's own currency, or pass `false` where the block already states it
+ * once.
+ */
+export function ratePerM(value, currency = undefined) {
+    const formatted = toNumber(value).toLocaleString(locale(), {
         minimumFractionDigits: 4,
         maximumFractionDigits: 4,
     });
+
+    if (currency === false) return `${formatted} /M`;
+
+    const code = currencyCode(currency) ?? settings.baseCurrency;
+
+    return code ? `${code} ${formatted} /M` : `${formatted} /M`;
+}
+
+/**
+ * Cost per single piece. Six decimals, because a label costs fractions of a taka and the
+ * fourth decimal is the difference between winning and losing an order — and a currency,
+ * because `0.216165` on its own is not obviously money at all.
+ */
+export function unitCost(value, currency = undefined) {
+    const formatted = toNumber(value).toLocaleString(locale(), {
+        minimumFractionDigits: 6,
+        maximumFractionDigits: 6,
+    });
+
+    if (currency === false) return formatted;
+
+    const code = currencyCode(currency) ?? settings.baseCurrency;
+
+    return code ? `${code} ${formatted}` : formatted;
 }
 
 /**
@@ -316,6 +347,7 @@ export default {
             baseCurrency,
             inBaseCurrency,
             ratePerM,
+            unitCost,
             pct,
             mm,
             datetime,

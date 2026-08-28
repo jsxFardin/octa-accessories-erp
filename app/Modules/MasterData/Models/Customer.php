@@ -6,6 +6,7 @@ namespace App\Modules\MasterData\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -77,6 +78,19 @@ class Customer extends Model
     }
 
     /** @return HasMany<CustomerContact, $this> */
+    /**
+     * The currency this customer trades in.
+     *
+     * Documents raised for them carry their own `currency_id`, but an inquiry does not — and a
+     * target rate of `100.0000` with no currency beside it is not a price.
+     *
+     * @return BelongsTo<Currency, $this>
+     */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class, 'currency_id');
+    }
+
     public function contacts(): HasMany
     {
         return $this->hasMany(CustomerContact::class);

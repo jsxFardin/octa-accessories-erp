@@ -39,6 +39,7 @@ class PurchaseReport extends ReportQuery
             ['key' => 'pending_qty', 'label' => 'Pending', 'align' => 'right', 'format' => 'qty'],
             ['key' => 'rate', 'label' => 'Rate', 'align' => 'right', 'format' => 'money'],
             ['key' => 'amount', 'label' => 'Amount', 'align' => 'right', 'format' => 'money'],
+            ['key' => 'currency', 'label' => 'Currency'],
             ['key' => 'po_date', 'label' => 'PO date', 'format' => 'date'],
             ['key' => 'po_status', 'label' => 'Status', 'format' => 'status'],
         ];
@@ -47,6 +48,17 @@ class PurchaseReport extends ReportQuery
     public function documentPath(): ?string
     {
         return '/purchase-orders';
+    }
+
+    // BR-50 — this report spans documents raised in more than one currency.
+    public function currencyColumn(): ?string
+    {
+        return 'currency';
+    }
+
+    public function baseRateColumn(): ?string
+    {
+        return 'base_rate';
     }
 
     public function filterFields(): array
@@ -63,11 +75,14 @@ class PurchaseReport extends ReportQuery
         $query = DB::table('purchase_order_lines as pol')
             ->join('purchase_orders as po', 'po.id', '=', 'pol.po_id')
             ->join('suppliers as s', 's.id', '=', 'po.supplier_id')
+            ->leftJoin('currencies as cur', 'cur.id', '=', 'po.currency_id')
             ->leftJoin('items as i', 'i.id', '=', 'pol.item_id')
             ->selectRaw("
                 po.id,
                 po.number as po_number,
                 s.name as supplier,
+                cur.code as currency,
+                COALESCE(po.exchange_rate, 1) as base_rate,
                 COALESCE(i.code, '') as item_code,
                 pol.qty,
                 pol.received_qty,

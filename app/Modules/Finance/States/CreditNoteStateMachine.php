@@ -11,6 +11,7 @@ use App\Support\Settings\Settings;
 use App\Support\States\StateMachine;
 use App\Support\States\TransitionDenied;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 /**
  * P2-1 — the corrective financial document. A credit note walks draft → approved → applied;
@@ -72,27 +73,55 @@ class CreditNoteStateMachine extends StateMachine
         };
     }
 
-    /** 06-rbac §5 — the approver's band must cover the value; above it, only the MD signs. */
+    /**
+     * 06-rbac §5 — the approver's band must cover the value; above it, only the MD signs.
+     *
+     * BR-51 — the band is a base-currency figure, so a note raised in another currency has to
+     * be converted before it is compared. Left raw, a USD credit note passed an accounts band
+     * expressed in taka as though a dollar and a taka were the same size, and accounts could
+     * sign alone for a note that needed the Managing Director.
+     */
     private function guardApproved(CreditNote $note): void
     {
         $band = $this->settings->decimal('credit_note_approval_band_accounts', 50000);
+        $value = $this->baseValue($note);
 
-        if ((float) $note->amount <= $band) {
+        if ($value <= $band) {
             return;
         }
 
         $user = auth()->user();
 
         if ($user === null || ! $user->hasRole('md')) {
+            $code = (string) $this->settings->get('base_currency', 'BDT');
+
             throw TransitionDenied::guard(
                 '06-rbac §5',
                 sprintf(
-                    'This credit note is %s, above the %s band accounts may approve. It needs the Managing Director.',
-                    number_format((float) $note->amount, 2),
+                    'This credit note is worth %s %s, above the %s %s band accounts may approve. It needs the Managing Director.',
+                    $code,
+                    number_format($value, 2),
+                    $code,
                     number_format($band, 2),
                 ),
             );
         }
+    }
+
+    /**
+     * BR-51 — the note's value in the factory's own currency.
+     *
+     * A credit note records no rate of its own; the documented one is the rate snapshotted on
+     * the invoice it credits (BR-22), which is also the rate that invoice was booked at. A note
+     * with no invoice behind it is already in the base currency.
+     */
+    public function baseValue(CreditNote $note): float
+    {
+        $rate = $note->sales_invoice_id === null
+            ? 1.0
+            : (float) (DB::table('sales_invoices')->where('id', $note->sales_invoice_id)->value('exchange_rate') ?? 1);
+
+        return round((float) $note->amount * ($rate > 0 ? $rate : 1.0), 4);
     }
 
     /**

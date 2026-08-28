@@ -155,6 +155,28 @@
         @apply border-rose-400 focus:border-rose-500 focus:ring-rose-500/25;
     }
 
+    /*
+     * F-11 — a link to another document has to look like one.
+     *
+     * Cross-references between documents (a quotation on an inquiry, an order on a quotation)
+     * were rendered as plain body text, so the only way to discover they were clickable was to
+     * click. Colour alone is not the signal — it fails for a colour-blind reader and it is
+     * indistinguishable from the emphasis used elsewhere — so the underline is always present,
+     * dimmed at rest and solid on hover, and focus is a real visible ring for keyboard users.
+     */
+    .doc-link {
+        @apply rounded-sm font-medium text-brand-700 underline decoration-brand-700/35 underline-offset-2
+               transition hover:text-brand-800 hover:decoration-brand-700
+               focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500;
+    }
+
+    /* The same affordance inside a table cell, where the row itself may also be a link. */
+    .doc-link-quiet {
+        @apply rounded-sm font-medium text-brand-700 underline decoration-transparent underline-offset-2
+               transition hover:decoration-brand-700
+               focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500;
+    }
+
     /* Dense desk UI: tabular numerals everywhere numbers matter. */
     .tnum {
         font-variant-numeric: tabular-nums;

@@ -52,7 +52,7 @@ const warehouseOptions = props.warehouses.map((w) => ({ value: w.id, label: w.na
 
             <DataTable :columns="columns" :rows="transfers" row-key="id" :row-href="(row) => `/stock-transfers/${row.id}`" empty="No transfers.">
                 <template #cell:number="{ row, value }">
-                    <Link :href="`/stock-transfers/${row.id}`" class="font-medium text-brand-700">{{ value ?? '(draft)' }}</Link>
+                    <Link :href="`/stock-transfers/${row.id}`" class="doc-link-quiet">{{ value ?? '(draft)' }}</Link>
                 </template>
                 <template #cell:transfer_date="{ value }">{{ date(value) }}</template>
                 <template #cell:status="{ value }"><Badge :status="value" /></template>

@@ -52,7 +52,7 @@ const bomColumns = [
 
         <template #title>{{ product.code }} · {{ product.name }}</template>
         <template #subtitle>
-            <Link v-if="product.customer" :href="`/customers/${product.customer.id}`" class="hover:underline">
+            <Link v-if="product.customer" :href="`/customers/${product.customer.id}`" class="doc-link">
                 {{ product.customer.name }}
             </Link>
             · {{ titleCase(product.product_type) }}
@@ -143,7 +143,7 @@ const bomColumns = [
                 <Card title="Artwork" rule="Gate 1" :padded="false">
                     <ul class="divide-y divide-slate-100 text-sm">
                         <li v-for="artwork in artworks" :key="artwork.id" class="p-3">
-                            <Link :href="`/artworks/${artwork.id}`" class="font-medium text-brand-700 hover:underline">
+                            <Link :href="`/artworks/${artwork.id}`" class="doc-link-quiet">
                                 {{ artwork.code }}
                             </Link>
                             <p class="text-xs text-ink-500">{{ artwork.title }}</p>

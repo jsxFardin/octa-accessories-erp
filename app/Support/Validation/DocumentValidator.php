@@ -95,6 +95,20 @@ final class DocumentValidator extends Validator
     }
 
     /**
+     * The domain name for a bare column, for callers outside validation.
+     *
+     * The audit trail names the fields an edit touched, and it must call `rate_per_m` what the
+     * validator calls it — one vocabulary for the whole application rather than a second map
+     * that drifts.
+     */
+    public static function attributeLabel(string $attribute): string
+    {
+        $derived = str_replace('_', ' ', $attribute);
+
+        return self::NAMES[$attribute] ?? preg_replace('/ id$/', '', $derived) ?? $derived;
+    }
+
+    /**
      * Drops the `id` a foreign key carries — but only when the name was derived rather than
      * declared, so a deliberate attribute name is never rewritten.
      */

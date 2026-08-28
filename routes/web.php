@@ -283,6 +283,10 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:stock_issue.create')->name('material-issues.suggest');
     Route::get('material-issues/returnable', [MaterialIssueController::class, 'returnable'])
         ->middleware('can:stock_issue.create')->name('material-issues.returnable');
+    // Declared after the literal paths above so `create`, `suggest` and `returnable` are not
+    // swallowed by the wildcard.
+    Route::get('material-issues/{materialIssue}', [MaterialIssueController::class, 'show'])
+        ->middleware('can:stock_issue.view_any')->name('material-issues.show');
 
     Route::get('stock-adjustments', [StockAdjustmentController::class, 'index'])
         ->middleware('can:stock_adjustment.view_any')->name('stock-adjustments.index');

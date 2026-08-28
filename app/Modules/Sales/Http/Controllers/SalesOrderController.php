@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Manufacturing\Services\JobCardPlanningGuard;
 use App\Modules\MasterData\Models\Currency;
 use App\Modules\MasterData\Models\Customer;
 use App\Modules\Product\Models\ArtworkVersion;
@@ -12,6 +13,7 @@ use App\Modules\Product\Models\Product;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Models\SalesOrderLine;
 use App\Modules\Sales\States\SalesOrderStateMachine;
+use App\Support\Audit\DocumentTrail;
 use App\Support\Calculators\CostSheetCalculator;
 use App\Support\Http\ListsResources;
 use App\Support\Notifications\Notifier;
@@ -22,6 +24,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -34,6 +37,8 @@ class SalesOrderController extends Controller
         private readonly CostSheetCalculator $costing,
         private readonly Settings $settings,
         private readonly Notifier $notifier,
+        private readonly DocumentTrail $trail,
+        private readonly JobCardPlanningGuard $planning,
     ) {}
 
     public function index(Request $request): Response
@@ -54,17 +59,25 @@ class SalesOrderController extends Controller
                 ->whereIn('status', ['confirmed', 'in_production', 'partially_delivered']);
         }
 
+        // F-08 — the queue is about raising a job card, so every row has to say whether this
+        // order still needs one. The condition is defined once, here, and used both to filter
+        // the list and to decide whether the row offers the action; the filter below and the
+        // flag on the row can therefore never disagree.
+        $awaitingJobCard = fn ($line) => $line
+            ->whereColumn('produced_qty', '<', 'ordered_qty')
+            ->whereNotExists(fn ($exists) => $exists
+                ->from('job_cards')
+                ->whereColumn('job_cards.sales_order_line_id', 'sales_order_lines.id')
+                ->whereNotIn('job_cards.status', ['cancelled']));
+
+        $query->withExists(['lines as awaits_job_card' => $awaitingJobCard]);
+
         // The dashboard's "waiting for a job card" queue needs somewhere to land. An order
         // qualifies when a line still has quantity to make and no live card covers it —
         // the same condition `JobCardController::create()` builds its line list from.
         if ($request->query('awaiting') === 'job_card') {
             $query->whereIn('status', ['confirmed', 'in_production'])
-                ->whereHas('lines', fn ($line) => $line
-                    ->whereColumn('produced_qty', '<', 'ordered_qty')
-                    ->whereNotExists(fn ($exists) => $exists
-                        ->from('job_cards')
-                        ->whereColumn('job_cards.sales_order_line_id', 'sales_order_lines.id')
-                        ->whereNotIn('job_cards.status', ['cancelled'])));
+                ->whereHas('lines', $awaitingJobCard);
         }
 
         return Inertia::render('Sales/SalesOrders/Index', [
@@ -83,6 +96,12 @@ class SalesOrderController extends Controller
                     'currency' => $order->currency?->code,
                     'status' => $order->status,
                     'lines_count' => $order->lines_count,
+                    // F-08 — a queue that only names the work is half a queue. This is what
+                    // lets the row offer "Create job card" instead of Open and Edit.
+                    'awaits_job_card' => in_array($order->status, ['confirmed', 'in_production'], true)
+                        // Set by the `withExists()` above, so it is an attribute rather than a
+                        // declared property on the model.
+                        && (bool) $order->getAttribute('awaits_job_card'),
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'customer', 'late', 'awaiting']),
@@ -121,7 +140,7 @@ class SalesOrderController extends Controller
             ->with('success', 'Draft order created. Confirm it once artwork and specs are in place.');
     }
 
-    public function show(SalesOrder $salesOrder): Response
+    public function show(Request $request, SalesOrder $salesOrder): Response
     {
         $salesOrder->load([
             'customer',
@@ -159,6 +178,10 @@ class SalesOrderController extends Controller
                     'min' => round((float) $line->ordered_qty * (1 - (float) $line->under_tolerance_pct / 100), 0),
                     'max' => round((float) $line->ordered_qty * (1 + (float) $line->over_tolerance_pct / 100), 0),
                 ],
+                // BR-53 — live job cards committing more than this line can now take, which is
+                // what an amendment downwards leaves behind. Stated rather than left for
+                // somebody to notice at the loading bay.
+                'over_allocation' => $this->planning->overAllocation($line),
             ]),
             // S3 readiness, per line, so the confirm button explains itself before it is pressed.
             'readiness' => $salesOrder->lines->map(fn (SalesOrderLine $line): array => [
@@ -190,6 +213,9 @@ class SalesOrderController extends Controller
                               WHERE o.job_card_id = jc.id
                               ORDER BY o.sequence_no DESC LIMIT 1), 0) as good_qty')
                 ->get(),
+            // F-01/F-02 — the order's own history: confirmed, held, amended, closed and by
+            // whom. Recorded all along and shown nowhere.
+            'trail' => $this->trail->for($salesOrder, $request->user()),
             // P0-4 — the fulfilment strip: every figure from its authoritative source, the
             // packed number derived from carton contents rather than cached anywhere.
             'fulfilment' => [
@@ -249,6 +275,13 @@ class SalesOrderController extends Controller
             return back()->with('error', 'S2: changing a confirmed order requires an amendment reason.');
         }
 
+        // S1 — documented since the domain model and commented in `recordAmendments()`, but
+        // never actually enforced: `ordered_qty` was validated as `numeric|gt:0` and nothing
+        // more. An order reduced below what the floor has already made leaves production it
+        // can never be delivered against, which is how a line ordered for 20,000 came to carry
+        // 45,883 produced.
+        $this->guardReduction($salesOrder, $data['lines']);
+
         DB::transaction(function () use ($salesOrder, $data, $request, $isConfirmed): void {
             if ($isConfirmed) {
                 $this->recordAmendments($salesOrder, $data, (string) $request->input('amendment_reason'), $request->user()->id);
@@ -302,6 +335,51 @@ class SalesOrderController extends Controller
         }
 
         return back()->with('success', "Order moved to {$data['to']}.");
+    }
+
+    /** @return array<string, mixed> */
+    /**
+     * S1 — a line's ordered quantity may not fall below what has already been produced.
+     *
+     * Production that has happened cannot be un-made, so the order has to keep enough quantity
+     * to receive it. Reducing *below committed job cards* is a different and lesser thing —
+     * that work may not have started, the customer genuinely did cut the order, and cancelling
+     * a card is a planner's decision rather than a side effect of an edit. That case is
+     * allowed and surfaced (BR-53), not refused here.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     *
+     * @throws ValidationException
+     */
+    private function guardReduction(SalesOrder $order, array $lines): void
+    {
+        $existing = $order->lines()->get()->keyBy('id');
+
+        foreach ($lines as $index => $line) {
+            $id = $line['id'] ?? null;
+
+            if ($id === null || ! $existing->has($id)) {
+                continue;
+            }
+
+            $current = $existing->get($id);
+            $produced = (float) $current->produced_qty;
+            $wanted = (float) $line['ordered_qty'];
+
+            if ($produced <= 0 || $wanted >= $produced - 0.000001) {
+                continue;
+            }
+
+            throw ValidationException::withMessages([
+                "lines.{$index}.ordered_qty" => sprintf(
+                    'Line %d has already produced %s pcs, so it cannot be reduced to %s (S1). Production that has happened cannot be un-ordered — reduce it to %s or more, or cancel the job cards first and scrap the output through a stock adjustment.',
+                    $current->line_no,
+                    rtrim(rtrim(number_format($produced, 6, '.', ','), '0'), '.'),
+                    rtrim(rtrim(number_format($wanted, 6, '.', ','), '0'), '.'),
+                    rtrim(rtrim(number_format($produced, 6, '.', ','), '0'), '.'),
+                ),
+            ]);
+        }
     }
 
     /** @return array<string, mixed> */

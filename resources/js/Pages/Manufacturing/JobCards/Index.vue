@@ -14,6 +14,29 @@ import CodeName from '@/Components/Ui/CodeName.vue';
 
 const props = defineProps({ jobCards: Object, filters: Object });
 
+/**
+ * F-08 — a list a work queue lands on should offer the work.
+ *
+ * `material_pending` is deliberately absent from the issue action: material moves against a
+ * card that has been released, and the state machine takes a card from `material_pending` to
+ * `released`, not straight to an issue. Offering "Issue material" on the queue that is named
+ * after waiting for material would have looked helpful and led to a form that refuses to
+ * preselect the card. The statuses here are the ones `MaterialIssueController::create()`
+ * actually accepts; the server remains the authority either way.
+ */
+const ISSUABLE_STATUSES = ['released', 'in_production', 'qc_pending', 'completed'];
+
+function rowActions(row) {
+    return [
+        {
+            label: 'Issue material',
+            hidden: !can('stock_issue.create') || !ISSUABLE_STATUSES.includes(row.status),
+            onSelect: () => router.visit(`/material-issues/create?job_card=${row.id}`),
+        },
+        { label: 'Open', onSelect: () => router.visit(`/job-cards/${row.id}`) },
+    ];
+}
+
 // Status and Due beside the number — the two columns anyone actually scans were the two
 // that sat behind the horizontal scrollbar.
 const columns = [
@@ -46,10 +69,10 @@ const columns = [
             <DataTable
                 :columns="columns"
                 :rows="jobCards"
-                row-key="id" :row-href="(row) => `/job-cards/${row.id}`"
+                row-key="id" :actions="rowActions" :row-href="(row) => `/job-cards/${row.id}`"
                 empty="No job cards match these filters."
             >
-                <template #cell:number="{ row, value }"><span class="font-medium text-brand-700">{{ value ?? "(unnumbered)" }}</span></template>
+                <template #cell:number="{ row, value }"><span class="doc-link-quiet">{{ value ?? "(unnumbered)" }}</span></template>
                 <template #cell:product="{ row }"><CodeName v-if="row.product" :code="row.product.code" :name="row.product.name" /></template>
                 <template #cell:planned_qty="{ row, value }">{{ pcs(value) }}</template>
                 <template #cell:good_qty="{ row, value }">{{ pcs(value) }}</template>

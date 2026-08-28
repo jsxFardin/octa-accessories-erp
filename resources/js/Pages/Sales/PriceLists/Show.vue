@@ -64,7 +64,7 @@ const byProduct = computed(() => {
                     empty="No breaks."
                 >
                     <template #cell:min_qty="{ value }">{{ pcs(value) }} pcs</template>
-                    <template #cell:rate_per_m="{ value }">{{ ratePerM(value) }}</template>
+                    <template #cell:rate_per_m="{ value }">{{ ratePerM(value, list.currency) }}</template>
                 </DataTable>
             </Card>
 

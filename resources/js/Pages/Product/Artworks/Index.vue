@@ -96,7 +96,7 @@ const columns = [
                         @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
-                <template #cell:code="{ value }"><span class="font-medium text-brand-700">{{ value }}</span></template>
+                <template #cell:code="{ value }"><span class="doc-link-quiet">{{ value }}</span></template>
                 <template #cell:latest_version="{ value }">
                     <span v-if="value" class="flex items-center gap-1">
                         <span class="tnum text-xs">v{{ value.version_no }}</span>

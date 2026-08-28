@@ -8,6 +8,7 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
+import ActivityTrail from '@/Components/Ui/ActivityTrail.vue';
 import { date, isoDate, money, pcs, ratePerM, relative, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -27,6 +28,8 @@ const props = defineProps({
     creditCheck: { type: Object, required: true },
     availableTransitions: { type: Array, default: () => [] },
     amendments: { type: Array, default: () => [] },
+    /** F-01/F-02 — this order's own history. */
+    trail: { type: Array, default: () => [] },
     jobCards: { type: Array, default: () => [] },
     fulfilment: { type: Object, default: null },
     challans: { type: Array, default: () => [] },
@@ -96,7 +99,7 @@ const lineColumns = [
 
         <template #title>{{ order.number ?? '(unnumbered)' }}<span v-if="order.revision_no" class="text-ink-400">/R{{ order.revision_no }}</span></template>
         <template #subtitle>
-            <Link :href="`/customers/${order.customer?.id}`" class="hover:underline">{{ order.customer?.name }}</Link>
+            <Link :href="`/customers/${order.customer?.id}`" class="doc-link">{{ order.customer?.name }}</Link>
             <span v-if="order.customer_po_no"> · PO {{ order.customer_po_no }}</span>
             · due {{ date(order.delivery_date) }}
         </template>
@@ -168,7 +171,7 @@ const lineColumns = [
                 </dl>
                 <ul v-if="challans.length" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">
                     <li v-for="challan in challans" :key="challan.id" class="flex items-center justify-between py-1.5">
-                        <Link :href="`/delivery-challans/${challan.id}`" class="font-medium text-brand-700">{{ challan.number ?? '(draft challan)' }}</Link>
+                        <Link :href="`/delivery-challans/${challan.id}`" class="doc-link-quiet">{{ challan.number ?? '(draft challan)' }}</Link>
                         <span class="tnum">{{ pcs(challan.total_qty) }}</span>
                         <span class="text-xs text-ink-500">{{ date(challan.challan_date) }}</span>
                         <Badge :status="challan.status" />
@@ -180,20 +183,35 @@ const lineColumns = [
                 <DataTable :columns="lineColumns" :rows="lines" row-key="id" empty="No lines." dense>
                     <template #cell:product="{ row }">
                         <span class="inline-flex min-w-0 items-baseline gap-1.5">
-                            <Link v-if="row.product" :href="`/products/${row.product.id}`" class="shrink-0 font-medium text-brand-700 hover:underline">
+                            <Link v-if="row.product" :href="`/products/${row.product.id}`" class="doc-link-quiet shrink-0">
                                 {{ row.product.code }}
                             </Link>
                             <span class="truncate text-ink-500">{{ row.description ?? row.product?.name }}</span>
                         </span>
                     </template>
-                    <template #cell:ordered_qty="{ value }">{{ pcs(value) }}</template>
+                    <!--
+                        BR-53 — an order amended downwards after its job cards were raised
+                        leaves the floor committed to more than the order can take. The work is
+                        not undone (S1 keeps the order above what was made); the surplus is a
+                        decision somebody has to make, and it cannot be made if nobody is told.
+                    -->
+                    <template #cell:ordered_qty="{ row, value }">
+                        {{ pcs(value) }} pcs
+                        <span
+                            v-if="row.over_allocation"
+                            class="mt-0.5 block text-[11px] font-medium text-amber-700"
+                            :title="`${pcs(row.over_allocation.committed)} pcs committed to ${row.over_allocation.live_cards} live job card(s) against an allowance of ${pcs(row.over_allocation.allowance)} pcs.`"
+                        >
+                            {{ pcs(row.over_allocation.excess) }} pcs over-allocated
+                        </span>
+                    </template>
                     <template #cell:produced_qty="{ value }">{{ pcs(value) }}</template>
                     <template #cell:delivered_qty="{ value }">{{ pcs(value) }}</template>
                     <template #cell:remaining_qty="{ row }">{{ pcs(Math.max(0, row.ordered_qty - row.delivered_qty)) }}</template>
                     <template #cell:band="{ row }">
                         <span class="text-xs text-ink-500">{{ pcs(row.delivery_band.min) }}–{{ pcs(row.delivery_band.max) }}</span>
                     </template>
-                    <template #cell:rate_per_m="{ value }">{{ ratePerM(value) }}</template>
+                    <template #cell:rate_per_m="{ value }">{{ ratePerM(value, order.currency) }}</template>
                     <template #cell:line_total="{ value }">{{ money(value, order.currency) }}</template>
                     <template #cell:gate="{ row }">
                         <span class="flex gap-1">
@@ -301,6 +319,9 @@ const lineColumns = [
                     </ul>
                 </Card>
             </div>
+
+            <!-- F-01/F-02 — confirmed, held, amended, closed: recorded all along, shown nowhere. -->
+            <ActivityTrail :entries="trail" title="Activity" />
         </div>
 
         <Modal v-model:open="releaseOpen" title="Release the credit hold" subtitle="Audit-logged, and only Accounts or the MD may do it.">

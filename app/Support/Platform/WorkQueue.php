@@ -41,8 +41,13 @@ class WorkQueue
 
             // A purchase manager is not shown orders only the MD can sign — that is someone
             // else's queue, and a count you cannot clear is noise (06-rbac §5).
+            //
+            // BR-51 — the band is base currency and `total` is the order's own, so comparing
+            // them raw put a USD order worth well over the band into the manager's queue as a
+            // number that looked under it. Converted at the rate the order records (BR-22), so
+            // this queue and the guard that refuses the approval agree.
             if (! $isMd) {
-                $query->where('total', '<=', $band);
+                $query->whereRaw('total * COALESCE(exchange_rate, 1) <= ?', [$band]);
             }
 
             $entries[] = [

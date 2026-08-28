@@ -154,6 +154,8 @@ Members: `quotation_lines`, `cost_sheets`, `cost_sheet_lines`
 ### 3.4 Sales Order (root: `sales_orders`)
 Members: `sales_order_lines`, `so_delivery_schedules`, `so_amendments`
 - **S1** `ordered_qty` may only be reduced above the sum of already-produced quantity.
+  Enforced on the update path (`SalesOrderController::guardReduction()`); reducing below what
+  job cards have merely *committed* is a different and permitted thing, surfaced by BR-53.
 - **S2** Every quantity change after `confirmed` writes an `so_amendments` row with reason and user. No silent edits.
 - **S3** A line cannot be confirmed unless its Product has a `current` spec **and** an `approved` artwork version.
 - **S4** Over-delivery is allowed only up to the line's `tolerance_pct` (default 5%, configurable per customer).

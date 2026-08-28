@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * @property int $id
  * @property int $quotation_id
+ * @property int|null $inquiry_line_id
  * @property int $line_no
  * @property int|null $product_id
  * @property int|null $product_spec_id
@@ -29,6 +30,7 @@ class QuotationLine extends Model
 
     protected $fillable = [
         'quotation_id',
+        'inquiry_line_id',
         'line_no',
         'product_id',
         'product_spec_id',
@@ -46,6 +48,7 @@ class QuotationLine extends Model
     {
         return [
             'quotation_id' => 'integer',
+            'inquiry_line_id' => 'integer',
             'line_no' => 'integer',
             'product_id' => 'integer',
             'product_spec_id' => 'integer',

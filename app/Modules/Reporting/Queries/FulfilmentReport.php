@@ -46,6 +46,7 @@ class FulfilmentReport extends ReportQuery
             ['key' => 'received_amount', 'label' => 'Received', 'align' => 'right', 'format' => 'money'],
             ['key' => 'credited_amount', 'label' => 'Credited', 'align' => 'right', 'format' => 'money'],
             ['key' => 'outstanding_amount', 'label' => 'Outstanding', 'align' => 'right', 'format' => 'money'],
+            ['key' => 'currency', 'label' => 'Currency'],
             ['key' => 'fulfilment_status', 'label' => 'Status', 'format' => 'status'],
         ];
     }
@@ -53,6 +54,17 @@ class FulfilmentReport extends ReportQuery
     public function documentPath(): ?string
     {
         return '/sales-orders';
+    }
+
+    // BR-50 — this report spans documents raised in more than one currency.
+    public function currencyColumn(): ?string
+    {
+        return 'currency';
+    }
+
+    public function baseRateColumn(): ?string
+    {
+        return 'base_rate';
     }
 
     public function filterFields(): array
@@ -109,6 +121,7 @@ class FulfilmentReport extends ReportQuery
 
         $query = DB::table('sales_orders as so')
             ->join('customers as c', 'c.id', '=', 'so.customer_id')
+            ->leftJoin('currencies as cur', 'cur.id', '=', 'so.currency_id')
             ->leftJoinSub($lines, 'lines', 'lines.sales_order_id', '=', 'so.id')
             ->leftJoinSub($fgReceived, 'fg', 'fg.sales_order_id', '=', 'so.id')
             ->leftJoinSub($available, 'avail', 'avail.sales_order_id', '=', 'so.id')
@@ -119,6 +132,8 @@ class FulfilmentReport extends ReportQuery
                 so.id,
                 so.number,
                 c.name as customer,
+                cur.code as currency,
+                COALESCE(so.exchange_rate, 1) as base_rate,
                 so.order_date,
                 COALESCE(lines.ordered_qty, 0) as ordered_qty,
                 COALESCE(lines.produced_qty, 0) as produced_qty,

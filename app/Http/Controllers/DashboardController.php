@@ -77,9 +77,30 @@ class DashboardController extends Controller
     }
 
     /** @return list<array{status: string, count: int}> */
+    /**
+     * F-12 — the status breakdown, scoped to the same cards the "not yet closed" tile counts.
+     *
+     * This counted *every* job card, with no status filter, and sat directly beneath a tile
+     * counting only the ones still open. The two agreed at the time of the audit purely
+     * because no card had yet been closed or cancelled — the first `closed` card would have
+     * made the breakdown outnumber the tile above it with no explanation on screen.
+     *
+     * The tile's definition is not changed. `completed` is genuinely still open work: the
+     * state machine has `completed → closed` behind the `job_card.close` permission, so a
+     * completed card is one waiting for somebody to close it, not one that is done with.
+     * What was wrong here was the breakdown's scope, not the tile's.
+     *
+     * @return list<array<string, mixed>>
+     */
     private function jobCardsByStatus(): array
     {
-        return DB::table('job_cards')
+        // `toBase()` because this is an aggregate, not a set of job cards: hydrating a model
+        // whose only attributes are `status` and `count` is what made `$row->count` an
+        // undefined property on JobCard. The `open()` scope still decides what is counted, so
+        // the definition stays in one place.
+        return JobCard::query()
+            ->open()
+            ->toBase()
             ->select('status', DB::raw('COUNT(*) as count'))
             ->groupBy('status')
             ->orderByDesc('count')

@@ -6,7 +6,7 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
-import { date, money, pcs, pct, qty, titleCase } from '@/plugins/formatting';
+import { baseCurrency, date, money, pcs, pct, qty, titleCase } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -15,6 +15,8 @@ const props = defineProps({
     totals: { type: Object, default: () => ({}) },
     extras: { type: Object, default: () => ({}) },
     applied: { type: Object, default: () => ({}) },
+    /** BR-50 — what the totals row is in, and what it was made from. */
+    totalsMeta: { type: Object, default: () => ({ converted: false, mixed: false, by_currency: {} }) },
 });
 
 const totalColumns = computed(() =>
@@ -24,7 +26,14 @@ const totalColumns = computed(() =>
 const reconciliation = computed(() => props.extras?.reconciliation ?? null);
 const movements = computed(() => props.extras?.movements ?? []);
 
-function formatValue(column, value) {
+/**
+ * BR-50 — a money cell is labelled with the currency of the document it came from.
+ *
+ * `money(value)` alone falls back to the factory's currency, which is how a USD 11.63 invoice
+ * came to be reported as BDT 11.63. The row carries its own code; where a report is
+ * single-currency there is none and the base-currency fallback is correct.
+ */
+function formatValue(column, value, row = null) {
     if (value === null || value === undefined || value === '') {
         return '—';
     }
@@ -33,7 +42,7 @@ function formatValue(column, value) {
         case 'qty':
             return Number.isInteger(Number(value)) ? pcs(value) : qty(value);
         case 'money':
-            return money(value);
+            return money(value, row?.currency ?? undefined);
         case 'date':
             return date(value);
         case 'pct':
@@ -42,6 +51,28 @@ function formatValue(column, value) {
             return value;
     }
 }
+
+/**
+ * The totals row is always in the factory's own currency: on a mixed set it is the only
+ * aggregate that means anything, and it is reached by converting each document at the rate
+ * that document itself recorded (BR-22).
+ */
+function formatTotal(column) {
+    const value = props.totals[column.key];
+
+    if (column.format !== 'money') {
+        return formatValue(column, value);
+    }
+
+    return money(value, baseCurrency());
+}
+
+/** The currencies behind a converted total, so the figure can be checked rather than trusted. */
+const currencyBreakdown = computed(() => {
+    const by = props.totalsMeta?.by_currency ?? {};
+
+    return Object.entries(by).map(([code, amounts]) => ({ code, amounts }));
+});
 
 function rowHref(row) {
     if (!props.report.document_path || !row?.id) {
@@ -110,10 +141,31 @@ function rowHref(row) {
                     <div v-for="column in totalColumns" :key="column.key">
                         <dt class="text-[11px] text-ink-500">{{ column.label }}</dt>
                         <dd class="tnum text-sm font-semibold text-ink-900">
-                            {{ formatValue(column, totals[column.key]) }}
+                            {{ formatTotal(column) }}
                         </dd>
                     </div>
                 </div>
+
+                <!--
+                    BR-50. Adding a dollar invoice to a taka one at face value is not a total,
+                    it is a wrong number. Where the set really is mixed, say so, say what the
+                    converted figure is in, and show the untouched amounts it came from.
+                -->
+                <p
+                    v-if="totalsMeta.mixed"
+                    class="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                >
+                    These rows span more than one currency. The totals above are converted to
+                    <span class="font-medium">{{ baseCurrency() }}</span> at the rate recorded on each
+                    document (BR-22). Before conversion:
+                    <span v-for="(group, index) in currencyBreakdown" :key="group.code">
+                        <span v-if="index">; </span>
+                        <span class="font-medium">{{ group.code }}</span>
+                        <template v-for="(amount, key) in group.amounts" :key="key">
+                            {{ ' ' }}{{ money(amount, group.code) }}
+                        </template>
+                    </span>.
+                </p>
 
                 <DataTable
                     :columns="report.columns"
@@ -122,15 +174,15 @@ function rowHref(row) {
                     :row-href="report.document_path ? rowHref : null"
                     empty="Nothing matches these filters."
                 >
-                    <template v-for="column in report.columns" :key="column.key" #[`cell:${column.key}`]="{ value }">
-                        <span v-if="column.key === 'number'" class="font-medium text-brand-700">{{ value ?? '—' }}</span>
+                    <template v-for="column in report.columns" :key="column.key" #[`cell:${column.key}`]="{ row, value }">
+                        <span v-if="column.key === 'number'" class="doc-link-quiet">{{ value ?? '—' }}</span>
                         <Badge v-else-if="column.format === 'status'" :status="value" />
                         <Badge
                             v-else-if="column.key === 'overdue' || column.key === 'is_overdue'"
                             :tone="value === 'yes' ? 'danger' : 'neutral'"
                             :label="titleCase(value)"
                         />
-                        <span v-else>{{ formatValue(column, value) }}</span>
+                        <span v-else>{{ formatValue(column, value, row) }}</span>
                     </template>
                     <template #empty>
                         <EmptyState

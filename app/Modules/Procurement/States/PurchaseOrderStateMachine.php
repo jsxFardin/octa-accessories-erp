@@ -95,11 +95,17 @@ class PurchaseOrderStateMachine extends StateMachine
     /**
      * 06-rbac §5 — the approver's band has to cover the value. A purchase manager cannot sign
      * off a 400,000 BDT order simply because they hold `purchase_order.approve`.
+     *
+     * BR-51 — the band is a **base-currency** figure and the order's total is in whatever
+     * currency the order was raised in, so the two were not comparable. A USD 1,000 order is
+     * BDT 122,500 and sailed under a BDT 100,000 band as the number `1000`: a purchase manager
+     * could approve, alone, an order that needed the Managing Director. The order is converted
+     * at the rate it itself records (BR-22) before the comparison.
      */
     private function guardApproval(PurchaseOrder $order): void
     {
         $band = $this->settings->decimal('po_approval_band_manager', 100000);
-        $value = (float) $order->total;
+        $value = $this->baseValue($order);
 
         if ($value <= $band) {
             return;
@@ -112,12 +118,30 @@ class PurchaseOrderStateMachine extends StateMachine
             throw TransitionDenied::guard(
                 '06-rbac §5',
                 sprintf(
-                    'This order is %s, above the %s band a purchase manager may approve. It needs the Managing Director.',
+                    'This order is worth %s %s, above the %s %s band a purchase manager may approve. It needs the Managing Director.',
+                    $this->baseCurrencyCode(),
                     number_format($value, 2),
+                    $this->baseCurrencyCode(),
                     number_format($band, 2),
                 ),
             );
         }
+    }
+
+    /**
+     * BR-51 — the order's value in the factory's own currency, which is the unit every
+     * approval band, credit limit and settings threshold in this system is expressed in.
+     */
+    public function baseValue(PurchaseOrder $order): float
+    {
+        $rate = (float) $order->exchange_rate;
+
+        return round((float) $order->total * ($rate > 0 ? $rate : 1.0), 4);
+    }
+
+    private function baseCurrencyCode(): string
+    {
+        return (string) $this->settings->get('base_currency', 'BDT');
     }
 
     /**

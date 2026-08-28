@@ -7,6 +7,7 @@ namespace App\Support\Notifications;
 use App\Models\User;
 use App\Modules\Finance\Models\CreditNote;
 use App\Modules\Finance\Models\SalesInvoice;
+use App\Modules\Finance\States\CreditNoteStateMachine;
 use App\Modules\Quality\Models\Ncr;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Notifications\DocumentNotification;
@@ -85,6 +86,9 @@ class Notifier
                 'action' => 'overdue',
                 'href' => '/ncrs/'.$ncr->id,
                 'title' => 'NCR '.$ncr->number.' CAPA is overdue',
+                'body' => 'The corrective action was due on '.$dueDate.' and has not been recorded. '
+                    .'An overdue CAPA is what a brand audit looks for first. Record what was done, '
+                    .'or move the date and say why.',
                 'dedupe_key' => 'ncr:overdue:'.$ncr->id.':'.$dueDate,
             ]);
         });
@@ -101,6 +105,9 @@ class Notifier
                     'action' => 'action_taken',
                     'href' => '/ncrs/'.$ncr->id,
                     'title' => 'NCR '.$ncr->number.' needs verification',
+                    'body' => 'The corrective action has been carried out and is waiting for someone '
+                        .'other than the person who did it to confirm it worked. The NCR stays open, '
+                        .'and the batch with it, until that is recorded.',
                     'dedupe_key' => 'ncr:action_taken:'.$ncr->id,
                 ]);
             }
@@ -124,6 +131,8 @@ class Notifier
                     'action' => 'closed',
                     'href' => '/ncrs/'.$ncr->id,
                     'title' => 'NCR '.$ncr->number.' is closed',
+                    'body' => 'The action was verified and the NCR is closed, so nothing further is '
+                        .'needed from you. Open it if you want the record of what was done.',
                     'dedupe_key' => 'ncr:closed:'.$ncr->id,
                 ]);
             }
@@ -202,6 +211,16 @@ class Notifier
                     'action' => 'overdue',
                     'href' => '/invoices/'.$invoice->id,
                     'title' => 'Invoice '.$invoice->number.' is overdue',
+                    'body' => sprintf(
+                        '%s is past its due date of %s and %s is still outstanding. Chase the '
+                        .'payment, or record a receipt if it has already been settled.',
+                        // `sales_invoices.customer_id` is NOT NULL with the key enforced.
+                        $invoice->customer->name,
+                        $invoice->due_date?->toDateString() ?? 'its agreed date',
+                        // BR-47 — most invoices here are raised in USD; an unlabelled figure
+                        // beside a taka one is how two currencies read as one.
+                        $this->money((float) $invoice->total - (float) $invoice->received_amount, $invoice->currency_id),
+                    ),
                     'dedupe_key' => 'invoice:overdue:'.$invoice->id,
                 ]);
             }
@@ -212,7 +231,10 @@ class Notifier
     {
         $this->afterCommit(function () use ($note): void {
             $band = $this->settings->decimal('credit_note_approval_band_accounts', 50000);
-            $aboveBand = (float) $note->amount > $band;
+            // BR-51 — the band is base currency, so the note is converted before comparing.
+            // The state machine owns the arithmetic; asking it here keeps who-gets-told and
+            // who-may-sign the same answer.
+            $aboveBand = app(CreditNoteStateMachine::class)->baseValue($note) > $band;
             $users = $this->usersWith(['credit_note.approve'], $aboveBand ? 'md' : null);
 
             foreach ($users as $user) {
@@ -223,10 +245,33 @@ class Notifier
                     'action' => 'draft',
                     'href' => '/credit-notes/'.$note->id,
                     'title' => 'Credit note awaiting approval',
+                    'body' => sprintf(
+                        'A credit note for %s is waiting for approval%s. Nothing is credited to the '
+                        .'customer until it is approved. Review what it is for and approve or reject it.',
+                        $this->money((float) $note->amount, $note->currency_id ?? null),
+                        $aboveBand ? ' and is above the accounts approval band, so only the MD may sign it' : '',
+                    ),
                     'dedupe_key' => 'credit_note:draft:'.$note->id,
                 ]);
             }
         });
+    }
+
+    /**
+     * An amount with the currency it is actually in (BR-47).
+     *
+     * A notification is read away from the document, with none of the context the screen gives,
+     * so an unlabelled figure is worse here than anywhere: `1,240.00` means two very different
+     * debts depending on whether the invoice behind it was raised in dollars or taka, and most
+     * of this factory's are in dollars.
+     */
+    private function money(float $amount, ?int $currencyId): string
+    {
+        $code = $currencyId === null
+            ? null
+            : DB::table('currencies')->where('id', $currencyId)->value('code');
+
+        return ($code ?? $this->settings->get('base_currency', 'BDT')).' '.number_format($amount, 2);
     }
 
     /**

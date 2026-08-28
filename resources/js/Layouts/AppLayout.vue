@@ -465,7 +465,14 @@ const paletteHint = computed(() =>
                         <h1 class="truncate text-base leading-tight font-semibold text-ink-900">
                             <slot name="title" />
                         </h1>
-                        <p v-if="$slots.subtitle" class="truncate text-xs text-ink-500">
+                        <!--
+                            Wraps on a narrow screen, truncates from `sm` up. `truncate` alone
+                            is `nowrap` + `overflow:hidden`, so on a 390px phone the tail of
+                            this line was not merely shortened — the backlink to the source
+                            document lived there and was clipped away entirely, taking the only
+                            route back to the inquiry or order with it.
+                        -->
+                        <p v-if="$slots.subtitle" class="text-xs text-ink-500 sm:truncate">
                             <slot name="subtitle" />
                         </p>
                     </div>

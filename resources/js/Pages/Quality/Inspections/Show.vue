@@ -21,7 +21,7 @@ defineProps({
         <template #title>{{ inspection.number }}</template>
         <template #subtitle>
             {{ titleCase(inspection.stage) }} inspection · {{ date(inspection.inspected_on) }}
-            <Link v-if="jobCard" :href="`/job-cards/${jobCard.id}`" class="hover:underline"> · {{ jobCard.number }}</Link>
+            <Link v-if="jobCard" :href="`/job-cards/${jobCard.id}`" class="doc-link"> · {{ jobCard.number }}</Link>
         </template>
 
         <template #actions><Badge :status="inspection.result" /></template>
@@ -62,7 +62,7 @@ defineProps({
 
                 <p v-if="ncr" class="mt-4 text-sm">
                     NCR
-                    <Link :href="`/ncrs/${ncr.id}`" class="font-medium text-brand-700">{{ ncr.number }}</Link>
+                    <Link :href="`/ncrs/${ncr.id}`" class="doc-link-quiet">{{ ncr.number }}</Link>
                     <Badge :status="ncr.status" class="ml-1" />
                 </p>
             </Card>

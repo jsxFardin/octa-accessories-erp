@@ -94,7 +94,7 @@ function openReject(version) {
 
         <template #title>{{ artwork.code }} · {{ artwork.title }}</template>
         <template #subtitle>
-            <Link v-if="artwork.product" :href="`/products/${artwork.product.id}`" class="hover:underline">
+            <Link v-if="artwork.product" :href="`/products/${artwork.product.id}`" class="doc-link">
                 {{ artwork.product.code }} — {{ artwork.product.name }}
             </Link>
             <span v-if="artwork.customer"> · {{ artwork.customer.name }}</span>

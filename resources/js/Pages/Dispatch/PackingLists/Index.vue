@@ -41,7 +41,7 @@ const columns = [
                 row-key="id"
                 empty="No packing lists yet."
             >
-                <template #cell:number="{ row, value }"><Link :href="`/packing-lists/${row.id}`" class="font-medium text-brand-700">{{ value ?? "(draft)" }}</Link></template>
+                <template #cell:number="{ row, value }"><Link :href="`/packing-lists/${row.id}`" class="doc-link-quiet">{{ value ?? "(draft)" }}</Link></template>
                 <template #cell:packed_on="{ row, value }">{{ date(value) }}</template>
                 <template #cell:total_qty="{ row, value }">{{ pcs(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>

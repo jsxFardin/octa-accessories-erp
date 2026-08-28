@@ -22,6 +22,15 @@ const props = defineProps({
     /** Shown on the left — a document total, a line count, a warning. */
     summary: { type: String, default: null },
     disabled: { type: Boolean, default: false },
+    /**
+     * Why the save button is disabled, in words.
+     *
+     * A control that refuses without saying why is a dead end, and for a screen-reader user it
+     * is a button that simply is not there. It is also the reason a form's own validation
+     * message used to disappear at the worst moment: `summary` was overwritten by "Unsaved
+     * changes" the instant the user typed, which is precisely when the reason mattered.
+     */
+    disabledReason: { type: String, default: null },
 });
 
 const emit = defineEmits(['save']);
@@ -78,7 +87,10 @@ onUnmounted(() => {
          short form, and still sticky while a long one scrolls past. -->
     <div class="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-slate-200 bg-white/95 px-4 pt-2.5 pb-2.5 backdrop-blur print:hidden">
         <div class="flex flex-wrap items-center gap-3">
-            <span v-if="form?.isDirty" class="text-xs text-amber-700">Unsaved changes</span>
+            <!-- The blocking reason outranks both: it is the thing standing between the user
+                 and the button they are trying to press. -->
+            <span v-if="disabled && disabledReason" id="form-footer-reason" class="text-xs text-rose-700">{{ disabledReason }}</span>
+            <span v-else-if="form?.isDirty" class="text-xs text-amber-700">Unsaved changes</span>
             <span v-else-if="summary" class="text-xs text-ink-500">{{ summary }}</span>
 
             <div class="ml-auto flex items-center gap-2">
@@ -87,6 +99,8 @@ onUnmounted(() => {
                     variant="primary"
                     :loading="form?.processing"
                     :disabled="disabled"
+                    :title="disabled ? (disabledReason ?? 'Complete the form before saving.') : null"
+                    :aria-describedby="disabled && disabledReason ? 'form-footer-reason' : null"
                     @click="save"
                 >
                     {{ label }}

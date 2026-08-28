@@ -156,7 +156,7 @@ function weekday(value) {
             <Card title="Unscheduled operations" subtitle="Waiting for a machine and a slot" :padded="false">
                 <ul class="divide-y divide-slate-100 text-sm">
                     <li v-for="op in unscheduled" :key="op.id" class="flex flex-wrap items-center gap-3 px-3 py-2">
-                        <Link :href="`/job-cards/${op.job_card_id}`" class="font-medium text-brand-700">
+                        <Link :href="`/job-cards/${op.job_card_id}`" class="doc-link-quiet">
                             {{ op.number ?? '(unnumbered)' }}
                         </Link>
                         <span class="text-ink-700">{{ op.name }}</span>

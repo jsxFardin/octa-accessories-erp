@@ -305,6 +305,8 @@ class CostSheetCalculator
         $labourCost = 0.0;
         $energyCost = 0.0;
         $totalHours = 0.0;
+        $totalKwh = 0.0;
+        $steps = 0;
 
         foreach ($input->routing as $step) {
             if ($step->stdRatePerHour <= 0) {
@@ -318,27 +320,69 @@ class CostSheetCalculator
 
             $hours = $outputUnits / $step->stdRatePerHour + $step->setupMinutes / 60;
             $totalHours += $hours;
+            $steps++;
 
             $machineCost += $hours * $step->machineHourlyRate;
 
             $labourRate = $step->labourRatePerHour > 0 ? $step->labourRatePerHour : $input->labourRatePerHour;
             $labourCost += $hours * $step->manningLevel * $labourRate;
 
+            // The energy line is booked in kWh, not in hours: a 40 kW press and a 4 kW folder
+            // running the same hour do not draw the same power, and pricing hours at a
+            // per-kWh tariff is how `63.971 × 8.5` stopped equalling the amount beside it.
+            $totalKwh += $hours * $step->machineKwRating;
             $energyCost += $hours * $step->machineKwRating * $input->tariffPerKwh;
         }
 
         $lines = [];
 
+        // Each routing step has its own machine rate, manning level and tariff draw, so there
+        // is no single rate to print — and the sheet used to print `0.0000` beside a non-zero
+        // amount, which no one could reconcile. What is printed instead is the blended rate
+        // the job actually paid: amount ÷ quantity, so the row multiplies out.
+        $blend = static fn (float $amount, float $quantity): float => $quantity > 0
+            ? round($amount / $quantity, 6)
+            : 0.0;
+
+        $across = $steps > 1 ? " · blended across {$steps} operations" : null;
+
         if ($machineCost > 0) {
-            $lines[] = new CostLine($seq++, 'machine', 'hour', round($totalHours, 6), 0.0, round($machineCost, 4), 'BR-16');
+            $lines[] = new CostLine(
+                $seq++,
+                'machine',
+                'hour',
+                round($totalHours, 6),
+                $blend($machineCost, $totalHours),
+                round($machineCost, 4),
+                'BR-16',
+                'Machine hours at the weighted average machine rate'.$across,
+            );
         }
 
         if ($labourCost > 0) {
-            $lines[] = new CostLine($seq++, 'labour', 'hour', round($totalHours, 6), 0.0, round($labourCost, 4), 'BR-17');
+            $lines[] = new CostLine(
+                $seq++,
+                'labour',
+                'hour',
+                round($totalHours, 6),
+                $blend($labourCost, $totalHours),
+                round($labourCost, 4),
+                'BR-17',
+                'Machine hours at the weighted average manned labour rate'.$across,
+            );
         }
 
         if ($energyCost > 0) {
-            $lines[] = new CostLine($seq, 'energy', 'kWh', round($totalHours, 6), $input->tariffPerKwh, round($energyCost, 4), 'BR-18');
+            $lines[] = new CostLine(
+                $seq,
+                'energy',
+                'kWh',
+                round($totalKwh, 6),
+                $input->tariffPerKwh,
+                round($energyCost, 4),
+                'BR-18',
+                'Connected load over the run at the energy tariff',
+            );
         }
 
         return [$lines, $machineCost, $labourCost, $energyCost, $totalHours];
@@ -355,12 +399,17 @@ class CostSheetCalculator
             return [];
         }
 
+        $units = (float) ($plan->bundles + $plan->polybags + $plan->cartons);
+
         return [new CostLine(
             $seq,
             'packing',
-            'piece',
-            (float) ($plan->bundles + $plan->polybags + $plan->cartons),
-            0.0,
+            'pack',
+            $units,
+            // Bundles, polybags and cartons are three rates against one count, so the printed
+            // rate is the blended cost per pack unit rather than a zero. The breakdown that
+            // produced it is on the row.
+            $units > 0 ? round($amount / $units, 6) : 0.0,
             round($amount, 4),
             'BR-12',
             "{$plan->bundles} bundles · {$plan->polybags} polybags · {$plan->cartons} cartons",

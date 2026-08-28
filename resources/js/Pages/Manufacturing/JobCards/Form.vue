@@ -32,9 +32,8 @@ const form = useForm({
     factory_unit_id: props.units[0]?.id ?? '',
     // What is left to make on that line, and the date it was promised for: the same defaults
     // picking the line by hand would have applied.
-    planned_qty: preselected
-        ? Math.max(0, Number(preselected.ordered_qty) - Number(preselected.produced_qty))
-        : '',
+    // BR-49 — the server's headroom, so the form opens on a quantity it would accept.
+    planned_qty: preselected ? Number(preselected.capacity?.headroom ?? 0) : '',
     colourway: '',
     due_date: preselected?.promised_date ?? '',
     priority: 50,
@@ -44,12 +43,53 @@ const selectedLine = computed(() =>
     props.orderLines.find((line) => line.id === Number(form.sales_order_line_id)) ?? null,
 );
 
-/** What is left to make on the chosen line — the sensible default for the card. */
-const outstanding = computed(() => {
-    if (!selectedLine.value) return 0;
+/**
+ * BR-49 — what the chosen line can still take, as the server computed it.
+ *
+ * Not recomputed here. The planner and the guard must agree on the number, and the way they
+ * stop agreeing is a second copy of the arithmetic in JavaScript.
+ */
+const capacity = computed(() => selectedLine.value?.capacity ?? null);
 
-    return Math.max(0, Number(selectedLine.value.ordered_qty) - Number(selectedLine.value.produced_qty));
+/** The most a new card may plan on this line. */
+const headroom = computed(() => (capacity.value ? Number(capacity.value.headroom) : 0));
+
+/** What is left to make, before the delivery tolerance is considered. */
+const outstanding = computed(() => (capacity.value ? Number(capacity.value.outstanding) : 0));
+
+/** The tolerance band adds to the ceiling; say so rather than let it look like a rounding slip. */
+const toleranceHeadroom = computed(() => {
+    if (!capacity.value) return 0;
+
+    return Math.max(0, Number(capacity.value.allowance) - Number(capacity.value.ordered));
 });
+
+/**
+ * The refusal the server would give, worked out before the planner presses anything. The
+ * server still checks — this is feedback, not the rule.
+ */
+const quantityError = computed(() => {
+    if (!capacity.value || form.planned_qty === '' || form.planned_qty === null) return null;
+
+    const entered = Number(form.planned_qty);
+
+    if (!Number.isFinite(entered) || entered <= 0) return 'Enter a quantity greater than zero.';
+    if (entered <= headroom.value) return null;
+
+    if (headroom.value <= 0) {
+        return `This line is already fully covered by live job cards — there is nothing left to plan. `
+            + `Cancel or reduce an existing card before raising another.`;
+    }
+
+    return `${pcs(entered)} pcs is more than this line can take. `
+        + `It can absorb ${pcs(headroom.value)} more pcs; reduce the planned quantity to that or less.`;
+});
+
+const canSubmit = computed(() => Boolean(form.sales_order_line_id) && quantityError.value === null);
+
+function lineHeadroom(line) {
+    return line.capacity ? Number(line.capacity.headroom) : 0;
+}
 
 function pickLine(id) {
     form.sales_order_line_id = id;
@@ -57,12 +97,15 @@ function pickLine(id) {
     const line = props.orderLines.find((candidate) => candidate.id === Number(id));
 
     if (line) {
-        form.planned_qty = Math.max(0, Number(line.ordered_qty) - Number(line.produced_qty));
+        // Default to what the line can actually take, not to a figure the server will refuse.
+        form.planned_qty = lineHeadroom(line);
         form.due_date = form.due_date || line.promised_date || '';
     }
 }
 
 function submit() {
+    if (!canSubmit.value) return;
+
     form.post('/job-cards');
 }
 </script>
@@ -151,11 +194,26 @@ function submit() {
                             </p>
                         </div>
 
+                        <!--
+                            BR-49 — "left" now means what a card may actually plan, which is
+                            not the same as the order's outstanding quantity once other live
+                            cards hold some of it. A line with nothing left says so rather
+                            than reading as available.
+                        -->
                         <div class="shrink-0 text-right text-xs">
-                            <p class="tnum text-ink-800">
-                                {{ pcs(Number(line.ordered_qty) - Number(line.produced_qty)) }} left
+                            <p
+                                class="tnum"
+                                :class="lineHeadroom(line) > 0 ? 'text-ink-800' : 'font-medium text-amber-700'"
+                            >
+                                {{ pcs(lineHeadroom(line)) }} can be planned
                             </p>
-                            <p class="tnum text-ink-500">of {{ pcs(line.ordered_qty) }}</p>
+                            <p class="tnum text-ink-500">of {{ pcs(line.ordered_qty) }} ordered</p>
+                            <p
+                                v-if="line.capacity && Number(line.capacity.committed) > 0"
+                                class="tnum text-ink-400"
+                            >
+                                {{ pcs(line.capacity.committed) }} already committed
+                            </p>
                             <p v-if="line.promised_date" class="text-ink-400">due {{ date(line.promised_date) }}</p>
                         </div>
                     </label>
@@ -189,13 +247,45 @@ function submit() {
                             />
                         </FormField>
 
+                        <!--
+                            BR-49. The ceiling is not the bare outstanding quantity: the
+                            customer's over-delivery tolerance is a real allowance and is
+                            stated rather than quietly folded in. `max` caps the stepper, the
+                            hint explains where the number came from, and the message below
+                            appears the moment the figure goes over — the server refuses the
+                            same quantity with the same reason either way.
+                        -->
                         <FormField
                             label="Planned quantity"
-                            :hint="selectedLine ? `${pcs(outstanding)} outstanding on this line` : null"
-                            :error="form.errors.planned_qty"
+                            rule="BR-49"
+                            :hint="capacity
+                                ? `${pcs(headroom)} pcs can still be planned on this line`
+                                : 'Choose an order line first.'"
+                            :error="form.errors.planned_qty ?? quantityError"
                             required
                         >
-                            <TextInput v-model="form.planned_qty" type="number" numeric min="1" />
+                            <TextInput
+                                v-model="form.planned_qty"
+                                type="number"
+                                numeric
+                                min="1"
+                                :max="capacity ? headroom : null"
+                                :aria-invalid="quantityError ? 'true' : 'false'"
+                                aria-describedby="planned-qty-basis"
+                            />
+
+                            <p v-if="capacity" id="planned-qty-basis" class="mt-1 text-xs text-ink-500">
+                                {{ pcs(capacity.ordered) }} pcs ordered<span v-if="Number(capacity.committed) > 0">,
+                                    {{ pcs(capacity.committed) }} pcs already committed to
+                                    {{ capacity.live_cards }}
+                                    {{ capacity.live_cards === 1 ? 'live card' : 'live cards' }}</span><span
+                                        v-if="toleranceHeadroom > 0"
+                                    >, plus {{ pcs(toleranceHeadroom) }} pcs of
+                                    {{ Number(capacity.over_tolerance_pct) }}% over-delivery tolerance</span>.
+                                <span v-if="outstanding !== headroom">
+                                    {{ pcs(outstanding) }} pcs outstanding against the order.
+                                </span>
+                            </p>
                         </FormField>
 
                         <FormField
@@ -245,9 +335,11 @@ function submit() {
             </template>
 
             <template #footer>
+                <!-- BR-49 — a quantity the server would refuse does not get a live button. -->
                 <FormFooter
                     :form="form"
-                    :disabled="!form.sales_order_line_id"
+                    :disabled="!canSubmit"
+                    :disabled-reason="quantityError ?? (form.sales_order_line_id ? null : 'Choose the order line this card is for.')"
                     cancel-href="/job-cards"
                     :label="'Create draft'"
                     @save="submit"

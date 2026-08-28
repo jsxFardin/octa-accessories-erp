@@ -116,6 +116,16 @@ class FgReceiptService
             // are the same hole: output was received without the input it came from.
             $this->guardMaterial($locked, $qty, $alreadyReceived, $materialWaiverReason, $userId);
 
+            // BR-52 — and the other half of the same hole. `guardMaterial` asks whether the
+            // issued material accounts for the *pieces*; it says nothing about their *value*,
+            // and it returns early for a job whose BOM has nothing mandatory on it. Such a job
+            // then values at zero and posts finished goods worth nothing into stock, silently:
+            // no shortage, no waiver, no trace. Twenty-five thousand pieces in this database
+            // are carried at 0.00 that way, two thousand of which were dispatched.
+            $unitCost = $this->materialUnitCost($locked, $finalGood);
+
+            $this->guardValuation($locked, $qty, $unitCost, $materialWaiverReason, $userId);
+
             $inspection = $this->resolveInspection($locked, $qcInspectionId);
 
             // Quarantine unless an accepted final inspection for THIS job exists; reject-grade
@@ -154,7 +164,7 @@ class FgReceiptService
                     'status' => $status,
                 ],
                 $qty,
-                $this->materialUnitCost($locked, $finalGood),
+                $unitCost,
                 $receipt,
                 movementType: 'production_output',
             );
@@ -411,6 +421,64 @@ class FgReceiptService
                     $this->number($qty),
                     collect($position['lines'])->pluck('item_code')->join(', '),
                 ),
+        ]);
+    }
+
+    /**
+     * BR-52 — finished goods are not received at zero value without an authorised waiver.
+     *
+     * Stock worth nothing is an accounting event, not an absence of one: it understates
+     * inventory, it makes the job's cost variance meaningless (BR-23), and when the lot is
+     * dispatched it books a delivery at no cost of sale at all. It happens for two reasons,
+     * and BR-48 catches neither:
+     *
+     *  - the job's BOM has nothing mandatory on it, so the material guard returns early and
+     *    never asks where the value came from; or
+     *  - material was issued but every consumed lot was itself valued at zero.
+     *
+     * A job that genuinely consumes nothing from the store is a real thing, so this is a
+     * waiver rather than a refusal — the *same* waiver BR-48 uses, with the same permission,
+     * the same typed sentence and the same audit row. A second waiver mechanism beside it
+     * would be a second thing to forget to check.
+     *
+     * @throws ValidationException
+     */
+    private function guardValuation(
+        JobCard $jobCard,
+        float $qty,
+        float $unitCost,
+        ?string $waiverReason,
+        int $userId,
+    ): void {
+        if ($unitCost > 0.0) {
+            return;
+        }
+
+        if (filled($waiverReason)) {
+            $user = $userId !== 0 ? User::query()->find($userId) : auth()->user();
+
+            if (! ($user?->hasPermission('job_card.waive_material') ?? false)) {
+                throw ValidationException::withMessages([
+                    'material_waiver_reason' => 'Receiving finished goods with no material value needs the [job_card.waive_material] permission. Ask a planner to record the waiver.',
+                ]);
+            }
+
+            $this->audit->record($jobCard, 'updated', null, [
+                'material_waiver_reason' => $waiverReason,
+                'waived_for' => 'fg_receipt_zero_value',
+                'qty' => $qty,
+                'unit_cost' => 0,
+            ]);
+
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'qty' => sprintf(
+                'These %s pieces would be taken into stock at no value, because no material issued to %s carries a cost. Finished goods valued at zero understate inventory and give the job no cost of sale. Issue the material it was made from, or record a waiver with a reason.',
+                $this->number($qty),
+                $jobCard->reference(),
+            ),
         ]);
     }
 

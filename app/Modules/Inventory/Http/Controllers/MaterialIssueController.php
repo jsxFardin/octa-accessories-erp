@@ -13,6 +13,7 @@ use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\MaterialIssue;
 use App\Modules\MasterData\Models\Item;
+use App\Support\Audit\DocumentTrail;
 use App\Support\Calculators\InventoryValuator;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
@@ -50,6 +51,7 @@ class MaterialIssueController extends Controller
         private readonly InventoryValuator $valuator,
         private readonly NumberAllocator $numbers,
         private readonly ReservationService $reservations,
+        private readonly DocumentTrail $trail,
     ) {}
 
     public function index(Request $request): Response
@@ -66,8 +68,65 @@ class MaterialIssueController extends Controller
         );
 
         return Inertia::render('Inventory/Issues/Index', [
-            'issues' => $query->paginate($this->perPage($request))->withQueryString(),
+            'issues' => $query->paginate($this->perPage($request))->withQueryString()->through(
+                fn (MaterialIssue $issue): array => [
+                    ...$issue->only(['id', 'number', 'issued_on', 'issue_type', 'status', 'job_card_id']),
+                    // The row said `job_card_id: 14`. Which job that is was a second lookup.
+                    'job_card_number' => DB::table('job_cards')->where('id', $issue->job_card_id)->value('number'),
+                    'warehouse' => DB::table('warehouses')->where('id', $issue->warehouse_id)->value('code'),
+                    'line_count' => DB::table('material_issue_lines')
+                        ->where('material_issue_id', $issue->id)->count(),
+                ],
+            ),
             'filters' => $this->listingFilters($request, ['status', 'job_card']),
+        ]);
+    }
+
+    /**
+     * One issue, with the lots it actually moved.
+     *
+     * A material issue is a posted, ledger-bearing document — it is what took the yarn out of
+     * the store and priced the job — and it had no detail view at all: index and create, and
+     * nothing in between. The chain job card → issue → lot could be walked in the database and
+     * nowhere on screen, so "which lot went into this order" was unanswerable to the person
+     * whose job it is to answer it (BR-3, BR-37 shade traceability).
+     *
+     * Read-only by design. A posted stock movement is reversed by a return, never edited.
+     */
+    public function show(Request $request, MaterialIssue $materialIssue): Response
+    {
+        $card = DB::table('job_cards as jc')
+            ->leftJoin('products as p', 'p.id', '=', 'jc.product_id')
+            ->where('jc.id', $materialIssue->job_card_id)
+            ->first(['jc.id', 'jc.number', 'jc.status', 'jc.planned_qty', 'jc.colourway',
+                'p.code as product_code', 'p.name as product_name']);
+
+        $lines = DB::table('material_issue_lines as mil')
+            ->leftJoin('items as i', 'i.id', '=', 'mil.item_id')
+            ->leftJoin('stock_lots as sl', 'sl.id', '=', 'mil.lot_id')
+            ->leftJoin('uoms as u', 'u.id', '=', 'mil.uom_id')
+            ->where('mil.material_issue_id', $materialIssue->id)
+            ->orderBy('mil.line_no')
+            ->get([
+                'mil.id', 'mil.line_no', 'mil.qty', 'mil.unit_cost', 'mil.fifo_override_reason',
+                'i.code as item_code', 'i.name as item_name',
+                'sl.lot_no', 'sl.id as lot_id', 'sl.shade_code',
+                'u.code as uom',
+            ]);
+
+        return Inertia::render('Inventory/Issues/Show', [
+            'issue' => [
+                ...$materialIssue->only(['id', 'number', 'issued_on', 'issue_type', 'status', 'remarks', 'created_at']),
+                'warehouse' => DB::table('warehouses')->where('id', $materialIssue->warehouse_id)
+                    ->first(['id', 'code', 'name']),
+                'issued_by' => DB::table('users')->where('id', $materialIssue->issued_by)->value('name'),
+                'received_by' => DB::table('users')->where('id', $materialIssue->received_by)->value('name'),
+                // BR-47 — stock is valued in the factory's own currency, so the total says so.
+                'total_value' => (float) $lines->sum(fn ($line): float => (float) $line->qty * (float) $line->unit_cost),
+            ],
+            'jobCard' => $card,
+            'lines' => $lines,
+            'trail' => $this->trail->for($materialIssue, $request->user()),
         ]);
     }
 

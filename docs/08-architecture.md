@@ -104,6 +104,26 @@ Each has a unit test per business rule ID. When someone disputes a price, the ar
 
 Long-running work (MRP, exports, PDF batches, preview rendering) never runs in a web request. It is queued with progress reporting.
 
+### Reading the audit trail back
+
+`Auditable` writes `audit_logs`; `DocumentTrail` (`app/Support/Audit/`) reads it back as a
+document's own history, and `ActivityTrail.vue` renders it on the detail page. Three things it
+does that a raw query does not:
+
+- **Reads both shapes of row.** Most events are recorded against the model class, but the
+  print and reference paths use `recordTable('quotations', …)`. Both are matched, so a reprint
+  is not invisible merely because it was written through a different door.
+- **Derives the opening entry.** A document created before auditing covered it has no `created`
+  row, and a trail starting at "status changed to sent" reads as though it appeared from
+  nowhere. Where the document's own `created_at`/`created_by` answer the question the entry is
+  derived from them and flagged `derived` — `audit_logs` is never written to in order to make a
+  screen look complete.
+- **Splits the narrative from the record.** What happened, when and by whom goes to anyone who
+  may read the document. The before/after values, IP and user agent are attached only for a
+  viewer holding `audit_log.view_any`, the same permission that gates the global log.
+
+Mounted on quotation, sales order, inquiry and material issue detail pages.
+
 ---
 
 ## 4. Frontend

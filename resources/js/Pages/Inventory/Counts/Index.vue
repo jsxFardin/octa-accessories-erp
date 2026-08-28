@@ -48,7 +48,7 @@ const columns = [
 
             <DataTable :columns="columns" :rows="counts" row-key="id" :row-href="(row) => `/physical-counts/${row.id}`" empty="No counts.">
                 <template #cell:number="{ row, value }">
-                    <Link :href="`/physical-counts/${row.id}`" class="font-medium text-brand-700">{{ value ?? '(open)' }}</Link>
+                    <Link :href="`/physical-counts/${row.id}`" class="doc-link-quiet">{{ value ?? '(open)' }}</Link>
                 </template>
                 <template #cell:counted_on="{ value }">{{ date(value) }}</template>
                 <template #cell:status="{ value }"><Badge :status="value" /></template>

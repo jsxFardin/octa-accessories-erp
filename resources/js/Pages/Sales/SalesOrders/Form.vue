@@ -148,7 +148,7 @@ const columns = [
                 rule="S2"
                 subtitle="This order is confirmed. Every quantity or date change is recorded against your name."
             >
-                <FormField :error="form.errors.amendment_reason" required>
+                <FormField label="Reason for the amendment" :error="form.errors.amendment_reason" required>
                     <TextInput v-model="form.amendment_reason" placeholder="Customer moved the shipment to week 42" />
                 </FormField>
             </Card>
@@ -315,7 +315,7 @@ const columns = [
                 </Card>
 
                 <Card title="Notes">
-                    <FormField :error="form.errors.notes">
+                    <FormField label="Order notes" :error="form.errors.notes">
                         <textarea
                             v-model="form.notes"
                             rows="8"

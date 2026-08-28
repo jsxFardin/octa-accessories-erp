@@ -63,8 +63,15 @@ class SupplierController extends Controller
                 ->where('si.supplier_id', $supplier->id)
                 ->orderBy('i.code')
                 ->get(['si.id', 'i.code', 'i.name', 'si.supplier_code', 'si.last_rate', 'si.lead_time_days', 'si.moq']),
-            'purchaseOrders' => DB::table('purchase_orders')->where('supplier_id', $supplier->id)
-                ->orderByDesc('id')->limit(20)->get(['id', 'number', 'order_date', 'status', 'total']),
+            // BR-50 — the order's own currency travels with its value. Selecting the total
+            // without it left the screen to fall back to the factory's currency, so a
+            // USD 365,000 purchase order read as BDT 365,000 here and USD 365,000 on the order
+            // itself: the same document, two figures, differing by a factor of 122.
+            'purchaseOrders' => DB::table('purchase_orders as po')
+                ->leftJoin('currencies as cur', 'cur.id', '=', 'po.currency_id')
+                ->where('po.supplier_id', $supplier->id)
+                ->orderByDesc('po.id')->limit(20)
+                ->get(['po.id', 'po.number', 'po.order_date', 'po.status', 'po.total', 'cur.code as currency']),
         ]);
     }
 

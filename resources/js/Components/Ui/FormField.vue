@@ -1,5 +1,5 @@
 <script setup>
-import { computed, provide, toRef, useId } from 'vue';
+import { computed, onMounted, onUpdated, provide, ref, toRef, useId } from 'vue';
 import RuleHint from '@/Components/Ui/RuleHint.vue';
 
 /**
@@ -32,10 +32,38 @@ provide('fieldError', toRef(props, 'error'));
 provide('fieldId', fieldId);
 provide('fieldDescribedBy', describedBy);
 provide('fieldRequired', toRef(props, 'required'));
+
+/*
+ * `TextInput` and `SelectInput` inject the id above and label themselves. A raw `<textarea>`
+ * or `<input>` dropped straight into the slot — which is how terms, reasons and notes are
+ * written throughout the app — cannot inject anything, so its label pointed at an id no
+ * element carried and the control reached a screen reader unnamed.
+ *
+ * Adopting the id here covers every one of them at once, and never overrides a control that
+ * already identifies itself.
+ */
+const root = ref(null);
+
+function adoptSlottedControls() {
+    if (!root.value) return;
+
+    for (const control of root.value.querySelectorAll('input, select, textarea')) {
+        if (control.getAttribute('aria-label') || control.getAttribute('aria-labelledby')) continue;
+
+        if (!control.id) control.id = fieldId;
+
+        if (describedBy.value && !control.getAttribute('aria-describedby')) {
+            control.setAttribute('aria-describedby', describedBy.value);
+        }
+    }
+}
+
+onMounted(adoptSlottedControls);
+onUpdated(adoptSlottedControls);
 </script>
 
 <template>
-    <div class="min-w-0">
+    <div ref="root" class="min-w-0">
         <label v-if="label" :for="fieldId" class="mb-1 flex items-baseline justify-between gap-2">
             <span class="text-xs font-medium text-ink-600">
                 {{ label }}<span v-if="required" class="ml-0.5 text-rose-500" aria-hidden="true">*</span>

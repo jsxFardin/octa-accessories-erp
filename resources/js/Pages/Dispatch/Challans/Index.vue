@@ -44,9 +44,9 @@ const columns = [
                 row-key="id"
                 empty="No challans issued."
             >
-                <template #cell:number="{ row, value }"><Link :href="`/delivery-challans/${row.id}`" class="font-medium text-brand-700">{{ value ?? "(draft)" }}</Link></template>
+                <template #cell:number="{ row, value }"><Link :href="`/delivery-challans/${row.id}`" class="doc-link-quiet">{{ value ?? "(draft)" }}</Link></template>
                 <template #cell:customer_name="{ row }">
-                    <Link v-if="row.customer" :href="`/customers/${row.customer.id}`" class="hover:underline">{{ row.customer.name }}</Link>
+                    <Link v-if="row.customer" :href="`/customers/${row.customer.id}`" class="doc-link">{{ row.customer.name }}</Link>
                     <span v-else class="text-rose-600">{{ consigneeSummary(row).customer }}</span>
                 </template>
                 <template #cell:destination="{ row }">

@@ -228,7 +228,7 @@ const columns = [
                 </Card>
 
                 <Card title="Notes">
-                    <FormField :error="form.errors.notes">
+                    <FormField label="Inquiry notes" :error="form.errors.notes">
                         <textarea
                             v-model="form.notes"
                             rows="8"

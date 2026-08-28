@@ -70,6 +70,10 @@ class DeliveryChallanStateMachine extends StateMachine
     {
         match ($to) {
             'issued' => $this->dispatch->validateIssue($document, $context),
+            // D4 — checked at issue *and* at delivery. Guarding only the first transition let
+            // `issued → delivered` and `in_transit → delivered` past it entirely, and an
+            // address removed from the order after issue would never be noticed again.
+            'delivered' => $this->dispatch->validateDelivery($document),
             'returned' => $this->guardReturned($context),
             default => null,
         };

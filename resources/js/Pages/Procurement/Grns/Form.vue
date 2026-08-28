@@ -22,11 +22,15 @@ const props = defineProps({
     purchaseOrders: { type: Array, default: () => [] },
     /** The purchase order this receipt was started from, resolved server-side. */
     preselectPoId: { type: Number, default: null },
+    /** That order's lines, with what is still outstanding on each — resolved server-side. */
+    poLines: { type: Array, default: () => [] },
     schemes: { type: Array, default: () => [] },
 });
 
 function blankLine() {
     return {
+        // Set only when this receipt answers a line of the purchase order it names.
+        po_line_id: null,
         item_id: '',
         uom_id: '',
         qty: '',
@@ -44,6 +48,27 @@ function blankLine() {
 /** The order the storekeeper is receiving against, and the supplier that implies. */
 const fromOrder = props.purchaseOrders.find((po) => po.id === props.preselectPoId) ?? null;
 
+/**
+ * A purchase-order line as a receipt line.
+ *
+ * The handoff used to carry the supplier and the order number and stop there, leaving the
+ * storekeeper to retype every item, quantity and rate off the paperwork on the bench — which
+ * is where a wrong item code and a transposed rate come from. What is prefilled is what the
+ * order says; the storekeeper still confirms it against the goods, which is the job.
+ */
+function lineFromOrder(poLine) {
+    return {
+        ...blankLine(),
+        po_line_id: poLine.id,
+        item_id: poLine.item_id ?? '',
+        uom_id: poLine.uom_id ?? '',
+        // What is still outstanding, not the whole order line: a second delivery against a
+        // partly-received order should not offer the full quantity again.
+        qty: poLine.remaining_qty > 0 ? poLine.remaining_qty : '',
+        rate: poLine.rate ?? '',
+    };
+}
+
 const form = useForm({
     supplier_id: fromOrder?.supplier_id ?? '',
     po_id: fromOrder?.id ?? '',
@@ -54,7 +79,20 @@ const form = useForm({
     freight_amount: 0,
     duty_amount: 0,
     clearing_amount: 0,
-    lines: [blankLine()],
+    lines: props.poLines.length ? props.poLines.map(lineFromOrder) : [blankLine()],
+});
+
+/**
+ * BR-50 — the currency the order was priced in.
+ *
+ * Every rate and value on this form belongs to the purchase order, so a USD order must not be
+ * read against the factory's currency. Freight, duty and clearing are entered in the same
+ * currency as the goods, which is what the landed-cost apportionment assumes.
+ */
+const orderCurrency = computed(() => {
+    const order = props.purchaseOrders.find((po) => po.id === Number(form.po_id));
+
+    return order?.currency ?? undefined;
 });
 
 /** A PO narrows nothing structurally, but a receipt against the wrong supplier is a mess. */
@@ -196,7 +234,7 @@ const columns = [
 
                     <div class="rounded-md bg-slate-50 px-3 py-2">
                         <p class="text-xs text-ink-500">To apportion</p>
-                        <p class="text-lg font-semibold tnum text-ink-900">{{ money(landed) }}</p>
+                        <p class="text-lg font-semibold tnum text-ink-900">{{ money(landed, orderCurrency) }}</p>
                     </div>
                 </div>
             </Card>
@@ -248,9 +286,9 @@ const columns = [
                         <template #cell:landed_rate="{ line, index }">
                             <div class="text-right">
                                 <span class="text-sm font-medium tnum text-ink-900">
-                                    {{ money(landedRate(line, index)) }}
+                                    {{ money(landedRate(line, index), orderCurrency) }}
                                 </span>
-                                <p class="text-[10px] text-ink-400">+{{ money(landedShare(index)) }}</p>
+                                <p class="text-[10px] text-ink-400">+{{ money(landedShare(index), orderCurrency) }}</p>
                             </div>
                         </template>
 
@@ -294,18 +332,18 @@ const columns = [
 
                         <div class="flex items-baseline justify-between gap-3">
                             <dt class="text-xs text-ink-500">Goods value</dt>
-                            <dd class="tnum text-ink-900">{{ money(goodsValue) }}</dd>
+                            <dd class="tnum text-ink-900">{{ money(goodsValue, orderCurrency) }}</dd>
                         </div>
 
                         <div class="flex items-baseline justify-between gap-3">
                             <dt class="text-xs text-ink-500">Landed cost</dt>
-                            <dd class="tnum text-ink-900">{{ money(landed) }}</dd>
+                            <dd class="tnum text-ink-900">{{ money(landed, orderCurrency) }}</dd>
                         </div>
 
                         <div class="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-2.5">
                             <dt class="text-xs text-ink-500">Into stock at</dt>
                             <dd class="text-base font-semibold tnum text-ink-900">
-                                {{ money(goodsValue + landed) }}
+                                {{ money(goodsValue + landed, orderCurrency) }}
                             </dd>
                         </div>
                     </dl>
@@ -321,7 +359,7 @@ const columns = [
                             <tr>
                                 <td colspan="3" class="px-3 py-2 text-right text-xs text-ink-700">Goods value</td>
                                 <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
-                                    {{ money(goodsValue) }}
+                                    {{ money(goodsValue, orderCurrency) }}
                                 </td>
                                 <td colspan="3" />
                             </tr>

@@ -52,7 +52,7 @@ class BomController extends Controller
                     'version_no' => $bom->version_no,
                     'status' => $bom->status,
                     'base_qty' => $bom->base_qty,
-                    'created_at' => $bom->created_at?->toDateString(),
+                    'created_at' => $bom->created_at->toDateString(),
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status']),

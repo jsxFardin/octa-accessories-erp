@@ -302,7 +302,7 @@ const byLine = computed(() => {
                     dense
                 >
                     <template #cell:number="{ row, value }">
-                        <a :href="`/grns/${row.id}`" class="font-medium text-brand-700 hover:underline">{{ value }}</a>
+                        <a :href="`/grns/${row.id}`" class="doc-link-quiet">{{ value }}</a>
                     </template>
                     <template #cell:received_on="{ value }">{{ date(value) }}</template>
                     <template #cell:status="{ value }"><Badge :status="value" /></template>

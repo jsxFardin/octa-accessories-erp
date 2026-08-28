@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
+import ContextNotice from '@/Components/Ui/ContextNotice.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
@@ -12,13 +13,15 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { date, isoDate, money, pcs, qty, ratePerM, titleCase, todayIso } from '@/plugins/formatting';
+import { baseCurrency, date, isoDate, money, pcs, qty, ratePerM, titleCase, todayIso, unitCost } from '@/plugins/formatting';
 
 const props = defineProps({
     quotation: { type: Object, default: null },
     inquiryId: { type: Number, default: null },
     /** The inquiry behind `Quote it`, already resolved server-side. */
     inquiryPrefill: { type: Object, default: null },
+    /** F-09 — set when `?inquiry=` named something that could not be opened. */
+    contextNotice: { type: Object, default: null },
     customers: { type: Array, default: () => [] },
     currencies: { type: Array, default: () => [] },
     products: { type: Array, default: () => [] },
@@ -30,6 +33,9 @@ const isEdit = computed(() => Boolean(props.quotation));
 
 function blankLine() {
     return {
+        // F-05 — set only when this line answers an inquiry line, so a later reader can see
+        // what was asked for beside what was quoted.
+        inquiry_line_id: null,
         product_id: '',
         product_spec_id: '',
         description: '',
@@ -49,6 +55,11 @@ function blankLine() {
 function lineFromInquiry(line) {
     return {
         ...blankLine(),
+        // The provenance of this line. The quantity below is a *default*, not a constraint:
+        // quoting a different quantity from the one inquired is ordinary (a sample volume
+        // quoted at the minimum order quantity, say), and the pairing is what makes the
+        // difference visible instead of unexplainable.
+        inquiry_line_id: line.id ?? null,
         product_id: line.product_id ?? '',
         description: line.description ?? '',
         qty: line.qty ?? '',
@@ -242,6 +253,9 @@ const columns = [
                 a query string. The link back matters: the merchandiser is about to price what
                 the inquiry describes and will want to re-read it.
             -->
+            <!-- F-09 — the handoff that did not arrive, said out loud. -->
+            <ContextNotice :notice="contextNotice" />
+
             <div
                 v-if="prefill"
                 class="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2.5 text-sm text-brand-900"
@@ -355,7 +369,7 @@ const columns = [
                             <div class="text-right">
                                 <span v-if="pending[index]" class="text-xs text-ink-400">pricing…</span>
                                 <span v-else class="text-sm font-semibold tnum text-ink-900">
-                                    {{ line.rate_per_m ? ratePerM(line.rate_per_m) : '—' }}
+                                    {{ line.rate_per_m ? ratePerM(line.rate_per_m, currencyCode) : '—' }}
                                 </span>
                                 <p class="text-[10px] text-ink-400">computed</p>
                             </div>
@@ -408,12 +422,14 @@ const columns = [
                 <div v-if="sheet.sheet" class="grid gap-0 lg:grid-cols-3">
                     <div class="lg:col-span-2">
                         <table class="min-w-full text-xs">
+                            <!-- BR-22 — costs are computed in the factory's currency whatever
+                                 the quotation is written in, so the columns say which. -->
                             <thead class="bg-slate-50 text-ink-700">
                                 <tr>
                                     <th class="px-3 py-1.5 text-left">Cost type</th>
                                     <th class="px-3 py-1.5 text-right">Qty</th>
-                                    <th class="px-3 py-1.5 text-right">Rate</th>
-                                    <th class="px-3 py-1.5 text-right">Amount</th>
+                                    <th class="px-3 py-1.5 text-right">Rate ({{ baseCurrency() }})</th>
+                                    <th class="px-3 py-1.5 text-right">Amount ({{ baseCurrency() }})</th>
                                     <th class="px-3 py-1.5 text-left">Rule</th>
                                 </tr>
                             </thead>
@@ -422,7 +438,7 @@ const columns = [
                                     <td class="px-3 py-1.5 font-medium text-ink-800">{{ titleCase(cl.cost_type) }}</td>
                                     <td class="px-3 py-1.5 text-right tnum">{{ qty(cl.qty) }}</td>
                                     <td class="px-3 py-1.5 text-right tnum">{{ Number(cl.rate).toFixed(4) }}</td>
-                                    <td class="px-3 py-1.5 text-right font-medium tnum">{{ money(cl.amount) }}</td>
+                                    <td class="px-3 py-1.5 text-right font-medium tnum">{{ money(cl.amount, false) }}</td>
                                     <td class="px-3 py-1.5">
                                         <span class="rounded bg-slate-100 px-1 font-mono text-[10px] text-ink-700">
                                             {{ cl.formula_ref }}
@@ -434,23 +450,28 @@ const columns = [
                     </div>
 
                     <div class="border-t border-slate-200 p-3 text-sm lg:border-t-0 lg:border-l">
+                        <p class="mb-2 text-[11px] font-medium tracking-wide text-ink-500 uppercase">
+                            Costs in {{ baseCurrency() }}
+                        </p>
+
                         <dl class="space-y-1.5">
                             <div class="flex justify-between">
                                 <dt class="text-ink-500">Gross metres</dt>
-                                <dd class="tnum">{{ qty(sheet.sheet.lines.find((l) => l.cost_type === 'material_ribbon')?.qty ?? 0) }}</dd>
+                                <dd class="tnum">{{ qty(sheet.sheet.lines.find((l) => l.cost_type === 'material_ribbon')?.qty ?? 0) }} m</dd>
                             </div>
                             <div class="flex justify-between">
                                 <dt class="text-ink-500">Total cost</dt>
-                                <dd class="tnum font-medium">{{ money(sheet.sheet.total_cost) }}</dd>
+                                <dd class="tnum font-medium">{{ money(sheet.sheet.total_cost, false) }}</dd>
                             </div>
                             <div class="flex justify-between">
-                                <dt class="text-ink-500">Unit cost</dt>
-                                <dd class="tnum">{{ Number(sheet.sheet.unit_cost).toFixed(6) }}</dd>
+                                <dt class="text-ink-500">Unit cost / piece</dt>
+                                <dd class="tnum">{{ unitCost(sheet.sheet.unit_cost, false) }}</dd>
                             </div>
+                            <!-- The one figure on this panel in the customer's currency. -->
                             <div class="flex justify-between rounded bg-brand-50 px-2 py-1">
-                                <dt class="font-semibold text-brand-900">Rate / M</dt>
+                                <dt class="font-semibold text-brand-900">Quoted rate / M</dt>
                                 <dd class="tnum font-semibold text-brand-900">
-                                    {{ ratePerM(sheet.sheet.rate_per_m_in_currency) }}
+                                    {{ ratePerM(sheet.sheet.rate_per_m_in_currency, currencyCode) }}
                                 </dd>
                             </div>
                         </dl>
@@ -517,7 +538,7 @@ const columns = [
                 </Card>
 
                 <Card title="Terms">
-                    <FormField :error="form.errors.terms">
+                    <FormField label="Terms and conditions" :error="form.errors.terms">
                         <textarea
                             v-model="form.terms"
                             rows="8"

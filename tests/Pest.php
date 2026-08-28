@@ -196,3 +196,45 @@ function issueMaterialFor(
 
     return $issueId;
 }
+
+/**
+ * A posted, valued material issue against a job, independent of its BOM.
+ *
+ * `issueMaterialFor()` walks the job's mandatory BOM lines, so it issues nothing for a job
+ * that has no BOM or only optional lines. Those jobs still consume *something* in reality —
+ * and under BR-52 finished goods with no material value behind them need an authorised waiver
+ * — so a fixture for them has to put a real, costed consumption on the job rather than leave
+ * it producing stock worth nothing.
+ */
+function issueAnyMaterialFor(
+    App\Modules\Manufacturing\Models\JobCard $jobCard,
+    float $unitCost = 100.0,
+    float $qty = 10.0,
+): int {
+    $lot = Illuminate\Support\Facades\DB::table('stock_lots')
+        ->whereNotNull('item_id')
+        ->orderBy('id')
+        ->first(['id', 'item_id', 'uom_id', 'warehouse_id']);
+
+    $issueId = Illuminate\Support\Facades\DB::table('material_issues')->insertGetId([
+        'number' => 'MI-ANY-'.Illuminate\Support\Str::random(8),
+        'job_card_id' => $jobCard->getKey(),
+        'warehouse_id' => $lot->warehouse_id,
+        'issued_on' => now()->toDateString(),
+        'issue_type' => 'issue',
+        'status' => 'posted',
+        'created_at' => now(),
+    ]);
+
+    Illuminate\Support\Facades\DB::table('material_issue_lines')->insert([
+        'material_issue_id' => $issueId,
+        'line_no' => 1,
+        'item_id' => $lot->item_id,
+        'lot_id' => $lot->id,
+        'uom_id' => $lot->uom_id,
+        'qty' => $qty,
+        'unit_cost' => $unitCost,
+    ]);
+
+    return $issueId;
+}

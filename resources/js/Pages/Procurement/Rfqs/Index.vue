@@ -45,7 +45,7 @@ const columns = [
 
             <DataTable :columns="columns" :rows="rfqs" row-key="id" :row-href="(row) => `/rfqs/${row.id}`" empty="No RFQs.">
                 <template #cell:number="{ row, value }">
-                    <Link :href="`/rfqs/${row.id}`" class="font-medium text-brand-700">{{ value ?? '(draft)' }}</Link>
+                    <Link :href="`/rfqs/${row.id}`" class="doc-link-quiet">{{ value ?? '(draft)' }}</Link>
                 </template>
                 <template #cell:issued_on="{ value }">{{ date(value) }}</template>
                 <template #cell:respond_by="{ value }">{{ value ? date(value) : '—' }}</template>

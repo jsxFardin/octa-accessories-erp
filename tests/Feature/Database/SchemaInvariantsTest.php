@@ -200,8 +200,13 @@ it('loads every object the specification promises', function (): void {
     // accepts is a table now, not a constraint body.
     // The fifth view is `v_job_card_output` (P0-2 / F-03): what a job card made, defined
     // once in SQL instead of four times in PHP.
+    //
+    // The 409th foreign key is `quotation_lines.inquiry_line_id` (F-05): which inquiry line a
+    // quotation line answers, so a request for 1,000 pcs becoming a quote for 100,000 is
+    // traceable rather than merely different. Nullable and unconstrained beyond the key —
+    // quoting another quantity is legitimate, and the column records it rather than policing it.
     expect($tables)->toBe(155)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(408)
+        ->and($foreignKeys)->toBe(409)
         ->and($checks)->toBe(168);
 });

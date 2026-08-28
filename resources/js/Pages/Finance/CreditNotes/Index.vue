@@ -35,7 +35,7 @@ const columns = [
             ]" placeholder="Search credit note number…" />
 
             <DataTable :columns="columns" :rows="credit_notes" row-key="id" empty="No credit notes.">
-                <template #cell:number="{ row, value }"><Link :href="`/credit-notes/${row.id}`" class="font-medium text-brand-700">{{ value ?? '(draft)' }}</Link></template>
+                <template #cell:number="{ row, value }"><Link :href="`/credit-notes/${row.id}`" class="doc-link-quiet">{{ value ?? '(draft)' }}</Link></template>
                 <template #cell:note_date="{ value }">{{ date(value) }}</template>
                 <template #cell:reason="{ value }">{{ titleCase(value) }}</template>
                 <template #cell:amount="{ value }">{{ money(value) }}</template>

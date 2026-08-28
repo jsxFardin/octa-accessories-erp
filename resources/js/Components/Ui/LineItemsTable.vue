@@ -41,6 +41,34 @@ function cellError(index, key, errors) {
 
     return message?.replace(/\b(line|operation|item|count|allocation|carton|row) \d+ /i, '');
 }
+
+/**
+ * Names every control in the grid for a screen reader.
+ *
+ * A line-item cell takes its meaning from the column header above it and the row number beside
+ * it — both of which a sighted user reads for free and a screen-reader user is never told. The
+ * inputs came through as an unbroken run of "edit text, edit text, edit text".
+ *
+ * Applied here rather than at each of the several dozen cell slots across the ERP: the header
+ * text and the row index are already in this component, and one implementation cannot drift
+ * out of step with another. An explicit `aria-label` on a control always wins.
+ */
+const vCellLabel = {
+    mounted: (el, binding) => applyCellLabel(el, binding),
+    updated: (el, binding) => applyCellLabel(el, binding),
+};
+
+function applyCellLabel(el, binding) {
+    const { label, index } = binding.value;
+
+    if (!label) return;
+
+    for (const control of el.querySelectorAll('input, select, textarea')) {
+        if (control.getAttribute('aria-label') || control.getAttribute('aria-labelledby')) continue;
+
+        control.setAttribute('aria-label', `${label}, line ${index + 1}`);
+    }
+}
 </script>
 
 <template>
@@ -78,7 +106,12 @@ function cellError(index, key, errors) {
                     <tr v-for="(line, index) in lines" :key="index" class="group align-top">
                         <td class="py-1.5 text-xs tnum text-ink-400">{{ index + 1 }}</td>
 
-                        <td v-for="column in columns" :key="column.key" class="px-1.5 py-1.5">
+                        <td
+                            v-for="column in columns"
+                            :key="column.key"
+                            v-cell-label="{ label: column.label, index }"
+                            class="px-1.5 py-1.5"
+                        >
                             <slot :name="`cell:${column.key}`" :line="line" :index="index" />
 
                             <p v-if="cellError(index, column.key, errors)" class="mt-1 text-[11px] text-rose-600">

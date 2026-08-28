@@ -474,3 +474,132 @@ documented waiver or a job with no material requirement.
 | Percentage | DECIMAL(9,4) | 2 decimals with `%` |
 
 Document totals are the sum of **rounded line values**, so the printed document always foots.
+
+**Every displayed amount names its currency.** Most of this factory's quotations, orders and
+invoices are raised in USD while the cost sheet behind them is computed in BDT, so an
+unlabelled figure is not merely ambiguous — read against the wrong currency it is wrong by two
+orders of magnitude. This applies to rates (`/M`) and unit costs as much as to totals:
+`money()`, `ratePerM()` and `unitCost()` in `resources/js/plugins/formatting.js` all label
+themselves, and a block that states its currency once passes `false` rather than leaving the
+number bare.
+
+Where a document and its cost sheet are in different currencies, both are named and the
+exchange rate that ties them is shown (BR-22).
+
+### BR-49 — Job-card planned quantity ceiling
+
+A job card may not plan more than the order line it is raised against can still absorb.
+
+```
+allowance = ordered_qty * (1 + over_tolerance_pct / 100)     -- the BR-44 band, reused
+committed = MAX(SUM(planned_qty of live job cards on the line), produced_qty)
+headroom  = MAX(0, allowance - committed)
+```
+
+A card is refused when `planned_qty > headroom`. Three things this deliberately is **not**:
+
+- **Not the bare outstanding quantity.** Over-production inside the customer's agreed
+  band is legitimate and already has a rule; BR-49 asks BR-44 where the top is rather than
+  restating it, so the two cannot drift apart.
+- **Not per-card.** Every live card on the line counts. Two cards of 3,000 against a 3,000
+  line is the same over-commitment as one card of 6,000, and only the second was ever visible.
+- **Not a sum of planned and produced.** A card that overran its own plan has consumed the
+  larger of the two; adding them would count the same pieces twice.
+
+A cancelled card releases its quantity. The rule is enforced in
+`JobCardPlanningGuard`, which both the POST handler and the planning form consult, so the
+disabled button and the server's refusal cannot disagree. Tests:
+`tests/Feature/Manufacturing/JobCardQuantityCeilingTest.php`.
+
+### BR-50 — A report spanning currencies names them, and converts before it totals
+
+Documents in this factory are raised in more than one currency: most quotations, orders and
+invoices are USD while the cost sheets behind them are computed in BDT. A report over such a
+set has no single unit, and two separate things went wrong for the same reason — no report row
+carried a currency at all:
+
+- the screen fell back to the factory's currency, so `INV-26-00005` at **USD 11.63** was
+  reported as **BDT 11.63**; and
+- `SUM()` added dollars to taka at face value, understating outstanding receivables by roughly
+  23% on the live data (36,040 against a real exposure of 44,254).
+
+The rule:
+
+| | |
+|---|---|
+| **Row amounts** | shown in the currency of the document they came from, never the factory's by default |
+| **Totals** | converted to the base currency, at the rate **each document itself recorded** (BR-22) — never a live rate, which would restate history every time the report was opened |
+| **Breakdown** | the unconverted figure per currency is shown beside the total, so the conversion can be checked rather than trusted |
+| **Quantities** | summed as they are; pieces are pieces whatever the invoice was raised in |
+
+Implemented once on `ReportQuery` (`currencyColumn()`, `baseRateColumn()`, `totals()`,
+`totalsMeta()`) so every money report inherits it. A single-currency report declares neither
+and behaves exactly as before. Tests: `tests/Feature/Reporting/MixedCurrencyReportTest.php`.
+
+### BR-51 — Approval bands are base-currency figures
+
+Every threshold in `settings` — the purchase-order manager band, the credit-note accounts band,
+the stock-adjustment band — is expressed in the factory's own currency. A document raised in
+another currency must be **converted before it is compared**.
+
+Left raw this was an authorisation bypass reached by choosing a currency rather than by holding
+a permission: at the seeded rate of 122.5 a **USD 1,000** purchase order is **BDT 122,500**,
+comfortably over a BDT 100,000 manager band, and it passed the guard as the number `1000`. A
+purchase manager could approve, alone, an order that needed the Managing Director.
+
+```
+base_value = document.total * document.exchange_rate     -- BR-22, the snapshotted rate
+refuse when base_value > band and the approver is not the MD
+```
+
+The same conversion is applied to the **work queue** that decides whose list a pending order
+appears in, so the queue and the guard cannot disagree — a count you are shown but may not
+clear is worse than no count. A credit note records no rate of its own, so it converts at the
+rate of the invoice it credits.
+
+Tests: `tests/Feature/Procurement/ApprovalBandCurrencyTest.php`.
+
+### BR-52 — Finished goods are not received at zero value without an authorised waiver
+
+BR-48 asks whether the issued material accounts for the *pieces*. It says nothing about their
+*value*, and it returns early for a job whose BOM has nothing mandatory on it. Such a job then
+values its output at zero and posts it into stock in silence — no shortage, no waiver, no
+trace. Twenty-five thousand pieces in the live database are carried at 0.00 that way, two
+thousand of which were dispatched: a delivery with no cost of sale behind it.
+
+Stock worth nothing is an accounting event, not the absence of one. It understates inventory
+and makes the job's cost variance (BR-23) meaningless.
+
+| | |
+|---|---|
+| **Invariant** | an FG receipt whose computed unit cost is zero is refused |
+| **UI remedy** | the message names the job and says to issue the material it was made from |
+| **Server guard** | `FgReceiptService::guardValuation()`, inside the same transaction and row lock as BR-48 |
+| **Exception** | a typed waiver reason, and the `job_card.waive_material` permission — the **same** waiver BR-48 uses, deliberately not a second mechanism beside it |
+| **Audit** | recorded against the job card as `waived_for: fg_receipt_zero_value`, with the quantity |
+
+A job that genuinely consumes nothing from the store is a real thing, which is why this is a
+waiver rather than a refusal. Tests:
+`tests/Feature/Manufacturing/ZeroValueFinishedGoodsTest.php`.
+
+### BR-53 — An order reduced below its committed production says so
+
+**S1** (01-domain-model §3) has always read "`ordered_qty` may only be reduced above the sum of
+already-produced quantity". It was quoted in a comment inside `recordAmendments()` and enforced
+nowhere: `ordered_qty` was validated as `numeric|gt:0` and nothing more, so an order could be
+cut below production that had already happened and could never be delivered against. It is now
+a hard guard on the update path (`SalesOrderController::guardReduction()`).
+
+BR-53 is the lesser case S1 must **not** refuse. Reducing below what job cards have merely
+*committed* is legitimate — the work may not have started, the customer really did cut the
+order, and cancelling a card is a planner's decision rather than a side effect of an edit. So
+that reduction is allowed, and the resulting conflict is made **explicit** rather than left for
+someone to discover at the loading bay:
+
+```
+excess = committed - allowance        -- committed and allowance as defined by BR-49
+```
+
+Reported by `JobCardPlanningGuard::overAllocation()` and shown on the affected order line.
+BR-49 continues to prevent any *new* card being raised into the conflict. Tests:
+`tests/Feature/Sales/OrderReductionTest.php`.

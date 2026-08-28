@@ -60,7 +60,7 @@ async function transition(to) {
             <Card v-if="invoice" title="Against invoice">
                 <dl class="grid grid-cols-2 gap-2 text-sm">
                     <div><dt class="text-xs text-ink-500">Invoice</dt>
-                        <dd><Link :href="`/invoices/${invoice.id}`" class="font-medium text-brand-700">{{ invoice.number }}</Link> <Badge :status="invoice.status" /></dd></div>
+                        <dd><Link :href="`/invoices/${invoice.id}`" class="doc-link-quiet">{{ invoice.number }}</Link> <Badge :status="invoice.status" /></dd></div>
                     <div><dt class="text-xs text-ink-500">Total</dt><dd class="font-medium tnum">{{ money(invoice.total) }}</dd></div>
                     <div><dt class="text-xs text-ink-500">Received</dt><dd class="font-medium tnum text-emerald-700">{{ money(invoice.received_amount) }}</dd></div>
                     <div><dt class="text-xs text-ink-500">Credited</dt><dd class="font-medium tnum text-amber-700">{{ money(invoice.credited) }}</dd></div>

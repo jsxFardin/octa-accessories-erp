@@ -81,6 +81,7 @@ const orderHref = computed(() => `/purchase-orders/create?supplier=${props.suppl
                         { key: 'number', label: 'Number' },
                         { key: 'order_date', label: 'Ordered' },
                         { key: 'total', label: 'Value', align: 'right' },
+                        { key: 'currency', label: 'Currency' },
                         { key: 'status', label: 'Status' },
                     ]"
                     :rows="purchaseOrders"
@@ -103,7 +104,8 @@ const orderHref = computed(() => `/purchase-orders/create?supplier=${props.suppl
                     </template>
 
                     <template #cell:order_date="{ value }">{{ date(value) }}</template>
-                    <template #cell:total="{ value }">{{ money(value) }}</template>
+                    <!-- BR-50 — the order's own currency, never the factory's by default. -->
+                    <template #cell:total="{ row, value }">{{ money(value, row.currency) }}</template>
                     <template #cell:status="{ value }"><Badge :status="value" /></template>
                 </DataTable>
             </Card>

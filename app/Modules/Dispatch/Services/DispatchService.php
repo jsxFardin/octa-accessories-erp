@@ -127,7 +127,7 @@ class DispatchService
      *
      * @throws TransitionDenied
      */
-    private function guardConsignee(DeliveryChallan $challan): void
+    public function guardConsignee(DeliveryChallan $challan, string $action = 'issued'): void
     {
         $blocked = [];
 
@@ -177,8 +177,30 @@ class DispatchService
         }
 
         if ($blocked !== []) {
-            throw TransitionDenied::guard('D4', "This challan cannot be issued.\n• ".implode("\n• ", $blocked));
+            throw TransitionDenied::guard(
+                'D4',
+                "This challan cannot be marked {$action}.\n• ".implode("\n• ", $blocked),
+            );
         }
+    }
+
+    /**
+     * D4 at the point of delivery.
+     *
+     * The rule was checked on `draft → issued` and nowhere else, so `issued → delivered` and
+     * `in_transit → delivered` walked straight past it. Two challans in this database are
+     * `delivered` with no delivery address at all — the document says the goods arrived
+     * somewhere it cannot name.
+     *
+     * Re-checking here is not redundant: an address can be removed from the order after the
+     * challan was issued, and a row can be inserted at `issued` without ever passing the
+     * issue guard. Delivery is the last point at which the paperwork still means something.
+     *
+     * @throws TransitionDenied
+     */
+    public function validateDelivery(DeliveryChallan $challan): void
+    {
+        $this->guardConsignee($challan, 'delivered');
     }
 
     /**

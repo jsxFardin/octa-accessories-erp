@@ -111,7 +111,7 @@ function createChallan() {
 
         <template #title>{{ packingList.number ?? '(draft packing list)' }}</template>
         <template #subtitle>
-            <Link v-if="packingList.sales_order" :href="`/sales-orders/${packingList.sales_order.id}`" class="hover:underline">
+            <Link v-if="packingList.sales_order" :href="`/sales-orders/${packingList.sales_order.id}`" class="doc-link">
                 {{ packingList.sales_order.number }}
             </Link>
             · packed {{ date(packingList.packed_on) }}
@@ -226,7 +226,7 @@ function createChallan() {
             <Card v-if="challans.length" title="Challans" :padded="false">
                 <ul class="divide-y divide-slate-100 text-sm">
                     <li v-for="challan in challans" :key="challan.id" class="flex items-center justify-between px-4 py-2">
-                        <Link :href="`/delivery-challans/${challan.id}`" class="font-medium text-brand-700">
+                        <Link :href="`/delivery-challans/${challan.id}`" class="doc-link-quiet">
                             {{ challan.number ?? '(draft challan)' }}
                         </Link>
                         <span class="text-xs text-ink-500">{{ date(challan.challan_date) }}</span>

@@ -40,6 +40,7 @@ class ReceivableReport extends ReportQuery
             ['key' => 'received_amount', 'label' => 'Received', 'align' => 'right', 'format' => 'money'],
             ['key' => 'credited_amount', 'label' => 'Credited', 'align' => 'right', 'format' => 'money'],
             ['key' => 'outstanding_amount', 'label' => 'Outstanding', 'align' => 'right', 'format' => 'money'],
+            ['key' => 'currency', 'label' => 'Currency'],
             ['key' => 'status', 'label' => 'Status', 'format' => 'status'],
             ['key' => 'is_overdue', 'label' => 'Overdue'],
         ];
@@ -48,6 +49,18 @@ class ReceivableReport extends ReportQuery
     public function documentPath(): ?string
     {
         return '/invoices';
+    }
+
+    // BR-50 — invoices here are raised in USD and BDT. Without these the screen labelled every
+    // one of them with the factory's currency and the footer added dollars to taka.
+    public function currencyColumn(): ?string
+    {
+        return 'currency';
+    }
+
+    public function baseRateColumn(): ?string
+    {
+        return 'base_rate';
     }
 
     public function filterFields(): array
@@ -72,11 +85,14 @@ class ReceivableReport extends ReportQuery
 
         $query = DB::table('sales_invoices as si')
             ->join('customers as c', 'c.id', '=', 'si.customer_id')
+            ->leftJoin('currencies as cur', 'cur.id', '=', 'si.currency_id')
             ->leftJoinSub($credits, 'cr', 'cr.sales_invoice_id', '=', 'si.id')
             ->selectRaw("
                 si.id,
                 si.number,
                 c.name as customer,
+                cur.code as currency,
+                COALESCE(si.exchange_rate, 1) as base_rate,
                 si.invoice_date,
                 si.due_date,
                 si.total,

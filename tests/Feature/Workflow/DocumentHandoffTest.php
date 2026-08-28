@@ -238,13 +238,22 @@ it('saves the prefilled job card against the order line it was opened for', func
 
     $selected = collect($props['orderLines'])->firstWhere('id', $props['preselectLineId']);
 
+    // BR-49 — the quantity the form defaults to is what the line can still take, not its bare
+    // outstanding figure. This line was chosen precisely because it already carries a card, so
+    // most of its quantity is committed and the two numbers differ; posting the outstanding
+    // figure would be posting something the form never offers and the server refuses.
+    $headroom = (float) data_get($selected, 'capacity.headroom');
+
+    if ($headroom <= 0) {
+        $this->markTestSkipped('The chosen line is fully committed, so no further card can be raised against it.');
+    }
+
     $before = DB::table('job_cards')->count();
 
     $this->actingAs($this->planner)->post('/job-cards', [
         'sales_order_line_id' => $props['preselectLineId'],
         'factory_unit_id' => collect($props['units'])->first()->id,
-        // The quantity the form defaults to: what is left to make on the chosen line.
-        'planned_qty' => (float) $selected->ordered_qty - (float) $selected->produced_qty,
+        'planned_qty' => $headroom,
         'due_date' => $selected->promised_date,
         'priority' => 50,
     ])->assertSessionHasNoErrors()->assertRedirect();

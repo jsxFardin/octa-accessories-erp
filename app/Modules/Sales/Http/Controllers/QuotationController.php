@@ -6,6 +6,7 @@ namespace App\Modules\Sales\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Costing\Models\CostSheet;
+use App\Modules\Costing\Services\CostSheetPresenter;
 use App\Modules\Costing\Services\CostSheetService;
 use App\Modules\MasterData\Models\Currency;
 use App\Modules\MasterData\Models\Customer;
@@ -15,6 +16,7 @@ use App\Modules\Sales\Models\Inquiry;
 use App\Modules\Sales\Models\Quotation;
 use App\Modules\Sales\Services\QuotationConversionService;
 use App\Modules\Sales\States\QuotationStateMachine;
+use App\Support\Audit\DocumentTrail;
 use App\Support\Calculators\CostSheetCalculator;
 use App\Support\Http\ListsResources;
 use App\Support\Settings\Settings;
@@ -35,6 +37,8 @@ class QuotationController extends Controller
         private readonly CostSheetCalculator $calculator,
         private readonly Settings $settings,
         private readonly QuotationConversionService $conversions,
+        private readonly CostSheetPresenter $costLines,
+        private readonly DocumentTrail $trail,
     ) {}
 
     public function index(Request $request): Response
@@ -74,14 +78,60 @@ class QuotationController extends Controller
     {
         $inquiry = $this->prefillInquiry($request);
 
+        // Whether the id names a real inquiry — asked separately from whether this user may
+        // *read* one. A merchandiser's assistant who may raise quotations but not browse
+        // inquiries still arrives here from a legitimate `Quote it`, and the quotation must
+        // still be filed against the inquiry it answers; what they must not get is its
+        // contents. That distinction is deliberate and is covered by `DocumentHandoffTest`.
+        $requestedId = $request->integer('inquiry') ?: null;
+        $inquiryExists = $requestedId !== null
+            && DB::table('inquiries')->where('id', $requestedId)->exists();
+
         return Inertia::render('Sales/Quotations/Form', [
             'quotation' => null,
-            'inquiryId' => $inquiry['id'] ?? ($request->integer('inquiry') ?: null),
+            // The link survives even when the contents are withheld; an id that names nothing
+            // does not, because it would only fail validation on save.
+            'inquiryId' => $inquiry['id'] ?? ($inquiryExists ? $requestedId : null),
             // The handoff from `Quote it`. Passing only the id left the merchandiser retyping
             // the customer and every line they were looking at a second earlier.
             'inquiryPrefill' => $inquiry,
+            // F-09 — when `?inquiry=` names nothing the user can open, the form used to render
+            // blank and silent: safe, and baffling. It now says so. The wording is deliberately
+            // the same whether the inquiry is missing, deleted or merely not theirs to read —
+            // a message that distinguished them would answer "does this record exist?" for
+            // someone with no permission to ask.
+            'contextNotice' => $this->inquiryContextNotice($request, $inquiryExists),
             ...$this->formOptions(),
         ]);
+    }
+
+    /**
+     * What to say about an `?inquiry=` that names nothing — or null when there is nothing to
+     * say, because none was asked for or the one asked for is real.
+     *
+     * Deliberately keyed on existence rather than on whether the prefill was produced: a user
+     * who may not read inquiries is on a working handoff, not a broken one, and telling them
+     * the context failed would be both wrong and a way to probe which ids exist.
+     *
+     * @return array<string, string>|null
+     */
+    private function inquiryContextNotice(Request $request, bool $inquiryExists): ?array
+    {
+        if ($inquiryExists || ! $request->has('inquiry')) {
+            return null;
+        }
+
+        // `?inquiry=` present but naming nothing: missing, zero, negative, non-numeric or
+        // deleted. All the same sentence, on purpose — it never says which.
+        return [
+            'tone' => 'warning',
+            'title' => 'That inquiry could not be opened.',
+            'body' => 'The quotation below has not been linked to an inquiry and nothing has been '
+                .'filled in from one. Start a quotation without an inquiry, or go back to '
+                .'inquiries and quote from the one you want.',
+            'action_label' => 'Back to inquiries',
+            'action_href' => '/inquiries',
+        ];
     }
 
     /**
@@ -121,6 +171,9 @@ class QuotationController extends Controller
             // the customer's words. Those carry across as a description with no product, which
             // is exactly what the merchandiser has to resolve before the line can be priced.
             'lines' => $inquiry->lines->map(fn ($line): array => [
+                // F-05 — carried onto the quotation line, so what the customer asked for stays
+                // attached to what they were quoted.
+                'id' => (int) $line->id,
                 'line_no' => $line->line_no,
                 'product_id' => $line->product_id,
                 'product_code' => $line->product?->code,
@@ -208,7 +261,7 @@ class QuotationController extends Controller
             ->with('success', 'Copied into a new draft. Every line has been re-costed at today\'s rates.');
     }
 
-    public function show(Quotation $quotation): Response
+    public function show(Request $request, Quotation $quotation): Response
     {
         $quotation->load(['customer', 'currency:id,code,name,symbol', 'lines.product:id,code,name,product_type']);
 
@@ -217,6 +270,24 @@ class QuotationController extends Controller
             ->with('lines')
             ->get()
             ->keyBy('quotation_line_id');
+
+        $inquiry = $quotation->inquiry_id === null ? null : DB::table('inquiries')
+            ->where('id', $quotation->inquiry_id)
+            ->first(['id', 'number', 'status', 'required_by']);
+
+        $inquiryTotals = $inquiry === null ? null : DB::table('inquiry_lines')
+            ->where('inquiry_id', $inquiry->id)
+            // `lines` is reserved in MySQL; the alias has to be something it will parse.
+            ->selectRaw('COALESCE(SUM(qty), 0) AS requested_qty, COUNT(*) AS line_count')
+            ->first();
+
+        // Only the lines this quotation actually answers, keyed for the map below.
+        $inquiryLines = $quotation->lines->pluck('inquiry_line_id')->filter()->isEmpty()
+            ? collect()
+            : DB::table('inquiry_lines')
+                ->whereIn('id', $quotation->lines->pluck('inquiry_line_id')->filter()->all())
+                ->get(['id', 'line_no', 'qty', 'target_rate_per_m', 'description'])
+                ->keyBy('id');
 
         return Inertia::render('Sales/Quotations/Show', [
             'quotation' => [
@@ -234,6 +305,9 @@ class QuotationController extends Controller
             ],
             'lines' => $quotation->lines->map(fn ($line): array => [
                 ...$line->only(['id', 'line_no', 'description', 'qty', 'rate_per_m', 'tooling_charge', 'line_total', 'lead_time_days']),
+                // F-05 — what the customer actually asked for on the line this answers.
+                // Quoting something else is legitimate and is not blocked; it is shown.
+                'inquiry_line' => $line->inquiry_line_id === null ? null : ($inquiryLines[$line->inquiry_line_id] ?? null),
                 'product' => $line->product?->only(['id', 'code', 'name', 'product_type']),
                 'cost_sheet' => $sheets->get($line->id)?->only([
                     'id', 'basis_qty', 'gross_metres', 'total_wastage_pct', 'overhead_pct',
@@ -241,17 +315,28 @@ class QuotationController extends Controller
                     'labour_cost', 'energy_cost', 'packing_cost', 'other_cost', 'overhead_amount',
                     'total_cost', 'unit_cost', 'rate_per_m', 'is_locked',
                 ]),
-                // Every sheet line carries the rule that produced it — the point of §3.4.
-                'cost_lines' => $sheets->get($line->id)?->lines->map->only([
-                    'sequence_no', 'cost_type', 'description', 'basis_uom', 'qty', 'rate', 'amount', 'formula_ref',
-                ]) ?? [],
+                // Every sheet line carries the rule that produced it — the point of §3.4 —
+                // and now also how it multiplies out. A percentage row and a rate row are not
+                // the same shape, and a machine row snapshotted before the calculator was
+                // corrected has its rate recovered rather than printed as zero (F-03).
+                'cost_lines' => $this->costLines->lines($sheets->get($line->id)->lines ?? []),
             ]),
             'availableTransitions' => $this->states->available($quotation),
             // Both ends of the chain this quotation sits in the middle of: the inquiry it
             // answers, and the order(s) it became. Without them the only way back was search.
-            'inquiry' => $quotation->inquiry_id === null ? null : DB::table('inquiries')
-                ->where('id', $quotation->inquiry_id)
-                ->first(['id', 'number', 'status']),
+            'inquiry' => $inquiry === null ? null : [
+                'id' => (int) $inquiry->id,
+                'number' => $inquiry->number,
+                'status' => $inquiry->status,
+                'required_by' => $inquiry->required_by,
+                // F-05 — the document-level comparison, which is all that can honestly be said
+                // for a quotation raised before lines were paired. `lines_paired` says whether
+                // the per-line comparison underneath is a record or an absence.
+                'requested_qty' => (float) ($inquiryTotals->requested_qty ?? 0),
+                'requested_lines' => (int) ($inquiryTotals->line_count ?? 0),
+                'quoted_qty' => (float) $quotation->lines->sum('qty'),
+                'lines_paired' => $quotation->lines->whereNotNull('inquiry_line_id')->count(),
+            ],
             'orders' => DB::table('sales_orders')
                 ->where('quotation_id', $quotation->id)
                 ->orderByDesc('id')
@@ -259,6 +344,10 @@ class QuotationController extends Controller
             // Q5 — the screen asks the same object the POST handler asks, so the primary
             // action and the server's answer cannot disagree. A converted quotation offers
             // the order, not a second conversion.
+            // F-01/F-02 — the document's own history. The rows were always written; no screen
+            // ever asked for them, so the page ended at the total and "who sent this, and
+            // when" was answerable only from the global admin log.
+            'trail' => $this->trail->for($quotation, $request->user()),
             'conversion' => [
                 'convertible' => $this->conversions->isConvertible($quotation),
                 'refusal' => $this->conversions->refusalReason($quotation),
@@ -380,6 +469,11 @@ class QuotationController extends Controller
             'payment_term_id' => ['nullable', 'integer', 'exists:payment_terms,id'],
             'terms' => ['nullable', 'string'],
             'lines' => ['required', 'array', 'min:1'],
+            // F-05 — which inquiry line this line answers, when it answers one. Nullable:
+            // a quotation may be raised cold, and a line may be added that the customer never
+            // asked for. Validated against the inquiry named on this quotation in
+            // `assertInquiryLinesBelong()`, so it cannot be pointed at someone else's inquiry.
+            'lines.*.inquiry_line_id' => ['nullable', 'integer', 'exists:inquiry_lines,id'],
             'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],
             'lines.*.product_spec_id' => ['nullable', 'integer', 'exists:product_specs,id'],
             'lines.*.description' => ['required', 'string', 'max:255'],
@@ -391,9 +485,43 @@ class QuotationController extends Controller
         ]);
     }
 
+    /**
+     * F-05 — an inquiry line may only be answered by a quotation raised against its inquiry.
+     *
+     * Without this the field is an id the client chooses, and pointing it at another
+     * customer's inquiry line would read that line's quantity onto this document. Ids that do
+     * not belong are dropped rather than refused: the pairing is a record of provenance, not
+     * something the merchandiser typed, and losing it must not lose the quotation.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @return list<array<string, mixed>>
+     */
+    private function scopeInquiryLines(?int $inquiryId, array $lines): array
+    {
+        $permitted = $inquiryId === null
+            ? []
+            : DB::table('inquiry_lines')->where('inquiry_id', $inquiryId)->pluck('id')
+                ->map(fn ($id): int => (int) $id)->all();
+
+        return array_map(function (array $line) use ($permitted): array {
+            $candidate = isset($line['inquiry_line_id']) ? (int) $line['inquiry_line_id'] : null;
+
+            $line['inquiry_line_id'] = $candidate !== null && in_array($candidate, $permitted, true)
+                ? $candidate
+                : null;
+
+            return $line;
+        }, $lines);
+    }
+
     /** @param list<array<string, mixed>> $lines */
     private function syncLines(Quotation $quotation, array $lines): void
     {
+        $lines = $this->scopeInquiryLines(
+            $quotation->inquiry_id === null ? null : (int) $quotation->inquiry_id,
+            $lines,
+        );
+
         CostSheet::query()->whereIn('quotation_line_id', $quotation->lines()->select('id'))->delete();
         $quotation->lines()->delete();
 
@@ -406,6 +534,7 @@ class QuotationController extends Controller
 
             $model = $quotation->lines()->create([
                 'line_no' => $index + 1,
+                'inquiry_line_id' => $line['inquiry_line_id'] ?? null,
                 'product_id' => $line['product_id'],
                 'product_spec_id' => $line['product_spec_id'] ?? null,
                 'description' => $line['description'],

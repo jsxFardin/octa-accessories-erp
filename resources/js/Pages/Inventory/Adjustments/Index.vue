@@ -49,7 +49,7 @@ const columns = [
 
             <DataTable :columns="columns" :rows="adjustments" row-key="id" :row-href="(row) => `/stock-adjustments/${row.id}`" empty="No adjustments.">
                 <template #cell:number="{ row, value }">
-                    <Link :href="`/stock-adjustments/${row.id}`" class="font-medium text-brand-700">{{ value ?? '(draft)' }}</Link>
+                    <Link :href="`/stock-adjustments/${row.id}`" class="doc-link-quiet">{{ value ?? '(draft)' }}</Link>
                 </template>
                 <template #cell:reason="{ value }">
                     <span class="line-clamp-1 text-ink-700">{{ value }}</span>

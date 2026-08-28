@@ -217,7 +217,7 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
                     dense
                 >
                     <template #cell:number="{ row, value }">
-                        <a :href="`/purchase-orders/${row.id}`" class="font-medium text-brand-700 hover:underline">{{ value }}</a>
+                        <a :href="`/purchase-orders/${row.id}`" class="doc-link-quiet">{{ value }}</a>
                     </template>
                     <template #cell:order_date="{ value }">{{ date(value) }}</template>
                     <template #cell:total="{ value }">{{ money(value) }}</template>

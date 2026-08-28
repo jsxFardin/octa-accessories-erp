@@ -43,6 +43,8 @@ class ReportController extends Controller
             ],
             'rows' => $query->paginate($request),
             'totals' => $query->totals($request),
+            // BR-50 — what the totals row is actually in, and what it was made from.
+            'totalsMeta' => $query->totalsMeta($request),
             'extras' => $query->extras($request),
             'applied' => $request->only($filterKeys),
         ]);

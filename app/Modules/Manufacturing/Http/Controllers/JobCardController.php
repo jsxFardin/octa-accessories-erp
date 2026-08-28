@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\Services\FgReceiptService;
+use App\Modules\Manufacturing\Services\JobCardPlanningGuard;
 use App\Modules\Manufacturing\Services\JobCardReleaseGate;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
 use App\Modules\Product\Models\ArtworkVersion;
@@ -38,6 +39,7 @@ class JobCardController extends Controller
         private readonly ConsumptionCalculator $consumption,
         private readonly CapacityCalculator $capacity,
         private readonly FgReceiptService $fgReceipts,
+        private readonly JobCardPlanningGuard $planning,
     ) {}
 
     public function index(Request $request): Response
@@ -103,9 +105,21 @@ class JobCardController extends Controller
             ->get([
                 'sol.id', 'sol.line_no', 'sol.ordered_qty', 'sol.produced_qty', 'sol.promised_date',
                 'sol.product_id', 'sol.product_spec_id', 'sol.sales_order_id',
+                'sol.over_tolerance_pct', 'sol.under_tolerance_pct',
                 'so.number as so_number', 'p.code as product_code', 'p.name as product_name',
                 'c.name as customer_name',
             ]);
+
+        // BR-49 — every eligible line carries the quantity it can still take, so the form can
+        // cap the input and say why instead of letting the planner discover it on submit.
+        // The figures are the guard's own, not a second calculation that could drift from it.
+        $capacities = $this->planning->capacities($lines);
+
+        $lines = $lines->map(function (object $line) use ($capacities): object {
+            $line->capacity = $capacities[(int) $line->id] ?? null;
+
+            return $line;
+        });
 
         $orderId = $request->integer('sales_order') ?: null;
         $lineId = $request->integer('sales_order_line') ?: null;
@@ -188,6 +202,11 @@ class JobCardController extends Controller
         ]);
 
         $line = SalesOrderLine::query()->findOrFail($data['sales_order_line_id']);
+
+        // BR-49 — the ceiling the form draws is also the one the server holds. A POST that
+        // never saw the form gets the same refusal, and a form whose outstanding figure went
+        // stale while it sat open is corrected here rather than trusted.
+        $this->planning->assert($line, (float) $data['planned_qty']);
 
         /** @var Product $product */
         $product = Product::query()->with(['routing.operations', 'activeBom'])->findOrFail($line->product_id);

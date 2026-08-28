@@ -39,6 +39,7 @@ class PayablesReport extends ReportQuery
             ['key' => 'total', 'label' => 'Total', 'align' => 'right', 'format' => 'money'],
             ['key' => 'paid_amount', 'label' => 'Paid', 'align' => 'right', 'format' => 'money'],
             ['key' => 'outstanding_amount', 'label' => 'Outstanding', 'align' => 'right', 'format' => 'money'],
+            ['key' => 'currency', 'label' => 'Currency'],
             ['key' => 'status', 'label' => 'Status', 'format' => 'status'],
             ['key' => 'is_overdue', 'label' => 'Overdue'],
         ];
@@ -47,6 +48,17 @@ class PayablesReport extends ReportQuery
     public function documentPath(): ?string
     {
         return '/supplier-bills';
+    }
+
+    // BR-50 — this report spans documents raised in more than one currency.
+    public function currencyColumn(): ?string
+    {
+        return 'currency';
+    }
+
+    public function baseRateColumn(): ?string
+    {
+        return 'base_rate';
     }
 
     public function filterFields(): array
@@ -65,11 +77,14 @@ class PayablesReport extends ReportQuery
     {
         $query = DB::table('supplier_bills as sb')
             ->join('suppliers as s', 's.id', '=', 'sb.supplier_id')
+            ->leftJoin('currencies as cur', 'cur.id', '=', 'sb.currency_id')
             ->selectRaw("
                 sb.id,
                 sb.number,
                 sb.bill_no,
                 s.name as supplier,
+                cur.code as currency,
+                COALESCE(sb.exchange_rate, 1) as base_rate,
                 sb.bill_date,
                 sb.due_date,
                 sb.total,
