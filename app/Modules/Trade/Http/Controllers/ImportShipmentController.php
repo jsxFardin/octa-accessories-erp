@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Trade\Models\ImportCost;
 use App\Modules\Trade\Models\ImportShipment;
 use App\Modules\Trade\Services\LandedCostAllocator;
+use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Http\RedirectResponse;
@@ -33,11 +34,12 @@ class ImportShipmentController extends Controller
     public function __construct(
         private readonly NumberAllocator $numbers,
         private readonly LandedCostAllocator $allocator,
+        private readonly ExchangeRateResolver $rates,
     ) {}
 
     public function index(Request $request): Response
     {
-        $query = ImportShipment::query()->with(['supplier:id,code,name', 'letterOfCredit:id,number,lc_no']);
+        $query = ImportShipment::query()->with(['supplier:id,code,name', 'letterOfCredit:id,number,lc_no', 'currency:id,code']);
 
         $this->applyListing(
             $query,
@@ -56,6 +58,9 @@ class ImportShipmentController extends Controller
                         'allocated_amount', 'status']),
                     'supplier' => $shipment->supplier?->name,
                     'lc' => $shipment->letterOfCredit->lc_no ?? $shipment->letterOfCredit?->number,
+                    // BR-55 — `goods_value` is the supplier's invoice, in the supplier's
+                    // currency. The landed-cost columns beside it are base-currency sums.
+                    'currency' => $shipment->currency?->code,
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'supplier', 'mode']),
@@ -89,7 +94,7 @@ class ImportShipmentController extends Controller
 
     public function show(ImportShipment $importShipment): Response
     {
-        $importShipment->load(['supplier', 'letterOfCredit']);
+        $importShipment->load(['supplier', 'letterOfCredit', 'currency']);
 
         $costs = DB::table('import_costs as ic')
             ->leftJoin('suppliers as s', 's.id', '=', 'ic.supplier_id')
@@ -108,6 +113,7 @@ class ImportShipmentController extends Controller
                 'supplier_name' => $importShipment->supplier?->name,
                 'lc_number' => $importShipment->letterOfCredit->lc_no ?? $importShipment->letterOfCredit?->number,
                 'lc_id' => $importShipment->lc_id,
+                'currency' => $importShipment->currency?->only(['id', 'code', 'name', 'symbol']),
             ],
             'costs' => $costs,
             'receipts' => DB::table('grns as g')
@@ -213,11 +219,20 @@ class ImportShipmentController extends Controller
             'is_allocable' => ['boolean'],
         ]);
 
+        // BR-58 — the rate this cost converts at, booked from the reference table. Defaulted
+        // to 1, a USD freight bill entered the stock valuation at a hundred-and-twentieth of
+        // its value and every margin computed from that material was overstated.
+        $data['exchange_rate'] = $this->rates->resolve(
+            (int) $data['currency_id'],
+            $data['exchange_rate'] ?? null,
+            $data['incurred_on'] ?? null,
+        );
+
         ImportCost::query()->create([
             ...$data,
             // Held in both: the foreign amount is what the bill says, the base amount is the
             // only figure that can be added to the others.
-            'base_amount' => round((float) $data['amount'] * (float) ($data['exchange_rate'] ?? 1), 4),
+            'base_amount' => round((float) $data['amount'] * (float) $data['exchange_rate'], 4),
             'created_by' => $request->user()->id,
             'shipment_id' => $importShipment->id,
         ]);
@@ -301,7 +316,7 @@ class ImportShipmentController extends Controller
     /** @return array<string, mixed> */
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'lc_id' => ['nullable', 'integer', 'exists:letters_of_credit,id'],
             'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
             'invoice_no' => ['nullable', 'string', 'max:60'],
@@ -321,6 +336,16 @@ class ImportShipmentController extends Controller
             'goods_value' => ['numeric', 'min:0'],
             'remarks' => ['nullable', 'string', 'max:500'],
         ]);
+
+        // BR-58 — the shipment's own rate, booked from the reference table as at the supplier's
+        // invoice date (the document this shipment is valued from).
+        $data['exchange_rate'] = $this->rates->resolve(
+            (int) $data['currency_id'],
+            $data['exchange_rate'] ?? null,
+            $data['invoice_date'] ?? $data['etd'] ?? null,
+        );
+
+        return $data;
     }
 
     /** @return array<string, mixed> */

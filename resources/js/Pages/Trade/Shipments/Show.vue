@@ -145,7 +145,7 @@ const byLine = computed(() => {
         const line = lines.get(key);
 
         line.added += Number(row.amount);
-        line.parts.push(`${titleCase(row.cost_type)} ${money(row.amount)}`);
+        line.parts.push(`${titleCase(row.cost_type)} ${money(row.amount, row.currency)}`);
     }
 
     return [...lines.values()];
@@ -206,7 +206,7 @@ const byLine = computed(() => {
                 <dl class="grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:grid-cols-5">
                     <div>
                         <dt class="text-ink-500">Goods value</dt>
-                        <dd class="tnum font-medium">{{ money(shipment.goods_value) }}</dd>
+                        <dd class="tnum font-medium">{{ money(shipment.goods_value, shipment.currency) }}</dd>
                     </div>
                     <div>
                         <dt class="text-ink-500">Costs recorded</dt>
@@ -264,7 +264,10 @@ const byLine = computed(() => {
                     <template #cell:vendor="{ value }">{{ value ?? '—' }}</template>
                     <template #cell:reference_no="{ value }">{{ value ?? '—' }}</template>
                     <template #cell:incurred_on="{ value }">{{ date(value) }}</template>
-                    <template #cell:amount="{ row, value }">{{ money(value) }} {{ row.currency }}</template>
+                    <!-- BR-55 — one label, in front, from the row's own currency. Printing
+                         the code again after a figure the formatter had already labelled with
+                         the factory's read as `BDT 500.00 USD`. -->
+                    <template #cell:amount="{ row, value }">{{ money(value, row.currency) }}</template>
                     <template #cell:base_amount="{ value }">{{ money(value) }}</template>
                     <template #cell:is_allocable="{ value }">
                         <Badge :tone="value ? 'success' : 'neutral'" :label="value ? 'Allocable' : 'Period cost'" />

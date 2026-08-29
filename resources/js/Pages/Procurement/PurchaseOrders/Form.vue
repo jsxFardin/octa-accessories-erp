@@ -33,6 +33,16 @@ const props = defineProps({
 const isEdit = computed(() => Boolean(props.order));
 const baseCurrency = computed(() => props.currencies.find((currency) => currency.is_base) ?? null);
 
+/**
+ * BR-55 — the order is priced in the currency chosen above, so every figure on this form is
+ * labelled with it rather than with the factory's by default. Choosing USD and reading a
+ * subtotal marked `BDT` is how the same order came to be two different numbers.
+ */
+const documentCurrency = computed(
+    () => props.currencies.find((currency) => currency.id === Number(form.currency_id))?.code
+        ?? baseCurrency.value?.code,
+);
+
 function blankLine() {
     return {
         item_id: '',
@@ -146,9 +156,22 @@ const subtotal = computed(() =>
 );
 const total = computed(() => subtotal.value + (Number(form.freight_amount) || 0));
 
-/** 06-rbac §5 — say who has to sign this before the buyer presses submit, not after. */
+/**
+ * The order's value in the factory's own currency — BR-51, the unit every approval band is
+ * expressed in.
+ */
+const baseTotal = computed(() => total.value * (Number(form.exchange_rate) || 1));
+
+/**
+ * 06-rbac §5 — say who has to sign this before the buyer presses submit, not after.
+ *
+ * BR-51 — compared in base currency, because the band is. Comparing the raw total told a buyer
+ * raising a USD 1,000 order that their own signature was enough while the server, converting,
+ * would send it to the Managing Director: a screen that disagrees with the guard behind it is
+ * worse than one that says nothing.
+ */
 const approver = computed(() =>
-    total.value > Number(props.approvalBand) ? 'Managing Director' : 'Purchase manager',
+    baseTotal.value > Number(props.approvalBand) ? 'Managing Director' : 'Purchase manager',
 );
 
 function submit() {
@@ -276,7 +299,7 @@ const columns = [
 
                         <template #cell:amount="{ line }">
                             <span class="text-sm tnum text-ink-900">
-                                {{ money((Number(line.qty) || 0) * (Number(line.rate) || 0)) }}
+                                {{ money((Number(line.qty) || 0) * (Number(line.rate) || 0), documentCurrency) }}
                             </span>
                         </template>
 
@@ -295,7 +318,7 @@ const columns = [
                         <template #footer>
                             <tr>
                                 <td colspan="3" class="px-3 py-2 text-right text-xs text-ink-700">Subtotal</td>
-                                <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">{{ money(subtotal) }}</td>
+                                <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">{{ money(subtotal, documentCurrency) }}</td>
                                 <td colspan="3" />
                             </tr>
                         </template>
@@ -315,7 +338,7 @@ const columns = [
                     <dl class="space-y-1.5 text-sm">
                         <div class="flex justify-between">
                             <dt class="text-ink-500">Goods</dt>
-                            <dd class="tnum text-ink-900">{{ money(subtotal) }}</dd>
+                            <dd class="tnum text-ink-900">{{ money(subtotal, documentCurrency) }}</dd>
                         </div>
                         <div class="flex items-center justify-between gap-2">
                             <dt class="text-ink-500">Freight</dt>
@@ -325,7 +348,7 @@ const columns = [
                         </div>
                         <div class="flex justify-between border-t border-slate-200 pt-1.5 font-semibold">
                             <dt class="text-ink-800">Total</dt>
-                            <dd class="tnum text-ink-900">{{ money(total) }}</dd>
+                            <dd class="tnum text-ink-900">{{ money(total, documentCurrency) }}</dd>
                         </div>
                     </dl>
 
@@ -333,7 +356,9 @@ const columns = [
                         <p class="text-[10px] tracking-wider text-brand-700 uppercase">Needs approval from</p>
                         <p class="text-sm font-semibold text-brand-800">{{ approver }}</p>
                         <p class="mt-0.5 text-[11px] text-ink-500">
-                            Manager band {{ money(approvalBand) }}
+                            <!-- BR-51 — the band is a base-currency figure and is labelled as
+                                 one, beside an order total that may not be. -->
+                            Manager band {{ money(approvalBand, baseCurrency?.code) }}
                         </p>
                     </div>
                 </Card>
@@ -384,7 +409,7 @@ const columns = [
                 <FormFooter
                     :form="form"
                     cancel-href="/purchase-orders"
-                    :summary="`${money(total)} · approved by the ${approver}`"
+                    :summary="`${money(total, documentCurrency)} · approved by the ${approver}`"
                     :label="isEdit ? 'Save changes' : 'Save draft'"
                     @save="submit"
                 />

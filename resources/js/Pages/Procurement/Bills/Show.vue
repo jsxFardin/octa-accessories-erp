@@ -149,7 +149,7 @@ const lineColumns = [
                                     <span v-else class="text-ink-400">—</span>
                                 </td>
                                 <td class="px-3 py-1.5 text-right tnum">{{ row.po_rate != null ? money(row.po_rate, bill.currency) : '—' }}</td>
-                                <td class="px-3 py-1.5 text-right tnum">{{ money(row.bill_rate) }}</td>
+                                <td class="px-3 py-1.5 text-right tnum">{{ money(row.bill_rate, bill.currency) }}</td>
                                 <td class="px-3 py-1.5 text-right tnum" :class="row.rate_variance_pct > 2 ? 'text-rose-600 font-semibold' : ''">
                                     {{ row.rate_variance_pct != null ? `${row.rate_variance_pct}%` : '—' }}
                                 </td>
@@ -164,7 +164,9 @@ const lineColumns = [
                     <li v-for="payment in payments" :key="payment.id" class="flex items-center justify-between px-4 py-2">
                         <span class="font-medium">{{ payment.number }}</span>
                         <span class="text-xs text-ink-500">{{ date(payment.payment_date) }} · {{ payment.method }}</span>
-                        <span class="tnum">{{ money(payment.amount) }}</span>
+                        <!-- BR-57 — an allocation is refused across currencies, so a payment against this
+                             bill is necessarily in the bill's currency. -->
+                        <span class="tnum">{{ money(payment.amount, bill.currency) }}</span>
                     </li>
                     <li v-if="!payments.length" class="px-4 py-6 text-center text-sm text-ink-500">
                         No payments yet.

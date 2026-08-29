@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Finance\Models\Receipt;
 use App\Modules\Finance\Models\SalesInvoice;
 use App\Modules\Finance\States\SalesInvoiceStateMachine;
+use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Http\RedirectResponse;
@@ -31,11 +32,12 @@ class ReceiptController extends Controller
     public function __construct(
         private readonly SalesInvoiceStateMachine $invoices,
         private readonly NumberAllocator $numbers,
+        private readonly ExchangeRateResolver $rates,
     ) {}
 
     public function index(Request $request): Response
     {
-        $query = Receipt::query()->with(['customer:id,code,name']);
+        $query = Receipt::query()->with(['customer:id,code,name', 'currency:id,code']);
 
         $this->applyListing(
             $query,
@@ -52,6 +54,8 @@ class ReceiptController extends Controller
                     ...$receipt->only(['id', 'number', 'receipt_date', 'method', 'reference_no',
                         'amount', 'allocated_amount', 'status']),
                     'customer' => $receipt->customer?->name,
+                    // BR-55 — a receipt is taken in a currency; the list says which.
+                    'currency' => $receipt->currency?->code,
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'customer', 'method']),
@@ -59,8 +63,10 @@ class ReceiptController extends Controller
                 ->join('customers as c', 'c.id', '=', 'si.customer_id')
                 ->whereIn('si.status', ['issued', 'partially_paid', 'overdue'])
                 ->orderBy('si.due_date')
-                ->select(['si.id', 'si.number', 'si.customer_id', 'si.currency_id', 'si.total',
-                    'si.received_amount', 'si.due_date', 'c.name as customer_name'])
+                ->leftJoin('currencies as cur', 'cur.id', '=', 'si.currency_id')
+                ->select(['si.id', 'si.number', 'si.customer_id', 'si.currency_id',
+                    'cur.code as currency', 'si.total', 'si.received_amount', 'si.due_date',
+                    'c.name as customer_name'])
                 // P2-1 — applied credits reduce what a receipt may allocate.
                 ->selectSub(
                     DB::table('credit_notes')->whereColumn('sales_invoice_id', 'si.id')
@@ -106,7 +112,14 @@ class ReceiptController extends Controller
                     'reference_no' => $data['reference_no'] ?? null,
                     'bank_name' => $data['bank_name'] ?? null,
                     'currency_id' => $data['currency_id'],
-                    'exchange_rate' => $data['exchange_rate'] ?? 1,
+                    // BR-58 — booked from the reference table rather than defaulted to parity: a
+                    // USD document at a rate of 1 understates it by the whole of the rate
+                    // in every base-currency total that reads it.
+                    'exchange_rate' => $this->rates->resolve(
+                        (int) $data['currency_id'],
+                        $data['exchange_rate'] ?? null,
+                        $data['receipt_date'] ?? null,
+                    ),
                     'amount' => $data['amount'],
                     'allocated_amount' => round($allocated, 4),
                     'status' => 'posted',
@@ -126,6 +139,19 @@ class ReceiptController extends Controller
                     if ((int) $invoice->customer_id !== (int) $data['customer_id']) {
                         throw ValidationException::withMessages([
                             'allocations' => "Invoice {$invoice->number} belongs to a different customer.",
+                        ]);
+                    }
+
+                    // BR-57 — money is allocated only within one currency. `received_amount`
+                    // and the P2-1 outstanding balance are both stated in the invoice's
+                    // currency, so a receipt raised in another one would settle a USD 11.63
+                    // invoice with BDT 11.63 and report it paid.
+                    if ((int) $invoice->currency_id !== (int) $data['currency_id']) {
+                        throw ValidationException::withMessages([
+                            'allocations' => sprintf(
+                                'Invoice %s is in a different currency from this receipt. Record a receipt in the invoice currency.',
+                                $invoice->number,
+                            ),
                         ]);
                     }
 

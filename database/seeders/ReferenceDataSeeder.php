@@ -612,6 +612,7 @@ class ReferenceDataSeeder extends Seeder
             ['po_approval_band_manager', 100000, 'approval', 'PO value up to which purchase_manager may approve (06-rbac §5)'],
             ['rfq_three_quote_value_threshold', 50000, 'approval', 'Quoted value above which three supplier quotations are required before selecting a winner (PR-2)'],
             ['supplier_bill_rate_tolerance_pct', 2, 'approval', 'Rate variance above which supplier_bill.approve_variance is needed (06-procurement §3-way match)'],
+            ['exchange_rate_tolerance_pct', 5, 'approval', 'How far a booked rate may sit from the published reference rate before it is refused (BR-58)'],
             ['adjustment_approval_band_manager', 25000, 'approval', 'Stock adjustment value store_manager may approve'],
             ['credit_note_approval_band_accounts', 50000, 'approval', 'Credit note value accounts may approve'],
             ['merchandiser_sees_own_only', false, 'scoping', 'When on, a merchandiser sees only their own records (06-rbac §4)'],

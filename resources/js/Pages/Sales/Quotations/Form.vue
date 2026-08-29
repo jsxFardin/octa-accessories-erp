@@ -376,7 +376,7 @@ const columns = [
                         </template>
 
                         <template #cell:line_total="{ line }">
-                            <span class="text-sm tnum text-ink-800">{{ money(lineTotal(line)) }}</span>
+                            <span class="text-sm tnum text-ink-800">{{ money(lineTotal(line), currencyCode) }}</span>
                         </template>
 
                         <template #footer>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Finance\Models;
 
+use App\Modules\MasterData\Models\Currency;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -65,5 +66,16 @@ class Receipt extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\Customer::class, 'customer_id');
+    }
+
+    /**
+     * BR-55/BR-57 — the currency the money actually arriving is denominated in. Allocations are
+     * refused across currencies, so this is also the currency of every allocation on it.
+     *
+     * @return BelongsTo<Currency, $this>
+     */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
     }
 }

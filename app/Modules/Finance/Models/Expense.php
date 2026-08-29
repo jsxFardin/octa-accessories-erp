@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Finance\Models;
 
+use App\Modules\MasterData\Models\Currency;
 use App\Modules\MasterData\Models\Supplier;
 use App\Modules\Trade\Models\BankAccount;
 use App\Modules\Trade\Models\ImportShipment;
@@ -118,5 +119,16 @@ class Expense extends Model
     public function baseTotal(): float
     {
         return round((float) $this->total * (float) $this->exchange_rate, 4);
+    }
+
+    /**
+     * BR-55 — the currency the bill was in. `total * exchange_rate` is the base-currency figure
+     * the spend totals are summed from, so the two must never be confused for each other.
+     *
+     * @return BelongsTo<Currency, $this>
+     */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
     }
 }

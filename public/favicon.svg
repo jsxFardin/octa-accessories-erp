@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Octa ERP">
+    <!--
+        The shipped fallback mark, used until an organisation uploads its own square icon
+        (/admin/organisation). The template has always referenced this file; it was never
+        shipped, so every page in the application logged a 404 for it in the console.
+    -->
+    <rect width="32" height="32" rx="7" fill="#0071be"/>
+    <path d="M16 7.5 22.5 11.25v7.5L16 22.5 9.5 18.75v-7.5z" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/>
+</svg>

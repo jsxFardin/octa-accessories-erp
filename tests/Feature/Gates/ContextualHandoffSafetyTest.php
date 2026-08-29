@@ -184,3 +184,116 @@ it('scopes the product customer preselect to the picker it renders', function ()
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page->where('preselectedCustomer', null));
 });
+
+/*
+ * BR-54, second question — "May this viewer read that record?"
+ *
+ * The rule was documented as applying to every handoff and implemented on two of them. A QC
+ * inspector holds `grn.create` and no purchase-order permission at all: `/purchase-orders/1`
+ * refuses them outright, while `/grns/create?po=1` handed back that order's number, supplier,
+ * currency, exchange rate and every line on it. A query parameter must not reach around a
+ * permission the same user is refused at the front door.
+ */
+/** An order open to receiving, built here rather than hoped for in the walkthrough data. */
+function br54OpenOrder(): int
+{
+    $supplier = DB::table('suppliers')->where('is_active', true)->firstOrFail();
+    $item = DB::table('items')->whereNotNull('base_uom_id')->firstOrFail();
+
+    $poId = DB::table('purchase_orders')->insertGetId([
+        'number' => 'PO-BR54-'.substr(uniqid(), -6),
+        'supplier_id' => $supplier->id,
+        'factory_unit_id' => DB::table('factory_units')->value('id'),
+        'order_date' => now()->toDateString(),
+        'currency_id' => DB::table('currencies')->where('is_base', true)->value('id'),
+        'exchange_rate' => 1,
+        'subtotal' => 1000,
+        'total' => 1000,
+        'status' => 'approved',
+    ]);
+
+    DB::table('purchase_order_lines')->insert([
+        'po_id' => $poId,
+        'line_no' => 1,
+        'item_id' => $item->id,
+        'uom_id' => $item->base_uom_id,
+        'qty' => 100,
+        'rate' => 10,
+        'amount' => 1000,
+        'received_qty' => 0,
+    ]);
+
+    return $poId;
+}
+
+it('br54: does not hand a purchase order to a receiver who may not read purchase orders', function (): void {
+    $inspector = User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail();
+    $poId = br54OpenOrder();
+
+    // The premise: this role can reach the receiving screen and cannot open the order.
+    expect($inspector->hasPermission('grn.create'))->toBeTrue()
+        ->and($inspector->hasPermission('purchase_order.view'))->toBeFalse()
+        ->and($inspector->hasPermission('purchase_order.view_any'))->toBeFalse();
+
+    $this->actingAs($inspector)->get("/purchase-orders/{$poId}")->assertForbidden();
+
+    $this->actingAs($inspector)
+        ->get("/grns/create?po={$poId}")
+        // The screen still works — a receipt with no order behind it is legitimate…
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            // …but it carries nothing about the order, through the parameter or the picker.
+            ->where('preselectPoId', null)
+            ->where('poLines', [])
+            ->where('purchaseOrders', []),
+        );
+});
+
+it('br54: still hands the order to a receiver who may read purchase orders', function (): void {
+    $store = User::query()->where('email', 'store@maheenlabel.test')->firstOrFail();
+    $poId = br54OpenOrder();
+
+    $this->actingAs($store)
+        ->get("/grns/create?po={$poId}")
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('preselectPoId', $poId)
+            ->has('poLines', 1),
+        );
+});
+
+it('br54: withholds a sales order from a planner who may not read sales orders', function (): void {
+    // A production supervisor raises job cards and holds no sales-order permission at all.
+    $supervisor = User::query()->where('email', 'supervisor@maheenlabel.test')->firstOrFail();
+    $order = DB::table('sales_orders')->first();
+
+    if ($order === null) {
+        $this->markTestSkipped('No sales order in the walkthrough.');
+    }
+
+    expect($supervisor->hasPermission('job_card.create'))->toBeTrue()
+        ->and($supervisor->hasPermission('sales_order.view_any'))->toBeFalse()
+        ->and($supervisor->hasPermission('sales_order.view'))->toBeFalse();
+
+    $this->actingAs($supervisor)
+        ->get("/job-cards/create?sales_order={$order->id}")
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('context', null));
+});
+
+it('br54: withholds a customer from an engineer who may not read customers', function (): void {
+    $engineer = User::query()->where('email', 'engineer@maheenlabel.test')->firstOrFail();
+    $customer = DB::table('customers')->where('is_active', true)->first();
+
+    if ($customer === null) {
+        $this->markTestSkipped('No active customer in the walkthrough.');
+    }
+
+    expect($engineer->hasPermission('product.create'))->toBeTrue()
+        ->and($engineer->hasPermission('customer.view_any'))->toBeFalse();
+
+    $this->actingAs($engineer)
+        ->get("/products/create?customer={$customer->id}")
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('preselectedCustomer', null));
+});

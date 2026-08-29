@@ -89,7 +89,7 @@ const columns = [
                     <span v-else class="text-ink-400">not yet opened</span>
                 </template>
                 <template #cell:kind="{ value }">{{ titleCase(value) }}</template>
-                <template #cell:amount="{ value }">{{ money(value) }}</template>
+                <template #cell:amount="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:last_shipment_date="{ value }">{{ value ? date(value) : '—' }}</template>
                 <template #cell:expiry_date="{ row, value }">
                     <span v-if="!value" class="text-ink-400">—</span>

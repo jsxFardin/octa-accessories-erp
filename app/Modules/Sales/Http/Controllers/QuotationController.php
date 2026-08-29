@@ -18,6 +18,7 @@ use App\Modules\Sales\Services\QuotationConversionService;
 use App\Modules\Sales\States\QuotationStateMachine;
 use App\Support\Audit\DocumentTrail;
 use App\Support\Calculators\CostSheetCalculator;
+use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Settings\Settings;
@@ -41,6 +42,7 @@ class QuotationController extends Controller
         private readonly QuotationConversionService $conversions,
         private readonly CostSheetPresenter $costLines,
         private readonly DocumentTrail $trail,
+        private readonly ExchangeRateResolver $rates,
     ) {}
 
     public function index(Request $request): Response
@@ -85,6 +87,9 @@ class QuotationController extends Controller
         // inquiries still arrives here from a legitimate `Quote it`, and the quotation must
         // still be filed against the inquiry it answers; what they must not get is its
         // contents. That distinction is deliberate and is covered by `DocumentHandoffTest`.
+        // No permission argument here, deliberately: BR-54's read question is asked by
+        // `prefillInquiry()` below, which withholds the inquiry's *contents*. The id itself is
+        // the filing link and survives, which is the distinction the comment above describes.
         $requestedId = $this->contextualId($request, 'inquiry');
         $inquiryExists = $requestedId !== null
             && DB::table('inquiries')->where('id', $requestedId)->exists();
@@ -460,14 +465,14 @@ class QuotationController extends Controller
     /** @return array<string, mixed> */
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'inquiry_id' => ['nullable', 'integer', 'exists:inquiries,id'],
             'customer_id' => ['required', 'integer', 'exists:customers,id'],
             'quotation_date' => ['required', 'date'],
             'valid_until' => ['nullable', 'date', 'after:quotation_date'],
             'currency_id' => ['required', 'integer', 'exists:currencies,id'],
             // BR-22 — snapshotted onto the quotation, never re-read when reprinting.
-            'exchange_rate' => ['required', 'numeric', 'gt:0'],
+            'exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'payment_term_id' => ['nullable', 'integer', 'exists:payment_terms,id'],
             'terms' => ['nullable', 'string'],
             'lines' => ['required', 'array', 'min:1'],
@@ -485,6 +490,18 @@ class QuotationController extends Controller
             'lines.*.margin_pct' => ['nullable', 'numeric', 'min:0', 'lt:100'],
             'lines.*.lead_time_days' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        // BR-58 — the snapshot rate is booked by the server from the reference table, not
+        // taken on trust from the form. A `1` on a foreign-currency document understates every
+        // base-currency figure derived from it and, where a band is compared, is an
+        // authorisation bypass reached by typing a number.
+        $data['exchange_rate'] = $this->rates->resolve(
+            (int) $data['currency_id'],
+            $data['exchange_rate'] ?? null,
+            $data['quotation_date'] ?? null,
+        );
+
+        return $data;
     }
 
     /**

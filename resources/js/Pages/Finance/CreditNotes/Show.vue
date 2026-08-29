@@ -47,7 +47,7 @@ async function transition(to) {
         <div class="grid gap-4 lg:grid-cols-2">
             <Card title="Credit">
                 <dl class="grid grid-cols-2 gap-2 text-sm">
-                    <div><dt class="text-xs text-ink-500">Amount</dt><dd class="font-medium tnum">{{ money(creditNote.amount) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Amount</dt><dd class="font-medium tnum">{{ money(creditNote.amount, creditNote.currency) }}</dd></div>
                     <div><dt class="text-xs text-ink-500">Reason</dt><dd class="font-medium">{{ titleCase(creditNote.reason) }}</dd></div>
                 </dl>
                 <p v-if="creditNote.remarks" class="mt-3 whitespace-pre-line text-sm text-ink-600">{{ creditNote.remarks }}</p>
@@ -61,10 +61,10 @@ async function transition(to) {
                 <dl class="grid grid-cols-2 gap-2 text-sm">
                     <div><dt class="text-xs text-ink-500">Invoice</dt>
                         <dd><Link :href="`/invoices/${invoice.id}`" class="doc-link-quiet">{{ invoice.number }}</Link> <Badge :status="invoice.status" /></dd></div>
-                    <div><dt class="text-xs text-ink-500">Total</dt><dd class="font-medium tnum">{{ money(invoice.total) }}</dd></div>
-                    <div><dt class="text-xs text-ink-500">Received</dt><dd class="font-medium tnum text-emerald-700">{{ money(invoice.received_amount) }}</dd></div>
-                    <div><dt class="text-xs text-ink-500">Credited</dt><dd class="font-medium tnum text-amber-700">{{ money(invoice.credited) }}</dd></div>
-                    <div><dt class="text-xs text-ink-500">Outstanding</dt><dd class="font-medium tnum" :class="invoice.outstanding > 0 ? 'text-rose-600' : ''">{{ money(invoice.outstanding) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Total</dt><dd class="font-medium tnum">{{ money(invoice.total, invoice.currency) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Received</dt><dd class="font-medium tnum text-emerald-700">{{ money(invoice.received_amount, invoice.currency) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Credited</dt><dd class="font-medium tnum text-amber-700">{{ money(invoice.credited, invoice.currency) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Outstanding</dt><dd class="font-medium tnum" :class="invoice.outstanding > 0 ? 'text-rose-600' : ''">{{ money(invoice.outstanding, invoice.currency) }}</dd></div>
                 </dl>
             </Card>
         </div>

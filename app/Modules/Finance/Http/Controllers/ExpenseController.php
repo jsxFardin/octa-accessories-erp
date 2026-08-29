@@ -7,6 +7,7 @@ namespace App\Modules\Finance\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Finance\Models\Expense;
 use App\Modules\Finance\Models\ExpenseCategory;
+use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Http\RedirectResponse;
@@ -31,11 +32,14 @@ class ExpenseController extends Controller
 {
     use ListsResources;
 
-    public function __construct(private readonly NumberAllocator $numbers) {}
+    public function __construct(
+        private readonly NumberAllocator $numbers,
+        private readonly ExchangeRateResolver $rates,
+    ) {}
 
     public function index(Request $request): Response
     {
-        $query = Expense::query()->with(['category:id,code,name', 'supplier:id,name']);
+        $query = Expense::query()->with(['category:id,code,name', 'supplier:id,name', 'currency:id,code']);
 
         $this->applyListing(
             $query,
@@ -52,6 +56,9 @@ class ExpenseController extends Controller
                     ...$expense->only(['id', 'number', 'expense_date', 'payee', 'description',
                         'amount', 'tax_amount', 'total', 'method', 'status', 'paid_on']),
                     'category' => $expense->category?->name,
+                    // BR-55 — the row amount is in the expense's own currency; the totals
+                    // beside it are base-currency sums of `amount * exchange_rate`.
+                    'currency' => $expense->currency?->code,
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'category', 'method']),
@@ -196,7 +203,7 @@ class ExpenseController extends Controller
     /** @return array<string, mixed> */
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'expense_date' => ['required', 'date'],
             'expense_category_id' => ['required', 'integer', 'exists:expense_categories,id'],
             'factory_unit_id' => ['nullable', 'integer', 'exists:factory_units,id'],
@@ -213,6 +220,17 @@ class ExpenseController extends Controller
             'bank_account_id' => ['nullable', 'integer', 'exists:bank_accounts,id'],
             'reference_no' => ['nullable', 'string', 'max:80'],
         ]);
+
+        // BR-58 — booked from the reference table. Expense totals are summed as
+        // `amount * exchange_rate`, so a foreign expense at parity understates every one of
+        // them by the whole of the rate.
+        $data['exchange_rate'] = $this->rates->resolve(
+            (int) $data['currency_id'],
+            $data['exchange_rate'] ?? null,
+            $data['expense_date'] ?? null,
+        );
+
+        return $data;
     }
 
     /** @return array<string, mixed> */

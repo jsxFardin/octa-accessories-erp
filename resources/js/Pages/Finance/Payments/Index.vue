@@ -62,7 +62,7 @@ function outstandingOf(bill) {
 // the supplier's name, and a run-on label makes both harder to scan.
 const billOptions = computed(() => props.openBills.map((bill) => ({
     value: bill.id,
-    label: `${bill.number ?? bill.bill_no} · ${outstandingOf(bill)} outstanding`,
+    label: `${bill.number ?? bill.bill_no} · ${money(outstandingOf(bill), bill.currency)} outstanding`,
     hint: bill.supplier_name,
 })));
 
@@ -82,7 +82,7 @@ const overAllocated = computed(() => {
         return 'More than the payment itself.';
     }
     if (chosenBill.value && allocation > Number(outstandingOf(chosenBill.value))) {
-        return `More than this bill's ${outstandingOf(chosenBill.value)} outstanding.`;
+        return `More than this bill's ${money(outstandingOf(chosenBill.value), chosenBill.value.currency)} outstanding.`;
     }
 
     return null;
@@ -93,7 +93,10 @@ function pickBill(allocation) {
 
     if (bill) {
         form.supplier_id = bill.supplier_id;
-        form.currency_id ??= bill.currency_id ?? null;
+        // BR-57 — a payment settles a bill in the bill's own currency, so choosing the bill
+        // decides the currency. `??=` kept the first bill's currency after the choice changed,
+        // which the server then (correctly) refused with no way to correct it from here.
+        form.currency_id = bill.currency_id ?? form.currency_id;
         allocation.amount ??= (Number(bill.total) - Number(bill.paid_amount)).toFixed(2);
         form.amount ??= allocation.amount;
     }
@@ -128,8 +131,8 @@ function submit() {
 
             <DataTable :columns="columns" :rows="payments" row-key="id" empty="No payments.">
                 <template #cell:payment_date="{ value }">{{ date(value) }}</template>
-                <template #cell:amount="{ value }">{{ money(value) }}</template>
-                <template #cell:allocated_amount="{ value }">{{ money(value) }}</template>
+                <template #cell:amount="{ row, value }">{{ money(value, row.currency) }}</template>
+                <template #cell:allocated_amount="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:status="{ value }"><Badge :status="value" /></template>
                 <template #empty>
                     <EmptyState
@@ -149,7 +152,7 @@ function submit() {
                     label="Supplier bill"
                     :error="form.errors.allocations"
                     required
-                    :hint="chosenBill ? `${chosenBill.supplier_name} · ${outstandingOf(chosenBill)} outstanding` : 'Searchable — type a bill number or a supplier.'"
+                    :hint="chosenBill ? `${chosenBill.supplier_name} · ${money(outstandingOf(chosenBill), chosenBill.currency)} outstanding` : 'Searchable — type a bill number or a supplier.'"
                 >
                     <SelectInput
                         v-model="form.allocations[0].supplier_bill_id"

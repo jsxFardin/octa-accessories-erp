@@ -52,7 +52,7 @@ Two numbers, and they are not interchangeable: `number` is ours, allocated on sa
 
 Past draft the commercial terms belong to the bank, so the edit form saves only the bank reference, issue date, bank account, charges and remarks. Value and dates move through an **amendment**, which is appended rather than merged: what was increased, when, and what the bank charged for it is the whole reason the record exists. `currentAmount()` is face value plus the deltas; `effectiveExpiry()` is the last amended expiry.
 
-One credit commonly covers several POs to the same supplier — the pivot carries `covered_amount`, and attaching an order from a different supplier is refused.
+One credit commonly covers several POs to the same supplier — the pivot carries `covered_amount`, and attaching an order from a different supplier is refused. So is an order in a **different currency** (BR-56): `covered` is summed against the credit's face value, and a credit is drawn on in the one currency the bank pays in. The picker offers only orders in that currency and `attachOrder()` refuses the rest on the server, because the id arrives by POST.
 
 `kind` includes `tt`, `da` and `dp`: not every import goes through a credit, and the ones that do not still need the shipment file.
 
@@ -104,7 +104,7 @@ An expense may name an `import_shipment_id`. That is a reporting link, not a cos
 
 **TR-3 — Cover purchase orders**
 - AC1: Only orders to the credit's supplier may be attached.
-- AC2: `covered_amount` defaults to the order value.
+- AC2: `covered_amount` defaults to the order value, which is in the same currency as the credit (BR-56).
 
 **TR-4 — File a shipment**
 - AC1: A shipment records the supplier invoice, transport document, mode, ports and dates.

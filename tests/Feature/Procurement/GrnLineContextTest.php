@@ -287,3 +287,85 @@ it('still allows a receipt with no purchase order behind it', function (): void 
 
     expect(DB::table('grn_lines')->orderByDesc('id')->value('po_line_id'))->toBeNull();
 });
+
+/**
+ * BR-59 — the stock ledger is kept in the factory's currency, and every rate on a goods
+ * receipt is in the purchase order's.
+ *
+ * Received against a USD order at the seeded rate of 122.5, a lot was valued at the dollar
+ * figure and entered a taka ledger a hundred-and-twenty-two times too cheap. Everything
+ * downstream inherits it in the same direction: the item's weighted average, the material cost
+ * of the job it is issued to, the margin on the order that job was made for — and, at the far
+ * end, a finished-goods lot indistinguishable from the zero-value ones BR-52 exists to stop.
+ */
+it('values a lot in the factory currency, not the order currency', function (): void {
+    $line = $this->poLines->first();
+
+    ($this->receive)([[
+        'item_id' => $line->item_id,
+        'uom_id' => $line->uom_id,
+        'qty' => 10,
+        'rate' => 10,
+        'po_line_id' => $line->id,
+    ]])->assertRedirect();
+
+    $grnLine = DB::table('grn_lines')->latest('id')->firstOrFail();
+    $lot = DB::table('stock_lots')->where('grn_line_id', $grnLine->id)->firstOrFail();
+
+    // What the supplier charged stays in the supplier's money…
+    expect((float) $grnLine->rate)->toBe(10.0)
+        ->and((float) $grnLine->landed_rate)->toBe(10.0)
+        // …and what the books hold is that, converted at the order's own snapshotted rate.
+        ->and((float) $lot->unit_cost)->toBe(1225.0);
+});
+
+it('leaves a base-currency receipt valued exactly as it was charged', function (): void {
+    $base = DB::table('currencies')->where('is_base', true)->firstOrFail();
+
+    DB::table('purchase_orders')->where('id', $this->order->id)
+        ->update(['currency_id' => $base->id, 'exchange_rate' => 1]);
+
+    $line = $this->poLines->first();
+
+    ($this->receive)([[
+        'item_id' => $line->item_id,
+        'uom_id' => $line->uom_id,
+        'qty' => 10,
+        'rate' => 10,
+        'po_line_id' => $line->id,
+    ]])->assertRedirect();
+
+    $grnLine = DB::table('grn_lines')->latest('id')->firstOrFail();
+    $lot = DB::table('stock_lots')->where('grn_line_id', $grnLine->id)->firstOrFail();
+
+    expect((float) $lot->unit_cost)->toBe(10.0);
+});
+
+it('carries the landed cost into the conversion rather than around it', function (): void {
+    $line = $this->poLines->first();
+
+    $this->actingAs($this->store)->post('/grns', [
+        'supplier_id' => $this->order->supplier_id,
+        'po_id' => $this->order->id,
+        'warehouse_id' => $this->warehouse,
+        'received_on' => now()->toDateString(),
+        // Charged in the order's currency, like every other figure on the receipt (BR-36).
+        'freight_amount' => 100,
+        'duty_amount' => 0,
+        'clearing_amount' => 0,
+        'lines' => [[
+            'item_id' => $line->item_id,
+            'uom_id' => $line->uom_id,
+            'qty' => 10,
+            'rate' => 10,
+            'po_line_id' => $line->id,
+        ]],
+    ])->assertRedirect();
+
+    $grnLine = DB::table('grn_lines')->latest('id')->firstOrFail();
+    $lot = DB::table('stock_lots')->where('grn_line_id', $grnLine->id)->firstOrFail();
+
+    // 10 + (100 ÷ 10) = 20 a unit charged, × 122.5 in the books.
+    expect((float) $grnLine->landed_rate)->toBe(20.0)
+        ->and((float) $lot->unit_cost)->toBe(2450.0);
+});

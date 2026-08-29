@@ -65,7 +65,7 @@ const columns = [
                 <template #cell:number="{ value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:mode="{ value }">{{ titleCase(value) }}</template>
                 <template #cell:eta="{ value }">{{ value ? date(value) : '—' }}</template>
-                <template #cell:goods_value="{ value }">{{ money(value) }}</template>
+                <template #cell:goods_value="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:cost_total="{ row, value }">
                     <span class="flex items-center justify-end gap-1.5">
                         {{ money(value) }}

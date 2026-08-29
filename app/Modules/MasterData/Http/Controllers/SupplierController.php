@@ -58,11 +58,15 @@ class SupplierController extends Controller
     {
         return Inertia::render('MasterData/Suppliers/Show', [
             'supplier' => $supplier,
+            // BR-55 — a supplier item's last rate is quoted in a currency of its own, which is
+            // not necessarily the factory's and not necessarily the supplier's default either.
             'items' => DB::table('supplier_items as si')
                 ->join('items as i', 'i.id', '=', 'si.item_id')
+                ->leftJoin('currencies as cur', 'cur.id', '=', 'si.currency_id')
                 ->where('si.supplier_id', $supplier->id)
                 ->orderBy('i.code')
-                ->get(['si.id', 'i.code', 'i.name', 'si.supplier_code', 'si.last_rate', 'si.lead_time_days', 'si.moq']),
+                ->get(['si.id', 'i.code', 'i.name', 'si.supplier_code', 'si.last_rate',
+                    'si.lead_time_days', 'si.moq', 'cur.code as currency']),
             // BR-50 — the order's own currency travels with its value. Selecting the total
             // without it left the screen to fall back to the factory's currency, so a
             // USD 365,000 purchase order read as BDT 365,000 here and USD 365,000 on the order

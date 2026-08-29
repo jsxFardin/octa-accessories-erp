@@ -6,6 +6,7 @@ namespace App\Modules\Trade\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Trade\Models\LetterOfCredit;
+use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Http\RedirectResponse;
@@ -31,11 +32,14 @@ class LetterOfCreditController extends Controller
     /** An LC that has left draft is a commitment; only these fields still move. */
     private const EDITABLE_AFTER_DRAFT = ['lc_no', 'issued_on', 'remarks', 'bank_account_id', 'charges_amount'];
 
-    public function __construct(private readonly NumberAllocator $numbers) {}
+    public function __construct(
+        private readonly NumberAllocator $numbers,
+        private readonly ExchangeRateResolver $rates,
+    ) {}
 
     public function index(Request $request): Response
     {
-        $query = LetterOfCredit::query()->with(['supplier:id,code,name', 'bankAccount:id,code,name']);
+        $query = LetterOfCredit::query()->with(['supplier:id,code,name', 'bankAccount:id,code,name', 'currency:id,code']);
 
         $this->applyListing(
             $query,
@@ -53,7 +57,10 @@ class LetterOfCreditController extends Controller
                         'issued_on', 'expiry_date', 'last_shipment_date']),
                     'supplier' => $lc->supplier?->name,
                     'bank' => $lc->bankAccount?->name,
-                    'currency' => $lc->currency_id,
+                    // BR-55 — the code, not the id. The screen cannot label a figure with a
+                    // foreign key, so it fell back to the factory's currency and printed every
+                    // one of these USD credits as BDT.
+                    'currency' => $lc->currency?->code,
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'supplier', 'kind']),
@@ -88,7 +95,7 @@ class LetterOfCreditController extends Controller
 
     public function show(LetterOfCredit $letterOfCredit): Response
     {
-        $letterOfCredit->load(['supplier', 'bankAccount', 'amendments' => fn ($q) => $q->orderBy('amendment_no')]);
+        $letterOfCredit->load(['supplier', 'bankAccount', 'currency', 'amendments' => fn ($q) => $q->orderBy('amendment_no')]);
 
         return Inertia::render('Trade/LettersOfCredit/Show', [
             'letter' => [
@@ -97,13 +104,19 @@ class LetterOfCreditController extends Controller
                 'bank_name' => $letterOfCredit->bankAccount?->name,
                 'current_amount' => $letterOfCredit->currentAmount(),
                 'effective_expiry' => $letterOfCredit->effectiveExpiry(),
+                // BR-55 — face value, amendments and charges are all in the credit's currency.
+                'currency' => $letterOfCredit->currency?->only(['id', 'code', 'name', 'symbol']),
             ],
             'amendments' => $letterOfCredit->amendments,
+            // BR-55/BR-56 — an order's value is stated in the order's own currency. The
+            // covered amount is a figure on the credit, so it is stated in the credit's.
             'purchaseOrders' => DB::table('lc_purchase_orders as lpo')
                 ->join('purchase_orders as po', 'po.id', '=', 'lpo.po_id')
+                ->leftJoin('currencies as cur', 'cur.id', '=', 'po.currency_id')
                 ->where('lpo.lc_id', $letterOfCredit->id)
                 ->orderBy('po.number')
-                ->get(['po.id', 'po.number', 'po.order_date', 'po.total', 'po.status', 'lpo.covered_amount']),
+                ->get(['po.id', 'po.number', 'po.order_date', 'po.total', 'po.status',
+                    'lpo.covered_amount', 'cur.code as currency']),
             'shipments' => DB::table('import_shipments')
                 ->where('lc_id', $letterOfCredit->id)
                 ->orderByDesc('id')
@@ -112,11 +125,15 @@ class LetterOfCreditController extends Controller
             // not already attached to this credit.
             'availablePurchaseOrders' => DB::table('purchase_orders')
                 ->where('supplier_id', $letterOfCredit->supplier_id)
+                // BR-56 — a credit is opened in one currency and can only be drawn on by
+                // orders payable in that currency. Offering a BDT order under a USD credit
+                // invites a coverage figure that adds taka to dollars at face value.
+                ->where('currency_id', $letterOfCredit->currency_id)
                 ->whereNotIn('status', ['cancelled', 'closed'])
                 ->whereNotIn('id', fn ($q) => $q->from('lc_purchase_orders')
                     ->where('lc_id', $letterOfCredit->id)->select('po_id'))
                 ->orderByDesc('id')
-                ->get(['id', 'number', 'total']),
+                ->get(['id', 'number', 'total', 'currency_id']),
             'statuses' => LetterOfCredit::STATUSES,
         ]);
     }
@@ -199,6 +216,12 @@ class LetterOfCreditController extends Controller
         abort_unless($order !== null && (int) $order->supplier_id === $letterOfCredit->supplier_id, 422,
             'That order is for a different supplier than the credit.');
 
+        // BR-56 — the credit is denominated in one currency. An order in another cannot be
+        // drawn on it, and attaching it would make `covered` a sum of two units. Refused on the
+        // server, not merely absent from the picker: the id arrives by POST.
+        abort_unless((int) $order->currency_id === $letterOfCredit->currency_id, 422,
+            'That order is in a different currency from the credit and cannot be covered by it.');
+
         DB::table('lc_purchase_orders')->updateOrInsert(
             ['lc_id' => $letterOfCredit->id, 'po_id' => $data['po_id']],
             ['covered_amount' => $data['covered_amount'] ?? $order->total],
@@ -269,7 +292,7 @@ class LetterOfCreditController extends Controller
     /** @return array<string, mixed> */
     private function validated(Request $request, ?LetterOfCredit $letter = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'lc_no' => ['nullable', 'string', 'max:60'],
             'kind' => ['required', Rule::in(LetterOfCredit::KINDS)],
             'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
@@ -291,6 +314,16 @@ class LetterOfCreditController extends Controller
             'port_of_discharge' => ['nullable', 'string', 'max:80'],
             'remarks' => ['nullable', 'string', 'max:500'],
         ]);
+
+        // BR-58 — the credit's rate to the factory's books, booked from the reference table as
+        // at the day it was applied for.
+        $data['exchange_rate'] = $this->rates->resolve(
+            (int) $data['currency_id'],
+            $data['exchange_rate'] ?? null,
+            $data['applied_on'] ?? $data['issued_on'] ?? null,
+        );
+
+        return $data;
     }
 
     /** @return array<string, mixed> */

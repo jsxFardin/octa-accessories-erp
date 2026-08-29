@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Trade\Models;
 
+use App\Modules\MasterData\Models\Currency;
 use App\Modules\MasterData\Models\Supplier;
 use App\Modules\Procurement\Models\PurchaseOrder;
 use App\Support\Audit\Auditable;
@@ -109,6 +110,18 @@ class LetterOfCredit extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * BR-50 — the credit's own currency. Every letter of credit on this data is opened in USD,
+     * and without the relation the screens fell back to the factory's currency and printed a
+     * USD 250,000 credit as BDT 250,000.
+     *
+     * @return BelongsTo<Currency, $this>
+     */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
     }
 
     /** @return BelongsTo<BankAccount, $this> */

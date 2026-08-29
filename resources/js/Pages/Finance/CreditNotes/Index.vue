@@ -38,7 +38,7 @@ const columns = [
                 <template #cell:number="{ row, value }"><Link :href="`/credit-notes/${row.id}`" class="doc-link-quiet">{{ value ?? '(draft)' }}</Link></template>
                 <template #cell:note_date="{ value }">{{ date(value) }}</template>
                 <template #cell:reason="{ value }">{{ titleCase(value) }}</template>
-                <template #cell:amount="{ value }">{{ money(value) }}</template>
+                <template #cell:amount="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:status="{ value }"><Badge :status="value" /></template>
                 <template #empty>
                     <EmptyState

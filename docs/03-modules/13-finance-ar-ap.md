@@ -52,6 +52,12 @@ Line quantity is in pieces; rate is `rate_per_m` (per 1000, BR-1); `amount = qty
 
 Currency and exchange rate copy from the sales order (snapshot), not from today's rate.
 
+A receipt settles an invoice, and a payment settles a supplier bill, **only in that document's
+own currency** (BR-57): the allocation lands in `received_amount`/`paid_amount` and is measured
+against an outstanding balance stated in that currency, so a cross-currency allocation would
+settle a foreign debt at face value. Where a receipt or payment records a rate of its own, it is
+booked from the published reference rate (BR-58) rather than defaulted to parity.
+
 ---
 
 ## Credit control (BR-46)

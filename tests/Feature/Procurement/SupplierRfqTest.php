@@ -259,3 +259,73 @@ it('cancels a draft without numbering', function (): void {
     expect($rfq->refresh()->status)->toBe(SupplierRfq::CANCELLED)
         ->and($rfq->number)->toBeNull();
 });
+
+/**
+ * BR-51 — the three-quote threshold is a base-currency figure, and BR-58 — the order raised
+ * from a winning quotation inherits a real rate, not parity.
+ *
+ * The threshold guard compared `supplier_quotations.total` against a BDT setting without
+ * converting, so a USD 600 quotation — BDT 73,500, well over the seeded BDT 50,000 control —
+ * read as the number `600` and slipped under it. A procurement control bypassed by choosing a
+ * currency, which is the shape BR-51 already closed for the purchase-order approval band.
+ */
+it('measures the three-quote threshold in base currency, not the quoted one', function (): void {
+    $usd = DB::table('currencies')->where('code', 'USD')->firstOrFail();
+    $rfq = pr2IssuedRfq($this, qty: 100);
+
+    $this->actingAs($this->buyer)->post("/rfqs/{$rfq->id}/quotations", [
+        'supplier_id' => $this->suppliers[0]->id,
+        'currency_id' => $usd->id,
+        'lead_time_days' => 14,
+        // USD 600: under the BDT 50,000 threshold as a bare number, BDT 73,500 in fact.
+        'lines' => [[
+            'item_id' => $this->item->id,
+            'uom_id' => $this->item->base_uom_id,
+            'qty' => 100,
+            'rate' => 6,
+        ]],
+    ])->assertSessionHasNoErrors();
+
+    $quote = SupplierQuotation::query()->where('rfq_id', $rfq->id)->firstOrFail();
+
+    $this->actingAs($this->buyer)->post("/rfqs/{$rfq->id}/select", [
+        'quotation_id' => $quote->id,
+    ])->assertSessionHasErrors('override_reason');
+
+    expect($quote->refresh()->is_selected)->toBeFalse();
+});
+
+it('books a real rate on the order raised from a foreign-currency quotation', function (): void {
+    $usd = DB::table('currencies')->where('code', 'USD')->firstOrFail();
+    $reference = (float) DB::table('exchange_rates')
+        ->where('currency_id', $usd->id)->orderByDesc('effective_on')->value('rate_to_base');
+
+    $rfq = pr2IssuedRfq($this);
+
+    foreach ([0, 1, 2] as $index) {
+        $this->actingAs($this->buyer)->post("/rfqs/{$rfq->id}/quotations", [
+            'supplier_id' => $this->suppliers[$index]->id,
+            'currency_id' => $usd->id,
+            'lead_time_days' => 14,
+            'lines' => [[
+                'item_id' => $this->item->id,
+                'uom_id' => $this->item->base_uom_id,
+                'qty' => 100,
+                'rate' => 1 + $index,
+            ]],
+        ])->assertSessionHasNoErrors();
+    }
+
+    $winner = SupplierQuotation::query()->where('rfq_id', $rfq->id)->orderBy('id')->firstOrFail();
+
+    $this->actingAs($this->buyer)->post("/rfqs/{$rfq->id}/select", ['quotation_id' => $winner->id])
+        ->assertSessionHasNoErrors();
+    $this->actingAs($this->buyer)->post("/rfqs/{$rfq->id}/purchase-order")->assertRedirect();
+
+    $order = PurchaseOrder::query()->latest('id')->firstOrFail();
+
+    // Hard-coded to 1, this order was worth `100` to every base-currency figure that read it,
+    // including the BR-51 band that decides who may approve it.
+    expect((int) $order->currency_id)->toBe((int) $usd->id)
+        ->and((float) $order->exchange_rate)->toBe($reference);
+});

@@ -69,9 +69,9 @@ function raisePo() {
                             </td>
                             <td v-for="quote in quotations" :key="`${quote.id}-${line.item_id}`" class="px-3 py-2 text-right tnum">
                                 <template v-if="rateFor(quote, line.item_id)">
-                                    <p>{{ money(rateFor(quote, line.item_id).rate) }}</p>
+                                    <p>{{ money(rateFor(quote, line.item_id).rate, quote.currency) }}</p>
                                     <p class="text-xs text-ink-500">
-                                        {{ money(rateFor(quote, line.item_id).amount) }}
+                                        {{ money(rateFor(quote, line.item_id).amount, quote.currency) }}
                                         <span v-if="rateFor(quote, line.item_id).moq"> · MOQ {{ qty(rateFor(quote, line.item_id).moq) }}</span>
                                     </p>
                                 </template>
@@ -81,7 +81,9 @@ function raisePo() {
                         <tr class="bg-slate-50 font-medium">
                             <td class="px-3 py-2">Quoted total / lead time</td>
                             <td v-for="quote in quotations" :key="`tot-${quote.id}`" class="px-3 py-2 text-right tnum">
-                                <p>{{ money(quote.total) }} {{ quote.currency }}</p>
+                                <!-- BR-55 — one label, from the formatter. The code printed after an amount the
+                                     formatter had already labelled with the factory's read as `BDT 900.00 USD`. -->
+                                <p>{{ money(quote.total, quote.currency) }}</p>
                                 <p class="text-xs font-normal text-ink-500">{{ quote.lead_time_days ?? '—' }} days</p>
                                 <Button
                                     v-if="rfq.status === 'issued' && !quote.is_selected && can('rfq.update')"

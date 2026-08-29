@@ -156,15 +156,15 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
                 <dl class="grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:grid-cols-4">
                     <div>
                         <dt class="text-ink-500">Face value</dt>
-                        <dd class="tnum font-medium">{{ money(letter.amount) }}</dd>
+                        <dd class="tnum font-medium">{{ money(letter.amount, letter.currency) }}</dd>
                     </div>
                     <div>
                         <dt class="text-ink-500">After amendments</dt>
-                        <dd class="tnum font-medium">{{ money(letter.current_amount) }}</dd>
+                        <dd class="tnum font-medium">{{ money(letter.current_amount, letter.currency) }}</dd>
                     </div>
                     <div>
                         <dt class="text-ink-500">Covered orders</dt>
-                        <dd class="tnum font-medium">{{ money(covered) }}</dd>
+                        <dd class="tnum font-medium">{{ money(covered, letter.currency) }}</dd>
                     </div>
                     <div>
                         <dt class="text-ink-500">Tolerance</dt>
@@ -184,7 +184,7 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
                     </div>
                     <div>
                         <dt class="text-ink-500">Charges</dt>
-                        <dd class="tnum font-medium">{{ money(letter.charges_amount) }}</dd>
+                        <dd class="tnum font-medium">{{ money(letter.charges_amount, letter.currency) }}</dd>
                     </div>
                 </dl>
 
@@ -220,8 +220,8 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
                         <a :href="`/purchase-orders/${row.id}`" class="doc-link-quiet">{{ value }}</a>
                     </template>
                     <template #cell:order_date="{ value }">{{ date(value) }}</template>
-                    <template #cell:total="{ value }">{{ money(value) }}</template>
-                    <template #cell:covered_amount="{ value }">{{ money(value) }}</template>
+                    <template #cell:total="{ row, value }">{{ money(value, row.currency) }}</template>
+                    <template #cell:covered_amount="{ value }">{{ money(value, letter.currency) }}</template>
                     <template #cell:status="{ value }"><Badge :status="value" /></template>
                     <template #cell:actions="{ row }">
                         <button
@@ -256,10 +256,10 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
                     dense
                 >
                     <template #cell:amended_on="{ value }">{{ date(value) }}</template>
-                    <template #cell:amount_delta="{ value }">{{ money(value) }}</template>
+                    <template #cell:amount_delta="{ value }">{{ money(value, letter.currency) }}</template>
                     <template #cell:new_last_shipment_date="{ value }">{{ value ? date(value) : '—' }}</template>
                     <template #cell:new_expiry_date="{ value }">{{ value ? date(value) : '—' }}</template>
-                    <template #cell:charges_amount="{ value }">{{ money(value) }}</template>
+                    <template #cell:charges_amount="{ value }">{{ money(value, letter.currency) }}</template>
                     <template #cell:narrative="{ value }">{{ value ?? '—' }}</template>
                 </DataTable>
             </Card>
@@ -334,7 +334,7 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
                 <FormField label="Purchase order" required :error="attachForm.errors.po_id">
                     <SelectInput
                         v-model="attachForm.po_id"
-                        :options="availablePurchaseOrders.map((po) => ({ value: po.id, label: `${po.number} · ${money(po.total)}` }))"
+                        :options="availablePurchaseOrders.map((po) => ({ value: po.id, label: `${po.number} · ${money(po.total, letter.currency)}` }))"
                     />
                 </FormField>
                 <FormField label="Covered amount" hint="Defaults to the order value." :error="attachForm.errors.covered_amount">

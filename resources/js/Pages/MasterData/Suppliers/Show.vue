@@ -70,7 +70,7 @@ const orderHref = computed(() => `/purchase-orders/create?supplier=${props.suppl
                     empty="No items linked."
                     dense
                 >
-                    <template #cell:last_rate="{ value }">{{ value ? money(value) : '—' }}</template>
+                    <template #cell:last_rate="{ row, value }">{{ value ? money(value, row.currency) : '—' }}</template>
                     <template #cell:moq="{ value }">{{ value ? qty(value) : '—' }}</template>
                 </DataTable>
             </Card>

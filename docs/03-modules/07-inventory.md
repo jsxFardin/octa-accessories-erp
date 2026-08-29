@@ -56,6 +56,11 @@ A lot is created by exactly one of: a GRN line (raw material), an operation outp
 - `cert_scheme`, `cert_claim_pct`, `cert_document_no` — inherited from the GRN line (I5), never invented
 - `parent_lot_id` — genealogy through WIP
 - `expiry_date` — ink, adhesive, chemicals
+- `unit_cost` — **always in the factory's base currency** (BR-59). A goods receipt is priced in
+  the purchase order's currency; the landed rate is converted at the order's snapshotted rate as
+  it becomes a lot, so the ledger holds one unit throughout. `grn_lines.rate` and
+  `grn_lines.landed_rate` stay in the order's currency, because they are what the supplier
+  charged and what the three-way match compares against.
 
 `stock_lots.balance_qty` has `CHECK (balance_qty >= 0)`. Negative stock is not a setting (BR-38).
 

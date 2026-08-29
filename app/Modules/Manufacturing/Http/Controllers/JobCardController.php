@@ -123,8 +123,8 @@ class JobCardController extends Controller
             return $line;
         });
 
-        $orderId = $this->contextualId($request, 'sales_order');
-        $lineId = $this->contextualId($request, 'sales_order_line');
+        $orderId = $this->contextualId($request, 'sales_order', ['sales_order.view_any', 'sales_order.view']);
+        $lineId = $this->contextualId($request, 'sales_order_line', ['sales_order.view_any', 'sales_order.view']);
 
         // A line id that names an order the planner did not ask for is still honoured; an id
         // that is not on the eligible list at all is not, because nothing can be done with it.

@@ -61,7 +61,7 @@ function outstandingOf(invoice) {
 // number down one column instead of by eye across a run-on string.
 const invoiceOptions = computed(() => props.openInvoices.map((invoice) => ({
     value: invoice.id,
-    label: `${invoice.number} · ${outstandingOf(invoice)} outstanding`,
+    label: `${invoice.number} · ${money(outstandingOf(invoice), invoice.currency)} outstanding`,
     hint: invoice.customer_name,
 })));
 
@@ -82,7 +82,7 @@ const overAllocated = computed(() => {
         return 'More than the receipt itself.';
     }
     if (chosenInvoice.value && allocation > Number(outstandingOf(chosenInvoice.value))) {
-        return `More than this invoice's ${outstandingOf(chosenInvoice.value)} outstanding.`;
+        return `More than this invoice's ${money(outstandingOf(chosenInvoice.value), chosenInvoice.value.currency)} outstanding.`;
     }
 
     return null;
@@ -93,7 +93,9 @@ function pickInvoice(allocation) {
 
     if (invoice) {
         form.customer_id = invoice.customer_id;
-        form.currency_id ??= invoice.currency_id ?? null;
+        // BR-57 — a receipt settles an invoice in the invoice's own currency, so choosing
+        // the invoice decides the currency rather than merely defaulting it.
+        form.currency_id = invoice.currency_id ?? form.currency_id;
         allocation.amount ??= (Number(invoice.total) - Number(invoice.received_amount) - Number(invoice.credited_amount ?? 0)).toFixed(2);
         form.amount ??= allocation.amount;
     }
@@ -128,8 +130,8 @@ function submit() {
 
             <DataTable :columns="columns" :rows="receipts" row-key="id" empty="No receipts.">
                 <template #cell:receipt_date="{ value }">{{ date(value) }}</template>
-                <template #cell:amount="{ value }">{{ money(value) }}</template>
-                <template #cell:allocated_amount="{ value }">{{ money(value) }}</template>
+                <template #cell:amount="{ row, value }">{{ money(value, row.currency) }}</template>
+                <template #cell:allocated_amount="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:status="{ value }"><Badge :status="value" /></template>
                 <template #empty>
                     <EmptyState
@@ -149,7 +151,7 @@ function submit() {
                     label="Invoice"
                     :error="form.errors.allocations"
                     required
-                    :hint="chosenInvoice ? `${chosenInvoice.customer_name} · ${outstandingOf(chosenInvoice)} outstanding` : 'Searchable — type a number or a customer.'"
+                    :hint="chosenInvoice ? `${chosenInvoice.customer_name} · ${money(outstandingOf(chosenInvoice), chosenInvoice.currency)} outstanding` : 'Searchable — type a number or a customer.'"
                 >
                     <SelectInput
                         v-model="form.allocations[0].sales_invoice_id"

@@ -140,7 +140,7 @@ class MaterialIssueController extends Controller
             ->orderBy('number')
             ->get(['id', 'number', 'status', 'product_id', 'planned_qty', 'bom_id']);
 
-        $requested = $this->contextualId($request, 'job_card');
+        $requested = $this->contextualId($request, 'job_card', ['job_card.view_any', 'job_card.view']);
 
         return Inertia::render('Inventory/Issues/Form', [
             'jobCards' => $jobCards,

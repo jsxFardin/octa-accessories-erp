@@ -70,7 +70,11 @@ Breaches beyond tolerance require `supplier_bill.approve_variance`.
 
 **PR-3 — Create and approve a PO**
 - AC1: Supplier must be `is_approved` (MD-5).
-- AC2: Currency and payment term default from the supplier; exchange rate is snapshotted.
+- AC2: Currency and payment term default from the supplier; the exchange rate is snapshotted —
+  booked by the server from the published reference rate for that currency and date, within the
+  BR-58 tolerance, rather than taken from the form. An order raised from a winning RFQ quotation
+  inherits the same booked rate; it used to be hard-coded to 1, which put a foreign order under
+  the BR-51 approval band as a bare number.
 - AC3: Quantity is rounded per BR-25 (MOQ and order multiple).
 - AC4: Approval is value-banded; the band comes from `settings`.
 - AC5: An approved PO is read-only; changes create revision `n+1` with a reason.

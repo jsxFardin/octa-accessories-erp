@@ -13,6 +13,7 @@ use App\Modules\MasterData\Models\Supplier;
 use App\Modules\MasterData\Models\Uom;
 use App\Modules\Procurement\Models\PurchaseOrder;
 use App\Modules\Procurement\States\PurchaseOrderStateMachine;
+use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Settings\Settings;
@@ -36,6 +37,7 @@ class PurchaseOrderController extends Controller
     public function __construct(
         private readonly PurchaseOrderStateMachine $states,
         private readonly Settings $settings,
+        private readonly ExchangeRateResolver $rates,
     ) {}
 
     public function index(Request $request): Response
@@ -74,7 +76,7 @@ class PurchaseOrderController extends Controller
                 'prl.required_by', 'pr.number as pr_number', 'i.code as item_code', 'i.name as item_name',
             ]);
 
-        $prId = $this->contextualId($request, 'pr');
+        $prId = $this->contextualId($request, 'pr', ['purchase_requisition.view_any', 'purchase_requisition.view']);
         $requisition = null;
 
         if ($prId !== null && $lines->contains(fn ($line): bool => (int) $line->pr_id === $prId)) {
@@ -114,7 +116,7 @@ class PurchaseOrderController extends Controller
      */
     private function preselectSupplier(Request $request, $suppliers): ?int
     {
-        $id = $this->contextualId($request, 'supplier');
+        $id = $this->contextualId($request, 'supplier', ['supplier.view_any', 'supplier.view']);
 
         if ($id === null) {
             return null;
@@ -226,13 +228,15 @@ class PurchaseOrderController extends Controller
     /** @return array<string, mixed> */
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
             'factory_unit_id' => ['required', 'integer', 'exists:factory_units,id'],
             'order_date' => ['required', 'date'],
             'expected_date' => ['nullable', 'date', 'after_or_equal:order_date'],
             'currency_id' => ['required', 'integer', 'exists:currencies,id'],
-            'exchange_rate' => ['required', 'numeric', 'gt:0'],
+            // Nullable: BR-58 books the rate from the reference table when the request does
+            // not carry one, so the server is the authority on it rather than the form.
+            'exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'payment_term_id' => ['nullable', 'integer', 'exists:payment_terms,id'],
             'incoterm' => ['nullable', 'string', 'max:20'],
             'freight_amount' => ['numeric', 'min:0'],
@@ -246,6 +250,18 @@ class PurchaseOrderController extends Controller
             'lines.*.pr_line_id' => ['nullable', 'integer', 'exists:purchase_requisition_lines,id'],
             'lines.*.cert_claim' => ['nullable', 'string', 'max:20'],
         ]);
+
+        // BR-58 — the rate is the snapshot the document is booked at, and every base-currency
+        // figure derived from it (BR-50 totals, the BR-51 approval band) depends on it being
+        // real. A free numeric field accepted `1` on a USD order, which is how an order needing
+        // the Managing Director could read as a number inside a purchase manager's own band.
+        $data['exchange_rate'] = $this->rates->resolve(
+            (int) $data['currency_id'],
+            $data['exchange_rate'] ?? null,
+            $data['order_date'] ?? null,
+        );
+
+        return $data;
     }
 
     /** @param list<array<string, mixed>> $lines */

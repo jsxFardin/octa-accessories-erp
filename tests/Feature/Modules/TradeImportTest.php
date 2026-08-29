@@ -13,6 +13,10 @@ beforeEach(function (): void {
     $this->supplier = DB::table('suppliers')->first();
     $this->currency = DB::table('currencies')->where('is_base', true)->first()
         ?? DB::table('currencies')->first();
+    // A genuinely foreign currency, for the costs that are supposed to convert. The base
+    // currency was standing in for one, so "a freight bill in USD at 120" was a taka bill
+    // asserting a conversion — which BR-58 now refuses outright, correctly.
+    $this->foreignCurrency = DB::table('currencies')->where('code', 'USD')->first();
 });
 
 /** A credit in a given state, without going through the screens to get there. */
@@ -203,11 +207,13 @@ it('converts a foreign cost before spreading it', function (): void {
     $shipment = shipment();
     $receipt = receiptFor($shipment, [['qty' => 100, 'rate' => 100]]);
 
-    // A freight bill in USD at 120 is 12,000 of cost, not 100.
+    // A freight bill in USD at 120 is 12,000 of cost, not 100. 120 sits inside the BR-58
+    // tolerance around the 122.5 on file — a bank rate that differs from the card by a little
+    // is exactly what the tolerance is for.
     $this->actingAs($this->admin)->post("/import-shipments/{$shipment->id}/costs", [
         'cost_type' => 'freight',
         'incurred_on' => now()->toDateString(),
-        'currency_id' => $this->currency->id,
+        'currency_id' => $this->foreignCurrency->id,
         'exchange_rate' => 120,
         'amount' => 100,
         'is_allocable' => true,

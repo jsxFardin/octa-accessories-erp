@@ -638,5 +638,146 @@ Applied to every handoff: inquiry → quotation, order → job card, order line 
 → material issue, job card → QC, PO → GRN, customer → inquiry, customer → product, supplier →
 PO, requisition → PO, requisition → RFQ, order → packing list.
 
-Tests: `tests/Feature/Gates/ContextualHandoffSafetyTest.php` (269 cases — every handoff against
-every malformed shape, plus the RFQ state and permission rules).
+**The second question was documented here before it was implemented.** It ran on two handoffs —
+requisition → RFQ and the inquiry *contents* on quotation → SO — and on the other ten the
+parameter was resolved on shape alone. A QC inspector holds `grn.create` and no purchase-order
+permission at all: `/purchase-orders/1` refuses them, while `/grns/create?po=1` returned that
+order's number, supplier, currency, exchange rate and every line on it. The read question now
+lives in `ContextualId::contextualId($request, $key, $permission)` and every handoff passes its
+source document's permission, so a parameter cannot reach around a refusal the same user meets
+at the front door. The **picker** on the target screen is scoped by the same permission, because
+a handoff and the list it preselects into must offer the same set — otherwise the read-around
+simply moves from the parameter to the dropdown beside it.
+
+One deliberate exception, unchanged: `?inquiry=` on the quotation form keeps the **id** for a
+user who may not read inquiries, because a merchandiser's assistant who arrives from *Quote it*
+must still file the quotation against the inquiry it answers. What is withheld is the inquiry's
+*contents*, which is where the reading actually happens.
+
+Tests: `tests/Feature/Gates/ContextualHandoffSafetyTest.php` (every handoff against every
+malformed shape, the RFQ state rule, and the read-around on PO → GRN, order → job card and
+customer → product); `tests/Feature/Workflow/DocumentHandoffTest.php` (the inquiry exception).
+
+### BR-55 — Every amount on a screen names the currency it is in
+
+BR-50 made *reports* currency-aware and stopped there, so the same defect stayed alive one
+document down. `money(value)` with no currency falls back to the factory's, which is correct for
+a figure that genuinely is in taka — a stock lot's cost, an approval band, a machine's hourly
+rate — and silently wrong for one that is not.
+
+On this data every letter of credit, every import shipment and every supplier quotation is
+raised in USD, and each of them printed as BDT. Two other shapes of the same fault:
+
+- the LC list selected `currency_id` and handed the screen a **foreign key**, which no formatter
+  can label with, so it fell back to the base currency anyway; and
+- the shipment cost table printed the code *after* an amount the formatter had already labelled,
+  giving `BDT 500.00 USD` — two currencies on one figure, neither of them reliable.
+
+| | |
+|---|---|
+| **A document figure** | labelled with the document's own currency, passed explicitly |
+| **A base-currency figure** | a stock valuation, an approval band, a settings threshold — labelled with the base currency, and said out loud where it sits beside a document figure |
+| **A block already headed with its currency** | passes `false`, so the code is stated once rather than on every row |
+| **Two units on one screen** | each names itself; the GRN receipt is the worked example (BR-59) |
+
+Applied across letters of credit, import shipments, supplier bills, supplier quotations and the
+RFQ comparison, credit notes, receipts, payments, expenses, supplier item rates, the inquiry
+target value (which has no currency of its own and takes the customer's), and the purchase-order,
+quotation, sales-order and GRN forms.
+
+Tests: `tests/Feature/Trade/LetterOfCreditCurrencyTest.php`,
+`tests/Feature/Procurement/GrnLineContextTest.php`, and the browser content pass.
+
+### BR-56 — A letter of credit is drawn on by orders in its own currency
+
+`covered` on a credit is the sum of `lc_purchase_orders.covered_amount`, read against the
+credit's face value. Nothing stopped a purchase order in another currency being attached, which
+made that sum add taka to dollars at face value — BR-50's defect, one document down.
+
+A credit is opened in one currency and the bank pays in that currency; an order payable in
+another cannot be drawn on it. The picker offers only orders in the credit's currency, and
+`attachOrder()` refuses the rest **on the server**, because the id arrives by POST.
+
+Tests: `tests/Feature/Trade/LetterOfCreditCurrencyTest.php`.
+
+### BR-57 — Money is allocated only within one currency
+
+A receipt allocation lands in `sales_invoices.received_amount` and is measured against the P2-1
+outstanding balance. Both are figures in the **invoice's** currency, and nothing checked that the
+receipt was in it: a BDT 11.63 receipt would settle a USD 11.63 invoice in full and report it
+paid — a debt of about BDT 1,425 cleared with BDT 11.63. The identical hole sat between a payment
+and a supplier bill.
+
+```
+refuse when receipt.currency_id <> invoice.currency_id
+refuse when payment.currency_id <> bill.currency_id
+```
+
+Refused inside the same transaction and row lock as the outstanding-balance check, so a
+concurrent allocation cannot slip between the two. Settling a foreign debt is done with a
+document raised in that currency, which is what the bank statement will show anyway.
+
+The forms follow the guard rather than restate it: choosing the bill or invoice **sets** the
+currency (it used to only default it, so changing the chosen document left the first one's
+currency behind and the server refused with no way to correct it from the screen).
+
+Tests: `tests/Feature/Finance/CrossCurrencyAllocationTest.php`.
+
+### BR-58 — The rate a document is booked at is decided by the server
+
+Every base-currency figure in this system is `amount × exchange_rate`: BR-50's report totals,
+BR-51's approval bands, the "in the books" line on a document. The rate was a free numeric field
+on ten forms, defaulted to `1` wherever a request omitted it, and **hard-coded to `1`** on the
+RFQ → purchase-order path. The `exchange_rates` reference table already held the published rates
+and nothing read it.
+
+A `1` on a USD document is not a rounding error:
+
+- it is an **authorisation bypass** — at the published 122.5 a USD 5,000 order is BDT 612,500 and
+  needs the Managing Director under BR-51; booked at parity it is the number `5000`, comfortably
+  inside a purchase manager's own band; and
+- it understates that document in **every** base-currency total that reads it, always in the same
+  direction.
+
+| | |
+|---|---|
+| **Base currency** | booked at `1`; any other rate is refused as the mis-keyed field it is |
+| **Another currency** | booked at the published rate effective on or before the document's own date — the snapshot (BR-22), never today's rate re-read later |
+| **A submitted rate** | accepted while within `exchange_rate_tolerance_pct` (default 5%) of that reference, because a contracted or bank rate differs from the card by a little and not by a factor of a hundred |
+| **No rate on file** | the document is refused, which is a better failure than valuing it at parity |
+
+Implemented once in `App\Support\Currency\ExchangeRateResolver` and applied by the quotation,
+sales-order, purchase-order, supplier-bill, receipt, payment, expense, import-shipment,
+import-cost and letter-of-credit writes, and by RFQ → PO.
+
+BR-51 extends with it: the **three-quote threshold** (`rfq_three_quote_value_threshold`) is a
+base-currency figure and was compared against `supplier_quotations.total` raw, so a USD 600
+quotation — BDT 73,500, well over the BDT 50,000 control — read as `600` and slipped under it. A
+procurement control bypassed by choosing a currency, which is the shape BR-51 already closed for
+the purchase-order band.
+
+Tests: `tests/Feature/Finance/BookedExchangeRateTest.php`,
+`tests/Feature/Procurement/SupplierRfqTest.php`.
+
+### BR-59 — Stock is valued in the factory's currency, whatever the order was priced in
+
+A goods receipt is priced in the **purchase order's** currency: the line rate, the landed rate,
+and the freight, duty and clearing apportioned across them (BR-36). The stock ledger is kept in
+the factory's currency, because that is the only unit stock can be valued in.
+
+Nothing converted between the two. Received against a USD order at 122.5, a lot entered stock at
+a hundred-and-twenty-second of what the material cost, and everything downstream inherited it in
+the same direction: the item's weighted average, the material cost of the job it is issued to,
+the margin on the order that job was made for — and, at the far end, a finished-goods lot close
+enough to nothing to be indistinguishable from the zero-value ones BR-52 exists to stop.
+
+```
+lot.unit_cost = landed_rate * purchase_order.exchange_rate      -- BR-22, the snapshotted rate
+```
+
+Converted **once**, at the boundary where the receipt becomes ledger. `grn_lines.rate` and
+`grn_lines.landed_rate` stay in the order's currency — they are what the supplier charged, and
+they are what the three-way match compares against the order — and the screen names both units
+rather than leaving them to be told apart by size.
+
+Tests: `tests/Feature/Procurement/GrnLineContextTest.php`.

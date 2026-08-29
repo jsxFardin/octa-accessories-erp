@@ -62,8 +62,14 @@ class InquiryController extends Controller
     /** `?customer=` carries the customer whose page the inquiry was started from. */
     public function create(Request $request): Response
     {
-        $customers = Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']);
-        $requested = $this->contextualId($request, 'customer');
+        // BR-55 — an inquiry names no currency of its own, but the target rate on it is
+        // understood in the currency the customer trades in. Carrying the code lets the form
+        // label the implied value with it instead of with the factory's by default, which is
+        // what the detail screen already does.
+        $customers = Customer::query()->active()->orderBy('name')
+            ->leftJoin('currencies as cur', 'cur.id', '=', 'customers.currency_id')
+            ->get(['customers.id', 'customers.code', 'customers.name', 'cur.code as currency']);
+        $requested = $this->contextualId($request, 'customer', ['customer.view_any', 'customer.view']);
 
         return Inertia::render('Sales/Inquiries/Form', [
             'inquiry' => null,
@@ -167,7 +173,11 @@ class InquiryController extends Controller
                     'target_rate_per_m', 'notes',
                 ]))->all(),
             ],
-            'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
+            // BR-55 — as on create: the customer's trading currency, so the implied value on
+            // the form is labelled with the unit the target rate is actually in.
+            'customers' => Customer::query()->active()->orderBy('name')
+                ->leftJoin('currencies as cur', 'cur.id', '=', 'customers.currency_id')
+                ->get(['customers.id', 'customers.code', 'customers.name', 'cur.code as currency']),
             'productTypes' => Vocabulary::options('product_type'),
             'sources' => Vocabulary::options('inquiry_source'),
         ]);

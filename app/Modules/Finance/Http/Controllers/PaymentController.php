@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Finance\Models\Payment;
 use App\Modules\Procurement\Models\SupplierBill;
 use App\Modules\Procurement\States\SupplierBillStateMachine;
+use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Http\RedirectResponse;
@@ -30,11 +31,12 @@ class PaymentController extends Controller
     public function __construct(
         private readonly SupplierBillStateMachine $bills,
         private readonly NumberAllocator $numbers,
+        private readonly ExchangeRateResolver $rates,
     ) {}
 
     public function index(Request $request): Response
     {
-        $query = Payment::query()->with(['supplier:id,code,name']);
+        $query = Payment::query()->with(['supplier:id,code,name', 'currency:id,code']);
 
         $this->applyListing(
             $query,
@@ -51,6 +53,8 @@ class PaymentController extends Controller
                     ...$payment->only(['id', 'number', 'payment_date', 'method', 'reference_no',
                         'amount', 'allocated_amount', 'status']),
                     'supplier' => $payment->supplier?->name,
+                    // BR-55 — a payment is made in a currency; the list says which.
+                    'currency' => $payment->currency?->code,
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'supplier', 'method']),
@@ -58,8 +62,10 @@ class PaymentController extends Controller
                 ->join('suppliers as s', 's.id', '=', 'sb.supplier_id')
                 ->whereIn('sb.status', ['approved', 'partially_paid'])
                 ->orderBy('sb.due_date')
+                ->leftJoin('currencies as cur', 'cur.id', '=', 'sb.currency_id')
                 ->select(['sb.id', 'sb.number', 'sb.bill_no', 'sb.supplier_id', 'sb.currency_id',
-                    'sb.total', 'sb.paid_amount', 'sb.due_date', 's.name as supplier_name'])
+                    'cur.code as currency', 'sb.total', 'sb.paid_amount', 'sb.due_date',
+                    's.name as supplier_name'])
                 ->get(),
         ]);
     }
@@ -99,7 +105,14 @@ class PaymentController extends Controller
                     'method' => $data['method'],
                     'reference_no' => $data['reference_no'] ?? null,
                     'currency_id' => $data['currency_id'],
-                    'exchange_rate' => $data['exchange_rate'] ?? 1,
+                    // BR-58 — booked from the reference table rather than defaulted to parity: a
+                    // USD document at a rate of 1 understates it by the whole of the rate
+                    // in every base-currency total that reads it.
+                    'exchange_rate' => $this->rates->resolve(
+                        (int) $data['currency_id'],
+                        $data['exchange_rate'] ?? null,
+                        $data['payment_date'] ?? null,
+                    ),
                     'amount' => $data['amount'],
                     'allocated_amount' => round($allocated, 4),
                     'status' => 'posted',
@@ -120,6 +133,20 @@ class PaymentController extends Controller
                     if ((int) $bill->supplier_id !== (int) $data['supplier_id']) {
                         throw ValidationException::withMessages([
                             'allocations' => "Bill {$bill->number} belongs to a different supplier.",
+                        ]);
+                    }
+
+                    // BR-57 — an allocation settles a debt, and a debt is settled only in the
+                    // currency it is owed in. The amount lands in `paid_amount` and is compared
+                    // against the bill's outstanding balance, both of which are figures in the
+                    // bill's currency: a BDT 1,000 payment against a USD bill would have
+                    // cleared USD 1,000 of it — some BDT 122,500 of debt — at face value.
+                    if ((int) $bill->currency_id !== (int) $data['currency_id']) {
+                        throw ValidationException::withMessages([
+                            'allocations' => sprintf(
+                                'Bill %s is in a different currency from this payment. Settle it with a payment raised in the same currency.',
+                                $bill->number ?? $bill->bill_no,
+                            ),
                         ]);
                     }
 

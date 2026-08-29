@@ -66,7 +66,7 @@ class PackingListController extends Controller
             ->orderByDesc('so.id')
             ->get(['so.id', 'so.number', 'so.customer_id', 'so.delivery_address_id', 'c.name as customer_name']);
 
-        $requested = $this->contextualId($request, 'sales_order');
+        $requested = $this->contextualId($request, 'sales_order', ['sales_order.view_any', 'sales_order.view']);
 
         return Inertia::render('Dispatch/PackingLists/Form', [
             'orders' => $orders,

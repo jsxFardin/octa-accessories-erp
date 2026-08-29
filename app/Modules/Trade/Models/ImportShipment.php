@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Trade\Models;
 
+use App\Modules\MasterData\Models\Currency;
 use App\Modules\MasterData\Models\Supplier;
 use App\Modules\Procurement\Models\Grn;
 use App\Support\Audit\Auditable;
@@ -87,6 +88,18 @@ class ImportShipment extends Model
             'created_at' => 'datetime',
             'created_by' => 'integer',
         ];
+    }
+
+    /**
+     * BR-55 — the currency the supplier's invoice is in. `goods_value` is stated in it;
+     * `cost_total` and `allocated_amount` are sums of `base_amount` and are therefore in the
+     * factory's own currency, which is why the two are labelled differently on screen.
+     *
+     * @return BelongsTo<Currency, $this>
+     */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
     }
 
     /** @return BelongsTo<Supplier, $this> */

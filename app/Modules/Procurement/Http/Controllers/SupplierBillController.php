@@ -9,6 +9,7 @@ use App\Modules\Procurement\Models\Grn;
 use App\Modules\Procurement\Models\SupplierBill;
 use App\Modules\Procurement\Models\SupplierBillLine;
 use App\Modules\Procurement\States\SupplierBillStateMachine;
+use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
@@ -27,6 +28,7 @@ class SupplierBillController extends Controller
 
     public function __construct(
         private readonly SupplierBillStateMachine $states,
+        private readonly ExchangeRateResolver $rates,
     ) {}
 
     public function index(Request $request): Response
@@ -153,7 +155,14 @@ class SupplierBillController extends Controller
             $bill = new SupplierBill;
             $bill->forceFill([
                 ...\Illuminate\Support\Arr::except($data, ['lines']),
-                'exchange_rate' => $data['exchange_rate'] ?? 1,
+                // BR-58 — booked from the reference table rather than defaulted to parity: a
+                // USD document at a rate of 1 understates it by the whole of the rate
+                // in every base-currency total that reads it.
+                'exchange_rate' => $this->rates->resolve(
+                    (int) $data['currency_id'],
+                    $data['exchange_rate'] ?? null,
+                    $data['bill_date'] ?? null,
+                ),
                 'subtotal' => 0,
                 'tax_amount' => 0,
                 'total' => 0,

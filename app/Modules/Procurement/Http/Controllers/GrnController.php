@@ -67,13 +67,20 @@ class GrnController extends Controller
         // The order's own currency travels with it: a USD order priced its lines in dollars and
         // the receiving form rendered them against the factory's currency, so the storekeeper
         // was asked to confirm a rate in a unit the order never used (BR-50).
-        $orders = DB::table('purchase_orders as po')
+        // BR-54 — the picker and the `?po=` parameter must offer the same set, and that set is
+        // what this viewer may read. A receiver who holds no purchase-order permission (a QC
+        // inspector does not) receives against no order rather than being handed every open
+        // order's number, supplier, currency and rates through a screen they can reach.
+        $mayReadOrders = $request->user()?->hasPermission('purchase_order.view_any')
+            || $request->user()?->hasPermission('purchase_order.view');
+
+        $orders = ! $mayReadOrders ? collect() : DB::table('purchase_orders as po')
             ->leftJoin('currencies as cur', 'cur.id', '=', 'po.currency_id')
             ->whereIn('po.status', ['approved', 'sent', 'partially_received'])
             ->orderByDesc('po.id')
             ->get(['po.id', 'po.number', 'po.supplier_id', 'cur.code as currency', 'po.exchange_rate']);
 
-        $requested = $this->contextualId($request, 'po');
+        $requested = $this->contextualId($request, 'po', ['purchase_order.view_any', 'purchase_order.view']);
 
         // Only an order still open to receiving; anything else would leave the picker showing
         // an id it does not list and the supplier filter with nothing to match.
@@ -273,9 +280,22 @@ class GrnController extends Controller
                 (float) $data['clearing_amount'],
             );
 
+            // BR-59 — the stock ledger is kept in the factory's own currency, and every rate on
+            // this receipt is in the purchase order's. Received against a USD order at the
+            // seeded rate of 122.5, a lot was being valued at a hundred-and-twenty-second of
+            // what the material cost, and every figure downstream of it — the weighted average,
+            // the material cost of a job, the margin on the order it was made for — carried the
+            // same error in the same direction. Converted once, here, at the rate the order
+            // itself snapshotted (BR-22).
+            $orderRate = ($data['po_id'] ?? null) === null ? 1.0 : (float) (DB::table('purchase_orders')
+                ->where('id', $data['po_id'])->value('exchange_rate') ?? 1);
+            $orderRate = $orderRate > 0 ? $orderRate : 1.0;
+
             foreach ($data['lines'] as $index => $line) {
                 $qty = (float) $line['qty'];
                 $landedUnitCost = (float) $line['rate'] + ($qty > 0 ? $landed[$index] / $qty : 0);
+                // What the lot is worth in the books, as opposed to what the supplier charged.
+                $baseUnitCost = round($landedUnitCost * $orderRate, 4);
 
                 $grnLineId = DB::table('grn_lines')->insertGetId([
                     'grn_id' => $grn->id,
@@ -324,7 +344,7 @@ class GrnController extends Controller
                         'status' => 'available',
                     ],
                     $qty,
-                    round($landedUnitCost, 4),
+                    $baseUnitCost,
                     $grn,
                 );
 
@@ -376,8 +396,14 @@ class GrnController extends Controller
             'grn' => $grn,
             // The receipt's place in the chain: without these two the page was a dead end —
             // no way up to the PO it received against, no way on to the bill it should seed.
+            // BR-55/BR-59 — the receipt's rates are in the order's currency; the lot costs
+            // beside them are in the factory's. The screen can only say so if it is told which
+            // currency the order was raised in.
             'purchaseOrder' => $grn->po_id
-                ? DB::table('purchase_orders')->where('id', $grn->po_id)->first(['id', 'number'])
+                ? DB::table('purchase_orders as po')
+                    ->leftJoin('currencies as cur', 'cur.id', '=', 'po.currency_id')
+                    ->where('po.id', $grn->po_id)
+                    ->first(['po.id', 'po.number', 'cur.code as currency', 'po.exchange_rate'])
                 : null,
             'lines' => DB::table('grn_lines as gl')
                 ->join('items as i', 'i.id', '=', 'gl.item_id')

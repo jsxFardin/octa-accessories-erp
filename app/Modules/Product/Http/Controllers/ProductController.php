@@ -60,7 +60,7 @@ class ProductController extends Controller
     public function create(Request $request): Response
     {
         $options = $this->formOptions();
-        $requested = $this->contextualId($request, 'customer');
+        $requested = $this->contextualId($request, 'customer', ['customer.view_any', 'customer.view']);
 
         return Inertia::render('Product/Products/Form', [
             'product' => null,

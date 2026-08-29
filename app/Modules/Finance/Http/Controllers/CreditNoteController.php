@@ -33,7 +33,7 @@ class CreditNoteController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = CreditNote::query()->with(['customer:id,code,name']);
+        $query = CreditNote::query()->with(['customer:id,code,name', 'currency:id,code']);
 
         $this->applyListing(
             $query,
@@ -49,6 +49,8 @@ class CreditNoteController extends Controller
                 fn (CreditNote $note): array => [
                     ...$note->only(['id', 'number', 'note_date', 'reason', 'amount', 'status', 'sales_invoice_id']),
                     'customer' => $note->customer?->name,
+                    // BR-55 — the note is in the credited invoice's currency; say which.
+                    'currency' => $note->currency?->code,
                     'invoice' => $note->sales_invoice_id
                         ? \Illuminate\Support\Facades\DB::table('sales_invoices')->where('id', $note->sales_invoice_id)->value('number')
                         : null,
@@ -105,7 +107,7 @@ class CreditNoteController extends Controller
 
     public function show(CreditNote $creditNote): Response
     {
-        $creditNote->load('customer:id,code,name');
+        $creditNote->load(['customer:id,code,name', 'currency:id,code']);
 
         $invoice = $creditNote->sales_invoice_id
             ? SalesInvoice::query()->find($creditNote->sales_invoice_id)
@@ -115,9 +117,13 @@ class CreditNoteController extends Controller
             'creditNote' => [
                 ...$creditNote->only(['id', 'number', 'note_date', 'reason', 'amount', 'status', 'remarks', 'approved_by']),
                 'customer' => $creditNote->customer?->only(['id', 'code', 'name']),
+                'currency' => $creditNote->currency?->code,
             ],
             'invoice' => $invoice ? [
                 ...$invoice->only(['id', 'number', 'total', 'received_amount', 'status']),
+                // The invoice's own currency — the same one the note inherits, stated on the
+                // invoice panel so the two figures are plainly in the same unit.
+                'currency' => $invoice->currency?->code,
                 'credited' => $this->invoices->appliedCredits($invoice),
                 'outstanding' => $this->invoices->outstanding($invoice),
             ] : null,

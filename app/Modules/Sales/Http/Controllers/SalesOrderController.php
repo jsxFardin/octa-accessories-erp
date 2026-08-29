@@ -15,6 +15,7 @@ use App\Modules\Sales\Models\SalesOrderLine;
 use App\Modules\Sales\States\SalesOrderStateMachine;
 use App\Support\Audit\DocumentTrail;
 use App\Support\Calculators\CostSheetCalculator;
+use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\Notifications\Notifier;
 use App\Support\Reference\Vocabulary;
@@ -39,6 +40,7 @@ class SalesOrderController extends Controller
         private readonly Notifier $notifier,
         private readonly DocumentTrail $trail,
         private readonly JobCardPlanningGuard $planning,
+        private readonly ExchangeRateResolver $rates,
     ) {}
 
     public function index(Request $request): Response
@@ -385,14 +387,14 @@ class SalesOrderController extends Controller
     /** @return array<string, mixed> */
     private function validated(Request $request, ?SalesOrder $order = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'customer_id' => ['required', 'integer', 'exists:customers,id'],
             'quotation_id' => ['nullable', 'integer', 'exists:quotations,id'],
             'customer_po_no' => ['nullable', 'string', 'max:80'],
             'order_date' => ['required', 'date'],
             'delivery_date' => ['nullable', 'date', 'after_or_equal:order_date'],
             'currency_id' => ['required', 'integer', 'exists:currencies,id'],
-            'exchange_rate' => ['required', 'numeric', 'gt:0'],
+            'exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'payment_term_id' => ['nullable', 'integer', 'exists:payment_terms,id'],
             'billing_address_id' => ['nullable', 'integer', 'exists:customer_addresses,id'],
             'delivery_address_id' => ['nullable', 'integer', 'exists:customer_addresses,id'],
@@ -411,6 +413,18 @@ class SalesOrderController extends Controller
             'lines.*.under_tolerance_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'lines.*.promised_date' => ['nullable', 'date'],
         ]);
+
+        // BR-58 — the snapshot rate is booked by the server from the reference table, not
+        // taken on trust from the form. A `1` on a foreign-currency document understates every
+        // base-currency figure derived from it and, where a band is compared, is an
+        // authorisation bypass reached by typing a number.
+        $data['exchange_rate'] = $this->rates->resolve(
+            (int) $data['currency_id'],
+            $data['exchange_rate'] ?? null,
+            $data['order_date'] ?? null,
+        );
+
+        return $data;
     }
 
     /** @param list<array<string, mixed>> $lines */

@@ -64,6 +64,13 @@ const selectedCustomer = computed(
     () => props.customers.find((customer) => String(customer.id) === String(form.customer_id)) ?? null,
 );
 
+/**
+ * BR-55 — an inquiry carries no currency of its own, so the value implied by a target rate is
+ * understood in the currency the customer trades in. Unlabelled it read as the factory's, and
+ * most of these customers are quoted in USD.
+ */
+const customerCurrency = computed(() => selectedCustomer.value?.currency ?? undefined);
+
 function submit() {
     isEdit.value
         ? form.put(`/inquiries/${props.inquiry.id}`)
@@ -163,7 +170,7 @@ const columns = [
                                  ask is visible on the line rather than after the cost sheet. -->
                                 <template #cell:value="{ line }">
                                 <div class="px-1.5 py-1 text-right text-sm tnum" :class="lineValue(line) ? 'text-ink-800' : 'text-ink-300'">
-                                    {{ lineValue(line) ? money(lineValue(line)) : '—' }}
+                                    {{ lineValue(line) ? money(lineValue(line), customerCurrency) : '—' }}
                                 </div>
                             </template>
 
@@ -175,7 +182,7 @@ const columns = [
                                     </td>
                                     <td class="px-1.5 py-2" />
                                     <td class="px-1.5 py-2 text-right text-sm font-semibold tnum text-ink-900">
-                                        {{ totalValue ? money(totalValue) : '—' }}
+                                        {{ totalValue ? money(totalValue, customerCurrency) : '—' }}
                                     </td>
                                     <td />
                                 </tr>
@@ -216,7 +223,7 @@ const columns = [
                         <div class="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-2.5">
                             <dt class="text-xs text-ink-500">Indicative value</dt>
                             <dd class="text-base font-semibold tnum text-ink-900">
-                                {{ totalValue ? money(totalValue) : '—' }}
+                                {{ totalValue ? money(totalValue, customerCurrency) : '—' }}
                             </dd>
                         </div>
                     </dl>

@@ -249,14 +249,14 @@ const columns = [
                         </template>
 
                         <template #cell:line_total="{ line }">
-                            <span class="text-sm tnum text-ink-800">{{ money(lineTotal(line)) }}</span>
+                            <span class="text-sm tnum text-ink-800">{{ money(lineTotal(line), currencyCode) }}</span>
                         </template>
 
                         <template #footer>
                             <tr>
                                 <td colspan="6" class="px-3 py-2 text-right text-xs text-ink-700">Subtotal</td>
                                 <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
-                                    {{ money(subtotal) }}
+                                    {{ money(subtotal, currencyCode) }}
                                 </td>
                                 <td />
                             </tr>

@@ -16,6 +16,7 @@ use App\Modules\Procurement\Models\SupplierQuotationLine;
 use App\Modules\Procurement\Models\SupplierRfq;
 use App\Modules\Procurement\Models\SupplierRfqLine;
 use App\Modules\Procurement\States\SupplierRfqStateMachine;
+use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Settings\Settings;
@@ -38,6 +39,7 @@ class SupplierRfqController extends Controller
     public function __construct(
         private readonly SupplierRfqStateMachine $states,
         private readonly Settings $settings,
+        private readonly ExchangeRateResolver $rates,
     ) {}
 
     public function index(Request $request): Response
@@ -431,7 +433,16 @@ class SupplierRfqController extends Controller
                     ? now()->addDays((int) $winner->lead_time_days)->toDateString()
                     : null,
                 'currency_id' => $winner->currency_id,
-                'exchange_rate' => 1,
+                // BR-58 — the order inherits the winning quotation's currency, so it has to
+                // inherit a real rate with it. Hard-coded to 1, a USD order raised down this
+                // path was compared against the BR-51 approval band as a bare number: at the
+                // reference rate a USD 5,000 order is BDT 612,500 and needs the Managing
+                // Director, but as `5000` it sat inside a purchase manager's own band.
+                'exchange_rate' => $this->rates->resolve(
+                    (int) $winner->currency_id,
+                    null,
+                    now()->toDateString(),
+                ),
                 'payment_term_id' => $supplier->payment_term_id,
                 'status' => 'draft',
                 'created_by' => auth()->id(),
@@ -530,7 +541,13 @@ class SupplierRfqController extends Controller
         $threshold = $this->settings->decimal('rfq_three_quote_value_threshold', 50000);
         $count = SupplierQuotation::query()->where('rfq_id', $rfq->id)->count();
 
-        if ((float) $winner->total <= $threshold || $count >= 3) {
+        // BR-51 — the threshold is a base-currency figure and the quotation is in whatever
+        // currency the supplier quoted in. Compared raw, a USD 1,000 quotation read as the
+        // number `1000` and slipped under a BDT 50,000 three-quote control that its real value
+        // of BDT 122,500 is well above: a procurement control bypassed by choosing a currency.
+        $value = $this->baseValue($winner);
+
+        if ($value <= $threshold || $count >= 3) {
             return;
         }
 
@@ -544,11 +561,33 @@ class SupplierRfqController extends Controller
 
         throw ValidationException::withMessages([
             'override_reason' => sprintf(
-                'This quotation is %s, above the %s threshold that requires three quotations. Record more quotes or give an override reason.',
-                number_format((float) $winner->total, 2),
+                'This quotation is worth %s %s, above the %s %s threshold that requires three quotations. Record more quotes or give an override reason.',
+                $this->baseCurrencyCode(),
+                number_format($value, 2),
+                $this->baseCurrencyCode(),
                 number_format($threshold, 2),
             ),
         ]);
+    }
+
+    /**
+     * BR-51 — the quotation's value in the factory's own currency, which is the unit the
+     * three-quote threshold is expressed in.
+     *
+     * A supplier quotation records no rate of its own, so the documented rate is the reference
+     * one for its currency (BR-58) — the same rate the purchase order raised from it is
+     * booked at, so the control and the order agree.
+     */
+    private function baseValue(SupplierQuotation $quote): float
+    {
+        $rate = $this->rates->reference((int) $quote->currency_id, $quote->quoted_on->toDateString());
+
+        return round((float) $quote->total * ($rate !== null && $rate > 0 ? $rate : 1.0), 4);
+    }
+
+    private function baseCurrencyCode(): string
+    {
+        return (string) $this->settings->get('base_currency', 'BDT');
     }
 
     /** @return list<array<string, mixed>> */

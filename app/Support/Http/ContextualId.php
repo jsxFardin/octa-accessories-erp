@@ -23,16 +23,25 @@ use Illuminate\Http\Request;
  * empty, zero, negative, fractional, non-numeric, or numeric with a tail — resolves to null,
  * and the caller's existing "resolve to nothing, say so" path takes over.
  *
- * This decides only whether the parameter *names* an id. Whether the viewer may see that record,
- * and whether the record is in a state the handoff allows, stay with the caller: those are
- * domain questions and they differ per handoff.
+ * Whether the viewer may **read** the record named is asked here too, by
+ * `contextualId(..., permission: ...)` — BR-54's second question. It was documented as applying
+ * to every handoff and implemented on two of them, so `/grns/create?po=1` handed a QC inspector
+ * who is refused `/purchase-orders/1` outright that order's supplier, currency, rates and every
+ * line on it. A parameter must not reach around a permission the same user is refused at the
+ * front door.
+ *
+ * Whether the record is in a *state* the handoff allows stays with the caller: that is a domain
+ * question and it differs per handoff.
  */
 trait ContextualId
 {
     /**
      * @param  string  $key  the query parameter, e.g. `inquiry`
+     * @param  list<string>|string|null  $permission  the source document's read permission — any
+     *                                                one of them is enough. Omitted only where
+     *                                                the handoff names no separate source record.
      */
-    protected function contextualId(Request $request, string $key): ?int
+    protected function contextualId(Request $request, string $key, array|string|null $permission = null): ?int
     {
         $raw = $request->query($key);
 
@@ -49,6 +58,30 @@ trait ContextualId
 
         $id = (int) $raw;
 
-        return $id > 0 ? $id : null;
+        if ($id <= 0) {
+            return null;
+        }
+
+        // BR-54 — may this viewer read the record the parameter names? A user refused the source
+        // document itself must not receive it through a query parameter on another screen. The
+        // handoff resolves to nothing, exactly as a malformed id does, and the form still works
+        // without a source behind it.
+        if ($permission !== null) {
+            $user = $request->user();
+            $permitted = false;
+
+            foreach ((array) $permission as $name) {
+                if ($user?->hasPermission($name)) {
+                    $permitted = true;
+                    break;
+                }
+            }
+
+            if (! $permitted) {
+                return null;
+            }
+        }
+
+        return $id;
     }
 }

@@ -10,7 +10,7 @@ import DateInput from '@/Components/Ui/DateInput.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { date, money, qty, todayIso } from '@/plugins/formatting';
+import { baseCurrency, date, money, qty, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
@@ -124,7 +124,10 @@ const needsThree = computed(() => {
 
             <Card title="Quotations">
                 <p v-if="needsThree" class="mb-3 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
-                    Quoted value is above {{ money(quoteThreshold) }}. Three quotations are required, or an override reason.
+                    <!-- BR-51 — the threshold is a base-currency figure and the quotations
+                         beside it may not be, so it says which unit it is in. -->
+                    Quoted value is above {{ money(quoteThreshold, baseCurrency()) }} in the factory's books.
+                    Three quotations are required, or an override reason.
                 </p>
                 <DataTable
                     :columns="[
@@ -140,7 +143,7 @@ const needsThree = computed(() => {
                     dense
                 >
                     <template #cell:supplier="{ row }">{{ row.supplier?.name }}</template>
-                    <template #cell:total="{ value }">{{ money(value) }}</template>
+                    <template #cell:total="{ row, value }">{{ money(value, row.currency) }}</template>
                     <template #cell:is_selected="{ row }">
                         <Badge v-if="row.is_selected" tone="success" label="Selected" />
                         <Button

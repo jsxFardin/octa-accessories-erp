@@ -15,7 +15,10 @@ beforeEach(function (): void {
         'expense_category_id' => DB::table('expense_categories')->where('code', 'FUEL')->value('id'),
         'payee' => 'Padma Filling Station',
         'description' => 'Generator diesel, 200 litres',
-        'currency_id' => DB::table('currencies')->value('id'),
+        // A diesel bill from a Dhaka filling station is in taka. `value('id')` without an
+        // order was returning whichever row the index handed back first — USD here — and
+        // booking it at a rate of 1, which BR-58 now refuses as the mis-statement it is.
+        'currency_id' => DB::table('currencies')->where('code', 'BDT')->value('id'),
         'exchange_rate' => 1,
         'amount' => 24000,
         'tax_amount' => 3600,

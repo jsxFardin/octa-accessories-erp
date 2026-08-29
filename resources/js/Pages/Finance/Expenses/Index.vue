@@ -8,7 +8,7 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import ExportDialog from '@/Components/Ui/ExportDialog.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
-import { date, money, titleCase } from '@/plugins/formatting';
+import { baseCurrency, date, money, titleCase } from '@/plugins/formatting';
 import { useConfirm } from '@/composables/useConfirm';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -94,7 +94,9 @@ const columns = [
                 Two figures and the top categories, under the same filters as the list. An
                 expense screen that cannot answer "what have we spent" is a filing cabinet.
             -->
-            <Card v-if="totals.committed !== undefined" title="Under these filters">
+            <!-- BR-50 — these are base-currency sums of `amount * exchange_rate`, so they are
+                 labelled with the factory's currency and the rows below with each bill's own. -->
+            <Card v-if="totals.committed !== undefined" :title="`Under these filters · ${baseCurrency()}`">
                 <div class="flex flex-wrap items-start gap-8">
                     <div>
                         <p class="text-xs tracking-wider text-ink-500 uppercase">Committed</p>
@@ -139,7 +141,7 @@ const columns = [
                         <span v-if="row.description" class="block text-xs text-ink-500">{{ row.description }}</span>
                     </template>
                     <template #cell:method="{ value }">{{ titleCase(value) }}</template>
-                    <template #cell:total="{ value }">{{ money(value) }}</template>
+                    <template #cell:total="{ row, value }">{{ money(value, row.currency) }}</template>
                     <template #cell:status="{ value }"><Badge :status="value" /></template>
 
                     <template #empty>

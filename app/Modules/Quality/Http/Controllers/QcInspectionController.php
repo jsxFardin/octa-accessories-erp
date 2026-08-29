@@ -89,7 +89,7 @@ class QcInspectionController extends Controller
                           ORDER BY o.sequence_no DESC LIMIT 1), 0) as good_qty')
             ->get();
 
-        $requestedCard = $this->contextualId($request, 'job_card');
+        $requestedCard = $this->contextualId($request, 'job_card', ['job_card.view_any', 'job_card.view']);
         $preselectCard = $jobCards->contains(fn ($card): bool => (int) $card->id === $requestedCard)
             ? $requestedCard
             : null;
@@ -124,7 +124,7 @@ class QcInspectionController extends Controller
     /** The QC-flagged operation named by `?operation=`, if it belongs to the chosen card. */
     private function preselectOperation(Request $request, int $jobCardId): ?int
     {
-        $id = $this->contextualId($request, 'operation');
+        $id = $this->contextualId($request, 'operation', ['job_card.view_any', 'job_card.view']);
 
         if ($id === null) {
             return null;

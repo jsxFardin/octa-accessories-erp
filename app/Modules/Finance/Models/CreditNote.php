@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\Finance\Models;
 
+use App\Modules\MasterData\Models\Currency;
 use App\Support\Audit\Auditable;
 use App\Support\Notifications\Notifier;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int $id
@@ -77,15 +79,26 @@ class CreditNote extends Model
         ];
     }
 
-    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Modules\MasterData\Models\Customer, $this> */
-    public function customer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Customer, $this> */
+    public function customer(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\Customer::class, 'customer_id');
     }
 
-    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<SalesInvoice, $this> */
-    public function salesInvoice(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    /** @return BelongsTo<SalesInvoice, $this> */
+    public function salesInvoice(): BelongsTo
     {
         return $this->belongsTo(SalesInvoice::class, 'sales_invoice_id');
+    }
+
+    /**
+     * BR-55 — a credit note is raised in the currency of the invoice it credits (the
+     * controller copies it from there), so it is never ambiguous which unit its amount is in.
+     *
+     * @return BelongsTo<Currency, $this>
+     */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
     }
 }
