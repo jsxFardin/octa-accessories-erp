@@ -11,11 +11,21 @@ use App\Modules\Product\States\ArtworkVersionStateMachine;
 use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ArtworkVersionController extends Controller
 {
+    /**
+     * Mirrors the artwork_versions_format_chk check constraint. Anything outside this list
+     * is stored as NULL rather than crashing the insert.
+     */
+    private const FORMATS = ['ai', 'eps', 'pdf', 'cdr', 'psd', 'png', 'jpg', 'svg'];
+
+    /** A JPEG arrives under either spelling; the column stores only one. */
+    private const FORMAT_ALIASES = ['jpeg' => 'jpg'];
+
     public function __construct(private readonly ArtworkVersionStateMachine $states) {}
 
     /**
@@ -39,7 +49,7 @@ class ArtworkVersionController extends Controller
                 'version_no' => $artwork->nextVersionNo(),
                 'status' => ArtworkVersion::DRAFT,
                 'file_path' => $path,
-                'file_format' => strtolower($file->getClientOriginalExtension()),
+                'file_format' => $this->fileFormat($file),
                 'checksum_sha256' => hash_file('sha256', $file->getRealPath()),
                 'created_by' => $request->user()->id,
             ]);
@@ -76,5 +86,18 @@ class ArtworkVersionController extends Controller
                 ? "Version {$version->version_no} approved. It is now the only version production may run against."
                 : "Version {$version->version_no} moved to {$data['to']}.",
         );
+    }
+
+    /**
+     * The mimes rule checks the extension guessed from the file's contents, not the one in
+     * the uploaded filename, so the client extension can be any string at all — including
+     * one the check constraint rejects, which turned a bad filename into a 500.
+     */
+    private function fileFormat(UploadedFile $file): ?string
+    {
+        $format = strtolower($file->getClientOriginalExtension());
+        $format = self::FORMAT_ALIASES[$format] ?? $format;
+
+        return in_array($format, self::FORMATS, true) ? $format : null;
     }
 }

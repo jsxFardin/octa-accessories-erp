@@ -25,6 +25,7 @@ Not a garment ERP. Production here is machine-centred and process-routed — loo
 | 08 | [Architecture](08-architecture.md) | Modular monolith layout, packages, testing strategy |
 | 09 | [Non-Functional](09-nfr.md) | Performance, security, backup, auditability, localisation |
 | 10 | [Roadmap](10-roadmap.md) | Phased sprints, MVP boundary, risks |
+| 11 | [Deployment](11-deployment.md) | Production VPS runbook: nginx vhost, TLS, php-fpm limits, env, queue worker, verification |
 
 ## Modules
 
