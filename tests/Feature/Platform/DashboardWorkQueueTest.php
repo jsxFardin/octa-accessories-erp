@@ -22,8 +22,8 @@ use Inertia\Testing\AssertableInertia;
  * Open and Edit — everything except the thing the queue is named after.
  */
 beforeEach(function (): void {
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
-    $this->planner = User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
+    $this->planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
 });
 
 it('counts a completed job card as open, because closing it is still someone job', function (): void {
@@ -171,7 +171,7 @@ it('opens the job-card form with the order the queue action came from', function
 });
 
 it('refuses the job-card form to a user without permission to raise one', function (): void {
-    $blind = User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail();
+    $blind = User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail();
 
     expect($blind->hasPermission('job_card.create'))->toBeFalse();
 

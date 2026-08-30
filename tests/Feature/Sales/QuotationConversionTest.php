@@ -21,7 +21,7 @@ use Inertia\Testing\AssertableInertia;
  * side, because a disabled button is not a rule.
  */
 beforeEach(function (): void {
-    $this->merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
+    $this->merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
     $this->customer = Customer::query()->firstOrFail();
     $this->product = Product::query()->firstOrFail();
     $this->currency = Currency::query()->where('is_base', true)->firstOrFail();
@@ -154,7 +154,7 @@ it('lets a replacement order be raised once the first one is cancelled', functio
     $order = SalesOrder::query()->where('quotation_id', $quotation->id)->firstOrFail();
 
     // The one case the schema's one-to-many was ever for (01-domain-model §1).
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->post("/sales-orders/{$order->id}/transition", ['to' => 'cancelled', 'close_reason' => 'Customer restructured the PO'])
         ->assertSessionHasNoErrors();
 
@@ -170,7 +170,7 @@ it('refuses conversion to a user without sales_order.create', function (): void 
 
     $before = SalesOrder::query()->count();
 
-    convert($this, $quotation, User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail())
+    convert($this, $quotation, User::query()->where('email', 'operator@octapussolution.com')->firstOrFail())
         ->assertForbidden();
 
     expect(SalesOrder::query()->count())->toBe($before);

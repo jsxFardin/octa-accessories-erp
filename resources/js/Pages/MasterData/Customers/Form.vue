@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import ResourceForm from '@/Components/Ui/ResourceForm.vue';
+import { baseCurrency } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ customer: Object, paymentTerms: Array, currencies: Array, kinds: Array });
@@ -29,8 +30,8 @@ const sections = computed(() => [
         fields: [
             { key: 'currency_id', label: 'Currency', type: 'select', options: props.currencies, valueKey: 'id', labelKey: 'code' },
             { key: 'payment_term_id', label: 'Payment terms', type: 'select', options: props.paymentTerms, valueKey: 'id', labelKey: 'name' },
-            { key: 'credit_limit', label: 'Credit limit', type: 'number', step: '0.0001', default: 0, rule: 'BR-46', hint: 'Zero means no limit set, not no credit.' },
-            { key: 'min_order_value', label: 'Minimum order value', type: 'number', step: '0.0001', default: 0, rule: 'BR-21' },
+            { key: 'credit_limit', label: `Credit limit (${baseCurrency()})`, type: 'number', step: '0.0001', default: 0, rule: 'BR-46', hint: `In ${baseCurrency()}, whatever currency this customer is quoted in. Zero means no limit set, not no credit.` },
+            { key: 'min_order_value', label: `Minimum order value (${baseCurrency()})`, type: 'number', step: '0.0001', default: 0, rule: 'BR-21' },
             { key: 'under_tolerance_pct', label: 'Under tolerance %', type: 'number', step: '0.01', default: 5, rule: 'BR-44' },
             { key: 'over_tolerance_pct', label: 'Over tolerance %', type: 'number', step: '0.01', default: 5, rule: 'BR-44' },
             {

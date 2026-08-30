@@ -24,8 +24,8 @@ use Illuminate\Validation\ValidationException;
  * rather than a second mechanism beside it.
  */
 beforeEach(function (): void {
-    $this->planner = User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail();
-    $this->storeKeeper = User::query()->where('email', 'store@maheenlabel.test')->firstOrFail();
+    $this->planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
+    $this->storeKeeper = User::query()->where('email', 'store@octapussolution.com')->firstOrFail();
     $this->service = app(FgReceiptService::class);
 
     $this->jobCard = JobCard::query()->whereHas('operations')->firstOrFail();

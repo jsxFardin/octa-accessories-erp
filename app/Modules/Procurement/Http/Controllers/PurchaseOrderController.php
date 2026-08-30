@@ -21,6 +21,7 @@ use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -199,6 +200,32 @@ class PurchaseOrderController extends Controller
 
         $data = $this->validated($request);
 
+        // BR-56 — the other half of the credit's currency invariant.
+        //
+        // `LetterOfCreditController` freezes a credit's currency while orders hang on it, and
+        // `attachOrder()` refuses an order in the wrong currency at the moment it is attached.
+        // Neither stopped the *order* walking out afterwards: attach a USD order to a USD
+        // credit, edit the order to taka, and the credit covers something it cannot pay for,
+        // with `covered` adding the two together again. The invariant held when it was written
+        // and was falsified later by an edit that broke none of its own rules — so it is
+        // checked on both sides, not one.
+        //
+        // Detaching the order from the credit is the way to redenominate it, which is what the
+        // bank would require in any case.
+        if (array_key_exists('currency_id', $data)
+            && (int) $data['currency_id'] !== (int) $purchaseOrder->currency_id) {
+            $credits = DB::table('lc_purchase_orders')->where('po_id', $purchaseOrder->id)->count();
+
+            if ($credits > 0) {
+                throw ValidationException::withMessages([
+                    'currency_id' => sprintf(
+                        'This order is covered by %s that pays in its current currency. Remove it from the credit before changing the order currency.',
+                        $credits === 1 ? 'a letter of credit' : $credits.' letters of credit',
+                    ),
+                ]);
+            }
+        }
+
         DB::transaction(function () use ($purchaseOrder, $data): void {
             $purchaseOrder->update(collect($data)->except('lines')->all());
             $this->syncLines($purchaseOrder, $data['lines']);
@@ -214,6 +241,9 @@ class PurchaseOrderController extends Controller
         $data = $request->validate([
             'to' => ['required', 'string'],
             'remarks' => ['nullable', 'string', 'max:500'],
+            // PR-2 AC4 — the documented way past the three-quote requirement for a sole-source
+            // or urgent order. Recorded on the order by the guard, never silently accepted.
+            'override_reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         try {

@@ -86,7 +86,7 @@ class LocalProcessSeeder extends Seeder
 
     public function run(): void
     {
-        Auth::login(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+        Auth::login(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 
         $this->userId = (int) Auth::id();
         $this->merchandiserId = (int) DB::table('employees')->where('code', 'EMP-0003')->value('id');

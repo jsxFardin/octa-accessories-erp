@@ -112,6 +112,10 @@ class CustomerController extends Controller
             'agent_id' => ['nullable', 'integer', 'exists:agents,id'],
             'currency_id' => ['nullable', 'integer', 'exists:currencies,id'],
             'payment_term_id' => ['nullable', 'integer', 'exists:payment_terms,id'],
+            // BR-46/BR-51 — a base-currency figure, like `min_order_value` beside it. The
+            // customer's own `currency_id` is what they are traded in, not what their limits
+            // are stated in; the credit decision converts every document to base before it
+            // compares against this.
             'credit_limit' => ['numeric', 'min:0'],
             'min_order_value' => ['numeric', 'min:0'],
             'over_tolerance_pct' => ['numeric', 'min:0', 'max:100'],

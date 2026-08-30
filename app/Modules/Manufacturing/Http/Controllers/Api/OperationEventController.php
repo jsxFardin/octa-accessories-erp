@@ -31,6 +31,8 @@ class OperationEventController extends Controller
 
     public function start(Request $request, JobCardOperation $operation): JsonResponse
     {
+        $this->assertWithinUnit($request, $operation);
+
         return $this->idempotent($request, function () use ($request, $operation): array {
             // J2 — an operation cannot start before its predecessor is done, unless the
             // routing marks it parallel.
@@ -78,6 +80,8 @@ class OperationEventController extends Controller
      */
     public function log(Request $request, JobCardOperation $operation): JsonResponse
     {
+        $this->assertWithinUnit($request, $operation);
+
         $data = $request->validate([
             'good_qty' => ['required', 'numeric', 'min:0'],
             'waste_qty' => ['numeric', 'min:0'],
@@ -255,6 +259,8 @@ class OperationEventController extends Controller
 
     public function finish(Request $request, JobCardOperation $operation): JsonResponse
     {
+        $this->assertWithinUnit($request, $operation);
+
         return $this->idempotent($request, function () use ($request, $operation): array {
             $occurredAt = $this->occurredAt($request);
 
@@ -309,6 +315,8 @@ class OperationEventController extends Controller
 
     public function downtime(Request $request, JobCardOperation $operation): JsonResponse
     {
+        $this->assertWithinUnit($request, $operation);
+
         $data = $request->validate([
             'downtime_reason_id' => ['required', 'integer', 'exists:downtime_reasons,id'],
             'minutes' => ['required', 'numeric', 'gt:0'],
@@ -422,6 +430,35 @@ class OperationEventController extends Controller
      *
      * @param  callable(): array<string, mixed>  $work
      */
+
+    /**
+     * A terminal may only touch work on its own floor.
+     *
+     * The queue this terminal reads is already scoped to `$session->factoryUnitId`
+     * (`FloorQueueController`), but the four write endpoints took an operation id straight off
+     * the URL and never asked where that operation was. A device badged into Unit A could
+     * start, log, finish or stop an operation belonging to Unit B by id alone — the business
+     * guards (J2, J3, J5, QC1) all still applied, so the numbers stayed self-consistent while
+     * being booked against the wrong factory. Read scoped, write unscoped, is the shape of
+     * BR-54's read-around on the other side of the request.
+     *
+     * The job card carries the unit; the operation belongs to the card.
+     */
+    private function assertWithinUnit(Request $request, JobCardOperation $operation): void
+    {
+        $session = $request->attributes->get('device_session');
+
+        if ($session === null) {
+            abort(401, 'Device session missing.');
+        }
+
+        $unitId = DB::table('job_cards')->where('id', $operation->job_card_id)->value('factory_unit_id');
+
+        if ($unitId === null || (int) $unitId !== (int) $session->factoryUnitId) {
+            abort(403, 'This operation belongs to another factory unit. Scan in on a terminal for that unit.');
+        }
+    }
+
     private function idempotent(Request $request, callable $work): JsonResponse
     {
         $key = $request->header('Idempotency-Key');

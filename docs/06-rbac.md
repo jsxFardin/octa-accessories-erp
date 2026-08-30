@@ -115,14 +115,26 @@ Never write `if ($user->hasRole('admin'))`. Always `$user->can('sales_order.conf
 
 Permission alone is not enough; several roles must also be scoped to rows.
 
-| Scope | Applies to | Implementation |
+| Scope | Applies to | Status |
 |---|---|---|
-| **Factory unit** | planner, production_supervisor, operator, store_keeper, dispatch | `factory_unit_id` filter from the user's assignment; global scope on operational models |
-| **Customer** | portal_customer | Global scope on every portal-exposed model, resolved from `customer_contacts.portal_user_id` |
-| **Own records** | merchandiser (optional) | Setting `merchandiser_sees_own_only`; when on, filters by `merchandiser_id` |
-| **Machine** | operator | Operator terminal shows only machines in the operator's department |
+| **Factory unit** | operator terminal (device API) | **Implemented, per request.** `FloorQueueController` filters the queue on `$session->factoryUnitId`, and every operation-event write (`start`, `log`, `finish`, `downtime`) refuses an operation whose job card belongs to another unit. Not a global model scope — the check lives on the device endpoints, which are the only place a unit-bound session exists. |
+| **Customer** | portal_customer | **Not implemented.** `EnsurePortalCustomer` binds the customer id into `PortalContext` and nothing reads it; the `BelongsToCustomer` global scope named below does not exist. See the prerequisite in `routes/portal.php`. |
+| **Own records** | merchandiser | **Removed.** The `merchandiser_sees_own_only` setting was a switch that filtered nothing: `merchandiser_id` is written and never read. It has been dropped rather than left looking like a control. |
+| **Machine** | operator | **Implemented** on the floor queue, which matches the scanned machine or its group. |
 
-Scoping is applied as a **global query scope**, never as a controller-level `where`. A missing `where` in one controller is a data leak; a global scope fails safe.
+**What is actually true today:** authorisation in this application is **permission-only** —
+`Gate::before` → `User::hasPermission` — with route middleware as the boundary. There are no
+Eloquent global scopes and no policies. Where row-level scoping genuinely exists it is written
+explicitly at the endpoint that owns the session context (the device API), and it is tested.
+
+The paragraph this section used to carry — "scoping is applied as a global query scope, never as
+a controller-level `where`" — described an architecture that was never built. It is recorded here
+as the **intended** design for the portal, which must not be released until it exists: a
+`portal_customer` user today would read every customer's orders and invoices, because the role
+carries `sales_order.view_any` and nothing narrows it.
+
+Where `view_any` is granted, assume the holder sees **every** row of that resource. That is the
+current contract, and screens must be designed to it until the scoping above is built.
 
 ---
 

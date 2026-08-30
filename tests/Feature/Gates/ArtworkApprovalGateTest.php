@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  * agrees, and that a job card cannot reach `released` against anything else.
  */
 beforeEach(function (): void {
-    $this->actingAs(App\Models\User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(App\Models\User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 });
 
 it('cannot approve two artwork versions for the same artwork', function (): void {

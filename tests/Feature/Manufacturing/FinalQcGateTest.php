@@ -18,7 +18,7 @@ beforeEach(function (): void {
     $this->states = app(JobCardStateMachine::class);
 
     // Drive the job to qc_pending through the machine — release (waived), produce, finish ops.
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $this->states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'QC gate walkthrough']);
     $this->states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
     // BR-48 — a job that produced finished goods consumed material to do it. The store's
@@ -31,14 +31,14 @@ beforeEach(function (): void {
 /** Post a final inspection through the QC route with the given defect count. */
 function finalInspection(object $test, int $jobCardId, int $majors, ?string $disposition = null): void
 {
-    $test->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
 
     $test->post('/qc-inspections', array_filter([
         'job_card_id' => $jobCardId, 'stage' => 'final', 'lot_size' => 500,
         'major_found' => $majors, 'disposition' => $disposition,
     ]))->assertSessionHasNoErrors();
 
-    $test->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 }
 
 it('blocks completion when required final QC has not happened', function (): void {
@@ -93,11 +93,11 @@ it('ignores another job\'s inspection and non-final stages', function (): void {
     finalInspection($this, (int) $other->id, majors: 0);
 
     // And an accepted in_process inspection for OUR job — wrong stage.
-    $this->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
     $this->post('/qc-inspections', [
         'job_card_id' => $this->jobCard->id, 'stage' => 'in_process', 'lot_size' => 500, 'major_found' => 0,
     ]);
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 
     expect(fn () => $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED))
         ->toThrow(TransitionDenied::class, 'requires final QC');
@@ -123,7 +123,7 @@ it('cannot be bypassed over HTTP by a user without the transition permission', f
     finalInspection($this, (int) $this->jobCard->id, majors: 0);
 
     // The driver holds nothing on job cards: the route itself refuses.
-    $this->actingAs(User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'driver@octapussolution.com')->firstOrFail());
     $this->post("/job-cards/{$this->jobCard->id}/transition", ['to' => JobCard::COMPLETED])->assertForbidden();
 
     expect($this->jobCard->refresh()->status)->toBe(JobCard::QC_PENDING);

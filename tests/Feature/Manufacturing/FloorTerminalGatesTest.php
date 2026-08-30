@@ -21,7 +21,7 @@ beforeEach(function (): void {
 
     $card = DB::table('employees')
         ->join('users', 'users.id', '=', 'employees.user_id')
-        ->where('users.email', 'operator@maheenlabel.test')
+        ->where('users.email', 'operator@octapussolution.com')
         ->value('card_no');
 
     $this->token = $this->postJson('/api/v1/device/session', [
@@ -40,7 +40,7 @@ it('lets an operator close the final operation of a job card', function (): void
     // the last operation moves the card to qc_pending, which does require it — and charging
     // the operator for that transition made every job card unfinishable from the floor. The
     // transition is the system's consequence, not the operator's action.
-    $operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
+    $operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
     expect($operator->hasPermission('job_card.update'))->toBeFalse();
 
     $final = $this->jobCard->operations()->reorder('sequence_no', 'desc')->firstOrFail();
@@ -67,8 +67,23 @@ it('lets an operator close the final operation of a job card', function (): void
 it('refuses output that would breach the J5 overrun ceiling at the moment it is booked', function (): void {
     // Not only when the card closes: by then the labels exist. The terminal shows the ceiling
     // on every screen, so a refusal that arrives days later reads as no rule at all.
-    $operation = $this->jobCard->operations()->reorder('sequence_no', 'asc')->firstOrFail();
-    $operation->forceFill(['status' => JobCardOperation::IN_PROGRESS])->save();
+    // The *final* operation, and one planned large enough that J3 is not what refuses this.
+    //
+    // The test used to book a piece quantity into the first step — warping, planned in metres —
+    // where J3 ("more handed in than this operation is planned for") legitimately fires first
+    // and J5 is never reached. Both refuse the write, so the floor was always safe; the test was
+    // simply naming a guard its own fixture made unreachable, and it passed or failed depending
+    // on which card the unordered `firstOrFail()` returned. J6: only the last operation states
+    // the job's output in pieces, so that is the step a piece ceiling belongs to.
+    $operation = $this->jobCard->operations()->reorder('sequence_no', 'desc')->firstOrFail();
+    $operation->forceFill([
+        'status' => JobCardOperation::IN_PROGRESS,
+        'planned_qty' => $this->jobCard->overrunCeiling() * 2,
+    ])->save();
+
+    // J2/J7 — the steps before it ran and handed enough forward, so the chain is not what
+    // refuses this either. The only rule left standing is the one under test.
+    completeOperationsBefore($operation);
 
     $over = $this->jobCard->overrunCeiling() - (float) $this->jobCard->produced_qty_running + 1;
 
@@ -103,7 +118,7 @@ it('holds an operation whose predecessor still needs a QC verdict', function ():
         ->assertSee('QC1', escape: false);
 
     // An accepted inspection against that operation releases it.
-    $this->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail())
         ->post('/qc-inspections', [
             'job_card_id' => $this->jobCard->id,
             'job_card_operation_id' => $first->id,

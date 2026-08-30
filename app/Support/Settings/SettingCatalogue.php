@@ -30,7 +30,6 @@ class SettingCatalogue
         'planning' => 'Planning',
         'approval' => 'Approval bands',
         'inventory' => 'Inventory',
-        'scoping' => 'Visibility',
         'general' => 'General',
         // Edited on its own screen; listed here so its keys are grouped rather than falling
         // into General and reappearing on the raw settings list.
@@ -72,8 +71,6 @@ class SettingCatalogue
         'credit_note_approval_band_accounts' => ['approval', 'Credit note — accounts band', 'BDT', 'Accounts may approve credit notes up to this value.'],
 
         'expiry_alert_days' => ['inventory', 'Expiry warning', 'days', 'Ink and chemical lots flag this many days before they expire (BR-39).'],
-
-        'merchandiser_sees_own_only' => ['scoping', 'Merchandisers see only their own records', null, 'When on, a merchandiser sees only the customers and orders assigned to them (06-rbac §4).'],
 
         'qc_final_required_default' => ['quality', 'Final QC required for every job', null, 'P1-1 — when on, no job card completes without an accepted final inspection, even if its routing flags no QC operation. Routing-level requires_qc always applies regardless.'],
 

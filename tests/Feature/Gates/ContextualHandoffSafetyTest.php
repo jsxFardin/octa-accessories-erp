@@ -27,7 +27,7 @@ use Inertia\Testing\AssertableInertia;
  * buyer discovered the refusal only after filling the form in.
  */
 beforeEach(function (): void {
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 });
 
 /**
@@ -132,7 +132,7 @@ it('withholds the requisition from a user who may not read requisitions', functi
 
     DB::table('purchase_requisitions')->where('id', $requisition->id)->update(['status' => 'approved']);
 
-    $blind = User::query()->where('email', 'designer@maheenlabel.test')->firstOrFail();
+    $blind = User::query()->where('email', 'designer@octapussolution.com')->firstOrFail();
 
     expect($blind->hasPermission('purchase_requisition.view_any'))->toBeFalse();
 
@@ -227,7 +227,7 @@ function br54OpenOrder(): int
 }
 
 it('br54: does not hand a purchase order to a receiver who may not read purchase orders', function (): void {
-    $inspector = User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail();
+    $inspector = User::query()->where('email', 'qc@octapussolution.com')->firstOrFail();
     $poId = br54OpenOrder();
 
     // The premise: this role can reach the receiving screen and cannot open the order.
@@ -250,7 +250,7 @@ it('br54: does not hand a purchase order to a receiver who may not read purchase
 });
 
 it('br54: still hands the order to a receiver who may read purchase orders', function (): void {
-    $store = User::query()->where('email', 'store@maheenlabel.test')->firstOrFail();
+    $store = User::query()->where('email', 'store@octapussolution.com')->firstOrFail();
     $poId = br54OpenOrder();
 
     $this->actingAs($store)
@@ -264,7 +264,7 @@ it('br54: still hands the order to a receiver who may read purchase orders', fun
 
 it('br54: withholds a sales order from a planner who may not read sales orders', function (): void {
     // A production supervisor raises job cards and holds no sales-order permission at all.
-    $supervisor = User::query()->where('email', 'supervisor@maheenlabel.test')->firstOrFail();
+    $supervisor = User::query()->where('email', 'supervisor@octapussolution.com')->firstOrFail();
     $order = DB::table('sales_orders')->first();
 
     if ($order === null) {
@@ -282,7 +282,7 @@ it('br54: withholds a sales order from a planner who may not read sales orders',
 });
 
 it('br54: withholds a customer from an engineer who may not read customers', function (): void {
-    $engineer = User::query()->where('email', 'engineer@maheenlabel.test')->firstOrFail();
+    $engineer = User::query()->where('email', 'engineer@octapussolution.com')->firstOrFail();
     $customer = DB::table('customers')->where('is_active', true)->first();
 
     if ($customer === null) {

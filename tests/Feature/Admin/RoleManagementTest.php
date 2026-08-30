@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
  * 06-rbac §2 — roles are bundles of permissions, editable by an admin without a deploy.
  */
 beforeEach(function (): void {
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 });
 
 it('creates a custom role with the permissions it was given', function (): void {
@@ -52,7 +52,7 @@ it('rejects a permission that is not in the catalogue', function (): void {
 });
 
 it('edits an existing role and flushes the permission cache of everyone holding it', function (): void {
-    $planner = User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail();
+    $planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
     $role = Role::query()->where('name', 'planner')->firstOrFail();
 
     // Warm the cache so the flush has something to invalidate.
@@ -95,7 +95,7 @@ it('will not delete a system role', function (): void {
 
 it('will not delete a role that still has users', function (): void {
     $role = Role::query()->create(['name' => 'temp_role', 'label' => 'Temp', 'is_system' => false]);
-    $user = User::query()->where('email', 'lab@maheenlabel.test')->firstOrFail();
+    $user = User::query()->where('email', 'lab@octapussolution.com')->firstOrFail();
     $user->roles()->attach($role->id);
 
     $this->actingAs($this->admin)->delete("/admin/roles/{$role->id}")->assertSessionHas('error');
@@ -112,7 +112,7 @@ it('deletes an unused custom role', function (): void {
 });
 
 it('keeps role management behind its own permissions', function (): void {
-    $merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
+    $merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
 
     $this->actingAs($merchandiser)->get('/admin/roles')->assertForbidden();
     $this->actingAs($merchandiser)->post('/admin/roles', [

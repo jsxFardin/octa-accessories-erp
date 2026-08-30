@@ -27,15 +27,15 @@ use Illuminate\Support\Str;
  * or a credit-note draft must still commit if the inbox write later fails.
  */
 beforeEach(function (): void {
-    $this->qc = User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail();
-    $this->quality = User::query()->where('email', 'quality@maheenlabel.test')->firstOrFail();
-    $this->operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
-    $this->accounts = User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail();
-    $this->md = User::query()->where('email', 'md@maheenlabel.test')->firstOrFail();
-    $this->compliance = User::query()->where('email', 'compliance@maheenlabel.test')->firstOrFail();
-    $this->supervisor = User::query()->where('email', 'supervisor@maheenlabel.test')->firstOrFail();
-    $this->driver = User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail();
-    $this->lab = User::query()->where('email', 'lab@maheenlabel.test')->firstOrFail();
+    $this->qc = User::query()->where('email', 'qc@octapussolution.com')->firstOrFail();
+    $this->quality = User::query()->where('email', 'quality@octapussolution.com')->firstOrFail();
+    $this->operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
+    $this->accounts = User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail();
+    $this->md = User::query()->where('email', 'md@octapussolution.com')->firstOrFail();
+    $this->compliance = User::query()->where('email', 'compliance@octapussolution.com')->firstOrFail();
+    $this->supervisor = User::query()->where('email', 'supervisor@octapussolution.com')->firstOrFail();
+    $this->driver = User::query()->where('email', 'driver@octapussolution.com')->firstOrFail();
+    $this->lab = User::query()->where('email', 'lab@octapussolution.com')->firstOrFail();
 });
 
 function p24Notes(User $user, ?string $action = null)
@@ -157,7 +157,7 @@ function p24FulfilChallan(object $test, float $qty): DeliveryChallan
 {
     p24Commercial($test);
 
-    $test->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 
     if ($test->jobCard->refresh()->status === JobCard::PLANNED) {
         $states = app(JobCardStateMachine::class);
@@ -177,13 +177,13 @@ function p24FulfilChallan(object $test, float $qty): DeliveryChallan
             'lot_size' => 500,
             'major_found' => 0,
         ]);
-        $test->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+        $test->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
         $receipt = app(App\Modules\Manufacturing\Services\FgReceiptService::class)
             ->post($test->jobCard->refresh(), 10000, $test->fgWarehouseId, (string) Str::uuid());
         $test->lot = DB::table('stock_lots')->where('id', $receipt->lot_id)->first();
     }
 
-    $test->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
     $test->post('/packing-lists', ['sales_order_id' => $test->soId]);
     $list = PackingList::query()->latest('id')->firstOrFail();
     $test->post("/packing-lists/{$list->id}/cartons", []);
@@ -437,7 +437,7 @@ it('notifies approvers when a return after invoicing drafts a credit note', func
     $invoice = SalesInvoice::query()->latest('id')->firstOrFail();
     $this->post("/invoices/{$invoice->id}/transition", ['to' => 'issued']);
 
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
     $this->post("/delivery-challans/{$challan->id}/transition", ['to' => 'returned', 'return_reason' => 'refused at gate']);
 
     $note = CreditNote::query()->where('sales_invoice_id', $invoice->id)->firstOrFail();

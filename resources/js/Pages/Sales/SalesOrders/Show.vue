@@ -9,7 +9,7 @@ import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import ActivityTrail from '@/Components/Ui/ActivityTrail.vue';
-import { date, isoDate, money, pcs, ratePerM, relative, titleCase } from '@/plugins/formatting';
+import { baseCurrency, date, isoDate, money, pcs, ratePerM, relative, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -152,9 +152,13 @@ const lineColumns = [
                 v-if="creditCheck.on_hold"
                 class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-900"
             >
-                <span class="font-medium">Credit exposure {{ money(creditCheck.exposure, order.currency) }}</span>
-                against a limit of {{ money(creditCheck.credit_limit, order.currency) }}. Over by
-                <strong>{{ money(creditCheck.excess, order.currency) }}</strong>. Only Accounts or the MD may release it.
+                <!-- BR-46/BR-51 — the credit decision is made in the factory's currency: the
+                     limit is stated in it and every document is converted at its own snapshotted
+                     rate before it is added in. Labelling these with the *order's* currency
+                     said `USD 1,225,000` for a figure that is BDT. -->
+                <span class="font-medium">Credit exposure {{ money(creditCheck.exposure, baseCurrency()) }}</span>
+                against a limit of {{ money(creditCheck.credit_limit, baseCurrency()) }}. Over by
+                <strong>{{ money(creditCheck.excess, baseCurrency()) }}</strong>. Only Accounts or the MD may release it.
             </div>
 
             <!-- P0-4: every figure from its authoritative source; gaps shown, never smoothed -->

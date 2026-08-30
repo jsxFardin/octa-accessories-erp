@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -155,6 +156,32 @@ class LetterOfCreditController extends Controller
         // against nothing.
         if ($letterOfCredit->status !== 'draft') {
             $data = array_intersect_key($data, array_flip(self::EDITABLE_AFTER_DRAFT));
+        }
+
+        // BR-56 — the credit's currency is fixed once an order is drawn on it.
+        //
+        // `attachOrder()` refuses an order in another currency, but that check was made once,
+        // at attach time, and the currency it checked against could still move underneath it:
+        // open a BDT draft, attach a BDT order, switch the draft to USD, and a USD credit now
+        // covers a BDT order — `covered` adds taka to dollars again, and the invariant the
+        // attach guard exists to hold is false without any of its own rules being broken. An
+        // invariant that only holds at the moment it is written is not an invariant.
+        //
+        // Detaching the orders first is the way to redenominate a credit, which is also what
+        // the bank would require.
+        if (array_key_exists('currency_id', $data)
+            && (int) $data['currency_id'] !== (int) $letterOfCredit->currency_id) {
+            $attached = DB::table('lc_purchase_orders')->where('lc_id', $letterOfCredit->id)->count();
+
+            if ($attached > 0) {
+                throw ValidationException::withMessages([
+                    'currency_id' => sprintf(
+                        'This credit already covers %s in another currency. Remove %s before changing the currency of the credit.',
+                        $attached === 1 ? 'an order' : $attached.' orders',
+                        $attached === 1 ? 'it' : 'them',
+                    ),
+                ]);
+            }
         }
 
         $letterOfCredit->update($data);

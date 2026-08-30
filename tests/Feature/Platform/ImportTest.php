@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 beforeEach(function (): void {
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 });
 
 /** A CSV on disk, because the importer reads a file rather than a string. */

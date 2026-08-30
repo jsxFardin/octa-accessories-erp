@@ -44,7 +44,7 @@ class DemoDataSeeder extends Seeder
     {
         // The seeders run as the implementer: the state machines check permissions, and an
         // unauthenticated seed would be blocked by the same guards that protect the UI.
-        Auth::login(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+        Auth::login(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 
         $customer = $this->customer();
         $suppliers = $this->suppliers();
@@ -534,7 +534,7 @@ class DemoDataSeeder extends Seeder
             'payment_term_id' => DB::table('payment_terms')->where('code', 'NET60')->value('id'),
             'delivery_address_id' => DB::table('customer_addresses')->where('customer_id', $customer->id)->value('id'),
             'factory_unit_id' => DB::table('factory_units')->where('code', 'ML-1')->value('id'),
-            'merchandiser_id' => User::query()->where('email', 'merchandiser@maheenlabel.test')->value('id'),
+            'merchandiser_id' => User::query()->where('email', 'merchandiser@octapussolution.com')->value('id'),
             'priority' => 'normal',
             'status' => 'draft',
             'created_by' => Auth::id(),

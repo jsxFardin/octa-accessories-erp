@@ -20,6 +20,7 @@ use App\Support\Http\ListsResources;
 use App\Support\Notifications\Notifier;
 use App\Support\Reference\Vocabulary;
 use App\Support\Settings\Settings;
+use App\Support\States\StateMachine;
 use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -292,6 +293,22 @@ class SalesOrderController extends Controller
             $salesOrder->update(collect($data)->except('lines')->all());
             $this->syncLines($salesOrder, $data['lines']);
             $this->recalculateTotals($salesOrder);
+
+            // BR-46 — the credit decision is taken again once the amendment is on the order.
+            //
+            // It used to be taken only on `draft → confirmed`, while everything that determines
+            // exposure — the customer, the lines, their quantities and rates, the currency and
+            // its rate — stayed amendable afterwards and `update()` ran no credit logic at all.
+            // An order confirmed at USD 100 could be amended to USD 100,000 and sit in
+            // `confirmed` at twenty-four times the customer's limit, with production and
+            // dispatch both reachable from that status; moving `customer_id` onto a different
+            // customer had the same effect from the other direction.
+            //
+            // Evaluated *after* the amendment is applied and inside the same transaction, so the
+            // figure judged is the one that will be stored, and a refusal takes the amendment
+            // down with it. This follows the guard BR-53/S1 put on this same path rather than
+            // introducing a second enforcement style.
+            $this->guardCreditExposure($salesOrder->refresh(), $isConfirmed);
         });
 
         return redirect()
@@ -322,8 +339,11 @@ class SalesOrderController extends Controller
                 return back()->with(
                     'warning',
                     sprintf(
-                        'BR-46: this order takes %s past their credit limit by %s. Held for Accounts or the MD to release.',
+                        'BR-46: this order takes %s past their credit limit by %s %s. Held for Accounts or the MD to release.',
                         $salesOrder->customer?->name,
+                        // The decision is made in the factory's currency (BR-51), so the figure
+                        // that explains it says which currency it is in.
+                        $this->states->baseCurrencyCode(),
                         number_format($credit['excess'], 2),
                     ),
                 );
@@ -352,6 +372,62 @@ class SalesOrderController extends Controller
      * @param  list<array<string, mixed>>  $lines
      *
      * @throws ValidationException
+     */
+    /**
+     * BR-46 at the amendment boundary.
+     *
+     * A draft is not judged here: it has its own gate on confirmation, and holding a draft would
+     * say nothing. Everything past draft is judged on the amended figures.
+     *
+     * What happens on a breach depends on how far the order has gone, because `credit_hold`
+     * means "do not start this yet":
+     *
+     * - `confirmed` — the order is held. The amendment stands, because the customer may really
+     *   have increased it; what stops is the order being executed on a value nobody checked.
+     *   Releasing it needs `sales_order.release_credit_hold` and a documented reason, which is
+     *   BR-46's existing mechanism rather than a new one.
+     * - `credit_hold` — already held, and it stays held. The amendment cannot quietly return it.
+     * - anything further on (`in_production`, `partially_delivered`, …) — the amendment itself is
+     *   refused. Those goods exist; holding the order would be a lie about where they are, and
+     *   un-ordering production is what S1 already forbids.
+     *
+     * The transition runs as the system: the amender holds `sales_order.confirm` in every seeded
+     * role that can reach this path, but the hold is a consequence of the rule rather than an
+     * action they chose, which is exactly what `asSystem()` is for. Guards still run.
+     */
+    private function guardCreditExposure(SalesOrder $order, bool $isConfirmed): void
+    {
+        if (! $isConfirmed && $order->status !== 'credit_hold') {
+            return;
+        }
+
+        if (! $this->states->creditCheck($order)['on_hold']) {
+            return;
+        }
+
+        if ($order->status === 'credit_hold') {
+            return;
+        }
+
+        if ($order->status !== 'confirmed') {
+            throw ValidationException::withMessages([
+                'amendment_reason' => sprintf(
+                    'This change takes %s past their credit limit, and the order is already %s — it cannot be held back now that the work has started. Reduce the amendment, or settle the outstanding balance first.',
+                    $order->customer->name,
+                    str_replace('_', ' ', $order->status),
+                ),
+            ]);
+        }
+
+        StateMachine::asSystem(fn () => $this->states->transition($order, 'credit_hold', [
+            'amendment_reason' => 'BR-46: amendment took the order past the credit limit.',
+        ]));
+    }
+
+    /**
+     * S1 — `ordered_qty` may not be reduced below what the floor has already produced.
+     *
+     * @param  list<array<string, mixed>>  $lines
      */
     private function guardReduction(SalesOrder $order, array $lines): void
     {

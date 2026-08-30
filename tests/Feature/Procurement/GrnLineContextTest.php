@@ -22,8 +22,8 @@ use Inertia\Testing\AssertableInertia;
  * the receiving form rendered them against the factory's currency.
  */
 beforeEach(function (): void {
-    $this->store = User::query()->where('email', 'store@maheenlabel.test')->firstOrFail();
-    $this->buyer = User::query()->where('email', 'purchase@maheenlabel.test')->firstOrFail();
+    $this->store = User::query()->where('email', 'store@octapussolution.com')->firstOrFail();
+    $this->buyer = User::query()->where('email', 'purchase@octapussolution.com')->firstOrFail();
 
     $supplier = DB::table('suppliers')->firstOrFail();
     DB::table('suppliers')->where('id', $supplier->id)->update(['is_approved' => true, 'is_active' => true]);

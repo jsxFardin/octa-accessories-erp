@@ -13,8 +13,8 @@ use App\Models\User;
  * against a flattened role model later.
  */
 it('gives the store manager approval authority the store keeper lacks', function (): void {
-    $keeper = User::query()->where('email', 'store@maheenlabel.test')->firstOrFail();
-    $manager = User::query()->where('email', 'storemanager@maheenlabel.test')->firstOrFail();
+    $keeper = User::query()->where('email', 'store@octapussolution.com')->firstOrFail();
+    $manager = User::query()->where('email', 'storemanager@octapussolution.com')->firstOrFail();
 
     foreach (['stock_adjustment.approve', 'stock_adjustment.post', 'physical_count.approve'] as $permission) {
         expect($manager->hasPermission($permission))->toBeTrue()
@@ -27,8 +27,8 @@ it('gives the store manager approval authority the store keeper lacks', function
 });
 
 it('gives the purchase manager approval authority the purchase officer lacks', function (): void {
-    $officer = User::query()->where('email', 'purchase@maheenlabel.test')->firstOrFail();
-    $manager = User::query()->where('email', 'purchasemanager@maheenlabel.test')->firstOrFail();
+    $officer = User::query()->where('email', 'purchase@octapussolution.com')->firstOrFail();
+    $manager = User::query()->where('email', 'purchasemanager@octapussolution.com')->firstOrFail();
 
     foreach (['purchase_order.approve', 'purchase_order.send', 'supplier.approve'] as $permission) {
         expect($manager->hasPermission($permission))->toBeTrue()
@@ -39,7 +39,7 @@ it('gives the purchase manager approval authority the purchase officer lacks', f
 });
 
 it('keeps the md out of system administration writes', function (): void {
-    $md = User::query()->where('email', 'md@maheenlabel.test')->firstOrFail();
+    $md = User::query()->where('email', 'md@octapussolution.com')->firstOrFail();
 
     // 06-rbac §3 marks the MD as view-only on Users, Settings and Sequences. Reaching the
     // screen is not the same as being able to change anything on it.

@@ -26,27 +26,27 @@ After `php artisan migrate --seed` on a local install, every role has a user. Pa
 
 | Email | Role | Lands on |
 |---|---|---|
-| `admin@maheenlabel.test` | Super admin | Dashboard |
-| `md@maheenlabel.test` | Managing Director | Dashboard |
-| `merchandiser@maheenlabel.test` | Merchandiser | Dashboard |
-| `sales@maheenlabel.test` | Sales manager | Dashboard |
-| `designer@maheenlabel.test` | Designer | Artwork |
-| `engineer@maheenlabel.test` | Engineer | Products |
-| `planner@maheenlabel.test` | Planner | Planning board |
-| `supervisor@maheenlabel.test` | Production supervisor | Job cards |
-| `operator@maheenlabel.test` | Operator | `/floor` |
-| `store@maheenlabel.test` | Store keeper | Stock |
-| `storemanager@maheenlabel.test` | Store manager | Stock |
-| `qc@maheenlabel.test` | QC inspector | Inspections |
-| `quality@maheenlabel.test` | Quality manager | Inspections |
-| `lab@maheenlabel.test` | Lab technician | Laboratory |
-| `compliance@maheenlabel.test` | Compliance officer | Compliance |
-| `purchase@maheenlabel.test` | Purchase officer | Purchase orders |
-| `purchasemanager@maheenlabel.test` | Purchase manager | Purchase orders |
-| `dispatch@maheenlabel.test` | Dispatch officer | Packing lists |
-| `driver@maheenlabel.test` | Driver | Trips |
-| `accounts@maheenlabel.test` | Accounts | Dashboard |
-| `auditor@maheenlabel.test` | Read only | Dashboard (no exports) |
+| `admin@octapussolution.com` | Super admin | Dashboard |
+| `md@octapussolution.com` | Managing Director | Dashboard |
+| `merchandiser@octapussolution.com` | Merchandiser | Dashboard |
+| `sales@octapussolution.com` | Sales manager | Dashboard |
+| `designer@octapussolution.com` | Designer | Artwork |
+| `engineer@octapussolution.com` | Engineer | Products |
+| `planner@octapussolution.com` | Planner | Planning board |
+| `supervisor@octapussolution.com` | Production supervisor | Job cards |
+| `operator@octapussolution.com` | Operator | `/floor` |
+| `store@octapussolution.com` | Store keeper | Stock |
+| `storemanager@octapussolution.com` | Store manager | Stock |
+| `qc@octapussolution.com` | QC inspector | Inspections |
+| `quality@octapussolution.com` | Quality manager | Inspections |
+| `lab@octapussolution.com` | Lab technician | Laboratory |
+| `compliance@octapussolution.com` | Compliance officer | Compliance |
+| `purchase@octapussolution.com` | Purchase officer | Purchase orders |
+| `purchasemanager@octapussolution.com` | Purchase manager | Purchase orders |
+| `dispatch@octapussolution.com` | Dispatch officer | Packing lists |
+| `driver@octapussolution.com` | Driver | Trips |
+| `accounts@octapussolution.com` | Accounts | Dashboard |
+| `auditor@octapussolution.com` | Read only | Dashboard (no exports) |
 
 Use **admin** to see every screen. Use **merchandiser** if you want the commercial path as it feels on a real day.
 
@@ -106,7 +106,7 @@ This volume seeder runs **only in `local`**. Tests and production do not get it.
 
 ## First hour as implementer
 
-Signed in as `admin@maheenlabel.test`:
+Signed in as `admin@octapussolution.com`:
 
 1. Change your password.
 2. Open **Configuration** (sidebar footer) → **Lists**. Confirm factory unit, departments, shifts, warehouses.

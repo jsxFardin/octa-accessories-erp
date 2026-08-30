@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\DB;
  * inconsistency visible — two inquiries in the same list, the same situation, different words.
  */
 beforeEach(function (): void {
-    $this->merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
+    $this->merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
     $this->customer = Customer::query()->firstOrFail();
     $this->product = Product::query()->firstOrFail();
     $this->currency = Currency::query()->where('is_base', true)->firstOrFail();
@@ -185,7 +185,7 @@ it('is already won by the time the quotation becomes an order, and stays won', f
     expect($inquiry->fresh()->status)->toBe(Inquiry::WON);
 
     // Cancelling the order does not un-win the inquiry: the quotation was still accepted.
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->post("/sales-orders/{$order->id}/transition", ['to' => 'cancelled', 'close_reason' => 'Buyer restructured.'])
         ->assertSessionHasNoErrors();
 

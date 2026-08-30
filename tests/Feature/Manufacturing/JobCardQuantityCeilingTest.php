@@ -22,7 +22,7 @@ use Inertia\Testing\AssertableInertia;
  * every live card on the line rather than to the one on screen.
  */
 beforeEach(function (): void {
-    $this->planner = User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail();
+    $this->planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
 
     // A line whose product can actually carry a card: Gate 1 wants approved artwork and a
     // routing, and a test that trips over those is not testing the quantity rule.

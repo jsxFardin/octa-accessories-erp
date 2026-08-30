@@ -25,7 +25,7 @@ use Inertia\Testing\AssertableInertia;
  * - **F-09** `?inquiry=` naming nothing rendered a blank form in silence.
  */
 beforeEach(function (): void {
-    $this->merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
+    $this->merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
     $this->product = Product::query()->firstOrFail();
     $this->currency = Currency::query()->where('is_base', true)->firstOrFail();
 });

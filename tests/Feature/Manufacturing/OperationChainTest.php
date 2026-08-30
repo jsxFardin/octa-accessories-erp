@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\DB;
 beforeEach(function (): void {
     $this->jobCard = JobCard::query()->whereNotNull('sales_order_line_id')->firstOrFail();
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $states = app(JobCardStateMachine::class);
     $states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'Chain test walkthrough']);
     $states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
@@ -33,7 +33,7 @@ beforeEach(function (): void {
 
     $card = DB::table('employees')
         ->join('users', 'users.id', '=', 'employees.user_id')
-        ->where('users.email', 'operator@maheenlabel.test')
+        ->where('users.email', 'operator@octapussolution.com')
         ->value('card_no');
 
     $this->token = $this->postJson('/api/v1/device/session', [
@@ -56,7 +56,7 @@ function chainLog(object $test, JobCardOperation $operation, array $payload, str
 /** Pass the in-process inspection a `requires_qc` step needs before its successor may run. */
 function acceptInProcessQc(object $test, JobCardOperation $operation): void
 {
-    $test->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail())
+    $test->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail())
         ->post('/qc-inspections', [
             'job_card_id' => $operation->job_card_id,
             'job_card_operation_id' => $operation->id,
@@ -250,7 +250,7 @@ it('leaves no operation log behind when the chain refuses the write', function (
 });
 
 it('shows the operator which step is holding theirs up before they try', function (): void {
-    $this->actingAs(User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'planner@octapussolution.com')->firstOrFail())
         ->get("/job-cards/{$this->jobCard->id}")
         ->assertInertia(function (Inertia\Testing\AssertableInertia $page): void {
             $operations = collect($page->toArray()['props']['operations']);

@@ -16,10 +16,10 @@ use Illuminate\Support\Facades\DB;
  * PR-2 — RFQ issue, quotation capture, comparison, winner → draft PO.
  */
 beforeEach(function (): void {
-    $this->buyer = User::query()->where('email', 'purchase@maheenlabel.test')->firstOrFail();
-    $this->purchaseManager = User::query()->where('email', 'purchasemanager@maheenlabel.test')->firstOrFail();
-    $this->planner = User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail();
-    $this->operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
+    $this->buyer = User::query()->where('email', 'purchase@octapussolution.com')->firstOrFail();
+    $this->purchaseManager = User::query()->where('email', 'purchasemanager@octapussolution.com')->firstOrFail();
+    $this->planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
+    $this->operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
     $this->unit = FactoryUnit::query()->firstOrFail();
     $this->item = Item::query()->where('is_active', true)->firstOrFail();
     $this->suppliers = Supplier::query()->where('is_approved', true)->where('is_active', true)->orderBy('id')->get();

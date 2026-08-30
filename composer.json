@@ -48,6 +48,17 @@
             "npm install --ignore-scripts",
             "npm run build"
         ],
+        "setup:uat": [
+            "@php -r \"if (file_exists('.env')) { fwrite(STDERR, \\\".env already exists — edit it rather than letting setup guess. UAT needs APP_ENV=staging and APP_DEBUG=false.\\n\\\"); exit(1); }\"",
+            "@php -r \"copy('.env.example', '.env');\"",
+            "@php -r \"$e = file_get_contents('.env'); $e = preg_replace('/^APP_ENV=.*$/m', 'APP_ENV=staging', $e); $e = preg_replace('/^APP_DEBUG=.*$/m', 'APP_DEBUG=false', $e); file_put_contents('.env', $e);\"",
+            "@php artisan key:generate",
+            "@php artisan migrate --force",
+            "@php artisan db:seed --force",
+            "npm install --ignore-scripts",
+            "npm run build",
+            "@php -r \"echo \\\"UAT provisioned: APP_ENV=staging, APP_DEBUG=false, reference data and users seeded, no demo journeys.\\nSet DB_*, APP_URL and MAIL_* for this host, then change the seeded passwords.\\n\\\";\""
+        ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
             "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1 --timeout=0\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite --kill-others"

@@ -19,7 +19,7 @@ use Inertia\Testing\AssertableInertia;
  * behaviour is covered in `tests/Js/currency.test.js`.
  */
 beforeEach(function (): void {
-    $this->merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
+    $this->merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
     $this->customer = Customer::query()->firstOrFail();
     $this->product = Product::query()->firstOrFail();
     $this->bdt = Currency::query()->where('code', 'BDT')->firstOrFail();
@@ -109,7 +109,7 @@ it('carries the quotation currency onto the sales order it becomes', function ()
 });
 
 it('ships the currency on purchase orders, list and detail', function (): void {
-    $buyer = User::query()->where('email', 'purchase@maheenlabel.test')->firstOrFail();
+    $buyer = User::query()->where('email', 'purchase@octapussolution.com')->firstOrFail();
 
     $this->actingAs($buyer)
         ->get('/purchase-orders')

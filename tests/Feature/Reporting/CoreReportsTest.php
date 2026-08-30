@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\DB;
  * permission-gated, and reconcilable to source rows.
  */
 beforeEach(function (): void {
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 
     $this->jobCard = JobCard::query()->whereNotNull('sales_order_line_id')->firstOrFail();
     $this->soLineId = (int) $this->jobCard->sales_order_line_id;
@@ -43,7 +43,7 @@ function p23Rows(object $report, array $query = []): array
 
 function p23Invoice(object $test, float $total): SalesInvoice
 {
-    $test->actingAs(User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail());
 
     $invoice = SalesInvoice::query()->create([
         'customer_id' => $test->customerId,
@@ -68,7 +68,7 @@ function p23Invoice(object $test, float $total): SalesInvoice
 
 function p23Credit(object $test, SalesInvoice $invoice, float $amount): CreditNote
 {
-    $test->actingAs(User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail());
 
     $test->post('/credit-notes', [
         'sales_invoice_id' => $invoice->id, 'reason' => 'quality_claim', 'amount' => $amount,
@@ -81,18 +81,18 @@ function p23Credit(object $test, SalesInvoice $invoice, float $amount): CreditNo
 }
 
 it('refuses an operator and a driver at the route', function (): void {
-    $this->actingAs(User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'operator@octapussolution.com')->firstOrFail())
         ->get('/reports')->assertForbidden();
-    $this->actingAs(User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'operator@octapussolution.com')->firstOrFail())
         ->get('/reports/fulfilment')->assertForbidden();
-    $this->actingAs(User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'driver@octapussolution.com')->firstOrFail())
         ->get('/reports')->assertForbidden();
-    $this->actingAs(User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'driver@octapussolution.com')->firstOrFail())
         ->get('/reports/receivables')->assertForbidden();
 });
 
 it('lists the reports for an authorised reader', function (): void {
-    $this->actingAs(User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail())
         ->get('/reports')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -185,7 +185,7 @@ it('matches receivable outstanding to total minus received minus applied credits
     $outstanding = $machine->outstanding($invoice->refresh());
     $credited = $machine->appliedCredits($invoice);
 
-    $this->actingAs(User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail())
         ->get('/reports/receivables')
         ->assertOk();
 
@@ -208,8 +208,8 @@ it('lists an NCR after QC rejection and flags an overdue CAPA', function (): voi
     $this->jobCard->operations()->update(['status' => JobCardOperation::COMPLETED, 'input_qty' => 1000, 'good_qty' => 1000]);
     $states->transition($this->jobCard->refresh(), JobCard::QC_PENDING);
 
-    $this->qc = User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail();
-    $this->quality = User::query()->where('email', 'quality@maheenlabel.test')->firstOrFail();
+    $this->qc = User::query()->where('email', 'qc@octapussolution.com')->firstOrFail();
+    $this->quality = User::query()->where('email', 'quality@octapussolution.com')->firstOrFail();
 
     $this->actingAs($this->qc);
     $this->post('/qc-inspections', [
@@ -235,7 +235,7 @@ it('lists an NCR after QC rejection and flags an overdue CAPA', function (): voi
         'due_date' => now()->subDay()->toDateString(),
     ])->assertSessionHasNoErrors();
 
-    $this->actingAs(User::query()->where('email', 'quality@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'quality@octapussolution.com')->firstOrFail())
         ->get('/reports/ncr-capa')
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('Reports/Show')->where('report.key', 'ncr-capa'));

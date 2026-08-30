@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Route;
  * the screen, and this opens all of them on every run.
  */
 it('renders every screen without erroring', function (): void {
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 
     // Bindings resolved from the seeded walkthrough, so detail screens get a real record.
     $bindings = [

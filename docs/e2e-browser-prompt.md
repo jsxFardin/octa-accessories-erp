@@ -10,7 +10,7 @@ verifying that each business gate fires. Report defects; do not fix anything.
 
 ## Sign in
 
-`/login` — `admin@maheenlabel.test` / `password` (super admin, all permissions).
+`/login` — `admin@octapussolution.com` / `password` (super admin, all permissions).
 
 The shop-floor terminal is a separate app at `/floor`: badge `BADGE-0009`, PIN `0009`. PINs are
 stored hashed and set at Configuration → Users; the seed happens to use the badge's last four

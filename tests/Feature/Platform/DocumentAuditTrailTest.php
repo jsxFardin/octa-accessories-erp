@@ -26,8 +26,8 @@ use Illuminate\Support\Str;
  * because of it.
  */
 beforeEach(function (): void {
-    $this->merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 });
 
 function auditEvents(string $type, int $id): Illuminate\Support\Collection
@@ -139,7 +139,7 @@ it('records the production chain: job card, material issue, FG receipt, packing,
     $final = $jobCard->operations()->reorder('sequence_no', 'desc')->firstOrFail();
     $final->forceFill(['input_qty' => 10000, 'good_qty' => 10000])->save();
 
-    $this->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
     $this->post('/qc-inspections', ['job_card_id' => $jobCard->id, 'stage' => 'final', 'lot_size' => 500, 'major_found' => 0]);
 
     $this->actingAs($this->admin);
@@ -155,7 +155,7 @@ it('records the production chain: job card, material issue, FG receipt, packing,
     $soId = (int) DB::table('sales_order_lines')->where('id', $jobCard->sales_order_line_id)->value('sales_order_id');
     $soLineId = (int) $jobCard->sales_order_line_id;
 
-    $dispatcher = User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail();
+    $dispatcher = User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail();
     $this->actingAs($dispatcher);
     $this->post('/packing-lists', ['sales_order_id' => $soId]);
     $list = PackingList::query()->latest('id')->firstOrFail();
@@ -210,7 +210,7 @@ it('records production output against the operation that booked it', function ()
 
     $card = DB::table('employees')
         ->join('users', 'users.id', '=', 'employees.user_id')
-        ->where('users.email', 'operator@maheenlabel.test')
+        ->where('users.email', 'operator@octapussolution.com')
         ->value('card_no');
 
     $token = $this->postJson('/api/v1/device/session', [

@@ -24,7 +24,7 @@ beforeEach(function (): void {
     $this->soLineId = (int) $this->jobCard->sales_order_line_id;
     $this->soId = (int) DB::table('sales_order_lines')->where('id', $this->soLineId)->value('sales_order_id');
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $states = app(JobCardStateMachine::class);
     $states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'blocked-stock walkthrough']);
     $states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
@@ -35,10 +35,10 @@ beforeEach(function (): void {
 
     $this->fgWarehouseId = (int) DB::table('warehouses')->where('kind', 'finished_goods')->value('id');
 
-    $this->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
     $this->post('/qc-inspections', ['job_card_id' => $this->jobCard->id, 'stage' => 'final', 'lot_size' => 500, 'major_found' => 0]);
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $receipt = app(App\Modules\Manufacturing\Services\FgReceiptService::class)
         ->post($this->jobCard->refresh(), 5000, $this->fgWarehouseId, (string) Str::uuid());
     $this->lot = DB::table('stock_lots')->where('id', $receipt->lot_id)->first();
@@ -48,7 +48,7 @@ beforeEach(function (): void {
         'expires_on' => now()->addYear()->toDateString(),
     ]);
 
-    $this->dispatchOfficer = User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail();
+    $this->dispatchOfficer = User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail();
 });
 
 function packChallanForLot(object $test, float $qty): DeliveryChallan
@@ -174,7 +174,7 @@ it('refuses to transfer a blocked lot to another warehouse', function (): void {
 
     $ledgerBefore = DB::table('stock_ledger')->count();
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->post('/stock-transfers', [
             'from_warehouse_id' => $this->lot->warehouse_id,
             'to_warehouse_id' => $destination,
@@ -190,7 +190,7 @@ it('still allows a documented write-off of blocked stock, which is not a dispatc
     // Blocked stock that turns out to be scrap has to be able to leave the books — through an
     // adjustment, under its own permission, with a reason. That is a different door from the
     // gate, and it writes an `adjustment` movement, never a `dispatch`.
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->post('/stock-adjustments', [
             'warehouse_id' => $this->lot->warehouse_id,
             'reason' => 'Damaged during the physical count; written off.',

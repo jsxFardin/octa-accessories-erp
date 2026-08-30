@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 beforeEach(function (): void {
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 });
 
 it('exports every registered list without erroring', function (): void {

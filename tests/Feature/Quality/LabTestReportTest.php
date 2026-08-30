@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\DB;
  * QL-5 / QL-6 — lab test worksheet, auto-verdict, certificate issuance and immutability.
  */
 beforeEach(function (): void {
-    $this->labTech = User::query()->where('email', 'lab@maheenlabel.test')->firstOrFail();
-    $this->operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
+    $this->labTech = User::query()->where('email', 'lab@octapussolution.com')->firstOrFail();
+    $this->operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
     $this->labTests = DB::table('lab_tests')->where('is_active', true)->get();
 });
 

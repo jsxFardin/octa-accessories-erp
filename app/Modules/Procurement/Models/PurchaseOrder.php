@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $number
  * @property int $revision_no
  * @property int $supplier_id
+ * @property int|null $rfq_id PR-2 — the RFQ this order was raised from, if any
  * @property int $factory_unit_id
  * @property \Illuminate\Support\Carbon $order_date
  * @property \Illuminate\Support\Carbon|null $expected_date
@@ -41,6 +42,7 @@ class PurchaseOrder extends Model
         'number',
         'revision_no',
         'supplier_id',
+        'rfq_id',
         'factory_unit_id',
         'order_date',
         'expected_date',
@@ -71,6 +73,7 @@ class PurchaseOrder extends Model
         return [
             'revision_no' => 'integer',
             'supplier_id' => 'integer',
+            'rfq_id' => 'integer',
             'factory_unit_id' => 'integer',
             'order_date' => 'date:Y-m-d',
             'expected_date' => 'date:Y-m-d',

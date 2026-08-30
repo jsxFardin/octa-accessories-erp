@@ -34,7 +34,7 @@ beforeEach(function (): void {
 /** Run the real chain: produce, QC-accept, receive FG, pack $qty, draft the challan. */
 function fulfil(object $test, float $qty): DeliveryChallan
 {
-    $test->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 
     if ($test->jobCard->refresh()->status === JobCard::PLANNED) {
         $states = app(JobCardStateMachine::class);
@@ -47,15 +47,15 @@ function fulfil(object $test, float $qty): DeliveryChallan
             ->forceFill(['input_qty' => 10000, 'good_qty' => 10000])->save();
         DB::table('sales_order_lines')->where('id', $test->soLineId)->increment('produced_qty', 10000);
 
-        $test->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+        $test->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
         $test->post('/qc-inspections', ['job_card_id' => $test->jobCard->id, 'stage' => 'final', 'lot_size' => 500, 'major_found' => 0]);
-        $test->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+        $test->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
         $receipt = app(App\Modules\Manufacturing\Services\FgReceiptService::class)
             ->post($test->jobCard->refresh(), 10000, $test->fgWarehouseId, (string) Str::uuid());
         $test->lot = DB::table('stock_lots')->where('id', $receipt->lot_id)->first();
     }
 
-    $test->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
     $test->post('/packing-lists', ['sales_order_id' => $test->soId]);
     $list = PackingList::query()->latest('id')->firstOrFail();
     $test->post("/packing-lists/{$list->id}/cartons", []);
@@ -72,7 +72,7 @@ function fulfil(object $test, float $qty): DeliveryChallan
 /** A hand-built issued invoice with a known round total, for formula-level scenarios. */
 function roundInvoice(object $test, float $total): SalesInvoice
 {
-    $test->actingAs(User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail());
 
     $invoice = SalesInvoice::query()->create([
         'customer_id' => $test->customerId,
@@ -98,7 +98,7 @@ function roundInvoice(object $test, float $total): SalesInvoice
 /** Draft + approve + apply a credit note of $amount against $invoice, as accounts. */
 function creditAndApply(object $test, SalesInvoice $invoice, float $amount, bool $apply = true): CreditNote
 {
-    $test->actingAs(User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail());
 
     $test->post('/credit-notes', [
         'sales_invoice_id' => $invoice->id, 'reason' => 'quality_claim', 'amount' => $amount,
@@ -126,12 +126,12 @@ it('drafts a credit note automatically when an invoiced challan is returned', fu
     $challan = fulfil($this, 2000);
     $this->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued']);
 
-    $this->actingAs(User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail());
     $this->post('/invoices', ['delivery_challan_id' => $challan->id]);
     $invoice = SalesInvoice::query()->latest('id')->firstOrFail();
     $this->post("/invoices/{$invoice->id}/transition", ['to' => 'issued']);
 
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
     $this->post("/delivery-challans/{$challan->id}/transition", ['to' => 'returned', 'return_reason' => 'refused at gate']);
 
     $note = CreditNote::query()->where('sales_invoice_id', $invoice->id)->first();
@@ -160,7 +160,7 @@ it('creates no credit note for a return before invoicing, and refuses to invoice
 
     expect(CreditNote::query()->count())->toBe(0);
 
-    $this->actingAs(User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail());
     $this->post('/invoices', ['delivery_challan_id' => $challan->id])->assertSessionHas('error');
     expect(SalesInvoice::query()->count())->toBe(0);
 });
@@ -261,12 +261,12 @@ it('enforces the approval band: accounts to the band, the MD above it', function
     expect($note->refresh()->status)->toBe('draft');
 
     // …approved by the MD, and numbered on the way.
-    $this->actingAs(User::query()->where('email', 'md@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'md@octapussolution.com')->firstOrFail());
     $this->post("/credit-notes/{$note->id}/transition", ['to' => 'approved'])->assertSessionHas('success');
 
     expect($note->refresh()->status)->toBe('approved')
         ->and($note->number)->not->toBeNull()
-        ->and((int) $note->approved_by)->toBe((int) User::query()->where('email', 'md@maheenlabel.test')->value('id'));
+        ->and((int) $note->approved_by)->toBe((int) User::query()->where('email', 'md@octapussolution.com')->value('id'));
 });
 
 it('keeps unauthorized users out entirely', function (): void {
@@ -275,11 +275,11 @@ it('keeps unauthorized users out entirely', function (): void {
     $note = CreditNote::query()->latest('id')->firstOrFail();
 
     // Dispatch officer holds no credit_note permission — even the view route refuses.
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
     $this->post("/credit-notes/{$note->id}/transition", ['to' => 'approved'])->assertForbidden();
 
     // The store keeper can read money screens? No credit_note grant either.
-    $this->actingAs(User::query()->where('email', 'store@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'store@octapussolution.com')->firstOrFail());
     $this->post('/credit-notes', ['sales_invoice_id' => $invoice->id, 'reason' => 'other', 'amount' => 1])
         ->assertForbidden();
 

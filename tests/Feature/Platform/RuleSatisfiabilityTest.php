@@ -19,8 +19,8 @@ use Illuminate\Support\Str;
  * These walk the remedy each message names and prove the door it points at opens.
  */
 beforeEach(function (): void {
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
-    $this->supervisor = User::query()->where('email', 'supervisor@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
+    $this->supervisor = User::query()->where('email', 'supervisor@octapussolution.com')->firstOrFail();
     $this->jobCard = JobCard::query()->whereNotNull('sales_order_line_id')->firstOrFail();
 });
 
@@ -92,7 +92,7 @@ it('I7: the waiver the completion rule demands is accepted by the transition end
 
     // P1-1 next: the routing demands a final verdict. Each rule names its own remedy and each
     // remedy exists — this is the chain of them, walked in order.
-    $this->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail())
         ->post('/qc-inspections', [
             'job_card_id' => $this->jobCard->id, 'stage' => 'final',
             'lot_size' => 500, 'major_found' => 0, 'minor_found' => 0, 'critical_found' => 0,
@@ -118,7 +118,7 @@ it('I7: the waiver the completion rule demands is accepted by the transition end
 });
 
 it('BR-33: the rejection reason the rule demands is accepted where the rule fires', function (): void {
-    $merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
+    $merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
     $customer = App\Modules\MasterData\Models\Customer::query()->firstOrFail();
     $product = App\Modules\Product\Models\Product::query()->firstOrFail();
 

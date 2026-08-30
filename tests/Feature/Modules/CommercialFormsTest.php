@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
  * every one of these submits a real payload and checks what landed in the database.
  */
 beforeEach(function (): void {
-    $this->merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
+    $this->merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
     $this->customer = Customer::query()->firstOrFail();
     $this->product = Product::query()->firstOrFail();
     $this->currency = Currency::query()->where('is_base', true)->firstOrFail();

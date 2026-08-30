@@ -70,7 +70,7 @@ class PurchaseOrderStateMachine extends StateMachine
     {
         match ($to) {
             'pending_approval' => $this->guardSubmission($document),
-            'approved' => $this->guardApproval($document),
+            'approved' => $this->guardApproved($document, $context),
             default => null,
         };
     }
@@ -102,6 +102,85 @@ class PurchaseOrderStateMachine extends StateMachine
      * could approve, alone, an order that needed the Managing Director. The order is converted
      * at the rate it itself records (BR-22) before the comparison.
      */
+    /**
+     * The two things approval asks: has this order been competitively quoted (PR-2 AC4), and
+     * is the person signing it allowed to sign for this much (06-rbac §5).
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function guardApproved(PurchaseOrder $order, array $context): void
+    {
+        $this->guardQuotations($order, $context);
+        $this->guardApproval($order);
+    }
+
+    /**
+     * PR-2 AC4 — above a value threshold an order needs at least three supplier quotations
+     * before it is approved, or a documented override reason.
+     *
+     * The rule was enforced only where a *winning quotation was selected* on an RFQ, so it
+     * governed one route into a purchase order and not the other. An order raised directly —
+     * which the application fully supports and which needs no RFQ at all — reached approval
+     * with nothing to compare against, and `guardApproval()` below asked only who was signing,
+     * never whether anyone had shopped around. A control that the buyer can step around by
+     * not using the RFQ screen is not a control.
+     *
+     * Counted from `supplier_quotations` against the RFQ the order records. No RFQ means no
+     * quotations, which above the threshold is exactly the case the rule is about — and which
+     * an override reason legitimately answers, because a sole-source or urgent replacement
+     * order is a real thing that must stay possible.
+     *
+     * The threshold is a base-currency figure and the order is in whatever it was raised in,
+     * so it converts first (BR-51) — the same trap this rule already fell into once on the RFQ
+     * side, where a USD 600 quotation read as `600` against a BDT 50,000 control.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function guardQuotations(PurchaseOrder $order, array $context): void
+    {
+        $threshold = $this->settings->decimal('rfq_three_quote_value_threshold', 50000);
+
+        if ($this->baseValue($order) <= $threshold) {
+            return;
+        }
+
+        $quotations = $order->rfq_id === null
+            ? 0
+            : (int) DB::table('supplier_quotations')->where('rfq_id', $order->rfq_id)->count();
+
+        if ($quotations >= 3) {
+            return;
+        }
+
+        $reason = trim((string) ($context['override_reason'] ?? ''));
+
+        if ($reason !== '') {
+            // Recorded on the order, not merely accepted: the next person to open it can see
+            // why a competitive process was skipped. The audit row is written by the state
+            // machine around this guard.
+            $order->forceFill([
+                'remarks' => trim(($order->remarks ? $order->remarks."\n" : '')
+                    .'Three-quote override at approval: '.$reason),
+            ])->save();
+
+            return;
+        }
+
+        throw TransitionDenied::guard(
+            'PR-2',
+            sprintf(
+                'This order is worth %s %s, above the %s %s threshold that requires three supplier quotations before approval. It has %s. Record the quotations against an RFQ, or approve with an override reason.',
+                $this->baseCurrencyCode(),
+                number_format($this->baseValue($order), 2),
+                $this->baseCurrencyCode(),
+                number_format($threshold, 2),
+                $quotations === 0
+                    ? 'none'
+                    : ($quotations === 1 ? 'one' : 'two'),
+            ),
+        );
+    }
+
     private function guardApproval(PurchaseOrder $order): void
     {
         $band = $this->settings->decimal('po_approval_band_manager', 100000);

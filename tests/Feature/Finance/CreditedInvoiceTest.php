@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  * on the screen distinguished it from a customer who settled on time.
  */
 beforeEach(function (): void {
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $this->states = app(SalesInvoiceStateMachine::class);
 });
 

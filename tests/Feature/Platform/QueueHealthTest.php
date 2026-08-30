@@ -90,7 +90,7 @@ it('survives a queue backend it cannot reach', function (): void {
 });
 
 it('exposes the report to an administrator on the settings screen', function (): void {
-    $this->actingAs(App\Models\User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(App\Models\User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->get('/admin/settings')
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('Admin/Settings')->has('queue.status'));

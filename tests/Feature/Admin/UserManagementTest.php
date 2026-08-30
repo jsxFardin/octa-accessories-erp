@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 beforeEach(function (): void {
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 });
 
 it('creates a user with roles and an employee record', function (): void {
@@ -18,7 +18,7 @@ it('creates a user with roles and an employee record', function (): void {
     $this->actingAs($this->admin)
         ->post('/admin/users', [
             'name' => 'Nusrat Jahan',
-            'email' => 'nusrat@maheenlabel.test',
+            'email' => 'nusrat@octapussolution.com',
             'password' => 'correct-horse-42',
             'password_confirmation' => 'correct-horse-42',
             'locale' => 'bn',
@@ -31,7 +31,7 @@ it('creates a user with roles and an employee record', function (): void {
         ])
         ->assertRedirect('/admin/users');
 
-    $user = User::query()->where('email', 'nusrat@maheenlabel.test')->firstOrFail();
+    $user = User::query()->where('email', 'nusrat@octapussolution.com')->firstOrFail();
 
     expect($user->hasRole('qc_inspector'))->toBeTrue()
         ->and($user->locale)->toBe('bn')
@@ -44,12 +44,12 @@ it('creates a user with roles and an employee record', function (): void {
 it('requires a password on create but not on edit', function (): void {
     $this->actingAs($this->admin)
         ->post('/admin/users', [
-            'name' => 'No Password', 'email' => 'nopass@maheenlabel.test',
+            'name' => 'No Password', 'email' => 'nopass@octapussolution.com',
             'locale' => 'en', 'role_id' => Role::query()->value('id'),
         ])
         ->assertSessionHasErrors('password');
 
-    $lab = User::query()->where('email', 'lab@maheenlabel.test')->firstOrFail();
+    $lab = User::query()->where('email', 'lab@octapussolution.com')->firstOrFail();
     $before = $lab->password;
 
     $this->actingAs($this->admin)
@@ -66,7 +66,7 @@ it('requires a password on create but not on edit', function (): void {
 it('rejects a weak password', function (): void {
     $this->actingAs($this->admin)
         ->post('/admin/users', [
-            'name' => 'Weak', 'email' => 'weak@maheenlabel.test',
+            'name' => 'Weak', 'email' => 'weak@octapussolution.com',
             'password' => 'password', 'password_confirmation' => 'password',
             'locale' => 'en', 'role_id' => Role::query()->value('id'),
         ])
@@ -76,7 +76,7 @@ it('rejects a weak password', function (): void {
 it('rejects a duplicate email', function (): void {
     $this->actingAs($this->admin)
         ->post('/admin/users', [
-            'name' => 'Clash', 'email' => 'lab@maheenlabel.test',
+            'name' => 'Clash', 'email' => 'lab@octapussolution.com',
             'password' => 'correct-horse-42', 'password_confirmation' => 'correct-horse-42',
             'locale' => 'en', 'role_id' => Role::query()->value('id'),
         ])
@@ -84,7 +84,7 @@ it('rejects a duplicate email', function (): void {
 });
 
 it('changes roles on edit and audit-logs the change', function (): void {
-    $user = User::query()->where('email', 'lab@maheenlabel.test')->firstOrFail();
+    $user = User::query()->where('email', 'lab@octapussolution.com')->firstOrFail();
     $before = $user->roleNames();
     $merchandiserId = Role::query()->where('name', 'merchandiser')->value('id');
 
@@ -108,7 +108,7 @@ it('changes roles on edit and audit-logs the change', function (): void {
 });
 
 it('deactivates rather than deletes, so the audit trail still resolves', function (): void {
-    $user = User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail();
+    $user = User::query()->where('email', 'driver@octapussolution.com')->firstOrFail();
 
     $this->actingAs($this->admin)->delete("/admin/users/{$user->id}")->assertRedirect();
 
@@ -125,14 +125,14 @@ it('will not let an admin deactivate their own account', function (): void {
 });
 
 it('keeps user management behind its own permissions', function (): void {
-    $merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
+    $merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
 
     $this->actingAs($merchandiser)->get('/admin/users')->assertForbidden();
     $this->actingAs($merchandiser)->post('/admin/users', [])->assertForbidden();
 });
 
 it('refuses a deactivated account at sign-in', function (): void {
-    $user = User::query()->where('email', 'lab@maheenlabel.test')->firstOrFail();
+    $user = User::query()->where('email', 'lab@octapussolution.com')->firstOrFail();
     $user->update(['is_active' => false]);
 
     $this->post('/login', ['email' => $user->email, 'password' => 'password'])
@@ -142,7 +142,7 @@ it('refuses a deactivated account at sign-in', function (): void {
 });
 
 it('holds a user to exactly one role', function (): void {
-    $user = User::query()->where('email', 'lab@maheenlabel.test')->firstOrFail();
+    $user = User::query()->where('email', 'lab@octapussolution.com')->firstOrFail();
     $plannerId = Role::query()->where('name', 'planner')->value('id');
 
     // The pivot table admits many rows; the application admits one. Two roles would mean two
@@ -161,13 +161,13 @@ it('holds a user to exactly one role', function (): void {
 it('requires a role on both create and edit', function (): void {
     $this->actingAs($this->admin)
         ->post('/admin/users', [
-            'name' => 'Roleless', 'email' => 'roleless@maheenlabel.test',
+            'name' => 'Roleless', 'email' => 'roleless@octapussolution.com',
             'password' => 'correct-horse-42', 'password_confirmation' => 'correct-horse-42',
             'locale' => 'en',
         ])
         ->assertSessionHasErrors('role_id');
 
-    $user = User::query()->where('email', 'lab@maheenlabel.test')->firstOrFail();
+    $user = User::query()->where('email', 'lab@octapussolution.com')->firstOrFail();
 
     $this->actingAs($this->admin)
         ->put("/admin/users/{$user->id}", [

@@ -19,7 +19,7 @@ use Inertia\Testing\AssertableInertia;
  * the final operation; the list, the export, the order screen and the AQL lot size did not.
  */
 beforeEach(function (): void {
-    $this->planner = User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail();
+    $this->planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
     $this->jobCard = JobCard::query()->whereNotNull('sales_order_line_id')->firstOrFail();
 });
 
@@ -97,7 +97,7 @@ it('agrees with the FG receipt ceiling and the production report', function (): 
 
     expect($position['produced'])->toBeQty(30000.0);
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->get('/reports/production')
         ->assertInertia(function (AssertableInertia $page): void {
             $row = collect($page->toArray()['props']['rows']['data'])
@@ -142,7 +142,7 @@ it('offers the AQL inspector the final operation output as the lot size', functi
     bookAcrossOperations($this, [0, 407, 0, 30050, 30000]);
     DB::table('job_cards')->where('id', $this->jobCard->id)->update(['status' => JobCard::IN_PRODUCTION]);
 
-    $this->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail())
         ->get("/qc-inspections/create?job_card={$this->jobCard->id}")
         ->assertInertia(fn (AssertableInertia $page) => $page->where('preselect.lot_size', 30000));
 });
@@ -154,7 +154,7 @@ it('shows the same figure on the sales order the job card belongs to', function 
         ->where('id', $this->jobCard->sales_order_line_id)
         ->value('sales_order_id');
 
-    $this->actingAs(User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail())
         ->get("/sales-orders/{$orderId}")
         ->assertInertia(function (AssertableInertia $page): void {
             $card = collect($page->toArray()['props']['jobCards'])
@@ -167,7 +167,7 @@ it('shows the same figure on the sales order the job card belongs to', function 
 it('exports the final operation output rather than the running total', function (): void {
     bookAcrossOperations($this, [0, 407, 0, 30050, 30000]);
 
-    $csv = $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $csv = $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->get('/exports/job-cards?format=csv')
         ->streamedContent();
 
@@ -251,14 +251,14 @@ it('never lets the running total reach a screen, an export or a report', functio
     }
 
     // The report and the export read the view, not the column.
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->get('/reports/production')
         ->assertInertia(function ($page): void {
             $row = collect($page->toArray()['props']['rows']['data'])->firstWhere('id', $this->jobCard->id);
             expect((float) $row['produced_qty'])->toBeQty(30000.0);
         });
 
-    $csv = $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $csv = $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->get('/exports/job-cards?format=csv')->streamedContent();
 
     expect($csv)->not->toContain('60457')->not->toContain('60,457');
@@ -274,7 +274,7 @@ it('answers "has anything been booked" from the running total, which is all it i
     expect((float) $this->jobCard->fresh()->produced_qty_running)->toBeGreaterThan(0.0);
 
     // J1's cancellation guard is the one reader of the column, and it asks exactly that.
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->post("/job-cards/{$this->jobCard->id}/transition", ['to' => 'cancelled'])
         ->assertSessionHas('error');
 
@@ -282,7 +282,7 @@ it('answers "has anything been booked" from the running total, which is all it i
         ->and($this->jobCard->fresh()->status)->not->toBe('cancelled');
 
     // With a documented reason it goes through: the running total gates the reason, not the act.
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->post("/job-cards/{$this->jobCard->id}/transition", [
             'to' => 'cancelled', 'reason' => 'Customer pulled the style mid-run.',
         ])->assertSessionHasNoErrors();

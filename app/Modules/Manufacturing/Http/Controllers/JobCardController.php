@@ -205,11 +205,6 @@ class JobCardController extends Controller
 
         $line = SalesOrderLine::query()->findOrFail($data['sales_order_line_id']);
 
-        // BR-49 — the ceiling the form draws is also the one the server holds. A POST that
-        // never saw the form gets the same refusal, and a form whose outstanding figure went
-        // stale while it sat open is corrected here rather than trusted.
-        $this->planning->assert($line, (float) $data['planned_qty']);
-
         /** @var Product $product */
         $product = Product::query()->with(['routing.operations', 'activeBom'])->findOrFail($line->product_id);
 
@@ -232,6 +227,21 @@ class JobCardController extends Controller
         }
 
         $jobCard = DB::transaction(function () use ($data, $line, $product, $approvedVersion, $request): JobCard {
+            // BR-49 — the ceiling the form draws is also the one the server holds. A POST that
+            // never saw the form gets the same refusal, and a form whose outstanding figure
+            // went stale while it sat open is corrected here rather than trusted.
+            //
+            // Decided under a lock on the order line, inside the transaction that writes the
+            // card. The check used to run before the transaction against an unlocked
+            // `SUM(planned_qty)`, so two planners submitting at once both read the same
+            // headroom, both passed, and both inserted — the order ended up over-committed by
+            // the exact rule that exists to prevent it, and neither request did anything
+            // wrong. The lock is taken on `sales_order_lines` because that row is what the
+            // aggregate is grouped by: every competing card for this line serialises on it.
+            $locked = SalesOrderLine::query()->lockForUpdate()->findOrFail($line->id);
+
+            $this->planning->assert($locked, (float) $data['planned_qty']);
+
             $spec = $product->currentSpec;
 
             // The snapshot (02-database-schema §3.8): these three figures follow the card,

@@ -6,16 +6,16 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
-    $this->planner = User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail();
-    $this->purchaseManager = User::query()->where('email', 'purchasemanager@maheenlabel.test')->firstOrFail();
-    $this->buyer = User::query()->where('email', 'purchase@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
+    $this->planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
+    $this->purchaseManager = User::query()->where('email', 'purchasemanager@octapussolution.com')->firstOrFail();
+    $this->buyer = User::query()->where('email', 'purchase@octapussolution.com')->firstOrFail();
 });
 
 /** The walkthrough seeds no commercial documents, so a print test builds its own. */
 function printableQuotation(object $test): object
 {
-    $merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
+    $merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
     $product = DB::table('products')->first();
 
     $test->actingAs($merchandiser)->post('/quotations', [

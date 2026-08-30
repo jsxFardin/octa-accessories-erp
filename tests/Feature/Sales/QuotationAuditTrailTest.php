@@ -23,8 +23,8 @@ use Inertia\Testing\AssertableInertia;
  * permission that has always gated it.
  */
 beforeEach(function (): void {
-    $this->merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
     $this->customer = Customer::query()->active()->firstOrFail();
     $this->product = Product::query()->firstOrFail();
     $this->currency = Currency::query()->where('is_base', true)->firstOrFail();

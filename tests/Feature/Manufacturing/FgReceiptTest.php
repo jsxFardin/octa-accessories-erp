@@ -22,7 +22,7 @@ beforeEach(function (): void {
 
     // The demo card is left `planned` on purpose; walk it to in_production through the state
     // machine (waiving the seeded yarn shortage), never by writing the status column.
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $states = app(JobCardStateMachine::class);
     $states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'Test walkthrough']);
     $states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
@@ -33,7 +33,7 @@ beforeEach(function (): void {
     // Shop-floor session for output logging, exactly as the terminal does it.
     $card = DB::table('employees')
         ->join('users', 'users.id', '=', 'employees.user_id')
-        ->where('users.email', 'operator@maheenlabel.test')
+        ->where('users.email', 'operator@octapussolution.com')
         ->value('card_no');
     $this->deviceToken = $this->postJson('/api/v1/device/session', [
         'card_no' => $card, 'pin' => substr((string) $card, -4),
@@ -67,7 +67,7 @@ function postReceipt(
     ?string $clientRef = null,
     ?string $materialWaiver = null,
 ): Illuminate\Testing\TestResponse {
-    $test->actingAs(User::query()->where('email', 'supervisor@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'supervisor@octapussolution.com')->firstOrFail());
 
     return $test->post("/job-cards/{$test->jobCard->id}/fg-receipts", [
         'qty' => $qty,
@@ -81,7 +81,7 @@ function postReceipt(
 /** Record a final inspection for a job through the QC route; verdict computes to accepted at 0 majors. */
 function acceptFinalQc(object $test, int $jobCardId): void
 {
-    $test->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
 
     $test->post('/qc-inspections', [
         'job_card_id' => $jobCardId, 'stage' => 'final', 'lot_size' => 500,
@@ -286,7 +286,7 @@ it('stamps the FG lot with the diluted certification claim of what the job consu
 it('blocks users without fg_receipt.post', function (): void {
     produceOutput($this, 1000);
 
-    $this->actingAs(User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'operator@octapussolution.com')->firstOrFail());
 
     $this->post("/job-cards/{$this->jobCard->id}/fg-receipts", [
         'qty' => 100, 'warehouse_id' => $this->fgWarehouseId, 'grade' => 'A', 'client_ref' => (string) Str::uuid(),

@@ -20,12 +20,12 @@ use Illuminate\Support\Str;
  * `return_from_job` with a positive quantity and never call consumeForIssue().
  */
 beforeEach(function (): void {
-    $this->keeper = User::query()->where('email', 'store@maheenlabel.test')->firstOrFail();
-    $this->manager = User::query()->where('email', 'storemanager@maheenlabel.test')->firstOrFail();
-    $this->md = User::query()->where('email', 'md@maheenlabel.test')->firstOrFail();
-    $this->operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
-    $this->driver = User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail();
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->keeper = User::query()->where('email', 'store@octapussolution.com')->firstOrFail();
+    $this->manager = User::query()->where('email', 'storemanager@octapussolution.com')->firstOrFail();
+    $this->md = User::query()->where('email', 'md@octapussolution.com')->firstOrFail();
+    $this->operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
+    $this->driver = User::query()->where('email', 'driver@octapussolution.com')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 });
 
 function p27Job(object $test): JobCard
@@ -168,7 +168,7 @@ function p27Produce(object $test, JobCard $job, float $good): void
 {
     $card = DB::table('employees')
         ->join('users', 'users.id', '=', 'employees.user_id')
-        ->where('users.email', 'operator@maheenlabel.test')
+        ->where('users.email', 'operator@octapussolution.com')
         ->value('card_no');
 
     $token = $test->postJson('/api/v1/device/session', [
@@ -198,7 +198,7 @@ function p27ReceiveFg(object $test, JobCard $job, float $qty, ?string $waiver = 
 {
     $fgWarehouseId = (int) DB::table('warehouses')->where('kind', 'finished_goods')->value('id');
 
-    $test->actingAs(User::query()->where('email', 'supervisor@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'supervisor@octapussolution.com')->firstOrFail());
     $test->post("/job-cards/{$job->id}/fg-receipts", [
         'qty' => $qty,
         'warehouse_id' => $fgWarehouseId,

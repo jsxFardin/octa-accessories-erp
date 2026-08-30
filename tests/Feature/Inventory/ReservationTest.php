@@ -18,7 +18,7 @@ beforeEach(function (): void {
     $this->jobCard = JobCard::query()->whereNotNull('sales_order_line_id')->firstOrFail();
     $this->states = app(JobCardStateMachine::class);
     $this->reservations = app(ReservationService::class);
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 });
 
 it('reserves available material at release without touching the ledger', function (): void {
@@ -84,7 +84,7 @@ it('stops an issue from taking another job\'s reserved quantity', function (): v
     $other->save();
 
     // The other job tries to issue the claimed quantity through the real endpoint.
-    $this->actingAs(User::query()->where('email', 'store@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'store@octapussolution.com')->firstOrFail());
     $free = (float) $lot->balance_qty - (float) $claimed->qty;
 
     $this->post('/material-issues', [
@@ -107,7 +107,7 @@ it('consumes the claim as the owning job issues, and keeps history rows', functi
     $claimed = DB::table('stock_reservations')->where('job_card_id', $this->jobCard->id)->where('status', 'active')->first();
     $lot = DB::table('stock_lots')->where('id', $claimed->lot_id)->first();
 
-    $this->actingAs(User::query()->where('email', 'store@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'store@octapussolution.com')->firstOrFail());
     $this->post('/material-issues', [
         'job_card_id' => $this->jobCard->id,
         'warehouse_id' => $lot->warehouse_id,

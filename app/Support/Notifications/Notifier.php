@@ -168,7 +168,10 @@ class Notifier
                         .'planned or made against it. Review the exposure and either release the '
                         .'hold with a reason or cancel the order.',
                         $customer,
-                        number_format($excess, 2),
+                        // BR-46/BR-55 — the excess is a base-currency figure (every document
+                        // is converted at its own snapshotted rate before the comparison), so
+                        // it is labelled as one. Bare, it read as the order's currency.
+                        $this->money($excess, null),
                     ),
                     'dedupe_key' => 'sales_order:credit_hold:'.$order->id,
                 ]);

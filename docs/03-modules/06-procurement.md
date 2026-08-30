@@ -67,6 +67,15 @@ Breaches beyond tolerance require `supplier_bill.approve_variance`.
 - AC2: The comparison grid shows rate, lead time, MOQ, currency, and landed-cost estimate side by side.
 - AC3: Selecting a winner marks `is_selected` and pre-fills the PO.
 - AC4: For items above a value threshold, at least three quotations are required before PO approval (setting, enforced with an override reason).
+  Enforced in **two** places, because there are two routes to a purchase order. On the RFQ route
+  `assertEnoughQuotations()` refuses winner selection; on **approval** `guardQuotations()` counts
+  the quotations recorded against `purchase_orders.rfq_id`. Only the first existed, so an order
+  raised directly — which needs no RFQ and is legitimate for a repeat or sole-source purchase —
+  reached approval with nothing to compare against: the control was avoidable by not using the
+  RFQ screen. No RFQ means no quotations, which above the threshold needs a documented
+  `override_reason`; the reason is written onto the order's remarks rather than merely accepted.
+  The threshold is a base-currency figure, so the order converts first (BR-51).
+  Tests: `tests/Feature/Procurement/ThreeQuoteApprovalTest.php`.
 
 **PR-3 — Create and approve a PO**
 - AC1: Supplier must be `is_approved` (MD-5).

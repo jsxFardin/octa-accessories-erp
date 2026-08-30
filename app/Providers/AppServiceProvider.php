@@ -66,6 +66,25 @@ class AppServiceProvider extends ServiceProvider
             || $user->hasPermission('trip.view_own'));
 
         /*
+         * The shop-floor terminal screens, for the people who work an operation as well as
+         * those who may view one.
+         *
+         * `floor/operations/{operation}` carried `auth` and nothing else, so any authenticated
+         * employee could read any operation by id — its quantities, and the job card behind it
+         * with product code, colourway and approved artwork version. A driver is refused
+         * `/job-cards/1` and could read the same card here, with sequential ids.
+         *
+         * A `can:job_card.view` gate would be the wrong fix: an operator holds four permissions
+         * and that is not one of them, so it would close the leak by breaking the terminal.
+         * The screen belongs to whoever may run an operation or inspect one, which is why this
+         * is an ability composed of both — the same shape as `trip.access` above.
+         */
+        Gate::define('operation.terminal', fn (User $user): bool => $user->hasPermission('operation.view_any')
+            || $user->hasPermission('operation.view')
+            || $user->hasPermission('operation.start')
+            || $user->hasPermission('operation.log'));
+
+        /*
          * Login throttling keyed by email *and* IP. Keying on IP alone would let one
          * mistyped password lock out a factory floor sharing a single NAT gateway, which is
          * exactly the deployment this runs in.

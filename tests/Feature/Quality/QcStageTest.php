@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
  * with the inspection lost after validation had already said yes.
  */
 beforeEach(function (): void {
-    $this->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
 });
 
 it('creates a pre-shipment inspection successfully', function (): void {

@@ -267,5 +267,5 @@ Payloads are small — an id and the changed fields. The client refetches if it 
 | Offline order | Queued requests applied out of order still produce correct totals (`occurred_at` wins) |
 | Conflict | Logging to a closed operation returns 409 with `OPERATION_ALREADY_CLOSED` |
 | Permission | Every `/api/v1` route rejects a token without the required permission |
-| Scope | A device token bound to factory unit A cannot read unit B |
+| Scope | A device token bound to factory unit A cannot read **or write** unit B — `FloorQueueController` filters the queue on `$session->factoryUnitId`, and every operation-event write (`start`, `log`, `finish`, `downtime`) checks the operation's job card carries the same unit before it does anything. The read side was scoped from the start and the write side was not, so an operation id off the URL reached any unit's work; the business guards still held, so it was booked correctly against the wrong factory. Tests: `tests/Feature/Manufacturing/FloorUnitScopingTest.php` |
 | Shape | Portal and device responses contain no cost, margin or supplier fields |

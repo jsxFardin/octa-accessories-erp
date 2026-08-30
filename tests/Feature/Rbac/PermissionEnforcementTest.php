@@ -23,9 +23,10 @@ it('defines every permission that a route references', function (): void {
 
             $permission = explode(',', substr($middleware, 4))[0];
 
-            // `trip.access` is a Gate ability composed of two catalogue permissions
-            // (view_any / view_own), not a permission row of its own.
-            if ($permission === 'trip.access') {
+            // Gate abilities composed of catalogue permissions, not permission rows of their
+            // own: `trip.access` (view_any / view_own) and `operation.terminal` (whoever may
+            // view or run an operation — see AppServiceProvider).
+            if (in_array($permission, ['trip.access', 'operation.terminal'], true)) {
                 continue;
             }
 
@@ -71,7 +72,12 @@ it('guards every application route with a permission', function (): void {
             continue;
         }
 
-        if (in_array($uri, $exempt, true) || str_starts_with($uri, 'floor') || str_starts_with($uri, 'portal')) {
+        // `floor` and `portal` are no longer skipped wholesale. The prefix exclusion hid the
+        // fact that `floor/operations/{operation}` carried `auth` and nothing else, so any
+        // authenticated employee could read a job card they are refused on `/job-cards/{id}`.
+        // Only the two screens that are genuinely open to any signed-in user are exempt by
+        // name: the kiosk sign-in page, and the portal stub that renders no data.
+        if (in_array($uri, $exempt, true)) {
             continue;
         }
 
@@ -88,6 +94,36 @@ it('guards every application route with a permission', function (): void {
     expect($unguarded)->toBe([]);
 });
 
+/*
+ * The device API is excluded from the `can:` sweep above because it authenticates differently:
+ * a badge-and-PIN token, not a session and a permission. That exclusion was silent, so nothing
+ * asserted the group was guarded *at all* — and the operation write endpoints were reachable
+ * with any valid token regardless of which factory unit it belonged to. This states the rule
+ * the exclusion assumes.
+ */
+it('guards every device API route with the device session middleware', function (): void {
+    $unguarded = [];
+
+    foreach (Route::getRoutes() as $route) {
+        $uri = $route->uri();
+
+        if (! str_starts_with($uri, 'api/')) {
+            continue;
+        }
+
+        // Issuing a session is the one route that cannot already hold one.
+        if ($uri === 'api/v1/device/session' && in_array('POST', $route->methods(), true)) {
+            continue;
+        }
+
+        if (! collect($route->gatherMiddleware())->contains('device')) {
+            $unguarded[] = "{$route->methods()[0]} {$uri}";
+        }
+    }
+
+    expect($unguarded)->toBe([]);
+});
+
 it('seeds a role for every role named in the specification', function (): void {
     $seeded = App\Models\Role::query()->pluck('name')->all();
 
@@ -96,7 +132,7 @@ it('seeds a role for every role named in the specification', function (): void {
 
 it('gives an operator exactly four permissions', function (): void {
     /** @var User $operator */
-    $operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
+    $operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
 
     // 06-rbac §6 — the terminal opens nothing else, and that is a data fact, not a UI habit.
     expect($operator->permissionNames())->toEqualCanonicalizing([
@@ -109,7 +145,7 @@ it('gives an operator exactly four permissions', function (): void {
 
 it('gives a driver only their own trips and the pod', function (): void {
     /** @var User $driver */
-    $driver = User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail();
+    $driver = User::query()->where('email', 'driver@octapussolution.com')->firstOrFail();
 
     expect($driver->permissionNames())->toEqualCanonicalizing([
         'trip.view_own',
@@ -120,7 +156,7 @@ it('gives a driver only their own trips and the pod', function (): void {
 
 it('lets read_only view everything but export nothing', function (): void {
     /** @var User $auditor */
-    $auditor = User::query()->where('email', 'auditor@maheenlabel.test')->firstOrFail();
+    $auditor = User::query()->where('email', 'auditor@octapussolution.com')->firstOrFail();
     $permissions = $auditor->permissionNames();
 
     // Exporting is a data-exfiltration path and is granted deliberately (06-rbac §6).
@@ -131,7 +167,7 @@ it('lets read_only view everything but export nothing', function (): void {
 
 it('lets the md approve exceptions but not enter transactional data', function (): void {
     /** @var User $md */
-    $md = User::query()->where('email', 'md@maheenlabel.test')->firstOrFail();
+    $md = User::query()->where('email', 'md@octapussolution.com')->firstOrFail();
 
     // An MD who enters data is an MD who breaks the audit trail (06-rbac §6).
     expect($md->hasPermission('sales_order.release_credit_hold'))->toBeTrue()
@@ -143,7 +179,7 @@ it('lets the md approve exceptions but not enter transactional data', function (
 
 it('lets super_admin through without holding a single permission row', function (): void {
     /** @var User $admin */
-    $admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 
     // The escape hatch cannot be revoked by editing a role, which is what keeps the
     // implementer out of a lockout.
@@ -152,14 +188,14 @@ it('lets super_admin through without holding a single permission row', function 
 });
 
 it('rejects an unpermitted user at the route, not at the button', function (): void {
-    $operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
+    $operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
 
     $this->actingAs($operator)->get('/sales-orders')->assertForbidden();
     $this->actingAs($operator)->get('/admin/settings')->assertForbidden();
 });
 
 it('lets a merchandiser reach the commercial screens', function (): void {
-    $merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
+    $merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
 
     $this->actingAs($merchandiser)->get('/sales-orders')->assertOk();
     $this->actingAs($merchandiser)->get('/quotations')->assertOk();
@@ -172,13 +208,13 @@ it('sends a guest to the login screen rather than a 403', function (): void {
 
 it('flushes a user permission cache when their roles change', function (): void {
     /** @var User $user */
-    $user = User::query()->where('email', 'lab@maheenlabel.test')->firstOrFail();
+    $user = User::query()->where('email', 'lab@octapussolution.com')->firstOrFail();
 
     expect($user->hasPermission('sales_order.create'))->toBeFalse();
 
     $merchandiserRoleId = App\Models\Role::query()->where('name', 'merchandiser')->value('id');
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->post("/admin/users/{$user->id}/roles", ['role_id' => $merchandiserRoleId])
         ->assertRedirect();
 

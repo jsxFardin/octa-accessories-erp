@@ -17,12 +17,12 @@ use Illuminate\Support\Facades\DB;
  * is the approval effect and the only step that calls StockPostingService as count_variance.
  */
 beforeEach(function (): void {
-    $this->keeper = User::query()->where('email', 'store@maheenlabel.test')->firstOrFail();
-    $this->manager = User::query()->where('email', 'storemanager@maheenlabel.test')->firstOrFail();
-    $this->md = User::query()->where('email', 'md@maheenlabel.test')->firstOrFail();
-    $this->operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
-    $this->driver = User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail();
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->keeper = User::query()->where('email', 'store@octapussolution.com')->firstOrFail();
+    $this->manager = User::query()->where('email', 'storemanager@octapussolution.com')->firstOrFail();
+    $this->md = User::query()->where('email', 'md@octapussolution.com')->firstOrFail();
+    $this->operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
+    $this->driver = User::query()->where('email', 'driver@octapussolution.com')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 });
 
 function p28Lot(): StockLot

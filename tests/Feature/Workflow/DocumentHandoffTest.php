@@ -17,14 +17,14 @@ use Inertia\Testing\AssertableInertia;
  * — but that the context travelled with the click, and that it is withheld when it should be.
  */
 beforeEach(function (): void {
-    $this->merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
-    $this->planner = User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail();
-    $this->qc = User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail();
-    $this->dispatch = User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail();
-    $this->buyer = User::query()->where('email', 'purchase@maheenlabel.test')->firstOrFail();
-    $this->purchaseManager = User::query()->where('email', 'purchasemanager@maheenlabel.test')->firstOrFail();
-    $this->md = User::query()->where('email', 'md@maheenlabel.test')->firstOrFail();
-    $this->store = User::query()->where('email', 'store@maheenlabel.test')->firstOrFail();
+    $this->merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
+    $this->planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
+    $this->qc = User::query()->where('email', 'qc@octapussolution.com')->firstOrFail();
+    $this->dispatch = User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail();
+    $this->buyer = User::query()->where('email', 'purchase@octapussolution.com')->firstOrFail();
+    $this->purchaseManager = User::query()->where('email', 'purchasemanager@octapussolution.com')->firstOrFail();
+    $this->md = User::query()->where('email', 'md@octapussolution.com')->firstOrFail();
+    $this->store = User::query()->where('email', 'store@octapussolution.com')->firstOrFail();
 });
 
 function makeHandoffInquiry(object $test, ?int $productId = null): Inquiry
@@ -87,7 +87,7 @@ it('withholds the prefill from a user who may not read inquiries', function (): 
     // The handoff must not become a way to read a document the role is not allowed to open.
     $inquiry = makeHandoffInquiry($this);
 
-    $blind = User::query()->where('email', 'designer@maheenlabel.test')->firstOrFail();
+    $blind = User::query()->where('email', 'designer@octapussolution.com')->firstOrFail();
 
     expect($blind->hasPermission('inquiry.view_any'))->toBeFalse();
 
@@ -527,7 +527,7 @@ it('makes a newly created customer selectable on the documents that need it', fu
     // The acceptance test behind the `Active` default: created, then found. A customer saved
     // inactive is created just as successfully and is then invisible to every picker, which
     // reads to the user as a save that did not happen.
-    $admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 
     $this->actingAs($admin)->post('/customers', [
         'code' => 'CUST-HANDOFF-1',
@@ -558,7 +558,7 @@ it('makes a newly created customer selectable on the documents that need it', fu
 });
 
 it('says so plainly when a customer is created inactive', function (): void {
-    $admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 
     $this->actingAs($admin)->post('/customers', [
         'code' => 'CUST-HANDOFF-2',

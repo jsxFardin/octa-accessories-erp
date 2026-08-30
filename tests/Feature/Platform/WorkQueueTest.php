@@ -40,8 +40,8 @@ it('shows a purchase manager only the orders inside their band', function (): vo
         ]);
     }
 
-    $manager = User::query()->where('email', 'purchasemanager@maheenlabel.test')->firstOrFail();
-    $md = User::query()->where('email', 'md@maheenlabel.test')->firstOrFail();
+    $manager = User::query()->where('email', 'purchasemanager@octapussolution.com')->firstOrFail();
+    $md = User::query()->where('email', 'md@octapussolution.com')->firstOrFail();
 
     $entry = collect($this->queue->for($manager))->firstWhere('key', 'po_approval');
     $mdEntry = collect($this->queue->for($md))->firstWhere('key', 'po_approval');
@@ -61,7 +61,7 @@ it('hides an entry with nothing in it', function (): void {
     // A row of zeros is a row to scan past, not reassurance.
     DB::table('purchase_requisitions')->where('status', 'submitted')->update(['status' => 'approved']);
 
-    expect(queueKeys($this, 'purchasemanager@maheenlabel.test'))->not->toContain('pr_approval');
+    expect(queueKeys($this, 'purchasemanager@octapussolution.com'))->not->toContain('pr_approval');
 });
 
 it('counts concessions with no customer evidence, not a state the schema forbids', function (): void {
@@ -86,14 +86,14 @@ it('counts concessions with no customer evidence, not a state the schema forbids
     ]);
 
     $entry = collect($this->queue->for(
-        User::query()->where('email', 'quality@maheenlabel.test')->firstOrFail(),
+        User::query()->where('email', 'quality@octapussolution.com')->firstOrFail(),
     ))->firstWhere('key', 'concession_evidence');
 
     expect($entry['count'])->toBeGreaterThan(0);
 });
 
 it('serves the queue with the dashboard', function (): void {
-    $this->actingAs(User::query()->where('email', 'md@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'md@octapussolution.com')->firstOrFail())
         ->get('/dashboard')
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('Dashboard')->has('queue'));
@@ -110,7 +110,7 @@ it('counts confirmed orders that nothing has been raised against', function (): 
 
     expect($line)->not->toBeNull();
 
-    $planner = User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail();
+    $planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
     $entry = fn (): ?array => collect($this->queue->for($planner))
         ->firstWhere('key', 'orders_awaiting_job_card');
 
@@ -133,8 +133,8 @@ it('counts confirmed orders that nothing has been raised against', function (): 
 });
 
 it('does not offer the job-card queue to someone who cannot raise one', function (): void {
-    $accounts = User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail();
+    $accounts = User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail();
 
     expect($accounts->hasPermission('job_card.create'))->toBeFalse()
-        ->and(queueKeys($this, 'accounts@maheenlabel.test'))->not->toContain('orders_awaiting_job_card');
+        ->and(queueKeys($this, 'accounts@octapussolution.com'))->not->toContain('orders_awaiting_job_card');
 });

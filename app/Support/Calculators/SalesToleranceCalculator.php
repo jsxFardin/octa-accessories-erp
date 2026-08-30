@@ -67,6 +67,14 @@ class SalesToleranceCalculator
      * A zero credit limit means "no limit set", not "no credit": treating an unconfigured
      * customer as instantly over-limit would hold every new account's first order.
      *
+     * **All three arguments are base-currency figures** (BR-51). This method adds and compares
+     * them directly, so handing it a document total in the currency that document was raised in
+     * silently understates exposure by the whole of the exchange rate. `SalesOrderStateMachine`
+     * converts each document at its own snapshotted rate (BR-22) before calling here.
+     *
+     * @param  float  $outstanding  open invoice exposure, converted to base currency
+     * @param  float  $orderValue  the order being confirmed, converted to base currency
+     * @param  float  $creditLimit  `customers.credit_limit`, which is stated in base currency
      * @return array{on_hold: bool, exposure: float, credit_limit: float, excess: float}
      */
     public function creditCheck(float $outstanding, float $orderValue, float $creditLimit): array

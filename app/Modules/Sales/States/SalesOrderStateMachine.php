@@ -44,7 +44,11 @@ class SalesOrderStateMachine extends StateMachine
         return [
             'draft' => ['confirmed', 'credit_hold', 'cancelled'],
             'credit_hold' => ['confirmed', 'cancelled'],
-            'confirmed' => ['in_production', 'partially_delivered', 'cancelled'],
+            // `credit_hold` is reachable from `confirmed` because an *amendment* can breach the
+            // limit after confirmation (BR-46). The order is real and the customer may genuinely
+            // have increased it; what must stop is the order continuing to be executable on a
+            // value nobody credit-checked.
+            'confirmed' => ['in_production', 'partially_delivered', 'credit_hold', 'cancelled'],
             'in_production' => ['partially_delivered', 'delivered'],
             'partially_delivered' => ['delivered', 'closed'],
             'delivered' => ['closed'],
@@ -133,6 +137,26 @@ class SalesOrderStateMachine extends StateMachine
             throw TransitionDenied::guard('S3', "This order is not ready to confirm.\n• ".implode("\n• ", $blocked));
         }
 
+        // BR-46 — a draft that breaches the credit limit does not become `confirmed`.
+        //
+        // The decision itself is taken in `SalesOrderController::transition()`, which diverts
+        // such an order to `credit_hold` rather than refusing it — that is the intended
+        // behaviour and it stays. What was missing is that the rule lived *only* there: every
+        // other rule on this document (S3 above, BR-45, S2) is enforced inside the state
+        // machine, so any other caller reaching `transition($order, 'confirmed')` — a bulk
+        // action, an import, a future API — would have walked past the credit control without
+        // touching it. There is no such caller today; this makes sure adding one cannot
+        // quietly become a financial-control bypass.
+        //
+        // Only from `draft`: arriving from `credit_hold` *is* the release path, and it is
+        // guarded on permission and reason immediately below.
+        if ($from === 'draft' && $this->creditCheck($order)['on_hold']) {
+            throw TransitionDenied::guard(
+                'BR-46',
+                'This order takes the customer past their credit limit. It must be held for Accounts or the Managing Director to release, not confirmed directly.',
+            );
+        }
+
         // Releasing a credit hold is a separate permission from confirming (06-rbac §5).
         if ($from === 'credit_hold') {
             if (! (auth()->user()?->hasPermission('sales_order.release_credit_hold') ?? false)) {
@@ -205,15 +229,54 @@ class SalesOrderStateMachine extends StateMachine
      */
     public function creditCheck(SalesOrder $order): array
     {
+        // BR-46/BR-51 — the whole decision is made in the factory's own currency.
+        //
+        // `customers.credit_limit` is a base-currency figure, like every other commercial
+        // guard rail on that row: BR-21's `min_order_value` is compared against the cost-sheet
+        // subtotal, which BR-22 computes in the base currency. The customer's own
+        // `currency_id` says what they are *traded* in, not what their limits are stated in.
+        //
+        // Both of the other operands were left in whatever currency their document happened to
+        // be raised in. On this data most invoices and orders are USD, so:
+        //
+        // - `SUM(total - received_amount)` added dollars to taka at face value — the BR-50
+        //   defect, in a financial control rather than a report; and
+        // - a USD 10,000 order was measured against a taka limit as the number `10000`, an
+        //   eighth of the BDT 1,225,000 it actually commits.
+        //
+        // Both understate exposure, so the failure is silent and always in the direction of
+        // letting an order through. Each document converts at the rate it itself snapshotted
+        // (BR-22) — never a live rate, which would restate the decision every time the screen
+        // was opened.
         $outstanding = (float) DB::table('sales_invoices')
             ->where('customer_id', $order->customer_id)
             ->whereIn('status', ['issued', 'partially_paid', 'overdue'])
-            ->sum(DB::raw('total - received_amount'));
+            ->sum(DB::raw('(total - received_amount) * COALESCE(exchange_rate, 1)'));
 
         return $this->tolerance->creditCheck(
-            $outstanding,
-            (float) $order->total,
+            round($outstanding, 4),
+            $this->baseValue($order),
             (float) $order->customer->credit_limit,
         );
+    }
+
+    /**
+     * BR-51 — the order's value in the factory's own currency, which is the unit every credit
+     * limit, approval band and settings threshold in this system is expressed in.
+     *
+     * The same shape as `PurchaseOrderStateMachine::baseValue()`, deliberately: one conversion
+     * rule, stated the same way on both sides of the business.
+     */
+    public function baseValue(SalesOrder $order): float
+    {
+        $rate = (float) $order->exchange_rate;
+
+        return round((float) $order->total * ($rate > 0 ? $rate : 1.0), 4);
+    }
+
+    /** The unit the credit decision is stated in, for a message a reader can act on. */
+    public function baseCurrencyCode(): string
+    {
+        return (string) $this->settings->get('base_currency', 'BDT');
     }
 }

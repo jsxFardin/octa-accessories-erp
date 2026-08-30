@@ -20,7 +20,7 @@ beforeEach(function (): void {
     $this->jobCard = JobCard::query()->whereNotNull('sales_order_line_id')->firstOrFail();
     $this->states = app(JobCardStateMachine::class);
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $this->states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'ncr walkthrough']);
     $this->states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
     // BR-48 — a job that produced finished goods consumed material to do it. The store's
@@ -29,8 +29,8 @@ beforeEach(function (): void {
     $this->jobCard->operations()->update(['status' => JobCardOperation::COMPLETED, 'input_qty' => 1000, 'good_qty' => 1000]);
     $this->states->transition($this->jobCard->refresh(), JobCard::QC_PENDING);
 
-    $this->qc = User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail();
-    $this->quality = User::query()->where('email', 'quality@maheenlabel.test')->firstOrFail();
+    $this->qc = User::query()->where('email', 'qc@octapussolution.com')->firstOrFail();
+    $this->quality = User::query()->where('email', 'quality@octapussolution.com')->firstOrFail();
     $this->fgWarehouseId = (int) DB::table('warehouses')->where('kind', 'finished_goods')->value('id');
 });
 
@@ -135,7 +135,7 @@ it('lets an authorised user assign the NCR and refuses everyone else', function 
 
     expect($ncr->refresh()->owner_id)->toBe($this->quality->id);
 
-    $this->actingAs(User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'driver@octapussolution.com')->firstOrFail())
         ->post("/ncrs/{$ncr->id}/assign", ['owner_id' => $this->qc->id])
         ->assertForbidden();
 
@@ -212,7 +212,7 @@ it('keeps the P1-3 rework loop intact when the NCR later closes', function (): v
 });
 
 it('does not post stock when a scrap NCR is investigated and closed', function (): void {
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $receipt = app(App\Modules\Manufacturing\Services\FgReceiptService::class)
         ->post($this->jobCard->refresh(), 800, $this->fgWarehouseId, (string) Str::uuid());
 
@@ -261,16 +261,16 @@ it('rejects cross-role access at the route', function (): void {
     postRejectedInspection($this, majors: 50, disposition: 'rework');
     $ncr = latestNcr();
 
-    $this->actingAs(User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'driver@octapussolution.com')->firstOrFail())
         ->get('/ncrs')->assertForbidden();
-    $this->actingAs(User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'driver@octapussolution.com')->firstOrFail())
         ->get("/ncrs/{$ncr->id}")->assertForbidden();
-    $this->actingAs(User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail())
         ->get("/ncrs/{$ncr->id}")->assertForbidden();
 
-    $this->actingAs(User::query()->where('email', 'lab@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'lab@octapussolution.com')->firstOrFail())
         ->get("/ncrs/{$ncr->id}")->assertOk();
-    $this->actingAs(User::query()->where('email', 'lab@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'lab@octapussolution.com')->firstOrFail())
         ->post("/ncrs/{$ncr->id}/assign", ['owner_id' => $this->qc->id])
         ->assertForbidden();
 });

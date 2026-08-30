@@ -19,7 +19,7 @@ beforeEach(function (): void {
     $this->soLineId = (int) $this->jobCard->sales_order_line_id;
 
     // Walk the demo job to in_production and put 10,000 good pieces through the final op.
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $states = app(JobCardStateMachine::class);
     $states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'packing walkthrough']);
     $states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
@@ -39,11 +39,11 @@ beforeEach(function (): void {
 function makeFgLot(object $test, float $qty, bool $available = true): object
 {
     if ($available) {
-        $test->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+        $test->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
         $test->post('/qc-inspections', [
             'job_card_id' => $test->jobCard->id, 'stage' => 'final', 'lot_size' => 500, 'major_found' => 0,
         ]);
-        $test->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+        $test->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     }
 
     $receipt = $test->fgService->post($test->jobCard->refresh(), $qty, $test->fgWarehouseId, (string) Str::uuid());
@@ -54,7 +54,7 @@ function makeFgLot(object $test, float $qty, bool $available = true): object
 /** Draft a packing list with one carton holding $qty from $lot, as the dispatch officer. */
 function draftPackingList(object $test, object $lot, float $qty): PackingList
 {
-    $test->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
 
     $soId = (int) DB::table('sales_order_lines')->where('id', $test->soLineId)->value('sales_order_id');
 
@@ -96,7 +96,7 @@ it('refuses quarantine FG at the picker and again at the guard', function (): vo
 
     expect($lot->status)->toBe('quarantine');
 
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
     $soId = (int) DB::table('sales_order_lines')->where('id', $this->soLineId)->value('sales_order_id');
     $this->post('/packing-lists', ['sales_order_id' => $soId]);
     $list = PackingList::query()->latest('id')->firstOrFail();
@@ -210,7 +210,7 @@ it('blocks users without packing permissions', function (): void {
     $list = draftPackingList($this, $lot, 100);
 
     // The driver can see trips, not confirm packing.
-    $this->actingAs(User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'driver@octapussolution.com')->firstOrFail());
 
     $this->post("/packing-lists/{$list->id}/transition", ['to' => 'packed'])->assertForbidden();
 });

@@ -19,7 +19,7 @@ use Inertia\Testing\AssertableInertia;
  * Read-only by design: a posted stock movement is reversed by a return, never edited.
  */
 beforeEach(function (): void {
-    $this->store = User::query()->where('email', 'store@maheenlabel.test')->firstOrFail();
+    $this->store = User::query()->where('email', 'store@octapussolution.com')->firstOrFail();
 
     // The walkthrough seeds no material issue, so one is built from records that really exist
     // — an actual job card, an actual lot and its own item and unit. A fixture invented out of
@@ -116,7 +116,7 @@ it('names the job card on every row of the list', function (): void {
 });
 
 it('refuses the issue to a user without stock_issue.view_any', function (): void {
-    $blind = User::query()->where('email', 'designer@maheenlabel.test')->firstOrFail();
+    $blind = User::query()->where('email', 'designer@octapussolution.com')->firstOrFail();
 
     expect($blind->hasPermission('stock_issue.view_any'))->toBeFalse();
 

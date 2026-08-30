@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 });
 
 // --- Organisation profile ----------------------------------------------------------------
@@ -180,7 +180,7 @@ it('says nothing at all for a one-character term', function (): void {
 it('never searches a source the user may not read', function (): void {
     // An operator holds no commercial permissions; the palette must not become a side channel
     // into the order book.
-    $operator = User::query()->where('email', 'operator1@maheenlabel.test')->first()
+    $operator = User::query()->where('email', 'operator1@octapussolution.com')->first()
         ?? User::query()->whereHas('roles', fn ($q) => $q->where('name', 'operator'))->firstOrFail();
 
     $labels = collect($this->actingAs($operator)->getJson('/search?q=SO-')->json('groups'))

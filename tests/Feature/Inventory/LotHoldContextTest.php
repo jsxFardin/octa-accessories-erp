@@ -17,7 +17,7 @@ use Inertia\Testing\AssertableInertia;
  * was reported. The status now carries the record that caused it.
  */
 beforeEach(function (): void {
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
     $this->explainer = app(LotHoldExplainer::class);
 
     $this->lot = StockLot::query()->where('status', 'available')->firstOrFail();
@@ -115,7 +115,7 @@ it('offers the resolving action only to someone who holds the permission', funct
     $this->actingAs($this->admin)->post("/physical-counts/{$count->id}/transition", ['to' => 'counting']);
 
     $lot = $this->lot->fresh();
-    $operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
+    $operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
 
     expect($this->explainer->explain($lot, $this->admin)['can_resolve'])->toBeTrue()
         ->and($this->explainer->explain($lot, $operator)['can_resolve'])->toBeFalse()

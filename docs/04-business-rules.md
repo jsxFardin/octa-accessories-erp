@@ -437,6 +437,38 @@ A sales order line closes when cumulative delivered quantity ≥ `ordered_qty * 
 ### BR-46 — Credit control
 On sales order confirmation, if `customer_outstanding + order_value > customer.credit_limit`, the order is held at `credit_hold` and only Accounts or the MD may release it.
 
+**All three figures are base currency** (BR-51). `customers.credit_limit` is stated in the
+factory's own currency, like `min_order_value` beside it on the same row — BR-21 compares that
+against the cost-sheet subtotal, which BR-22 computes in the base currency. A customer's own
+`currency_id` says what they are *traded* in, not what their limits are stated in.
+
+Neither of the other two operands was converted, so this was the BR-50 defect living inside a
+financial control rather than a report:
+
+- open exposure was `SUM(total - received_amount)` across every currency at face value; and
+- the order being confirmed was measured in whatever currency it was raised in, so a USD 10,000
+  order was compared against a taka limit as the number `10000` — an eighth of the BDT 1,225,000
+  it actually commits.
+
+Both understate exposure, so the control failed silently and always in the direction of letting
+the order through.
+
+```
+exposure = Σ(invoice.total − invoice.received_amount) × invoice.exchange_rate   -- BR-22, each document's own
+         + order.total × order.exchange_rate
+hold when exposure > customer.credit_limit
+```
+
+Each document converts at the rate **it** snapshotted, never a live rate, which would restate
+the decision every time the screen was opened. `SalesOrderStateMachine::baseValue()` is the same
+shape as `PurchaseOrderStateMachine::baseValue()` on the buying side: one conversion rule, said
+the same way twice. The screen, the flash message and the credit-hold notification all label
+these figures with the base currency, because they are no longer in the order's.
+
+A zero limit still means "no limit set", not "no credit".
+
+Tests: `tests/Feature/Sales/CreditControlCurrencyTest.php`.
+
 ### BR-48 — Finished goods are made out of issued material
 
 Finished goods may only be received against a job card up to the quantity the material issued
@@ -510,6 +542,14 @@ A cancelled card releases its quantity. The rule is enforced in
 `JobCardPlanningGuard`, which both the POST handler and the planning form consult, so the
 disabled button and the server's refusal cannot disagree. Tests:
 `tests/Feature/Manufacturing/JobCardQuantityCeilingTest.php`.
+
+The decision is taken **inside the transaction that writes the card, under a `FOR UPDATE` lock
+on the `sales_order_lines` row**. It used to run before the transaction against an unlocked
+`SUM(planned_qty)`, so two planners submitting at the same moment both read the same headroom,
+both passed, and both inserted — the line finished over-committed by the rule that exists to
+prevent it, with neither request having broken anything. The lock is taken on the order line
+because that row is what the committed quantity is grouped by, so every competing card for the
+line serialises on it. Tests: `tests/Feature/Manufacturing/JobCardCeilingAtomicityTest.php`.
 
 ### BR-50 — A report spanning currencies names them, and converts before it totals
 

@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int|null $agent_id
  * @property int|null $currency_id
  * @property int|null $payment_term_id
- * @property string $credit_limit
+ * @property string $credit_limit BR-46 — base currency, like `min_order_value`; never the customer's own
  * @property string $min_order_value
  * @property string $over_tolerance_pct
  * @property string $under_tolerance_pct

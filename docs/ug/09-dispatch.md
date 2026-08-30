@@ -45,7 +45,7 @@ There is no “type an invoice” screen. If **Create invoice** is missing, you 
 5. Per stop: **Capture POD** (receiver name). A failure reason marks the stop failed.
 6. **Complete trip** — end odometer, fuel cost.
 
-Drivers (`driver@maheenlabel.test`) land on the trip list and see **their** trips (`trip.view_own`), not the whole fleet.
+Drivers (`driver@octapussolution.com`) land on the trip list and see **their** trips (`trip.view_own`), not the whole fleet.
 
 Unassigned issued challans appear on the plan-trip form. Courier / pickup challans do not need a trip.
 

@@ -205,8 +205,14 @@ it('loads every object the specification promises', function (): void {
     // quotation line answers, so a request for 1,000 pcs becoming a quote for 100,000 is
     // traceable rather than merely different. Nullable and unconstrained beyond the key —
     // quoting another quantity is legitimate, and the column records it rather than policing it.
+    //
+    // The 410th is `purchase_orders.rfq_id` (PR-2 AC4): which RFQ an order was raised from, so
+    // approval can count the quotations behind it. The link existed only as prose in `remarks`,
+    // which no guard can parse, so the three-quote rule could be avoided by not using the RFQ
+    // screen. Nullable, because an order raised without an RFQ is legitimate — and above the
+    // threshold that order needs a documented override rather than being impossible.
     expect($tables)->toBe(155)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(409)
+        ->and($foreignKeys)->toBe(410)
         ->and($checks)->toBe(168);
 });

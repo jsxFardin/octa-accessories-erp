@@ -18,7 +18,7 @@ beforeEach(function (): void {
     $this->jobCard = JobCard::query()->whereNotNull('sales_order_line_id')->firstOrFail();
     $this->states = app(JobCardStateMachine::class);
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $this->states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'rework walkthrough']);
     $this->states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
     // BR-48 — a job that produced finished goods consumed material to do it. The store's
@@ -33,7 +33,7 @@ beforeEach(function (): void {
 /** Post a final inspection as the QC inspector. */
 function postFinal(object $test, int $majors, ?string $disposition = null): void
 {
-    $test->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
 
     $test->post('/qc-inspections', array_filter([
         'job_card_id' => $test->jobCard->id, 'stage' => 'final', 'lot_size' => 500,
@@ -68,7 +68,7 @@ it('raises an NCR and reopens the flagged operation on a rework rejection', func
 
 it('freezes the rejected batch\'s quarantined FG so later acceptance cannot release it', function (): void {
     // FG received before QC — quarantined, as P0-3 demands.
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $receipt = app(App\Modules\Manufacturing\Services\FgReceiptService::class)
         ->post($this->jobCard->refresh(), 800, $this->fgWarehouseId, (string) Str::uuid());
 
@@ -82,7 +82,7 @@ it('freezes the rejected batch\'s quarantined FG so later acceptance cannot rele
     // Rework produces new output; its acceptance releases only the NEW batch.
     $final = $this->jobCard->operations()->reorder('sequence_no', 'desc')->firstOrFail();
     $final->forceFill(['status' => JobCardOperation::COMPLETED, 'input_qty' => 1200, 'good_qty' => 1200])->save();
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $this->states->transition($this->jobCard->refresh(), JobCard::QC_PENDING);
 
     $second = app(App\Modules\Manufacturing\Services\FgReceiptService::class)
@@ -101,12 +101,12 @@ it('accepted rework flows through the normal completion pipeline', function (): 
     expect($this->jobCard->refresh()->status)->toBe(JobCard::IN_PRODUCTION);
 
     // The floor finishes the rework and QC accepts.
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $this->jobCard->operations()->update(['status' => JobCardOperation::COMPLETED]);
     $this->states->transition($this->jobCard->refresh(), JobCard::QC_PENDING);
     postFinal($this, majors: 0);
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED, ['material_waiver_reason' => 'Fixture: this job models QC, not material issue.']);
 
     expect($this->jobCard->refresh()->status)->toBe(JobCard::COMPLETED);
@@ -122,7 +122,7 @@ it('scrap disposition raises the NCR without reopening production', function ():
 });
 
 it('keeps unauthorized users out of inspections entirely', function (): void {
-    $this->actingAs(User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'driver@octapussolution.com')->firstOrFail());
 
     $this->post('/qc-inspections', [
         'job_card_id' => $this->jobCard->id, 'stage' => 'final', 'lot_size' => 500,

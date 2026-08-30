@@ -9,7 +9,7 @@ use App\Modules\Trade\Services\LandedCostAllocator;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
     $this->supplier = DB::table('suppliers')->first();
     $this->currency = DB::table('currencies')->where('is_base', true)->first()
         ?? DB::table('currencies')->first();

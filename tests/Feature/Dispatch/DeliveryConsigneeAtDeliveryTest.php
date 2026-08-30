@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\DB;
  * moment the paperwork still means anything.
  */
 beforeEach(function (): void {
-    $this->dispatcher = User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail();
+    $this->dispatcher = User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail();
     $this->states = app(DeliveryChallanStateMachine::class);
     $this->actingAs($this->dispatcher);
 

@@ -27,7 +27,7 @@ beforeEach(function (): void {
     $this->soId = (int) DB::table('sales_order_lines')->where('id', $this->soLineId)->value('sales_order_id');
     $this->customerId = (int) DB::table('sales_orders')->where('id', $this->soId)->value('customer_id');
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $states = app(JobCardStateMachine::class);
     $states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'consignee walkthrough']);
     $states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
@@ -40,10 +40,10 @@ beforeEach(function (): void {
 
     $this->fgWarehouseId = (int) DB::table('warehouses')->where('kind', 'finished_goods')->value('id');
 
-    $this->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
     $this->post('/qc-inspections', ['job_card_id' => $this->jobCard->id, 'stage' => 'final', 'lot_size' => 500, 'major_found' => 0]);
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $receipt = app(App\Modules\Manufacturing\Services\FgReceiptService::class)
         ->post($this->jobCard->refresh(), 5000, $this->fgWarehouseId, (string) Str::uuid());
     $this->lot = DB::table('stock_lots')->where('id', $receipt->lot_id)->first();
@@ -56,7 +56,7 @@ beforeEach(function (): void {
 
 function draftChallanFor(object $test, float $qty = 3000): DeliveryChallan
 {
-    $test->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
 
     $test->post('/packing-lists', ['sales_order_id' => $test->soId])->assertSessionHasNoErrors();
     $list = PackingList::query()->latest('id')->firstOrFail();
@@ -126,7 +126,7 @@ it('carries the customer and the destination down from the sales order', functio
 it('names the customer on the delivery-note list', function (): void {
     $challan = draftChallanFor($this);
 
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail())
         ->get('/delivery-challans')
         ->assertInertia(function (AssertableInertia $page) use ($challan): void {
             $row = collect($page->toArray()['props']['delivery_challans']['data'])
@@ -142,7 +142,7 @@ it('names the customer on the delivery-note list', function (): void {
 it('shows the same customer on the detail page, with the chain it came from', function (): void {
     $challan = draftChallanFor($this);
 
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail())
         ->get("/delivery-challans/{$challan->id}")
         ->assertInertia(function (AssertableInertia $page) use ($challan): void {
             $data = $page->toArray()['props']['challan'];
@@ -162,7 +162,7 @@ it('refuses to issue a challan with no delivery address', function (): void {
 
     $ledgerBefore = DB::table('stock_ledger')->count();
 
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail())
         ->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])
         ->assertSessionHas('error');
 
@@ -180,7 +180,7 @@ it('refuses to issue a challan addressed to a different customer from its order'
 
     $ledgerBefore = DB::table('stock_ledger')->count();
 
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail())
         ->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])
         ->assertSessionHas('error');
 
@@ -198,7 +198,7 @@ it('refuses a delivery address that belongs to somebody else', function (): void
 
     DB::table('delivery_challans')->where('id', $challan->id)->update(['delivery_address_id' => $foreign->id]);
 
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail())
         ->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])
         ->assertSessionHas('error');
 
@@ -217,13 +217,13 @@ it('falls back to the customer default address when the order names none', funct
         ->and($challan->delivery_address_id)->toBe($expected->id);
 
     // And with a destination it can actually be issued.
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail())
         ->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])
         ->assertSessionHas('success');
 });
 
 it('gives a converted sales order the customer default delivery address', function (): void {
-    $merchandiser = User::query()->where('email', 'merchandiser@maheenlabel.test')->firstOrFail();
+    $merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
     $customer = Customer::query()->findOrFail($this->customerId);
     $currency = App\Modules\MasterData\Models\Currency::query()->where('is_base', true)->firstOrFail();
     $product = App\Modules\Product\Models\Product::query()->where('customer_id', $customer->id)->firstOrFail();
@@ -258,7 +258,7 @@ it('does not let a user without the issue permission move the challan out of the
 
     $ledgerBefore = DB::table('stock_ledger')->count();
 
-    $this->actingAs(User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'operator@octapussolution.com')->firstOrFail())
         ->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])
         ->assertForbidden();
 

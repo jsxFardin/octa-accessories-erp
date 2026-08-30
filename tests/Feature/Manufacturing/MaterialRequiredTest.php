@@ -26,9 +26,9 @@ use Inertia\Testing\AssertableInertia;
  */
 beforeEach(function (): void {
     $this->jobCard = JobCard::query()->whereNotNull('sales_order_line_id')->firstOrFail();
-    $this->supervisor = User::query()->where('email', 'supervisor@maheenlabel.test')->firstOrFail();
+    $this->supervisor = User::query()->where('email', 'supervisor@octapussolution.com')->firstOrFail();
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $states = app(JobCardStateMachine::class);
     $states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'BR-48 walkthrough']);
     $states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
@@ -200,7 +200,7 @@ it('only produces a zero-cost finished-goods lot when someone signed for it', fu
 });
 
 it('refuses the waiver to a user without job_card.waive_material', function (): void {
-    $storeKeeper = User::query()->where('email', 'store@maheenlabel.test')->firstOrFail();
+    $storeKeeper = User::query()->where('email', 'store@octapussolution.com')->firstOrFail();
 
     expect($storeKeeper->hasPermission('job_card.waive_material'))->toBeFalse();
 
@@ -212,7 +212,7 @@ it('refuses the waiver to a user without job_card.waive_material', function (): 
 });
 
 it('refuses a waiver from a poster who may receive but may not waive', function (): void {
-    $poster = User::query()->where('email', 'supervisor@maheenlabel.test')->firstOrFail();
+    $poster = User::query()->where('email', 'supervisor@octapussolution.com')->firstOrFail();
 
     // Strip only the waiver right; the receipt right stays.
     DB::table('role_permissions')
@@ -228,7 +228,7 @@ it('refuses a waiver from a poster who may receive but may not waive', function 
 });
 
 it('states the material position on the job card before anyone tries to receive', function (): void {
-    $this->actingAs(User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'planner@octapussolution.com')->firstOrFail())
         ->get("/job-cards/{$this->jobCard->id}")
         ->assertInertia(function (AssertableInertia $page): void {
             $fg = $page->toArray()['props']['fgPosition'];
@@ -240,7 +240,7 @@ it('states the material position on the job card before anyone tries to receive'
 
     issueMaterialFor($this->jobCard, 8000);
 
-    $this->actingAs(User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'planner@octapussolution.com')->firstOrFail())
         ->get("/job-cards/{$this->jobCard->id}")
         ->assertInertia(function (AssertableInertia $page): void {
             $fg = $page->toArray()['props']['fgPosition'];

@@ -19,7 +19,7 @@ beforeEach(function (): void {
 
     $card = DB::table('employees')
         ->join('users', 'users.id', '=', 'employees.user_id')
-        ->where('users.email', 'operator@maheenlabel.test')
+        ->where('users.email', 'operator@octapussolution.com')
         ->value('card_no');
 
     $this->token = $this->postJson('/api/v1/device/session', [
@@ -85,7 +85,7 @@ it('reports job output from the final operation, not the sum across units', func
     $first->forceFill(['input_qty' => 420, 'good_qty' => 407, 'waste_qty' => 13])->save();
     $final->forceFill(['input_qty' => 30050, 'good_qty' => 30000, 'waste_qty' => 50])->save();
 
-    $payload = $this->actingAs(App\Models\User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $payload = $this->actingAs(App\Models\User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->get("/job-cards/{$this->jobCard->id}")
         ->viewData('page')['props']['jobCard'];
 

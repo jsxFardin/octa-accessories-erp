@@ -12,9 +12,9 @@ use Illuminate\Support\Facades\DB;
  * FN-4 / FN-5 — supplier bills with three-way match and supplier payments.
  */
 beforeEach(function (): void {
-    $this->accounts = User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail();
-    $this->buyer = User::query()->where('email', 'purchase@maheenlabel.test')->firstOrFail();
-    $this->operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
+    $this->accounts = User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail();
+    $this->buyer = User::query()->where('email', 'purchase@octapussolution.com')->firstOrFail();
+    $this->operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
     $this->supplier = Supplier::query()->where('is_active', true)->firstOrFail();
     $this->item = Item::query()->where('is_active', true)->firstOrFail();
     $this->currencyId = (int) (DB::table('currencies')->where('is_base', true)->value('id')

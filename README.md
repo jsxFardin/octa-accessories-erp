@@ -29,6 +29,28 @@ php artisan serve
 php artisan queue:work          # required — see below
 ```
 
+### Provisioning UAT or staging
+
+`composer setup` is the **developer** path: it copies `.env.example` verbatim, which carries
+`APP_ENV=local` and `APP_DEBUG=true`. On a shared box that combination is wrong twice over —
+debug serves stack traces with connection details on any error, and `DatabaseSeeder` seeds the
+demo walkthrough and the 100 `LocalProcessSeeder` journeys **only** when the environment is
+local, so a UAT database would come up full of invented orders.
+
+```bash
+composer setup:uat              # refuses to run if .env already exists
+```
+
+It writes `APP_ENV=staging` and `APP_DEBUG=false`, generates a key, migrates, and seeds
+permissions, roles, reference data and users — and nothing else. Then set `DB_*`, `APP_URL`,
+`REDIS_*` and `MAIL_*` for the host, and change the seeded passwords (see below).
+
+To confirm what a given environment will seed:
+
+```bash
+php artisan tinker --execute="echo app()->environment();"   # must not be 'local' on UAT
+```
+
 ### The queue worker is not optional
 
 Notifications (credit holds, NCRs, overdue invoices) are queued, so on any connection other
@@ -58,13 +80,13 @@ users, `/floor` for operators, `/trips` for drivers. Nobody is redirected into a
 
 | Login | Role | What it shows off |
 |---|---|---|
-| `admin@maheenlabel.test` | super_admin | Everything |
-| `merchandiser@maheenlabel.test` | merchandiser | Inquiry → quotation → order |
-| `designer@maheenlabel.test` | designer | Artwork versions and the approval gate |
-| `planner@maheenlabel.test` | planner | Planning board, MRP, job card release |
-| `operator@maheenlabel.test` | operator | Four permissions, and nothing else |
-| `compliance@maheenlabel.test` | compliance_officer | GRS/FSC reconciliation |
-| `auditor@maheenlabel.test` | read_only | View everything, export nothing |
+| `admin@octapussolution.com` | super_admin | Everything |
+| `merchandiser@octapussolution.com` | merchandiser | Inquiry → quotation → order |
+| `designer@octapussolution.com` | designer | Artwork versions and the approval gate |
+| `planner@octapussolution.com` | planner | Planning board, MRP, job card release |
+| `operator@octapussolution.com` | operator | Four permissions, and nothing else |
+| `compliance@octapussolution.com` | compliance_officer | GRS/FSC reconciliation |
+| `auditor@octapussolution.com` | read_only | View everything, export nothing |
 
 The shop-floor terminal is at `/floor` and signs in by badge (`BADGE-0009`, PIN `0009`).
 

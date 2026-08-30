@@ -65,7 +65,7 @@ it('refuses a currency with no rate on file rather than booking it at parity', f
 });
 
 it('books the reference rate on a purchase order raised in a foreign currency', function (): void {
-    $buyer = User::query()->where('email', 'purchase@maheenlabel.test')->firstOrFail();
+    $buyer = User::query()->where('email', 'purchase@octapussolution.com')->firstOrFail();
     $supplier = DB::table('suppliers')->where('is_active', true)->where('is_approved', true)->firstOrFail();
     $item = DB::table('items')->where('is_active', true)->firstOrFail();
 

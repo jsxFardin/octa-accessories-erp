@@ -33,7 +33,7 @@ beforeEach(function (): void {
 
     $card = DB::table('employees')
         ->join('users', 'users.id', '=', 'employees.user_id')
-        ->where('users.email', 'operator@maheenlabel.test')
+        ->where('users.email', 'operator@octapussolution.com')
         ->value('card_no');
 
     $this->token = $this->postJson('/api/v1/device/session', [

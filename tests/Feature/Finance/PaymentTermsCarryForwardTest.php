@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  * customer was billed thirty days early, and nothing on any screen looked wrong.
  */
 beforeEach(function (): void {
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 });
 
 it('defaults a quotation to the customer payment terms when none is chosen', function (): void {

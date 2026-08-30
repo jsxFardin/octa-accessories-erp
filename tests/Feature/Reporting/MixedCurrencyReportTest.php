@@ -22,8 +22,8 @@ use Inertia\Testing\AssertableInertia;
  * factory's, and `SUM()` had nothing to tell it the rows were incommensurable.
  */
 beforeEach(function (): void {
-    $this->accounts = User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail();
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->accounts = User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 
     $this->base = DB::table('currencies')->where('is_base', true)->first();
     $this->foreign = DB::table('currencies')->where('is_base', false)->first();

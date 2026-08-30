@@ -427,6 +427,9 @@ class SupplierRfqController extends Controller
             $order = new PurchaseOrder;
             $order->forceFill([
                 'supplier_id' => $winner->supplier_id,
+                // PR-2 AC4 — the order records the RFQ it came from, so approval can count the
+                // quotations behind it. `remarks` said so in prose, which no guard can parse.
+                'rfq_id' => $locked->id,
                 'factory_unit_id' => $factoryUnitId,
                 'order_date' => now()->toDateString(),
                 'expected_date' => $winner->lead_time_days !== null

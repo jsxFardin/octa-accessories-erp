@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
  * so until the next physical count found the gap.
  */
 beforeEach(function (): void {
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 
     $this->jobCard = JobCard::query()->whereNotNull('bom_id')->firstOrFail();
     $this->jobCard->forceFill(['status' => JobCard::QC_PENDING])->save();

@@ -24,8 +24,8 @@ use Illuminate\Support\Facades\DB;
  * (BR-22).
  */
 beforeEach(function (): void {
-    $this->manager = User::query()->where('email', 'purchasemanager@maheenlabel.test')->firstOrFail();
-    $this->md = User::query()->where('email', 'md@maheenlabel.test')->firstOrFail();
+    $this->manager = User::query()->where('email', 'purchasemanager@octapussolution.com')->firstOrFail();
+    $this->md = User::query()->where('email', 'md@octapussolution.com')->firstOrFail();
     $this->states = app(PurchaseOrderStateMachine::class);
 
     $this->band = 100000.0;
@@ -96,7 +96,10 @@ it('br51: lets the MD approve the same order', function (): void {
     $order = ($this->order)((int) $this->foreign->id, 122.5, 1000.0);
 
     $this->actingAs($this->md);
-    $this->states->transition($order, 'approved');
+    // PR-2 AC4 — a directly-raised order above the three-quote threshold carries the
+    // documented override. This test is about who may sign for the value, not about the
+    // competitive-quotation rule, so it states the sole-source reason and moves on.
+    $this->states->transition($order, 'approved', ['override_reason' => 'Direct order — band test fixture.']);
 
     expect($order->refresh()->status)->toBe('approved');
 });
@@ -118,10 +121,13 @@ it('br51: is unchanged for base-currency orders', function (): void {
 
     $this->actingAs($this->manager);
 
-    $this->states->transition($under, 'approved');
+    // Both are above the three-quote threshold and neither came from an RFQ, so both carry
+    // PR-2's override; what is under test here is the *band*, which still refuses the second.
+    $this->states->transition($under, 'approved', ['override_reason' => 'Direct order — band test fixture.']);
     expect($under->refresh()->status)->toBe('approved');
 
-    expect(fn () => $this->states->transition($over, 'approved'))->toThrow(TransitionDenied::class);
+    expect(fn () => $this->states->transition($over, 'approved', ['override_reason' => 'Direct order — band test fixture.']))
+        ->toThrow(TransitionDenied::class);
 });
 
 it('br51: computes the base value from the rate the order itself recorded', function (): void {

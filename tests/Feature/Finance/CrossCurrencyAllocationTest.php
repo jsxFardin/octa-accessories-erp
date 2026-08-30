@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
  * hole existed between a payment and a supplier bill.
  */
 beforeEach(function (): void {
-    $this->accounts = User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail();
+    $this->accounts = User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail();
     $this->base = DB::table('currencies')->where('is_base', true)->firstOrFail();
     $this->usd = DB::table('currencies')->where('code', 'USD')->firstOrFail();
     $this->rate = (float) DB::table('exchange_rates')

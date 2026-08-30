@@ -21,7 +21,7 @@ beforeEach(function (): void {
     $this->soLineId = (int) $this->jobCard->sales_order_line_id;
     $this->soId = (int) DB::table('sales_order_lines')->where('id', $this->soLineId)->value('sales_order_id');
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $states = app(JobCardStateMachine::class);
     $states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'dispatch walkthrough']);
     $states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
@@ -47,9 +47,9 @@ beforeEach(function (): void {
     ]);
 
     // Accepted final QC, then a 5,000-piece available FG lot.
-    $this->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
     $this->post('/qc-inspections', ['job_card_id' => $this->jobCard->id, 'stage' => 'final', 'lot_size' => 500, 'major_found' => 0]);
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $receipt = app(App\Modules\Manufacturing\Services\FgReceiptService::class)
         ->post($this->jobCard->refresh(), 5000, $this->fgWarehouseId, (string) Str::uuid());
     $this->lot = DB::table('stock_lots')->where('id', $receipt->lot_id)->first();
@@ -64,7 +64,7 @@ beforeEach(function (): void {
 /** Pack $qty of the shared lot and draft its challan, as the dispatch officer. */
 function packAndDraftChallan(object $test, float $qty): DeliveryChallan
 {
-    $test->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail());
+    $test->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
 
     $test->post('/packing-lists', ['sales_order_id' => $test->soId]);
     $list = PackingList::query()->latest('id')->firstOrFail();
@@ -165,7 +165,7 @@ it('enforces BR-44: over-band needs the named override with a reason', function 
     expect($challan->refresh()->status)->toBe('draft');
 
     // The MD holds sales_order.override_tolerance — with a typed reason it ships.
-    $this->actingAs(User::query()->where('email', 'md@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'md@octapussolution.com')->firstOrFail());
     $this->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued', 'override_reason' => 'Customer accepted overrun'])
         ->assertSessionHas('success');
     expect($challan->refresh()->status)->toBe('issued');
@@ -220,7 +220,7 @@ it('keeps unauthorized users out of the challan entirely', function (): void {
     $challan = packAndDraftChallan($this, 500);
 
     // QC has packing rights but no challan rights at all.
-    $this->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
     $this->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])->assertForbidden();
 
     expect($challan->refresh()->status)->toBe('draft');
@@ -295,7 +295,7 @@ it('returns the goods when a delivery fails', function (): void {
     $deliveredBefore = (float) DB::table('sales_order_lines')->where('id', $line->sales_order_line_id)->value('delivered_qty');
     $lotBefore = (float) DB::table('stock_lots')->where('id', $line->lot_id)->value('balance_qty');
 
-    $driver = User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail();
+    $driver = User::query()->where('email', 'driver@octapussolution.com')->firstOrFail();
 
     // Three permissions, and `delivery_challan.return` is not among them: the return is the
     // system's consequence of the driver's POD, not an action they chose.

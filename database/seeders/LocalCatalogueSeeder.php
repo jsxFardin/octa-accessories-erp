@@ -66,7 +66,7 @@ class LocalCatalogueSeeder extends Seeder
     public function run(): void
     {
         if (Auth::guest()) {
-            Auth::login(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+            Auth::login(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
         }
 
         $this->userId = (int) Auth::id();
@@ -1155,7 +1155,7 @@ class LocalCatalogueSeeder extends Seeder
             return;
         }
 
-        $qualityId = (int) User::query()->where('email', 'quality@maheenlabel.test')->value('id');
+        $qualityId = (int) User::query()->where('email', 'quality@octapussolution.com')->value('id');
         $supplierId = (int) DB::table('suppliers')->where('code', 'SUP-YARN-UK')->value('id');
         $customerId = (int) DB::table('customers')->where('code', 'CUST-001')->value('id');
         $numbers = app(NumberAllocator::class);

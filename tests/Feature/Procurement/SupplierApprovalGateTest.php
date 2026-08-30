@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  * assert the order's behaviour follows it in both directions.
  */
 beforeEach(function (): void {
-    $this->buyer = User::query()->where('email', 'purchase@maheenlabel.test')->firstOrFail();
+    $this->buyer = User::query()->where('email', 'purchase@octapussolution.com')->firstOrFail();
     $this->states = app(PurchaseOrderStateMachine::class);
 
     // The state machine reads the *authenticated* user for its permission check, so the buyer

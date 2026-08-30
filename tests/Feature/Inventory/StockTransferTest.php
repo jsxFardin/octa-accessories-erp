@@ -14,11 +14,11 @@ use Illuminate\Support\Facades\DB;
  * through StockPostingService into child lots. Conversation label only — the SRS story is IN-4.
  */
 beforeEach(function (): void {
-    $this->keeper = User::query()->where('email', 'store@maheenlabel.test')->firstOrFail();
-    $this->manager = User::query()->where('email', 'storemanager@maheenlabel.test')->firstOrFail();
-    $this->md = User::query()->where('email', 'md@maheenlabel.test')->firstOrFail();
-    $this->operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
-    $this->driver = User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail();
+    $this->keeper = User::query()->where('email', 'store@octapussolution.com')->firstOrFail();
+    $this->manager = User::query()->where('email', 'storemanager@octapussolution.com')->firstOrFail();
+    $this->md = User::query()->where('email', 'md@octapussolution.com')->firstOrFail();
+    $this->operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
+    $this->driver = User::query()->where('email', 'driver@octapussolution.com')->firstOrFail();
 });
 
 function p26Lot(): StockLot

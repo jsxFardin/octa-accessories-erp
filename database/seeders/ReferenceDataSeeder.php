@@ -615,7 +615,6 @@ class ReferenceDataSeeder extends Seeder
             ['exchange_rate_tolerance_pct', 5, 'approval', 'How far a booked rate may sit from the published reference rate before it is refused (BR-58)'],
             ['adjustment_approval_band_manager', 25000, 'approval', 'Stock adjustment value store_manager may approve'],
             ['credit_note_approval_band_accounts', 50000, 'approval', 'Credit note value accounts may approve'],
-            ['merchandiser_sees_own_only', false, 'scoping', 'When on, a merchandiser sees only their own records (06-rbac §4)'],
             ['qc_final_required_default', false, 'quality', 'P1-1 — require an accepted final inspection before ANY job completes, even when no routing operation flags QC'],
             ['expiry_alert_days', 30, 'inventory', 'Days before expiry at which ink and chemicals flag (BR-39)'],
 

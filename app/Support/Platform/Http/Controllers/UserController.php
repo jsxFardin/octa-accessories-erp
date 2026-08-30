@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -212,8 +213,31 @@ class UserController extends Controller
     }
 
     /** One user, one role — enforced here rather than trusted to the form. */
+    /**
+     * 06-rbac §4 — `portal_customer` cannot be handed out until customer scoping exists.
+     *
+     * The role already carries `sales_order.view_any`, `sales_invoice.view_any` and
+     * `delivery_challan.view_any`, and this application has no row-level scoping of any kind:
+     * authorisation is permission-only, and the `BelongsToCustomer` global scope the portal is
+     * documented to rely on has never been written. So the first portal contact created would
+     * read *every* customer's orders and invoices through the ordinary routes — a cross-tenant
+     * leak produced by an administrator using a role the screen openly offers.
+     *
+     * The portal itself is a one-route stub serving no data, which is the only reason this is
+     * not already live. The role is what makes it reachable, so the role is what is withheld.
+     * Both the create form and the role-change action come through here, so there is one place
+     * to remove this from when the scoping lands (see `routes/portal.php`).
+     */
     private function assignRole(User $user, int $roleId): void
     {
+        $name = Role::query()->whereKey($roleId)->value('name');
+
+        if ($name === 'portal_customer') {
+            throw ValidationException::withMessages([
+                'role_id' => 'The customer portal is not released: portal contacts are not scoped to their own customer yet, so this role would expose every customer\'s orders and invoices. See 06-rbac §4.',
+            ]);
+        }
+
         $user->roles()->sync([$roleId]);
     }
 

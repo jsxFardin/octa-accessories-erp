@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
     $this->accounts = User::query()->whereHas('roles', fn ($q) => $q->where('name', 'accounts'))->firstOrFail();
-    $this->admin = User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail();
+    $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
 
     $this->payload = [
         'expense_date' => now()->toDateString(),

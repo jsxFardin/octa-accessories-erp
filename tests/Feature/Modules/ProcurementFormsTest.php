@@ -18,10 +18,10 @@ use Illuminate\Support\Facades\DB;
  * submits the payload the form actually sends and asserts on the rows that result.
  */
 beforeEach(function (): void {
-    $this->buyer = User::query()->where('email', 'purchase@maheenlabel.test')->firstOrFail();
-    $this->purchaseManager = User::query()->where('email', 'purchasemanager@maheenlabel.test')->firstOrFail();
-    $this->md = User::query()->where('email', 'md@maheenlabel.test')->firstOrFail();
-    $this->planner = User::query()->where('email', 'planner@maheenlabel.test')->firstOrFail();
+    $this->buyer = User::query()->where('email', 'purchase@octapussolution.com')->firstOrFail();
+    $this->purchaseManager = User::query()->where('email', 'purchasemanager@octapussolution.com')->firstOrFail();
+    $this->md = User::query()->where('email', 'md@octapussolution.com')->firstOrFail();
+    $this->planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
     $this->unit = FactoryUnit::query()->firstOrFail();
     $this->item = Item::query()->where('is_active', true)->firstOrFail();
     $this->supplier = Supplier::query()->where('is_approved', true)->firstOrFail();
@@ -184,8 +184,13 @@ it('routes approval by value band — a purchase manager cannot sign above it (0
 
     expect($order->fresh()->status)->toBe('pending_approval');
 
-    // The MD's band has no ceiling.
-    $this->actingAs($this->md)->post("/purchase-orders/{$order->id}/transition", ['to' => 'approved']);
+    // The MD's band has no ceiling. The order is a direct one worth twice the manager band, so
+    // it is also above PR-2's three-quote threshold and carries the documented override — this
+    // test is about who may sign for the value, not about the competitive-quotation rule.
+    $this->actingAs($this->md)->post("/purchase-orders/{$order->id}/transition", [
+        'to' => 'approved',
+        'override_reason' => 'Direct order — approval band test fixture.',
+    ]);
 
     expect($order->fresh()->status)->toBe('approved')
         ->and($order->fresh()->approved_by)->toBe($this->md->id);
@@ -205,7 +210,7 @@ it('lets a purchase manager approve inside the band', function (): void {
 // --- Routings ---------------------------------------------------------------------------
 
 it('creates a routing and numbers its operations by row order (J2)', function (): void {
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->post('/routings', [
             'code' => 'RT-TEST-01',
             'name' => 'Test woven routing',
@@ -234,7 +239,7 @@ it('refuses to retire a routing that products still use', function (): void {
         ->whereIn('id', DB::table('products')->whereNotNull('routing_id')->pluck('routing_id'))
         ->firstOrFail();
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->delete("/routings/{$routing->id}")
         ->assertSessionHas('error');
 
@@ -244,7 +249,7 @@ it('refuses to retire a routing that products still use', function (): void {
 // --- Artwork ----------------------------------------------------------------------------
 
 it('edits an artwork record without touching its versions (A1)', function (): void {
-    $designer = User::query()->where('email', 'designer@maheenlabel.test')->firstOrFail();
+    $designer = User::query()->where('email', 'designer@octapussolution.com')->firstOrFail();
     $product = DB::table('products')->first();
 
     $this->actingAs($designer)->post('/artworks', [
@@ -271,7 +276,7 @@ it('locks an artwork code once a version references it', function (): void {
         ->whereIn('id', DB::table('artwork_versions')->pluck('artwork_id'))
         ->first();
 
-    $this->actingAs(User::query()->where('email', 'designer@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'designer@octapussolution.com')->firstOrFail())
         ->put("/artworks/{$artwork->id}", ['code' => 'AW-RENAMED', 'title' => 'Retitled'])
         ->assertRedirect();
 
@@ -285,7 +290,7 @@ it('locks an artwork code once a version references it', function (): void {
 it('creates artwork against a product from the index dialog', function (): void {
     $product = DB::table('products')->first();
 
-    $this->actingAs(User::query()->where('email', 'designer@maheenlabel.test')->firstOrFail())
+    $this->actingAs(User::query()->where('email', 'designer@octapussolution.com')->firstOrFail())
         ->post('/artworks', [
             'product_id' => $product->id,
             'code' => 'AW-TEST-01',

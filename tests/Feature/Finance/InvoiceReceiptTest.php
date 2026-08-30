@@ -23,7 +23,7 @@ beforeEach(function (): void {
     $this->customerId = (int) DB::table('sales_orders')->where('id', $this->soId)->value('customer_id');
 
     // Produce → receive → accept QC → pack → dispatch 2,000 pcs, all through the real flows.
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $states = app(JobCardStateMachine::class);
     $states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'finance walkthrough']);
     $states->transition($this->jobCard->refresh(), JobCard::IN_PRODUCTION);
@@ -34,16 +34,16 @@ beforeEach(function (): void {
         ->forceFill(['input_qty' => 5000, 'good_qty' => 5000])->save();
     DB::table('sales_order_lines')->where('id', $this->soLineId)->increment('produced_qty', 5000);
 
-    $this->actingAs(User::query()->where('email', 'qc@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
     $this->post('/qc-inspections', ['job_card_id' => $this->jobCard->id, 'stage' => 'final', 'lot_size' => 500, 'major_found' => 0]);
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
     $fgWarehouseId = (int) DB::table('warehouses')->where('kind', 'finished_goods')->value('id');
     $receipt = app(App\Modules\Manufacturing\Services\FgReceiptService::class)
         ->post($this->jobCard->refresh(), 5000, $fgWarehouseId, (string) Str::uuid());
     $this->lot = DB::table('stock_lots')->where('id', $receipt->lot_id)->first();
 
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
     $this->post('/packing-lists', ['sales_order_id' => $this->soId]);
     $list = PackingList::query()->latest('id')->firstOrFail();
     $this->post("/packing-lists/{$list->id}/cartons", []);
@@ -56,7 +56,7 @@ beforeEach(function (): void {
     $this->challan = DeliveryChallan::query()->latest('id')->firstOrFail();
     $this->post("/delivery-challans/{$this->challan->id}/transition", ['to' => 'issued']);
 
-    $this->actingAs(User::query()->where('email', 'accounts@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail());
 });
 
 /** Draft + issue the invoice for the shared challan, as accounts. */
@@ -189,7 +189,7 @@ it('unwinds invoiced_qty when an unpaid invoice is cancelled', function (): void
 
 it('keeps billing away from users without invoice permissions', function (): void {
     // The dispatch officer ships goods; billing them is the accounts department's act.
-    $this->actingAs(User::query()->where('email', 'dispatch@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
 
     $this->post('/invoices', ['delivery_challan_id' => $this->challan->id])->assertForbidden();
 

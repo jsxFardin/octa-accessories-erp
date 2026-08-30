@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
  * The inventory invariants: append-only ledger, derived balances, no negative stock.
  */
 beforeEach(function (): void {
-    $this->actingAs(App\Models\User::query()->where('email', 'store@maheenlabel.test')->firstOrFail());
+    $this->actingAs(App\Models\User::query()->where('email', 'store@octapussolution.com')->firstOrFail());
     $this->posting = app(StockPostingService::class);
 });
 

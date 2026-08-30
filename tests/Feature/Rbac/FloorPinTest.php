@@ -43,7 +43,7 @@ it('refuses a badge with no PIN set at all', function (): void {
 });
 
 it('stores the PIN as a hash when an administrator sets one', function (): void {
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 
     $user = User::query()->whereHas('employee')->firstOrFail();
     $employee = DB::table('employees')->where('user_id', $user->id)->firstOrFail();

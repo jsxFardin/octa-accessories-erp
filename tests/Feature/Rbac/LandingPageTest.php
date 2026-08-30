@@ -31,19 +31,19 @@ it('lands every seeded role on a page they can actually open', function (): void
 });
 
 it('sends an operator to the floor terminal, not the dashboard', function (): void {
-    $operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
+    $operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
 
     expect(LandingPage::for($operator))->toBe('/floor');
 });
 
 it('sends a driver to their trips', function (): void {
-    $driver = User::query()->where('email', 'driver@maheenlabel.test')->firstOrFail();
+    $driver = User::query()->where('email', 'driver@octapussolution.com')->firstOrFail();
 
     expect(LandingPage::for($driver))->toBe('/trips');
 });
 
 it('lets the auditor see the read-only dashboard', function (): void {
-    $auditor = User::query()->where('email', 'auditor@maheenlabel.test')->firstOrFail();
+    $auditor = User::query()->where('email', 'auditor@octapussolution.com')->firstOrFail();
 
     // An auditor is precisely who a read-only overview is for.
     expect($auditor->hasPermission('report.dashboard'))->toBeTrue()
@@ -54,13 +54,13 @@ it('lets the auditor see the read-only dashboard', function (): void {
 
 it('follows the post-login redirect through to a usable page', function (): void {
     $this->post('/login', [
-        'email' => 'operator@maheenlabel.test',
+        'email' => 'operator@octapussolution.com',
         'password' => 'password',
     ])->assertRedirect('/floor');
 });
 
 it('renders a way out instead of a bare 403', function (): void {
-    $operator = User::query()->where('email', 'operator@maheenlabel.test')->firstOrFail();
+    $operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
 
     $response = $this->actingAs($operator)->get('/sales-orders');
 

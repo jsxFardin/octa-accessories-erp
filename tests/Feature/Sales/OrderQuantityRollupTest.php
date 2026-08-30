@@ -22,7 +22,7 @@ beforeEach(function (): void {
 
     $card = DB::table('employees')
         ->join('users', 'users.id', '=', 'employees.user_id')
-        ->where('users.email', 'operator@maheenlabel.test')
+        ->where('users.email', 'operator@octapussolution.com')
         ->value('card_no');
 
     $this->token = $this->postJson('/api/v1/device/session', [
@@ -94,7 +94,7 @@ it('blocks cancelling an order with production against it unless a reason is doc
     $final = $this->jobCard->operations()->reorder('sequence_no', 'desc')->firstOrFail();
     logOutput($this, $final, 500, 'p02-cancel-guard')->assertOk();
 
-    $this->actingAs(User::query()->where('email', 'admin@maheenlabel.test')->firstOrFail());
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 
     /** @var SalesOrder $order */
     $order = SalesOrder::query()->findOrFail(
