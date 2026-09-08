@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
@@ -66,6 +67,7 @@ const columns = [
             <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="transition('cancelled')">
                 Cancel
             </Button>
+            <DocumentActions document="invoices" :id="invoice.id" :status="invoice.status" />
         </template>
 
         <div class="space-y-4">

@@ -3,6 +3,7 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import { date, money, titleCase } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -42,6 +43,7 @@ async function transition(to) {
             <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="transition('cancelled')">
                 Cancel
             </Button>
+            <DocumentActions document="credit-notes" :id="creditNote.id" :status="creditNote.status" />
         </template>
 
         <div class="grid gap-4 lg:grid-cols-2">

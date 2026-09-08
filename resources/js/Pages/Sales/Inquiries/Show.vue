@@ -6,6 +6,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
@@ -123,6 +124,7 @@ const orderColumns = [
             >
                 Mark lost
             </Button>
+            <DocumentActions document="inquiries" :id="inquiry.id" :status="inquiry.status" />
         </template>
 
         <div class="space-y-4">

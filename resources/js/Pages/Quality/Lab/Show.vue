@@ -4,6 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import { date, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -63,6 +64,7 @@ const columns = [
             >
                 Cancel
             </Button>
+            <DocumentActions document="test-reports" :id="report.id" :status="report.status" />
         </template>
 
         <div class="space-y-4">

@@ -5,6 +5,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import { date, pcs, titleCase } from '@/plugins/formatting';
@@ -85,6 +86,7 @@ const columns = [
             <!-- Destructive last, after everything that moves the delivery forward. -->
             <Button v-if="availableTransitions.includes('returned')" size="sm" variant="danger" @click="returnOpen = true">Return</Button>
             <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="post(useForm({ to: 'cancelled' }))">Cancel</Button>
+            <DocumentActions document="delivery-challans" :id="challan.id" :status="challan.status" />
         </template>
 
         <div class="space-y-4">

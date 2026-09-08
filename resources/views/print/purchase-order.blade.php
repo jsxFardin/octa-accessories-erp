@@ -1,10 +1,3 @@
-@php
-    $fmtDate = fn (?string $value) => $value
-        ? \Illuminate\Support\Carbon::parse($value)->format($organisation['date_format'])
-        : '—';
-    $money = fn ($value) => number_format((float) $value, 2);
-@endphp
-
 @extends('print.layout', [
     'title' => 'Purchase order '.($document->number ?? ''),
     'documentTitle' => 'Purchase order',
@@ -18,32 +11,32 @@
 
 @section('content')
     <div class="parties">
-        <section>
+        <div class="party">
             <p class="label">Supplier</p>
             <p class="name">{{ $document->supplier_name }}</p>
             @if ($document->supplier_address)<p>{{ $document->supplier_address }}</p>@endif
             @if ($document->supplier_country)<p>{{ $document->supplier_country }}</p>@endif
             @if ($document->supplier_email)<p>{{ $document->supplier_email }}</p>@endif
-        </section>
+        </div>
 
-        <section>
+        <div class="party">
             <p class="label">Deliver to</p>
             <p class="name">{{ $document->unit_name }}</p>
             @if ($document->unit_address)<p>{{ $document->unit_address }}</p>@endif
 
-            <dl class="meta" style="margin-top:3mm">
-                <dt>Currency</dt><dd>{{ $document->currency }}</dd>
+            <table class="meta" style="margin-top:3mm">
+                <tr><th>Currency</th><td>{{ $document->currency }}</td></tr>
                 @if ($document->payment_terms)
-                    <dt>Payment terms</dt><dd>{{ $document->payment_terms }}</dd>
+                    <tr><th>Payment terms</th><td>{{ $document->payment_terms }}</td></tr>
                 @endif
                 @if ($document->incoterm)
-                    <dt>Incoterm</dt><dd>{{ $document->incoterm }}</dd>
+                    <tr><th>Incoterm</th><td>{{ $document->incoterm }}</td></tr>
                 @endif
-            </dl>
-        </section>
+            </table>
+        </div>
     </div>
 
-    <table>
+    <table class="lines">
         <thead>
             <tr>
                 <th style="width:8mm">#</th>
@@ -62,10 +55,10 @@
                         <strong>{{ $line->item_code }}</strong> {{ $line->item_name }}
                         @if ($line->cert_claim)
                             {{-- The claim is part of the order, not a note: it makes the GRN's certification fields mandatory (Gate 2). --}}
-                            <br><span style="color:#1a7f5a;font-size:8.5pt">Must carry a {{ strtoupper($line->cert_claim) }} claim</span>
+                            <br><span class="cert">Must carry a {{ strtoupper($line->cert_claim) }} claim</span>
                         @endif
                     </td>
-                    <td class="num">{{ rtrim(rtrim(number_format((float) $line->qty, 3), '0'), '.') }} {{ $line->uom }}</td>
+                    <td class="num">{{ $qty($line->qty) }} {{ $line->uom }}</td>
                     <td class="num">{{ number_format((float) $line->rate, 4) }}</td>
                     <td>{{ $fmtDate($line->expected_date) }}</td>
                     <td class="num">{{ $money($line->amount) }}</td>
@@ -86,7 +79,10 @@
     </table>
 
     @if ($document->remarks)
-        <div class="terms"><p class="label">Remarks</p>{{ $document->remarks }}</div>
+        <div class="terms">
+            <p class="label">Remarks</p>
+            <div class="body">{{ $document->remarks }}</div>
+        </div>
     @endif
 
     <div class="signatures">

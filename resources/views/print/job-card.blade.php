@@ -1,9 +1,3 @@
-@php
-    $fmtDate = fn (?string $value) => $value
-        ? \Illuminate\Support\Carbon::parse($value)->format($organisation['date_format'])
-        : '—';
-@endphp
-
 @extends('print.layout', [
     'title' => 'Job card '.($document->number ?? ''),
     'documentTitle' => 'Job card',
@@ -17,38 +11,38 @@
 
 @section('content')
     <div class="parties">
-        <section>
+        <div class="party">
             <p class="label">Product</p>
             <p class="name">{{ $document->product_code }} — {{ $document->product_name }}</p>
             <p>{{ $document->customer_name }}</p>
             @if ($document->colourway)<p>Colourway: {{ $document->colourway }}</p>@endif
-        </section>
+        </div>
 
-        <section>
-            <dl class="meta">
-                <dt>Planned quantity</dt><dd>{{ number_format((float) $document->planned_qty) }} pcs</dd>
-                <dt>Gross metres</dt><dd>{{ number_format((float) $document->gross_metres, 3) }}</dd>
-                <dt>Labels per metre</dt><dd>{{ number_format((float) $document->labels_per_metre, 3) }}</dd>
-                <dt>Priority</dt><dd>{{ $document->priority }}</dd>
-            </dl>
-        </section>
+        <div class="party">
+            <table class="meta">
+                <tr><th>Planned quantity</th><td>{{ $qty($document->planned_qty) }} pcs</td></tr>
+                <tr><th>Gross metres</th><td>{{ number_format((float) $document->gross_metres, 3) }}</td></tr>
+                <tr><th>Labels per metre</th><td>{{ number_format((float) $document->labels_per_metre, 3) }}</td></tr>
+                <tr><th>Priority</th><td>{{ $document->priority }}</td></tr>
+            </table>
+        </div>
     </div>
 
     {{--
         Gate 1 in print form. The version bound to this card is the only artwork the floor may
         run against, so it is stated on the paper the floor actually holds.
     --}}
-    <div style="border:1px solid #1a7f5a;background:#f0faf5;padding:3mm;margin-top:4mm;font-size:9.5pt">
+    <div class="gate">
         <strong>Approved artwork:</strong>
         {{ $document->artwork_code ?? '—' }} v{{ $document->artwork_version ?? '—' }}
         @if ($document->artwork_approved_at)
-            <span style="color:#55607a">· signed off {{ $fmtDate($document->artwork_approved_at) }}</span>
+            <span class="muted">· signed off {{ $fmtDate($document->artwork_approved_at) }}</span>
         @endif
         <br>
-        <span style="color:#55607a;font-size:8.5pt">Run against no other version. If the artwork on the machine does not match this line, stop and ask.</span>
+        <span class="muted">Run against no other version. If the artwork on the machine does not match this line, stop and ask.</span>
     </div>
 
-    <table>
+    <table class="lines">
         <thead>
             <tr>
                 <th style="width:8mm">#</th>

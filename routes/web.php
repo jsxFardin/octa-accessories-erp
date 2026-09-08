@@ -61,6 +61,7 @@ use App\Support\Platform\Http\Controllers\RoleController;
 use App\Support\Platform\Http\Controllers\SearchController;
 use App\Support\Platform\Http\Controllers\SettingController;
 use App\Support\Platform\Http\Controllers\UserController;
+use App\Support\Print\DocumentRegistry;
 use App\Support\Print\Http\Controllers\DocumentPrintController;
 use App\Support\Reference\Http\Controllers\ReferenceController;
 use Illuminate\Support\Facades\Route;
@@ -551,16 +552,27 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:purchase_requisition.view_any')->name('bulk.transition');
 
     /*
-     * Printable documents. Blade, not Inertia: a print view wants no shell and no JavaScript,
-     * and the browser's own PDF writer is better than a library that renders something subtly
-     * different from what the screen showed.
+     * Printable documents, generated from DocumentRegistry so that adding one is a definition
+     * rather than a pair of routes somebody forgets to gate. Blade, not Inertia: a document
+     * wants no shell and no JavaScript.
+     *
+     * Two endpoints per document on purpose. `/print` opens the page and the browser prints it,
+     * which is still the better route for anything a person is about to hold; `/pdf` returns a
+     * file, which is what an emailed invoice, an LC file and a brand's document portal need.
+     * Both render the same Blade view, so the file cannot disagree with the page.
+     *
+     * The `can:` comes from the definition — a document is printable by whoever may read it,
+     * and *whether* it may leave the building at all is the registry's status gate, not this.
      */
-    Route::get('quotations/{quotation}/print', [DocumentPrintController::class, 'quotation'])
-        ->middleware('can:quotation.view')->name('quotations.print');
-    Route::get('purchase-orders/{purchaseOrder}/print', [DocumentPrintController::class, 'purchaseOrder'])
-        ->middleware('can:purchase_order.view')->name('purchase-orders.print');
-    Route::get('job-cards/{jobCard}/print', [DocumentPrintController::class, 'jobCard'])
-        ->middleware('can:job_card.view')->name('job-cards.print');
+    foreach (DocumentRegistry::all() as $documentKey => $documentDefinition) {
+        foreach (['print', 'pdf'] as $documentAction) {
+            Route::get("{$documentDefinition['segment']}/{id}/{$documentAction}", [DocumentPrintController::class, $documentAction])
+                ->defaults('document', $documentKey)
+                ->whereNumber('id')
+                ->middleware("can:{$documentDefinition['permission']}")
+                ->name("{$documentKey}.{$documentAction}");
+        }
+    }
 
     /*
      * CSV, XLSX and PDF export. One controller for every list; the `.export` permission is

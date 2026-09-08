@@ -1,10 +1,3 @@
-@php
-    $fmtDate = fn (?string $value) => $value
-        ? \Illuminate\Support\Carbon::parse($value)->format($organisation['date_format'])
-        : '—';
-    $money = fn ($value) => number_format((float) $value, 2);
-@endphp
-
 @extends('print.layout', [
     'title' => 'Quotation '.($document->number ?? 'draft'),
     'documentTitle' => 'Quotation',
@@ -18,25 +11,25 @@
 
 @section('content')
     <div class="parties">
-        <section>
+        <div class="party">
             <p class="label">Quotation for</p>
             <p class="name">{{ $document->customer_name }}</p>
             @if ($document->customer_email)<p>{{ $document->customer_email }}</p>@endif
             @if ($document->customer_phone)<p>{{ $document->customer_phone }}</p>@endif
-        </section>
+        </div>
 
-        <section>
-            <dl class="meta">
-                <dt>Valid until</dt><dd>{{ $fmtDate($document->valid_until) }}</dd>
-                <dt>Currency</dt><dd>{{ $document->currency }}</dd>
+        <div class="party">
+            <table class="meta">
+                <tr><th>Valid until</th><td>{{ $fmtDate($document->valid_until) }}</td></tr>
+                <tr><th>Currency</th><td>{{ $document->currency }}</td></tr>
                 @if ($document->payment_terms)
-                    <dt>Payment terms</dt><dd>{{ $document->payment_terms }}</dd>
+                    <tr><th>Payment terms</th><td>{{ $document->payment_terms }}</td></tr>
                 @endif
-            </dl>
-        </section>
+            </table>
+        </div>
     </div>
 
-    <table>
+    <table class="lines">
         <thead>
             <tr>
                 <th style="width:8mm">#</th>
@@ -55,10 +48,10 @@
                         <strong>{{ $line->product_code }}</strong>
                         {{ $line->description }}
                         @if ($line->lead_time_days)
-                            <br><span style="color:#7b869c;font-size:8.5pt">Lead time {{ $line->lead_time_days }} days</span>
+                            <br><span class="muted">Lead time {{ $line->lead_time_days }} days</span>
                         @endif
                     </td>
-                    <td class="num">{{ number_format((float) $line->qty) }}</td>
+                    <td class="num">{{ $qty($line->qty) }}</td>
                     {{-- Four decimals: the difference between 3.2500 and 3.2512 is real money at 500,000 pieces (BR-47). --}}
                     <td class="num">{{ number_format((float) $line->rate_per_m, 4) }}</td>
                     <td class="num">{{ $money($line->tooling_charge) }}</td>
@@ -77,7 +70,10 @@
     </table>
 
     @if ($document->terms)
-        <div class="terms"><p class="label">Terms</p>{{ $document->terms }}</div>
+        <div class="terms">
+            <p class="label">Terms</p>
+            <div class="body">{{ $document->terms }}</div>
+        </div>
     @endif
 
     <div class="signatures">

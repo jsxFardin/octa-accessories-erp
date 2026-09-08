@@ -5,6 +5,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
+import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
@@ -98,8 +99,7 @@ async function transition(to) {
             <Button v-if="availableTransitions.includes('rejected')" size="sm" variant="danger" @click="rejectOpen = true">Rejected</Button>
             <!-- Repeat business is the norm: same labels, new season, different quantity. -->
             <Button v-if="can('quotation.create')" size="sm" @click="duplicate">Duplicate</Button>
-            <!-- Opens in its own tab: printing is a detour, not a navigation. -->
-            <Button size="sm" :href="`/quotations/${quotation.id}/print`" external target="_blank">Print</Button>
+            <DocumentActions document="quotations" :id="quotation.id" :status="quotation.status" />
         </template>
 
         <div class="space-y-4">

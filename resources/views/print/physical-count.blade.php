@@ -20,7 +20,7 @@
         Blind count sheet — record the physical quantity found. Do not use system balances.
     </p>
 
-    <table>
+    <table class="lines">
         <thead>
             <tr>
                 <th style="width:8mm">#</th>

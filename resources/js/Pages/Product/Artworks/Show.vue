@@ -22,6 +22,32 @@ const props = defineProps({
 });
 
 const approved = computed(() => props.versions.find((v) => v.status === 'approved') ?? null);
+
+/**
+ * Gate 1 in the reader's terms. The blocker is real — a job card cannot exist without an
+ * approved version — but the person looking at this screen needs the next move, not the
+ * constraint that stopped them. A rejected version is terminal, so it asks for a new one.
+ */
+const blockedNextStep = computed(() => {
+    const waiting = props.versions.find((v) => v.status === 'submitted');
+
+    if (waiting) {
+        return `Version ${waiting.version_no} is with the customer. Record their sign-off here once it arrives.`;
+    }
+
+    const drafted = props.versions.find((v) => v.status === 'draft');
+
+    if (drafted) {
+        return `Send version ${drafted.version_no} to the customer, then record their approval here.`;
+    }
+
+    if (props.versions.length === 0) {
+        return 'Upload the first version to start the approval trail.';
+    }
+
+    return 'The last version was rejected. Upload a corrected version and send it to the customer.';
+});
+
 const selected = ref(props.versions[0] ?? null);
 
 const uploadForm = useForm({ file: null });
@@ -129,9 +155,8 @@ function openReject(version) {
                 <div v-else class="flex flex-wrap items-center gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5">
                     <Badge tone="warning" label="No approved version" />
                     <span class="text-sm text-amber-900">
-                        No job card can be released for this product. `job_cards.artwork_version_id` is
-                        <code class="rounded bg-amber-100 px-1 font-mono text-xs">NOT NULL</code>
-                        and must point at an approved version.
+                        Production is blocked: no job card can be released for this artwork until one version
+                        is approved. {{ blockedNextStep }}
                     </span>
                 </div>
             </Card>

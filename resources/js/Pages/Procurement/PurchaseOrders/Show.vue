@@ -6,6 +6,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import { date, money, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
@@ -68,16 +69,8 @@ async function transition(to) {
             <Button v-if="canReceive" size="sm" variant="primary" :href="grnHref">
                 Receive goods
             </Button>
-            <!-- Only once approved: the controller refuses a draft, so the button follows it. -->
-            <Button
-                v-if="!['draft', 'pending_approval'].includes(purchaseOrder.status)"
-                size="sm"
-                :href="`/purchase-orders/${purchaseOrder.id}/print`"
-                external
-                target="_blank"
-            >
-                Print
-            </Button>
+            <!-- Hidden below `approved`: the status list lives in DocumentRegistry, not here. -->
+            <DocumentActions document="purchase-orders" :id="purchaseOrder.id" :status="purchaseOrder.status" />
             <Button v-if="availableTransitions.includes('closed')" size="sm" @click="transition('closed')">Close</Button>
             <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="transition('cancelled')">
                 Cancel

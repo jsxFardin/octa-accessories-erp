@@ -5,6 +5,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
@@ -283,7 +284,7 @@ const bomColumns = [
                 Record inspection
             </Button>
 
-            <Button size="sm" :href="`/job-cards/${jobCard.id}/print`" external target="_blank">Print</Button>
+            <DocumentActions document="job-cards" :id="jobCard.id" :status="jobCard.status" />
 
             <!-- Destructive last, after everything that moves the card forward. -->
             <Button v-if="availableTransitions.includes('on_hold')" size="sm" variant="danger" @click="holdOpen = true">

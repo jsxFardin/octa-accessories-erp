@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Support\Print\DocumentRegistry;
 use App\Support\Settings\Organisation;
 use App\Support\Settings\Settings;
 use Illuminate\Http\Request;
@@ -57,6 +58,13 @@ class HandleInertiaRequests extends Middleware
                 'base_currency' => app(Settings::class)->get('base_currency', 'BDT'),
                 'locale' => app()->getLocale(),
             ],
+
+            /*
+             * What each printable document is called, where it lives and the statuses in which it
+             * may not leave the building — from DocumentRegistry, so a Print button and the
+             * controller behind it cannot disagree about whether a draft is printable.
+             */
+            'documents' => DocumentRegistry::forFrontend(),
 
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

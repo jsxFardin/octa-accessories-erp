@@ -4,6 +4,7 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
@@ -131,6 +132,7 @@ function createChallan() {
             >
                 Create challan
             </Button>
+            <DocumentActions document="packing-lists" :id="packingList.id" :status="packingList.status" />
         </template>
 
         <div class="space-y-4">

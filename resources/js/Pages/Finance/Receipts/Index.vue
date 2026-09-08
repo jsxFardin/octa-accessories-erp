@@ -5,6 +5,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
@@ -30,6 +31,9 @@ const columns = [
     { key: 'amount', label: 'Amount', align: 'right', sort: true },
     { key: 'allocated_amount', label: 'Allocated', align: 'right' },
     { key: 'status', label: 'Status' },
+    // Receipts have no detail page: the money receipt itself is what someone comes here for,
+    // so the document hangs off the row rather than off a screen that does not exist.
+    { key: 'document', label: '', align: 'right' },
 ];
 
 const METHODS = [
@@ -133,6 +137,9 @@ function submit() {
                 <template #cell:amount="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:allocated_amount="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:status="{ value }"><Badge :status="value" /></template>
+                <template #cell:document="{ row }">
+                    <DocumentActions document="receipts" :id="row.id" :status="row.status" />
+                </template>
                 <template #empty>
                     <EmptyState
                         icon="money"
