@@ -62,6 +62,18 @@ const columns = [
             <Button v-if="can('machine.create')" variant="primary" href="/machines/create">New machine</Button>
         </template>
 
+        <!--
+            Where the code on a machine row is actually used. An operator picks it by code at
+            the shop floor terminal, and it decides what their queue shows — which is not
+            obvious from a grid of rates and kW ratings.
+        -->
+        <p class="mb-3 text-sm text-ink-600">
+            Operators pick a machine <span class="font-medium text-ink-800">by code</span> when they sign in at the
+            <a href="/floor" target="_blank" rel="noopener" class="font-medium text-brand-700 underline underline-offset-2">shop floor terminal</a>,
+            and it filters the work queue they see. Their badge number and floor PIN are set per person under
+            <Link href="/admin/users" class="font-medium text-brand-700 underline underline-offset-2">Configuration → Users</Link>.
+        </p>
+
         <Card :padded="false">
             <FilterBar :filters="filters" :fields="[{ key: 'group', label: 'Group', options: groups.map((g) => ({ value: g.id, label: g.name })) }, { key: 'status', label: 'Status', options: ['available','running','maintenance','breakdown','retired'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search code, name, make or model…" />
 

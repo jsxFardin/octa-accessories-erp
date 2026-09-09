@@ -410,24 +410,11 @@ const paletteHint = computed(() =>
                 </button>
 
                 <!--
-                    The terminal is a different application on a different device, so it opens
-                    in its own tab rather than replacing this one. Without a link here the only
-                    way to reach it was to know the URL.
-                -->
-                <a
-                    v-if="!inAdminShell && canAny('job_card.view_any')"
-                    href="/floor"
-                    target="_blank"
-                    rel="noopener"
-                    class="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-ink-800 transition hover:bg-white hover:text-ink-900 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                    :class="railed && 'justify-center px-0'"
-                    :title="railed ? 'Shop-floor terminal' : undefined"
-                >
-                    <Icon name="machine" class="shrink-0 text-ink-500 transition-colors group-hover:text-ink-700" />
-                    <span v-if="!railed">Shop floor</span>
-                </a>
+                    The shop-floor terminal used to be duplicated here as 'Shop floor' while the
+                    Production group listed the same URL as 'Floor terminal' — two rows, two
+                    labels, two icons, one screen. It now has a single entry in that group,
+                    where the command palette can also find it.
 
-                <!--
                     Configuration is entered deliberately and left deliberately. Six admin rows
                     used to sit in the main tree competing with the shop floor for attention.
                 -->

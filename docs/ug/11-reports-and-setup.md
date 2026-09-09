@@ -43,9 +43,18 @@ Prefixes and next numbers for SO, GRN, LOT, TRP, … Do not reset a sequence tha
 
 ### Users
 
-Name, email, password, **role(s)**, active flag, employee link (factory unit, department, **badge** `card_no`).
+Name, email, password, **role(s)**, active flag, employee link (factory unit, department, **badge** `card_no`, **floor PIN**).
 
-The employee row is what the floor terminal logs in with. An operator does not need a desk password if they only ever use `/floor`, but they need a badge.
+The employee row is what the shop floor terminal signs in with, and it needs three things to
+work: an active employee record, a **badge number**, and a **floor PIN**. Missing any one of
+them and the operator is refused at the terminal with "Badge or PIN not recognised". The
+factory unit on that same row is what scopes their work queue — without it the queue has
+nothing to show.
+
+An operator who only ever uses `/floor` does not need a desk password, but they do need all
+three of the above. The PIN is stored hashed and never shown back: a forgotten one is reset,
+not looked up. Do not set it to digits from the badge — the badge is worn where anyone can
+read it.
 
 Deactivate leavers; do not reuse badges.
 

@@ -100,9 +100,23 @@ async function logDowntime() {
         </template>
 
         <template #actions>
-            <span class="rounded-full px-4 py-2 text-lg font-bold" :class="online ? 'bg-emerald-600' : 'bg-amber-500 text-slate-900'">
-                {{ online ? 'ONLINE' : `OFFLINE · ${pending}` }}
-            </span>
+            <div class="flex items-center gap-3">
+                <span class="rounded-full px-4 py-2 text-lg font-bold" :class="online ? 'bg-emerald-600' : 'bg-amber-500 text-slate-900'">
+                    {{ online ? 'ONLINE' : `OFFLINE · ${pending}` }}
+                </span>
+
+                <!--
+                    A way back that is not FINISH. Opening the wrong card off the queue used to
+                    leave the operator choosing between closing a run they never started and
+                    hunting for the browser's back button on a kiosk that has no chrome.
+                -->
+                <button
+                    class="rounded-full bg-white/10 px-5 py-2 text-lg font-bold hover:bg-white/20"
+                    @click="router.visit('/floor/queue')"
+                >
+                    ← কাজের তালিকা · QUEUE
+                </button>
+            </div>
         </template>
 
         <div class="space-y-5">

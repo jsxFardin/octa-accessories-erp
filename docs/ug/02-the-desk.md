@@ -11,7 +11,7 @@ Groups follow the factory, not the org chart. Click a heading to open that group
 | **Dashboard** | Always visible (no heading) |
 | **Sales** | Inquiries, Quotations, Sales orders, Customers, Price lists |
 | **Buying** | Requisitions, RFQs, Purchase orders, Goods receipts, Suppliers, Import shipments, Letters of credit |
-| **Floor** | Planning board, Job cards, Material plan, Machines |
+| **Production** | Planning board, Job cards, Material plan, Machines, Shop floor terminal |
 | **Products** | Products, Artwork, BOMs, Routings, Tools |
 | **Inventory** | On-hand, Lots, Material issues, Transfers, Adjustments, Physical counts, Materials |
 | **Quality** | Inspections, NCRs, Laboratory, Compliance & CoC |

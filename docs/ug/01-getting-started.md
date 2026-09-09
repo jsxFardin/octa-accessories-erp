@@ -5,7 +5,7 @@
 | Door | URL | Who |
 |---|---|---|
 | Desk | `/login` | Everyone with an email and password |
-| Shop floor | `/floor` | Operators (badge + PIN). Supervisors can also use the desk. |
+| Shop floor terminal | `/floor` | Operators (badge + PIN). Supervisors can also use the desk. |
 
 The desk is dense: keyboard, lists, documents. The floor terminal is large type, Bangla by default, four actions. They do not share a layout on purpose.
 
@@ -52,13 +52,19 @@ Use **admin** to see every screen. Use **merchandiser** if you want the commerci
 
 ## Shop-floor sign-in
 
-1. Open `/floor`.
+Badge and PIN are the operator's *only* login. There is no password step before it and none
+after it — open the URL on the kiosk and scan.
+
+1. Open `/floor`. From a desk, **Production → Shop floor terminal** opens it in a new tab.
 2. Scan or type the badge (`card_no` on the employee record).
 3. Enter the PIN. The seed sets it to the **last four digits of the badge**; it is stored as a
    hash and changed at **Configuration → Users → Floor PIN**. Change it before this is anything
    but a demo — a badge is worn where anyone can read it.
-4. Optionally pick a machine, so the queue is only that machine’s work.
+4. Optionally pick a machine, so the queue is only that machine's work (plus its group's
+   unpinned work). Leave it on **any** to see the whole unit.
 5. **শুরু · SIGN IN**.
+6. At the end of the shift, **শিফট শেষ · END SHIFT** on the queue. The next operator scans their own
+   badge; without this their output is booked under the previous name.
 
 Demo operator:
 
@@ -67,7 +73,11 @@ Demo operator:
 | Badge | `BADGE-0009` |
 | PIN | `0009` |
 
-The session lives in the browser so a wifi drop does not send the operator back to the office. Scan again if the session expires.
+A supervisor already signed in at their desk can skip the badge: the bottom of the screen offers
+*"No badge? You are already signed in as …"*, which continues under their own name.
+
+The session lives in the browser and lasts a shift, so a wifi drop does not send the operator
+back to the office. Scan again if it expires.
 
 ## What is already in a local seed
 

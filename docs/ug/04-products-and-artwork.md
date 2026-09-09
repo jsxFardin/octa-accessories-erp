@@ -1,6 +1,6 @@
 # Products & artwork
 
-Engineering lives under **Products** (Products, Artwork, BOMs, Routings, Tools). Machines sit on **Floor**.
+Engineering lives under **Products** (Products, Artwork, BOMs, Routings, Tools). Machines sit under **Production**.
 
 Nothing ships from a product code alone. A **current spec** plus an **approved artwork version** are what Gate 1 checks.
 
@@ -54,4 +54,4 @@ Plates, screens, dies, cylinders — linked to products and operations. Track th
 
 ## Machines
 
-**Floor → Machines.** Rate, width, colours, kW, department, active flag. Planning and costing read these. Do not delete a machine that has history; deactivate it.
+**Production → Machines.** Rate, width, colours, kW, department, active flag. Planning and costing read these. Do not delete a machine that has history; deactivate it.

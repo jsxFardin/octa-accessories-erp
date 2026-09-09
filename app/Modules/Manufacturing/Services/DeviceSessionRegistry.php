@@ -45,6 +45,38 @@ class DeviceSessionRegistry
             return null;
         }
 
+        return $this->mint($employee, $user, $machineCode);
+    }
+
+    /**
+     * A terminal session for someone who is already signed in at a desk.
+     *
+     * A supervisor opening the terminal from the sidebar has already proved who they are with
+     * a password, so asking them for a badge and a PIN they may not have been issued is a
+     * second login for no extra assurance. They still need a device session, because the queue
+     * is scoped by the factory unit the session carries.
+     */
+    public function issueForUser(User $user, ?string $machineCode = null): ?DeviceSession
+    {
+        if (! $user->is_active) {
+            return null;
+        }
+
+        $employee = DB::table('employees')
+            ->where('user_id', $user->id)
+            ->where('is_active', true)
+            ->first();
+
+        // No employee row means no factory unit, and the queue has nothing to scope to.
+        if ($employee === null || $employee->factory_unit_id === null) {
+            return null;
+        }
+
+        return $this->mint($employee, $user, $machineCode);
+    }
+
+    private function mint(object $employee, User $user, ?string $machineCode): DeviceSession
+    {
         $token = Str::random(48);
 
         $session = new DeviceSession(

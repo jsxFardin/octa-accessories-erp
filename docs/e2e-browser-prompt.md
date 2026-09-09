@@ -45,7 +45,7 @@ assigned and whether the status changed as expected.
 7. **Sales order** — press **Confirm**. Expect a credit-hold refusal if the order value
    exceeds the customer's credit limit; release it with a written reason. Confirm assigns the
    number and computes a promised date.
-8. **Job card** — Floor → Job cards → New, pick the order line. Then **Release**.
+8. **Job card** — Production → Job cards → New, pick the order line. Then **Release**.
 9. **Material issue** — Inventory → Material issues → New. Job card, warehouse
    `Raw material store`, type `Issue`. Ask for each BOM item by quantity, **Suggest lots**,
    **Add to issue**, then **Post issue**.

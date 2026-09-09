@@ -49,6 +49,12 @@ it('guards every application route with a permission', function (): void {
     // separately inside SearchController and queries only what the caller may already read.
     $exempt = [
         'login', 'logout', 'up', '/', 'floor', 'portal', 'api/v1/device/session',
+        // The kiosk's own credentials. `floor/session` is the badge-and-PIN post — it runs
+        // before there is a session to hold a permission, and is rate limited instead
+        // (`throttle:10,1`, matching the device API). `floor/session/end` is a logout: someone
+        // who landed on the kiosk without terminal rights still has to be able to get off it.
+        // `floor/session/continue` is *not* here — it carries `can:operation.terminal`.
+        'floor/session', 'floor/session/end',
         'profile', 'profile/password', 'profile/locale', 'search',
         // Own-user inbox: the row belongs to the caller, so a route-level `can:` would
         // either lock everyone out or say nothing (same reasoning as profile).

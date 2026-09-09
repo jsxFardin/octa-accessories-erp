@@ -39,7 +39,7 @@ describe('sidebar visibility', () => {
             'Overview',
             'Sales',
             'Buying',
-            'Floor',
+            'Production',
             'Products',
             'Inventory',
             'Quality',
@@ -52,7 +52,7 @@ describe('sidebar visibility', () => {
 
     it('puts every screen on its own row, not behind a folder or a tab strip', () => {
         expect(itemsOf('Sales')).toEqual(['Inquiries', 'Quotations', 'Sales orders', 'Customers', 'Price lists']);
-        expect(itemsOf('Floor')).toContain('Material plan');
+        expect(itemsOf('Production')).toContain('Material plan');
         expect(itemsOf('Products')).toEqual(['Products', 'Artwork', 'BOMs', 'Routings', 'Tools']);
         expect(itemsOf('Inventory')).toContain('On-hand');
         expect(itemsOf('Inventory')).toContain('Lots');
@@ -69,6 +69,17 @@ describe('sidebar visibility', () => {
                 expect(item.sidebar).toBeUndefined();
             }
         }
+    });
+
+    it('lists the shop-floor terminal once, under one name', () => {
+        // The regression this exists for: '/floor' was listed in the Production group as
+        // 'Floor terminal' and again in the sidebar footer as 'Shop floor' — two rows, two
+        // labels, two icons for one screen, which read as two different features.
+        const floorRows = navigation.flatMap((s) => s.items).filter((i) => i.href === '/floor');
+
+        expect(floorRows).toHaveLength(1);
+        expect(floorRows[0].label).toBe('Shop floor terminal');
+        expect(floorRows[0].external).toBe(true);
     });
 
     it('shows every administration screen inside the shell', () => {

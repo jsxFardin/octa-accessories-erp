@@ -8,7 +8,10 @@ use Illuminate\Support\Facades\Route;
  */
 
 Route::prefix('v1')->name('api.v1.')->group(function (): void {
+    // Same throttle as the browser badge screen: a four-digit PIN against a badge number worn
+    // on a lanyard is guessable at machine speed if nothing limits the attempts.
     Route::post('device/session', [App\Modules\Manufacturing\Http\Controllers\Api\DeviceSessionController::class, 'store'])
+        ->middleware('throttle:10,1')
         ->name('device.session.store');
 
     Route::middleware('device')->group(function (): void {

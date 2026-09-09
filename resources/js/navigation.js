@@ -46,7 +46,12 @@ export const navigation = [
         ],
     },
     {
-        label: 'Floor',
+        /*
+         * 'Production', not 'Floor'. The group holds desk screens; the operator's kiosk is one
+         * row inside it. Naming both 'Floor' made the group read as the terminal's parent and
+         * left three names — Floor, Floor terminal, Shop floor — for two different things.
+         */
+        label: 'Production',
         items: [
             { label: 'Planning board', href: '/planning', icon: 'planning', permissions: ['production_plan.view_any'] },
             { label: 'Job cards', href: '/job-cards', icon: 'job-card', permissions: ['job_card.view_any'] },
@@ -58,13 +63,17 @@ export const navigation = [
              * no way back here. Listed so a new planner or supervisor knows it exists, and
              * opened in its own tab so following the link never strands anyone on a badge
              * login screen with the desk session behind it.
+             *
+             * One entry, one name. It used to be listed here as 'Floor terminal' *and* in the
+             * sidebar footer as 'Shop floor' — same URL, same permission, two labels and two
+             * icons, which read as two features.
              */
             {
-                label: 'Floor terminal',
+                label: 'Shop floor terminal',
                 href: '/floor',
                 icon: 'terminal',
                 external: true,
-                aliases: ['shop floor', 'operator', 'badge', 'terminal'],
+                aliases: ['shop floor', 'floor', 'operator', 'badge', 'terminal', 'kiosk'],
                 permissions: ['job_card.view_any'],
             },
         ],

@@ -1,10 +1,30 @@
 # Production
 
-Planning, job cards, the material plan (MRP), and the shop-floor terminal. Desk users live under **Floor**. Operators live on `/floor`.
+Planning, job cards, the material plan (MRP), and the shop-floor terminal.
+
+## Two screens, not one word
+
+"Floor" used to name three things at once. It names one now, and the operator's kiosk has its
+own name. Which one you want depends on where you are standing:
+
+| | **Production** (the sidebar group) | **Shop floor terminal** |
+|---|---|---|
+| What | Planning board, Job cards, Material plan, Machines | The kiosk beside the machine |
+| Who | Planner, supervisor, merchandiser | Machine operator |
+| Where | Your desk, inside the main application | A shared terminal on the floor |
+| URL | `/planning`, `/job-cards`, `/mrp`, `/machines` | `/floor` |
+| Sign in with | Email and password | Badge scan and PIN |
+| Looks like | The dense desk grid | Four big buttons, high contrast, Bangla first |
+
+They are separate applications. The terminal shares no navigation with the desk and has no way
+back to it — that is deliberate, so an operator cannot wander into the order book. Open it from
+**Production → Shop floor terminal** and it launches in its own tab.
+
+One rule decides which you want: **a job card is planned at a desk and run on the floor.**
 
 ## Planning board
 
-**Floor → Planning board.**
+**Production → Planning board.**
 
 Load by machine / day. Drag or assign job-card operations into capacity. An operation cannot be scheduled before its predecessor unless the routing allows parallel.
 
@@ -12,13 +32,13 @@ This is the planner’s morning screen. The board does not start the machine; th
 
 ## Material plan
 
-**Floor → Material plan.**
+**Production → Material plan.**
 
 Run MRP against confirmed demand. It proposes requisitions for shortages. Review, then raise PRs — MRP does not silently place POs.
 
 ## Job cards
 
-**Floor → Job cards.** The seeded demo card is **draft** against the Nordic Apparel order.
+**Production → Job cards.** The seeded demo card is **draft** against the Nordic Apparel order.
 
 ### Create
 
@@ -49,21 +69,56 @@ A job does not complete if Settings require a **final QC** and none has been acc
 
 **On hold** needs a reason. Cancel only when policy allows; it does not delete ledger that already posted.
 
-## Shop-floor terminal
+## Shop floor terminal
 
 **URL:** `/floor`  
-**Who:** operator (badge login). Supervisor may also work from the desk job card.
+**Who:** the machine operator. A supervisor may work from the desk job card instead.
 
-After sign-in you get a **queue** for your machine (or all machines). Tap an operation:
+### Before an operator can sign in
+
+Badge and PIN are issued by an administrator under **Configuration → Users**, on the user's own
+record: **Badge number** (the number printed on the card they wear) and **Floor PIN**. Both are
+needed — a user with no badge, or no PIN, cannot sign in at the terminal. The PIN is stored
+hashed and is never shown back, so a forgotten one is reset, not looked up.
+
+Do not set the PIN to the last digits of the badge number. The badge is worn where anyone can
+read it.
+
+### Signing in
+
+Scan the badge, type the PIN, pick the machine, press **SIGN IN**. That is the whole login —
+there is no separate password step, and the terminal keeps the operator signed in for the shift.
+
+**Machine** filters the work queue to that machine, plus work its group has been given but
+planning has not pinned to a specific machine yet. Leave it on **any** to see every machine in
+the factory unit.
+
+**END SHIFT**, top right of the queue, signs the operator out. Press it when handing the kiosk
+over — otherwise the next person's output is booked under the previous operator's name.
+
+A supervisor who is already signed in at their desk can press *"No badge? You are already signed
+in as …"* at the bottom of the badge screen and continue under their own name, without a badge.
+
+### Running an operation
+
+Tap an operation in the queue:
 
 | Action | Meaning |
 |---|---|
 | Start | Operation → running. Sequence guards still apply. |
-| Pause | With a downtime reason when asked. |
-| Finish | Good qty (and waste if prompted). Predecessor must be complete. |
+| Output | Input received, good and waste. Beyond plan needs a written reason (J3). |
+| Downtime | A reason from the list, plus minutes. |
+| Finish | Closes the step. Finishing with nothing booked asks why first. |
+| Queue | Back to the list without closing the step. |
 | Offline | If wifi drops, the terminal queues the action for up to four hours and replays it. Do not reboot to “fix” a pending queue. |
 
 Bangla labels are the default for operators. Output you type is the shop-floor truth; the job card on the desk updates from it.
+
+### When the queue is empty
+
+"Nothing to run" has three ordinary causes, and the terminal cannot tell them apart: nothing is
+scheduled for that machine, the job cards are not **released** yet, or the step before this one
+has not finished. All three are fixed at a desk, on the planning board — not at the terminal.
 
 Demo: badge `BADGE-0009`, PIN `0009`.
 
