@@ -47,15 +47,36 @@ it('defaults a quotation to the customer payment terms when none is chosen', fun
 it('reads the customer terms when an older order carries none', function (): void {
     $net60 = DB::table('payment_terms')->where('code', 'NET60')->value('id');
 
-    $challan = DB::table('delivery_challans')
-        ->whereNotNull('sales_order_id')
-        ->whereIn('status', ['issued', 'in_transit', 'delivered'])
-        ->whereNotIn('id', DB::table('sales_invoices')->whereNotNull('delivery_challan_id')->select('delivery_challan_id'))
-        ->first();
+    // An issued, uninvoiced challan against a real order line. Built here rather than found:
+    // the seed carries no challans at all, so this test skipped every run — and BR-46's last
+    // leg, the one that decides the due date a customer is actually billed to, was the half
+    // that never ran.
+    $orderLine = DB::table('sales_order_lines as sol')
+        ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
+        ->orderBy('sol.id')
+        ->firstOrFail(['sol.id', 'sol.sales_order_id', 'sol.product_id', 'so.customer_id']);
 
-    if ($challan === null) {
-        $this->markTestSkipped('No uninvoiced challan in the seed to invoice.');
-    }
+    $challanId = DB::table('delivery_challans')->insertGetId([
+        'number' => 'DC-TERMS-'.uniqid('', false),
+        'sales_order_id' => $orderLine->sales_order_id,
+        'customer_id' => $orderLine->customer_id,
+        'challan_date' => now()->toDateString(),
+        'mode' => 'own_fleet',
+        'total_cartons' => 1,
+        'total_qty' => 100,
+        'status' => 'issued',
+    ]);
+
+    DB::table('delivery_challan_lines')->insert([
+        'delivery_challan_id' => $challanId,
+        'line_no' => 1,
+        'sales_order_line_id' => $orderLine->id,
+        'product_id' => $orderLine->product_id,
+        'qty' => 100,
+        'cartons' => 1,
+    ]);
+
+    $challan = DB::table('delivery_challans')->where('id', $challanId)->firstOrFail();
 
     DB::table('customers')->where('id', $challan->customer_id)->update(['payment_term_id' => $net60]);
     DB::table('sales_orders')->where('id', $challan->sales_order_id)->update(['payment_term_id' => null]);

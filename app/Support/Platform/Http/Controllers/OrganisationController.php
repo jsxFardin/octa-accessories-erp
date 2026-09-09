@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Support\Platform\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Platform\SvgSanitiser;
 use App\Support\Settings\Organisation;
 use App\Support\Settings\Settings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -25,6 +27,7 @@ class OrganisationController extends Controller
     public function __construct(
         private readonly Settings $settings,
         private readonly Organisation $organisation,
+        private readonly SvgSanitiser $svg,
     ) {}
 
     /** Old links and bookmarks land on the tab that replaced this screen. */
@@ -110,7 +113,30 @@ class OrganisationController extends Controller
         $key = "org_{$kind}_path";
 
         $previous = $this->settings->get($key);
-        $path = $request->file('file')->store('branding', 'public');
+        $file = $request->file('file');
+
+        /*
+         * An SVG on the `public` disk is a document on this application's own origin, and the
+         * web server hands it back verbatim. Through `<img src>` — how the print layout uses
+         * it — script inside it cannot run; navigated to directly it can. The upload needs
+         * `setting.update`, so this is the difference between an administrator account and
+         * script running as any admin who opens the file rather than a way in from outside.
+         *
+         * Cleaned rather than refused: a vector logo is the one image here that gets printed
+         * at arbitrary size, and dropping the format to fix this would cost more than it saves.
+         */
+        if ($this->isSvg($file)) {
+            $cleaned = $this->svg->clean((string) file_get_contents($file->getRealPath()));
+
+            if ($cleaned === '') {
+                return back()->with('error', 'That SVG could not be read. Save it as a plain SVG from your design tool, or upload a PNG.');
+            }
+
+            $path = 'branding/'.Str::random(40).'.svg';
+            Storage::disk('public')->put($path, $cleaned);
+        } else {
+            $path = $file->store('branding', 'public');
+        }
 
         $this->settings->set($key, $path, 'organisation');
 
@@ -159,5 +185,15 @@ class OrganisationController extends Controller
             ],
             $zones,
         );
+    }
+
+    /** The declared type, then the bytes — a mislabelled upload is still an SVG to a browser. */
+    private function isSvg(\Illuminate\Http\UploadedFile $file): bool
+    {
+        if (str_contains((string) $file->getMimeType(), 'svg')) {
+            return true;
+        }
+
+        return $this->svg->looksLikeSvg((string) file_get_contents($file->getRealPath()));
     }
 }

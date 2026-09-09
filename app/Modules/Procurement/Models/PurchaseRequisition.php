@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Procurement\Models;
 
+use App\Support\Scoping\ScopedToFactoryUnit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -24,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class PurchaseRequisition extends Model
 {
+    use ScopedToFactoryUnit;
+
     protected $table = 'purchase_requisitions';
 
     public const UPDATED_AT = null;

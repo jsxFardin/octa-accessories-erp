@@ -19,7 +19,31 @@ const wasteQty = ref('');
 const inputQty = ref('');
 const downtimeReasonId = ref('');
 const downtimeMinutes = ref('');
+const shiftId = ref('');
 const overrideReason = ref('');
+const wasteType = ref('');
+
+/*
+ * G4 — waste needs a cause, not just a number.
+ *
+ * Waste was booked as a bare quantity, and `waste_logs` — the table built to hold the cause —
+ * was written by nothing at all. A loom losing metres to setup and a loom losing them to a
+ * weave defect are different problems with different fixes, and the figure alone cannot tell
+ * a supervisor which one they have.
+ *
+ * The vocabulary is the one the table's own CHECK constraint allows.
+ */
+const WASTE_TYPES = [
+    { value: 'setup', label: 'সেটআপ · Setup' },
+    { value: 'shade', label: 'শেড · Shade' },
+    { value: 'weave_defect', label: 'বুনন ত্রুটি · Weave defect' },
+    { value: 'print_defect', label: 'প্রিন্ট ত্রুটি · Print defect' },
+    { value: 'cutting', label: 'কাটিং · Cutting' },
+    { value: 'edge_trim', label: 'ধার · Edge trim' },
+    { value: 'damaged', label: 'ক্ষতিগ্রস্ত · Damaged' },
+    { value: 'expired', label: 'মেয়াদোত্তীর্ণ · Expired' },
+    { value: 'other', label: 'অন্যান্য · Other' },
+];
 const noOutputReason = ref('');
 const message = ref(null);
 const error = ref(null);
@@ -47,13 +71,14 @@ async function log() {
         waste_qty: Number(wasteQty.value || 0),
         input_qty: Number(inputQty.value || 0),
         input_override_reason: overrideReason.value || null,
+        waste_type: Number(wasteQty.value || 0) > 0 ? wasteType.value || null : null,
     });
 
     if (!handled(result)) return;
 
     message.value = 'রেকর্ড হয়েছে · Logged';
     mode.value = null;
-    goodQty.value = wasteQty.value = inputQty.value = overrideReason.value = '';
+    goodQty.value = wasteQty.value = inputQty.value = overrideReason.value = wasteType.value = '';
     router.reload();
 }
 
@@ -79,6 +104,9 @@ async function logDowntime() {
     const result = await send(`/api/v1/operations/${props.operation.id}/downtime`, {
         downtime_reason_id: Number(downtimeReasonId.value),
         minutes: Number(downtimeMinutes.value || 0),
+        // The shifts were fetched for this screen and then never sent, so every stop landed
+        // with no shift against it and no report could break downtime down by one.
+        shift_id: shiftId.value ? Number(shiftId.value) : null,
     });
 
     if (!handled(result)) return;
@@ -180,6 +208,21 @@ async function logDowntime() {
                     <label class="mb-1 block text-xl">নষ্ট · Waste</label>
                     <input v-model="wasteQty" inputmode="decimal" class="w-full rounded-xl bg-white/10 px-5 py-5 text-4xl tnum text-white">
                 </div>
+
+                <!--
+                    Asked only when there is waste to explain, so an ordinary booking is still
+                    two numbers and SAVE. Native picker for the same reason as the machine and
+                    downtime lists: gloves, no keyboard.
+                -->
+                <div v-if="Number(wasteQty) > 0">
+                    <label class="mb-1 block text-xl">নষ্টের কারণ · What was the waste?</label>
+                    <select v-model="wasteType" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
+                        <option value="" class="text-slate-900">— কারণ · reason —</option>
+                        <option v-for="type in WASTE_TYPES" :key="type.value" :value="type.value" class="text-slate-900">
+                            {{ type.label }}
+                        </option>
+                    </select>
+                </div>
                 <p class="text-lg text-slate-400">
                     J3: এই ধাপে সর্বোচ্চ {{ Number(operation.remaining_allowance).toLocaleString() }} বুক করা যাবে
                 </p>
@@ -193,7 +236,13 @@ async function logDowntime() {
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <button class="floor-btn bg-slate-600" @click="mode = null">বাতিল · CANCEL</button>
-                    <button class="floor-btn bg-emerald-500" @click="log">সেভ · SAVE</button>
+                    <button
+                        class="floor-btn bg-emerald-500 disabled:opacity-30"
+                        :disabled="Number(wasteQty) > 0 && !wasteType"
+                        @click="log"
+                    >
+                        সেভ · SAVE
+                    </button>
                 </div>
             </div>
 
@@ -232,6 +281,12 @@ async function logDowntime() {
                     placeholder="মিনিট · minutes"
                     class="w-full rounded-xl bg-white/10 px-5 py-5 text-4xl tnum text-white"
                 >
+                <select v-if="shifts.length" v-model="shiftId" class="w-full rounded-xl bg-white/10 px-5 py-4 text-2xl text-white">
+                    <option value="" class="text-slate-900">— শিফট · shift —</option>
+                    <option v-for="shift in shifts" :key="shift.id" :value="shift.id" class="text-slate-900">
+                        {{ shift.name }}
+                    </option>
+                </select>
                 <div class="grid grid-cols-2 gap-3">
                     <button class="floor-btn bg-slate-600" @click="mode = null">বাতিল · CANCEL</button>
                     <button

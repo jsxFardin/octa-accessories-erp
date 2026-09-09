@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Reporting\Queries;
 
+use App\Support\Scoping\FactoryUnitFilter;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -70,7 +71,12 @@ class ProductionReport extends ReportQuery
             ->groupBy('job_card_id')
             ->selectRaw('job_card_id, SUM(qty) as qty');
 
-        $query = DB::table('job_cards as jc')
+        // AD-4 — the report reads across job cards, so it is scoped like the list is. A
+        // report is the one screen where a figure from another unit looks most like a fact.
+        $query = app(FactoryUnitFilter::class)->apply(
+            DB::table('job_cards as jc'),
+            'jc.factory_unit_id',
+        )
             ->join('products as p', 'p.id', '=', 'jc.product_id')
             ->leftJoin('sales_order_lines as sol', 'sol.id', '=', 'jc.sales_order_line_id')
             ->leftJoin('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')

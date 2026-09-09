@@ -189,7 +189,12 @@ class UserController extends Controller
             'password' => [
                 $user === null ? 'required' : 'nullable',
                 'confirmed',
-                Password::min(10)->letters()->numbers(),
+                // `uncompromised()` to match `ProfileController`. Without it an administrator
+                // could set a password that has appeared in a breach corpus — one the account's
+                // own owner would be refused if they tried to choose it themselves. The weaker
+                // rule sat on the path that hands out credentials to other people, which is the
+                // one that matters more.
+                Password::min(10)->letters()->numbers()->uncompromised(),
             ],
             'locale' => ['required', 'in:en,bn'],
             'is_active' => ['boolean'],

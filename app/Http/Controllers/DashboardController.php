@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Product\Models\ArtworkVersion;
 use App\Support\Platform\WorkQueue;
+use App\Support\Scoping\FactoryUnitFilter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -21,7 +22,10 @@ use Inertia\Response;
  */
 class DashboardController extends Controller
 {
-    public function __construct(private readonly WorkQueue $queue) {}
+    public function __construct(
+        private readonly WorkQueue $queue,
+        private readonly FactoryUnitFilter $units,
+    ) {}
 
     public function __invoke(Request $request): Response
     {
@@ -41,14 +45,19 @@ class DashboardController extends Controller
     /** @return array<string, mixed> */
     private function tiles(): array
     {
-        $openOrders = DB::table('sales_orders')
-            ->whereIn('status', ['confirmed', 'in_production', 'partially_delivered'])
-            ->count();
+        // AD-4 — the same unit filter the models carry. These tiles are `DB::table()`, which
+        // the global scope cannot reach, so without this a job card hidden from the list it
+        // belongs to was still counted in the tile above it.
+        $openOrders = $this->units->apply(
+            DB::table('sales_orders')
+                ->whereIn('status', ['confirmed', 'in_production', 'partially_delivered']),
+        )->count();
 
-        $lateOrders = DB::table('sales_orders')
-            ->whereIn('status', ['confirmed', 'in_production', 'partially_delivered'])
-            ->whereDate('delivery_date', '<', now())
-            ->count();
+        $lateOrders = $this->units->apply(
+            DB::table('sales_orders')
+                ->whereIn('status', ['confirmed', 'in_production', 'partially_delivered'])
+                ->whereDate('delivery_date', '<', now()),
+        )->count();
 
         return [
             'open_orders' => $openOrders,

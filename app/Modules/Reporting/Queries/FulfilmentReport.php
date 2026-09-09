@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Reporting\Queries;
 
+use App\Support\Scoping\FactoryUnitFilter;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -119,7 +120,11 @@ class FulfilmentReport extends ReportQuery
             ->groupBy('si.sales_order_id')
             ->selectRaw('si.sales_order_id, SUM(cn.amount) as amount');
 
-        $query = DB::table('sales_orders as so')
+        // AD-4 — scoped like the order list it summarises.
+        $query = app(FactoryUnitFilter::class)->apply(
+            DB::table('sales_orders as so'),
+            'so.factory_unit_id',
+        )
             ->join('customers as c', 'c.id', '=', 'so.customer_id')
             ->leftJoin('currencies as cur', 'cur.id', '=', 'so.currency_id')
             ->leftJoinSub($lines, 'lines', 'lines.sales_order_id', '=', 'so.id')

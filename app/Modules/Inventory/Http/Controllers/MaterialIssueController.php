@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Inventory\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Compliance\Services\CocPeriodGuard;
 use App\Modules\Inventory\Models\StockLot;
 use App\Modules\Inventory\Services\NegativeStockException;
 use App\Modules\Inventory\Services\ReservationService;
@@ -390,6 +391,9 @@ class MaterialIssueController extends Controller
             // reconcile: 180 kg received says nothing about the 96 kg that entered a job.
             // `conversion` is the schema's own name for this leg (`coc_direction_chk`).
             if ($lot->cert_scheme !== null && (float) $lot->cert_claim_pct > 0) {
+                // C3 — a closed period does not take new transactions.
+                app(CocPeriodGuard::class)->assertOpenNow((string) $lot->cert_scheme);
+
                 DB::table('coc_transactions')->insert([
                     'scheme' => $lot->cert_scheme,
                     'direction' => 'conversion',

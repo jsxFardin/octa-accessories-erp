@@ -10,6 +10,8 @@ use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\Services\FgReceiptService;
 use App\Modules\Manufacturing\Services\JobCardPlanningGuard;
 use App\Modules\Manufacturing\Services\JobCardReleaseGate;
+use App\Modules\Manufacturing\Services\OperationBookingService;
+use App\Modules\Manufacturing\Services\ProductionCorrectionService;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
 use App\Modules\Product\Models\ArtworkVersion;
 use App\Modules\Product\Models\Product;
@@ -19,9 +21,11 @@ use App\Support\Calculators\ConsumptionCalculator;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -42,6 +46,8 @@ class JobCardController extends Controller
         private readonly CapacityCalculator $capacity,
         private readonly FgReceiptService $fgReceipts,
         private readonly JobCardPlanningGuard $planning,
+        private readonly ProductionCorrectionService $corrections,
+        private readonly OperationBookingService $bookings,
     ) {}
 
     public function index(Request $request): Response
@@ -296,7 +302,7 @@ class JobCardController extends Controller
 
         return redirect()
             ->route('job-cards.show', $jobCard)
-            ->with('success', 'Job card created as a draft. Schedule its operations to plan it.');
+            ->with('success', 'Job card created as a draft. Schedule its operations on the planning board to plan it.');
     }
 
     public function show(JobCard $jobCard): Response
@@ -378,11 +384,158 @@ class JobCardController extends Controller
             'fgWarehouses' => DB::table('warehouses')
                 ->where('is_active', true)->where('kind', 'finished_goods')
                 ->orderBy('code')->get(['id', 'code', 'name']),
-            'wasteLogs' => DB::table('waste_logs')->where('job_card_id', $jobCard->id)
-                ->orderByDesc('id')->limit(20)->get(),
+            // G4 — waste with its cause. This was fetched on every page load and rendered
+            // nowhere, against a table nothing wrote to, so the query returned an empty set
+            // that no one would have missed.
+            'wasteLogs' => DB::table('waste_logs as wl')
+                ->leftJoin('job_card_operations as jco', 'jco.id', '=', 'wl.job_card_operation_id')
+                ->leftJoin('employees as e', 'e.id', '=', 'wl.reported_by')
+                ->leftJoin('uoms as u', 'u.id', '=', 'wl.uom_id')
+                ->leftJoin('stock_lots as sl', 'sl.id', '=', 'wl.lot_id')
+                ->where('wl.job_card_id', $jobCard->id)
+                ->orderByDesc('wl.id')
+                ->limit(50)
+                ->get([
+                    'wl.id', 'wl.waste_type', 'wl.qty', 'wl.occurred_at', 'wl.remarks',
+                    'jco.sequence_no', 'jco.name as operation',
+                    'e.name as reported_by', 'u.code as uom', 'sl.lot_no',
+                ]),
             'ncrs' => DB::table('ncrs')->where('job_card_id', $jobCard->id)
                 ->orderByDesc('id')->get(['id', 'number', 'status', 'severity', 'raised_on']),
+            /*
+             * The shift bookings behind the operation totals.
+             *
+             * `operation_logs` was written once by the terminal and then read by one report
+             * and nothing else — not listed on the card the production belongs to, so a
+             * supervisor could see that a step held 5,000 and had no way to see which shift
+             * booked it, who booked it, or that it was one mis-keyed entry rather than a
+             * week's work.
+             */
+            'operationLogs' => DB::table('operation_logs as ol')
+                ->join('job_card_operations as jco', 'jco.id', '=', 'ol.job_card_operation_id')
+                ->leftJoin('employees as e', 'e.id', '=', 'ol.operator_id')
+                ->leftJoin('machines as m', 'm.id', '=', 'ol.machine_id')
+                ->leftJoin('shifts as sh', 'sh.id', '=', 'ol.shift_id')
+                ->leftJoin('operation_logs as rev', 'rev.reverses_log_id', '=', 'ol.id')
+                // Who keyed it, for the rows that were keyed. A different question from who
+                // ran the work, and the reason the desk badge means anything.
+                ->leftJoin('users as u', 'u.id', '=', 'ol.created_by')
+                ->where('jco.job_card_id', $jobCard->id)
+                ->orderByDesc('ol.id')
+                ->limit(100)
+                ->get([
+                    'ol.id', 'ol.input_qty', 'ol.good_qty', 'ol.waste_qty', 'ol.started_at', 'ol.ended_at',
+                    'ol.remarks', 'ol.reverses_log_id', 'ol.reversal_reason',
+                    'jco.id as operation_id', 'jco.sequence_no', 'jco.name as operation',
+                    'e.name as operator', 'm.code as machine', 'sh.name as shift',
+                    'ol.manual_reason', 'ol.created_at', 'u.name as entered_by',
+                    DB::raw('rev.id IS NOT NULL AS is_reversed'),
+                ]),
+            // What the manual booking form needs. Operators are the people the work belongs
+            // to, not whoever is typing — a booking keyed by a supervisor for Monday's night
+            // shift still belongs to the operator who ran it.
+            'operators' => DB::table('employees')
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'card_no']),
+            'shifts' => DB::table('shifts')->orderBy('code')->get(['id', 'code', 'name']),
+            'machines' => DB::table('machines')
+                ->where('is_active', true)
+                ->orderBy('code')
+                ->get(['id', 'code', 'name']),
         ]);
+    }
+
+    /**
+     * Booking output from the desk.
+     *
+     * The four device endpoints are the only way production reached the system, and they need
+     * a badge and a PIN rather than a permission — so a signed-in supervisor, or an admin,
+     * could not record a figure at all. That default is right: output is the shop-floor truth,
+     * and a desk form invites yesterday's numbers being typed off paper, which is the habit G1
+     * exists to end. It is not a workable *only* option — a kiosk that dies mid-shift stranded
+     * that shift's output with no route in, and the tablet is the thing on a factory floor
+     * guaranteed to break on the day it matters.
+     *
+     * So this is the second door, and deliberately a narrower one:
+     *
+     *  - the same J7/J3/J5/QC1 guards, because they live in `OperationBookingService` and not
+     *    in either caller;
+     *  - `occurred_at` is required, not defaulted to now — a booking keyed on Tuesday for
+     *    Monday's shift has to say which shift it belongs to or the utilisation figures lie;
+     *  - the operator is named, because the work belongs to whoever did it rather than to
+     *    whoever typed it;
+     *  - a reason is required, and it stays on the row. An exception that cannot be told apart
+     *    from the norm stops being one.
+     */
+    public function bookOutput(Request $request, JobCard $jobCard): RedirectResponse
+    {
+        $data = $request->validate([
+            'job_card_operation_id' => ['required', 'integer', 'exists:job_card_operations,id'],
+            'good_qty' => ['required', 'numeric', 'min:0'],
+            'waste_qty' => ['numeric', 'min:0'],
+            'input_qty' => ['nullable', 'numeric', 'min:0'],
+            'shift_id' => ['nullable', 'integer', 'exists:shifts,id'],
+            'machine_id' => ['nullable', 'integer', 'exists:machines,id'],
+            'operator_id' => ['required', 'integer', 'exists:employees,id'],
+            'remarks' => ['nullable', 'string', 'max:255'],
+            'input_override_reason' => ['nullable', 'string', 'max:255'],
+            'waste_type' => ['nullable', Rule::in(OperationBookingService::WASTE_TYPES)],
+            // Not defaulted to now. The whole reason this route exists is that the booking is
+            // happening after the fact, so when it happened is the one thing it must state.
+            'occurred_at' => ['required', 'date', 'before_or_equal:now'],
+            'manual_reason' => ['required', 'string', 'min:5', 'max:255'],
+        ]);
+
+        if ((float) ($data['waste_qty'] ?? 0) > 0 && blank($data['waste_type'] ?? null)) {
+            throw ValidationException::withMessages([
+                'waste_type' => 'Waste needs a cause: setup, shade, a print or weave defect, cutting, edge trim, damage, expiry, or other.',
+            ]);
+        }
+
+        $operation = JobCardOperation::query()
+            ->with(['jobCard', 'routingOperation'])
+            ->where('job_card_id', $jobCard->id)
+            ->findOrFail($data['job_card_operation_id']);
+
+        $this->bookings->book(
+            $operation,
+            $data,
+            CarbonImmutable::parse($data['occurred_at']),
+            operatorId: (int) $data['operator_id'],
+            enteredBy: $request->user()?->id,
+            manualReason: (string) $data['manual_reason'],
+        );
+
+        return back()->with('success', "Output booked against {$operation->name}.");
+    }
+
+    /**
+     * I1, applied to production: a correction is a reversing entry, never an edit.
+     *
+     * Nothing in the application could undo a shift booking. `operation_logs` was write-once,
+     * `job_card_operations.good_qty` only accumulated, and `sales_order_lines.produced_qty`
+     * was incremented by the final operation and decremented by nothing — so a mis-keyed
+     * 5,000 stayed on the order line's fulfilment position for the life of the order.
+     */
+    public function reverseLog(Request $request, JobCard $jobCard): RedirectResponse
+    {
+        $data = $request->validate([
+            'operation_log_id' => ['required', 'integer', 'exists:operation_logs,id'],
+            // A correction without a stated reason is indistinguishable from tampering.
+            'reason' => ['required', 'string', 'min:5', 'max:255'],
+        ]);
+
+        $log = DB::table('operation_logs')->where('id', $data['operation_log_id'])->firstOrFail();
+
+        $operation = JobCardOperation::query()
+            ->with('jobCard')
+            ->where('job_card_id', $jobCard->id)
+            ->findOrFail($log->job_card_operation_id);
+
+        $this->corrections->reverse($operation, $log, (string) $data['reason'], $request->user()?->id);
+
+        return back()->with('success', "Booking #{$log->id} reversed.");
     }
 
     public function transition(Request $request, JobCard $jobCard): RedirectResponse

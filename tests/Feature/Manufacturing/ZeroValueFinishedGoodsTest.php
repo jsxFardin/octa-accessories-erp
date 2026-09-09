@@ -132,11 +132,25 @@ it('br52: records the waiver in the audit trail against the job card', function 
 
 it('br52: leaves a properly valued receipt alone', function (): void {
     // The rule must not start refusing production that has a real cost behind it.
-    $lot = DB::table('stock_lots')->where('unit_cost', '>', 0)->whereNotNull('item_id')->first();
+    //
+    // The lot is made here rather than found. Looking for one in the seed and skipping when
+    // there was none meant the "does not over-refuse" half of BR-52 never ran: the suite
+    // proved the rule fires and never proved it stops firing, which is the half that keeps a
+    // guard from quietly blocking real production.
+    $lotId = DB::table('stock_lots')->insertGetId([
+        'lot_no' => 'BR52-'.uniqid('', false),
+        'kind' => 'raw_material',
+        'item_id' => DB::table('items')->value('id'),
+        'warehouse_id' => DB::table('warehouses')->where('is_active', true)->value('id'),
+        'uom_id' => DB::table('uoms')->where('code', 'kg')->value('id'),
+        'received_qty' => 500,
+        'balance_qty' => 500,
+        'unit_cost' => 18.75,
+        'status' => 'available',
+        'received_on' => now()->toDateString(),
+    ]);
 
-    if ($lot === null) {
-        $this->markTestSkipped('No valued raw-material lot to issue from.');
-    }
+    $lot = DB::table('stock_lots')->where('id', $lotId)->firstOrFail();
 
     $issue = DB::table('material_issues')->insertGetId([
         'number' => 'MI-BR52',

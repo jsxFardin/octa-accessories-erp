@@ -86,11 +86,7 @@ it('withholds a requisition that is not approved from the RFQ form', function ()
     // `assertRequisition()` refuses to save an RFQ against anything but an approved
     // requisition. The prefill now asks the same question, so the form cannot offer a
     // workflow the save will refuse — and cannot read out a draft requisition's lines.
-    $requisition = DB::table('purchase_requisitions')->first();
-
-    if ($requisition === null) {
-        $this->markTestSkipped('No purchase requisition in the walkthrough.');
-    }
+    $requisition = aRequisition();
 
     DB::table('purchase_requisitions')->where('id', $requisition->id)->update(['status' => 'draft']);
 
@@ -104,11 +100,7 @@ it('withholds a requisition that is not approved from the RFQ form', function ()
 });
 
 it('offers an approved requisition to the RFQ form', function (): void {
-    $requisition = DB::table('purchase_requisitions')->first();
-
-    if ($requisition === null) {
-        $this->markTestSkipped('No purchase requisition in the walkthrough.');
-    }
+    $requisition = aRequisition();
 
     DB::table('purchase_requisitions')->where('id', $requisition->id)->update(['status' => 'approved']);
 
@@ -124,11 +116,7 @@ it('withholds the requisition from a user who may not read requisitions', functi
     // The handoff must not become a way to read a document the role cannot open. No seeded
     // role currently holds `supplier_rfq.create` without requisition access, so the guard was
     // resting on a permission-assignment coincidence rather than on code.
-    $requisition = DB::table('purchase_requisitions')->first();
-
-    if ($requisition === null) {
-        $this->markTestSkipped('No purchase requisition in the walkthrough.');
-    }
+    $requisition = aRequisition();
 
     DB::table('purchase_requisitions')->where('id', $requisition->id)->update(['status' => 'approved']);
 
@@ -137,9 +125,15 @@ it('withholds the requisition from a user who may not read requisitions', functi
     expect($blind->hasPermission('purchase_requisition.view_any'))->toBeFalse();
 
     // Grant only the right to reach the screen, nothing about requisitions.
+    //
+    // The permission is `rfq.create`. This granted `supplier_rfq.create`, which is not a
+    // permission this system has — so the grant was a no-op and the user was refused the
+    // screen outright. The test skipped for want of a requisition and never noticed, which is
+    // how a guard the comment above calls "resting on a permission-assignment coincidence"
+    // stayed unproven.
     DB::table('role_permissions')->insertOrIgnore([
         'role_id' => $blind->roles->first()->id,
-        'permission_id' => DB::table('permissions')->where('name', 'supplier_rfq.create')->value('id'),
+        'permission_id' => DB::table('permissions')->where('name', 'rfq.create')->value('id'),
     ]);
     cache()->flush();
 
@@ -155,11 +149,19 @@ it('withholds the requisition from a user who may not read requisitions', functi
 // --- a real id still works, so the tightening did not break the handoffs ----------------
 
 it('still carries a valid, permitted, in-state context', function (): void {
-    $inquiry = DB::table('inquiries')->first();
+    // Built rather than found. This is the test that proves the tightening above did not break
+    // the handoffs it guards — the one case where a *valid* context must still come through —
+    // and it skipped whenever the seed had no inquiry, which is exactly when a regression here
+    // would go unnoticed.
+    $inquiryId = DB::table('inquiries')->insertGetId([
+        'number' => 'INQ-CTX-'.uniqid('', false),
+        'customer_id' => DB::table('customers')->where('is_active', true)->value('id'),
+        'inquiry_date' => now()->toDateString(),
+        'required_by' => now()->addWeeks(2)->toDateString(),
+        'status' => 'open',
+    ]);
 
-    if ($inquiry === null) {
-        $this->markTestSkipped('No inquiry in the walkthrough.');
-    }
+    $inquiry = DB::table('inquiries')->where('id', $inquiryId)->firstOrFail();
 
     $this->actingAs($this->admin)
         ->get("/quotations/create?inquiry={$inquiry->id}")
@@ -297,3 +299,38 @@ it('br54: withholds a customer from an engineer who may not read customers', fun
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page->where('preselectedCustomer', null));
 });
+
+/**
+ * A purchase requisition with one line.
+ *
+ * These three tests used to look for one in the walkthrough seed and skip themselves when they
+ * found none — which they did, every run. The RFQ handoff guard they cover is the one the
+ * comments above call out as having rested on "a permission-assignment coincidence rather than
+ * on code", so skipping quietly was the worst of the available outcomes: a green suite over an
+ * unproven rule.
+ */
+function aRequisition(): object
+{
+    $id = DB::table('purchase_requisitions')->insertGetId([
+        'number' => 'PR-TEST-'.uniqid('', false),
+        'factory_unit_id' => DB::table('factory_units')->value('id'),
+        'department_id' => DB::table('departments')->value('id'),
+        'requested_on' => now()->toDateString(),
+        'required_by' => now()->addWeek()->toDateString(),
+        'origin' => 'manual',
+        'status' => 'draft',
+    ]);
+
+    // A line, because the prefill this covers reads them out — an empty requisition would pass
+    // the `lines => []` assertion for the wrong reason.
+    DB::table('purchase_requisition_lines')->insert([
+        'pr_id' => $id,
+        'line_no' => 1,
+        'item_id' => DB::table('items')->value('id'),
+        'uom_id' => DB::table('uoms')->value('id'),
+        'qty' => 250,
+        'required_by' => now()->addWeek()->toDateString(),
+    ]);
+
+    return DB::table('purchase_requisitions')->where('id', $id)->firstOrFail();
+}

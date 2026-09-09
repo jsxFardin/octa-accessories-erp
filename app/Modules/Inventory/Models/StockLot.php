@@ -67,6 +67,30 @@ class StockLot extends Model
         'barcode',
     ];
 
+    /**
+     * Every lot is born with a barcode.
+     *
+     * G6 — "any carton → its lots → its GRNs, in ≤ 3 clicks" — and the overview's claim that
+     * "every physical unit carries a barcode and a lot number" both rest on this column, which
+     * nothing ever populated. Cartons got one (`CTN-{list}-{n}`); lots got NULL on every path,
+     * and the transfer machine wrote NULL explicitly. `stock_lot.print_barcode` is a permission
+     * with no route behind it, so a store keeper could not print a label for a roll even in
+     * principle: there was nothing on the row to print.
+     *
+     * Derived from the lot number rather than invented separately. The two carry the same
+     * identity, both columns are UNIQUE, and a scanner reading a label should land on the same
+     * lot a person reading it aloud would. An explicitly supplied barcode is left alone — a
+     * supplier's own label is more useful than one of ours over the top of it.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $lot): void {
+            if (blank($lot->barcode) && filled($lot->lot_no)) {
+                $lot->barcode = $lot->lot_no;
+            }
+        });
+    }
+
     /** @return array<string, string> */
     protected function casts(): array
     {

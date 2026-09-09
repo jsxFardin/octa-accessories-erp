@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Procurement\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Compliance\Services\CocPeriodGuard;
 use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\MasterData\Models\Item;
 use App\Modules\Procurement\Models\Grn;
@@ -351,6 +352,11 @@ class GrnController extends Controller
                 // BR-42 — the certified input side of the reconciliation, written at the only
                 // point a certified claim legitimately enters the system.
                 if (! empty($line['cert_scheme']) && (float) ($line['cert_claim_pct'] ?? 0) > 0) {
+                    // C3 — a closed period does not take new transactions. Without this a
+                    // receipt back-dated into a certified month would reopen it in fact while
+                    // it stayed closed on the report an auditor was shown.
+                    app(CocPeriodGuard::class)->assertOpenNow((string) $line['cert_scheme']);
+
                     DB::table('coc_transactions')->insert([
                         'scheme' => $line['cert_scheme'],
                         'direction' => 'input',

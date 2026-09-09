@@ -334,11 +334,25 @@ it('records an amendment and moves the effective dates', function (): void {
 
 it('refuses to cover an order from another supplier', function (): void {
     $letter = credit();
-    $other = DB::table('purchase_orders')->where('supplier_id', '!=', $letter->supplier_id)->first();
 
-    if ($other === null) {
-        $this->markTestSkipped('The demo data has no order from a second supplier.');
-    }
+    // An order from a different supplier. Built here rather than found: the seed carries no
+    // purchase orders at all, so this test skipped every run and the rule it names — a credit
+    // covers its own supplier's orders and nobody else's — was never actually attempted.
+    $otherSupplier = DB::table('suppliers')->where('id', '!=', $letter->supplier_id)->firstOrFail();
+
+    $otherId = DB::table('purchase_orders')->insertGetId([
+        'number' => 'PO-LC-OTHER',
+        'supplier_id' => $otherSupplier->id,
+        'factory_unit_id' => DB::table('factory_units')->where('is_active', true)->value('id'),
+        'order_date' => now()->toDateString(),
+        'currency_id' => $letter->currency_id,
+        'exchange_rate' => 1,
+        'subtotal' => 1000,
+        'total' => 1000,
+        'status' => 'approved',
+    ]);
+
+    $other = DB::table('purchase_orders')->where('id', $otherId)->firstOrFail();
 
     $this->actingAs($this->admin)
         ->postJson("/letters-of-credit/{$letter->id}/orders", ['po_id' => $other->id])

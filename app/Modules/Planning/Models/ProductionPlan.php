@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Planning\Models;
 
+use App\Support\Scoping\ScopedToFactoryUnit;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -18,6 +19,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class ProductionPlan extends Model
 {
+    use ScopedToFactoryUnit;
+
     protected $table = 'production_plans';
 
     public const UPDATED_AT = null;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Planning\Models;
 
+use App\Support\Scoping\ScopedToFactoryUnit;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class MrpRun extends Model
 {
+    use ScopedToFactoryUnit;
+
     protected $table = 'mrp_runs';
 
     public $timestamps = false;

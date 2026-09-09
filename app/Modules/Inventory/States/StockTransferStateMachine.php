@@ -347,7 +347,8 @@ class StockTransferStateMachine extends StateMachine
             'cert_claim_pct' => $source->cert_claim_pct,
             'cert_document_no' => $source->cert_document_no,
             'status' => 'available',
-            'barcode' => null,
+            // Not set here: `StockLot::booted()` derives it from the lot number this child was
+            // just given. Writing NULL explicitly is what kept transferred lots unlabelled.
         ]);
     }
 

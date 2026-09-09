@@ -20,6 +20,13 @@ use Illuminate\Support\Facades\DB;
 beforeEach(function (): void {
     $this->jobCard = JobCard::query()->whereNotNull('sales_order_line_id')->firstOrFail();
 
+    // J1 — a released card, for the same reason `logOutput()` completes the predecessors: the
+    // release gate is not this test's subject, and production may not be booked against a card
+    // that never passed it. The terminal could never reach one — `FloorQueueController` offers
+    // only released, in-production and held cards — so these fixtures were relying on the API
+    // accepting a card the floor itself had no way to select.
+    $this->jobCard->forceFill(['status' => JobCard::IN_PRODUCTION])->save();
+
     $card = DB::table('employees')
         ->join('users', 'users.id', '=', 'employees.user_id')
         ->where('users.email', 'operator@octapussolution.com')

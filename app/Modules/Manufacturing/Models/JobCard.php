@@ -13,6 +13,7 @@ use App\Modules\Product\Models\ProductSpec;
 use App\Modules\Product\Models\Routing;
 use App\Modules\Sales\Models\SalesOrderLine;
 use App\Support\Audit\Auditable;
+use App\Support\Scoping\ScopedToFactoryUnit;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -67,6 +68,7 @@ use Illuminate\Support\Facades\DB;
 class JobCard extends Model
 {
     use Auditable;
+    use ScopedToFactoryUnit;
 
     public const DRAFT = 'draft';
 

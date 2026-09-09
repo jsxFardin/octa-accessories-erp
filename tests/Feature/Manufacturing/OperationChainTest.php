@@ -94,7 +94,7 @@ it('lets the first operation of a routing record production with no predecessor 
     $warping = $this->operations->firstWhere('code', 'warp');
 
     chainLog($this, $warping, [
-        'good_qty' => 300, 'waste_qty' => 4, 'input_qty' => 324.3,
+        'good_qty' => 300, 'waste_qty' => 4, 'input_qty' => 324.3, 'waste_type' => 'setup',
     ], 'chain-first')->assertOk();
 
     expect((float) $warping->refresh()->good_qty)->toBeQty(300.0)
@@ -133,7 +133,7 @@ it('accepts exactly what the step before it produced', function (): void {
     chainLog($this, $warping, ['good_qty' => 300, 'waste_qty' => 0, 'input_qty' => 324.3], 'chain-warp-2')->assertOk();
     $this->postJson("/api/v1/operations/{$warping->id}/finish", [], ($this->headers)('chain-warp-2-finish'))->assertOk();
 
-    chainLog($this, $weaving, ['good_qty' => 290, 'waste_qty' => 10, 'input_qty' => 300], 'chain-weave-exact')->assertOk();
+    chainLog($this, $weaving, ['good_qty' => 290, 'waste_qty' => 10, 'input_qty' => 300, 'waste_type' => 'weave_defect'], 'chain-weave-exact')->assertOk();
 
     expect((float) $weaving->refresh()->input_qty)->toBeQty(300.0)
         ->and((float) $weaving->good_qty)->toBeQty(290.0);
@@ -152,7 +152,7 @@ it('does not cap a piece-counting step by a metre-counting one', function (): vo
     // 324 m of web becomes tens of thousands of labels. The chain rule has nothing to say
     // about the conversion — that is the consumption plan's job — so this must pass.
     chainLog($this, $folding, [
-        'good_qty' => 49000, 'waste_qty' => 100, 'input_qty' => 49100,
+        'good_qty' => 49000, 'waste_qty' => 100, 'input_qty' => 49100, 'waste_type' => 'cutting',
     ], 'chain-unit-change')->assertOk();
 
     expect((float) $folding->refresh()->good_qty)->toBeQty(49000.0);
@@ -172,6 +172,8 @@ it('runs a whole routing end to end through the terminal', function (): void {
 
         chainLog($this, $operation, [
             'good_qty' => $good, 'waste_qty' => $waste, 'input_qty' => $input,
+            // G4 — waste is booked with a cause now, so a booking that has waste names one.
+            'waste_type' => $waste > 0 ? 'setup' : null,
         ], "chain-full-{$code}")->assertOk();
 
         if ($operation->requires_qc) {

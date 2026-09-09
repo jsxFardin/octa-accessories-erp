@@ -9,6 +9,7 @@ use App\Modules\MasterData\Models\Supplier;
 use App\Modules\Trade\Models\BankAccount;
 use App\Modules\Trade\Models\ImportShipment;
 use App\Support\Audit\Auditable;
+use App\Support\Scoping\ScopedToFactoryUnit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -51,6 +52,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Expense extends Model
 {
     use Auditable;
+    use ScopedToFactoryUnit;
 
     public const METHODS = ['cash', 'cheque', 'bank_transfer', 'card', 'adjustment'];
 

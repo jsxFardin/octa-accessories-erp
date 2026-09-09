@@ -220,7 +220,7 @@ it('records production output against the operation that booked it', function ()
     $first = $jobCard->operations()->orderBy('sequence_no')->firstOrFail();
 
     $this->postJson("/api/v1/operations/{$first->id}/log", [
-        'good_qty' => 300, 'waste_qty' => 4, 'input_qty' => 324.3,
+        'good_qty' => 300, 'waste_qty' => 4, 'input_qty' => 324.3, 'waste_type' => 'setup',
     ], ['Authorization' => "Bearer {$token}", 'Idempotency-Key' => 'audit-log-1'])->assertOk();
 
     $row = DB::table('audit_logs')

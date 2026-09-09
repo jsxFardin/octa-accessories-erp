@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support\Platform;
 
 use App\Models\User;
+use App\Support\Scoping\FactoryUnitFilter;
 use App\Support\Settings\Settings;
 use Illuminate\Support\Facades\DB;
 
@@ -21,7 +22,12 @@ use Illuminate\Support\Facades\DB;
  */
 class WorkQueue
 {
-    public function __construct(private readonly Settings $settings) {}
+    public function __construct(
+        private readonly Settings $settings,
+        // AD-4 — these counts are `DB::table()`, which the models' global scope cannot reach.
+        // A queue that counts another unit's work is a number the user cannot clear.
+        private readonly FactoryUnitFilter $units,
+    ) {}
 
     /**
      * @return list<array{
@@ -37,7 +43,7 @@ class WorkQueue
             $band = $this->settings->decimal('po_approval_band_manager', 100000);
             $isMd = $user->hasRole('md') || $user->hasRole('super_admin');
 
-            $query = DB::table('purchase_orders')->where('status', 'pending_approval');
+            $query = $this->units->apply(DB::table('purchase_orders')->where('status', 'pending_approval'), user: $user);
 
             // A purchase manager is not shown orders only the MD can sign — that is someone
             // else's queue, and a count you cannot clear is noise (06-rbac §5).
@@ -93,7 +99,7 @@ class WorkQueue
             $entries[] = [
                 'key' => 'pr_approval',
                 'label' => 'Requisitions to approve',
-                'count' => DB::table('purchase_requisitions')->where('status', 'submitted')->count(),
+                'count' => $this->units->apply(DB::table('purchase_requisitions')->where('status', 'submitted'), user: $user)->count(),
                 'href' => '/purchase-requisitions?status=submitted',
                 'tone' => 'warning',
                 'hint' => 'Raised by the factory, not yet agreed to buy.',
@@ -115,7 +121,7 @@ class WorkQueue
             $entries[] = [
                 'key' => 'credit_hold',
                 'label' => 'Orders on credit hold',
-                'count' => DB::table('sales_orders')->where('status', 'credit_hold')->count(),
+                'count' => $this->units->apply(DB::table('sales_orders')->where('status', 'credit_hold'), user: $user)->count(),
                 'href' => '/sales-orders?status=credit_hold',
                 'tone' => 'danger',
                 'hint' => 'Confirmed nowhere until the hold is released (BR-46).',
@@ -151,7 +157,7 @@ class WorkQueue
             $entries[] = [
                 'key' => 'material_pending',
                 'label' => 'Job cards waiting on material',
-                'count' => DB::table('job_cards')->where('status', 'material_pending')->count(),
+                'count' => $this->units->apply(DB::table('job_cards')->where('status', 'material_pending'), user: $user)->count(),
                 'href' => '/job-cards?status=material_pending',
                 'tone' => 'danger',
                 'hint' => 'Released but unable to start — the floor is idle on these.',

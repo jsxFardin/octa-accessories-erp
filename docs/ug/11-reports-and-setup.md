@@ -58,6 +58,22 @@ read it.
 
 Deactivate leavers; do not reuse badges.
 
+### Scheduled checks
+
+Three commands run on a schedule (`php artisan schedule:work`, or a cron entry calling
+`schedule:run` every minute). They report; none of them changes data.
+
+| Command | When | What it answers |
+|---|---|---|
+| `ncr:notify-overdue` | 01:00 daily | Which NCRs are past their due date, to the people who own them. |
+| `stock:reconcile` | 02:00 daily | Does the derived stock balance still match the append-only ledger (AD-6)? |
+| `queue:health` | hourly | Is anything actually draining the queue? Notifications are queued, so without a worker the inbox is silently always empty. |
+
+`stock:reconcile` exits non-zero when a balance disagrees with the ledger, so it can be wired to
+an alert. It deliberately does **not** correct the figures: a difference means some write
+bypassed the one service allowed to move stock, and the difference is the only evidence that
+path exists. Find the path first.
+
 ### Roles & permissions
 
 Roles are bundles of permissions (`sales_order.confirm`, `stock_issue.create`, …). Prefer granting a standard role to adding one-off permissions. Never grant by checking “is MD” in a process — the button already is a permission.

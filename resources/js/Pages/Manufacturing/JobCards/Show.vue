@@ -28,7 +28,207 @@ const props = defineProps({
     fgReceipts: { type: Array, default: () => [] },
     fgWarehouses: { type: Array, default: () => [] },
     ncrs: { type: Array, default: () => [] },
+    operationLogs: { type: Array, default: () => [] },
+    operators: { type: Array, default: () => [] },
+    shifts: { type: Array, default: () => [] },
+    machines: { type: Array, default: () => [] },
 });
+
+/*
+ * Booking output from the desk.
+ *
+ * The floor terminal's four endpoints need a badge and a PIN rather than a permission, so a
+ * signed-in supervisor could not record a figure at all. Right as a default — output is the
+ * shop-floor truth — and unworkable as the only option when the kiosk beside the machine has
+ * died mid-shift.
+ *
+ * Deliberately a narrower door: the shift is stated rather than assumed to be now, the operator
+ * is named because the work belongs to whoever did it, and the reason stays on the row.
+ */
+const mayBook = can('operation.log');
+const bookOpen = ref(false);
+
+const bookForm = useForm({
+    job_card_operation_id: null,
+    good_qty: null,
+    waste_qty: null,
+    input_qty: null,
+    waste_type: null,
+    operator_id: null,
+    shift_id: null,
+    machine_id: null,
+    occurred_at: '',
+    remarks: '',
+    input_override_reason: '',
+    manual_reason: '',
+});
+
+const WASTE_TYPES = [
+    { value: 'setup', label: 'Setup' },
+    { value: 'shade', label: 'Shade' },
+    { value: 'weave_defect', label: 'Weave defect' },
+    { value: 'print_defect', label: 'Print defect' },
+    { value: 'cutting', label: 'Cutting' },
+    { value: 'edge_trim', label: 'Edge trim' },
+    { value: 'damaged', label: 'Damaged' },
+    { value: 'expired', label: 'Expired' },
+    { value: 'other', label: 'Other' },
+];
+
+/*
+ * Only steps that can still take production, mirroring `acceptsProduction()` — a completed,
+ * skipped or cancelled step is a record, and the service refuses it on both doors.
+ *
+ * When that leaves nothing, the button says so rather than opening a form with an empty picker
+ * and a generic "nothing to choose from". A control that cannot work should explain itself
+ * where it is, not after it is pressed.
+ */
+const bookableOperations = computed(() => props.operations
+    .filter((op) => !['completed', 'skipped', 'cancelled'].includes(op.status))
+    .map((op) => ({ value: op.id, label: `${op.sequence_no} · ${op.name}`, hint: op.unit })));
+
+const nothingBookable = computed(() => bookableOperations.value.length === 0);
+
+const nothingBookableReason = computed(() => {
+    if (props.operations.length === 0) return 'This job card has no operations yet.';
+
+    return 'Every step on this card is closed. Production cannot be booked against a completed step — '
+        + 'if output is genuinely missing, it has to be reopened first (QC rework reopens a step, '
+        + 'or a planner can reset one).';
+});
+
+const operatorOptions = computed(() => props.operators.map((e) => ({
+    value: e.id,
+    label: e.name,
+    hint: e.card_no,
+})));
+
+/** Now, to the minute, in the browser's own zone — `datetime-local` wants no offset. */
+function localNow() {
+    return new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+/*
+ * Every field set explicitly, and the figures always cleared.
+ *
+ * `reset()` alone left the previous booking's quantities in the boxes, so reopening the form
+ * offered 6,300 good and 200 waste already typed in — one careless Book output away from
+ * booking a shift's production twice. Quantities, the waste cause and the reason are the whole
+ * content of a booking: they start empty every time, and if that means retyping them, retyping
+ * them is the point.
+ *
+ * Operator, machine and shift are the exception. They do not change from booking to booking
+ * within a shift, they are visible in the form before anything is submitted, and clearing them
+ * would make the common case — keying several steps off one shift sheet — three extra pickers
+ * each time.
+ */
+function openBooking() {
+    bookForm.clearErrors();
+
+    bookForm.job_card_operation_id = bookableOperations.value[0]?.value ?? null;
+    bookForm.occurred_at = localNow();
+
+    // The figures. Never carried over.
+    bookForm.good_qty = null;
+    bookForm.waste_qty = null;
+    bookForm.input_qty = null;
+    bookForm.waste_type = null;
+    bookForm.remarks = '';
+    bookForm.manual_reason = '';
+    bookForm.input_override_reason = '';
+
+    // Context kept: the same operator on the same machine on the same shift, usually.
+    bookForm.operator_id ??= null;
+    bookForm.machine_id ??= null;
+    bookForm.shift_id ??= null;
+
+    bookOpen.value = true;
+}
+
+function submitBooking() {
+    bookForm.post(`/job-cards/${props.jobCard.id}/book-output`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            bookOpen.value = false;
+            // Cleared here as well as on open: a form left holding a booking that already
+            // succeeded is the one a second press would repeat.
+            bookForm.good_qty = null;
+            bookForm.waste_qty = null;
+            bookForm.input_qty = null;
+            bookForm.waste_type = null;
+            bookForm.remarks = '';
+            bookForm.manual_reason = '';
+            bookForm.input_override_reason = '';
+        },
+    });
+}
+
+/*
+ * I1, applied to production: a correction is a reversing entry, never an edit.
+ *
+ * Nothing in the application could undo a shift booking. `operation_logs` was written once by
+ * the terminal and read by one report; `job_card_operations.good_qty` only accumulated; and
+ * the order line's `produced_qty` was incremented by the final operation and decremented by
+ * nothing. A mis-keyed 5,000 stayed on the order's fulfilment position for its whole life.
+ */
+const mayCorrect = can('operation.update');
+const reversing = ref(null);
+const reversalForm = useForm({ operation_log_id: null, reason: '' });
+
+/*
+ * G4 — waste with a cause. `wasteLogs` was declared as a prop, queried on every page load and
+ * rendered nowhere, against a table nothing in the codebase ever wrote to.
+ */
+const wasteColumns = [
+    { key: 'occurred_at', label: 'When' },
+    { key: 'operation', label: 'Operation' },
+    { key: 'waste_type', label: 'Cause' },
+    { key: 'qty', label: 'Qty', align: 'right' },
+    { key: 'lot_no', label: 'Lot' },
+    { key: 'reported_by', label: 'Reported by' },
+];
+
+const logColumns = [
+    { key: 'started_at', label: 'When' },
+    { key: 'operation', label: 'Operation' },
+    // Input is on the row now, because a reversal has to take back the same figure it brought.
+    { key: 'input_qty', label: 'Input', align: 'right' },
+    { key: 'good_qty', label: 'Good', align: 'right' },
+    { key: 'waste_qty', label: 'Waste', align: 'right' },
+    { key: 'who', label: 'Operator · machine · shift' },
+    { key: 'act', label: '', align: 'right', width: '6rem' },
+];
+
+/*
+ * The unit each figure is counted in.
+ *
+ * This routing weaves metres and packs pieces, and the table printed both as bare numbers —
+ * 106.663 sitting under 6,500 as though they were comparable. The operations table above has
+ * carried the unit since the day 407 m read as a catastrophic shortfall against 30,000 pcs;
+ * this one was showing the same quantities without it.
+ */
+const unitByOperation = computed(() => Object.fromEntries(
+    props.operations.map((op) => [op.id, op.unit]),
+));
+
+function logUnit(row) {
+    return unitByOperation.value[row.operation_id] ?? '';
+}
+
+
+function askReverse(row) {
+    reversing.value = row;
+    reversalForm.defaults({ operation_log_id: row.id, reason: '' });
+    reversalForm.reset();
+    reversalForm.clearErrors();
+}
+
+function submitReversal() {
+    reversalForm.post(`/job-cards/${props.jobCard.id}/reverse-log`, {
+        preserveScroll: true,
+        onSuccess: () => { reversing.value = null; },
+    });
+}
 
 // P0-3 — client_ref makes a double-submit a replay, not a second lot.
 const GRADES = [
@@ -436,6 +636,131 @@ const bomColumns = [
                 </Card>
             </div>
 
+            <!--
+                Where the waste went. The operation row carries a waste figure; this says what
+                the waste was, which is the half that can be acted on.
+            -->
+            <Card
+                title="Waste"
+                rule="G4"
+                subtitle="Booked from the floor with its cause. Setup, shade and a weave defect are three different problems."
+                :padded="false"
+            >
+                <DataTable :columns="wasteColumns" :rows="wasteLogs" empty="No waste has been booked against this job card." dense>
+                    <template #cell:occurred_at="{ value }">{{ datetime(value) }}</template>
+                    <template #cell:operation="{ row }">
+                        <span class="text-ink-700">{{ row.sequence_no }} · {{ row.operation }}</span>
+                    </template>
+                    <template #cell:waste_type="{ value }"><Badge tone="warning" :label="titleCase(value)" /></template>
+                    <template #cell:qty="{ row, value }">
+                        <span class="tnum text-rose-600">{{ qty(value) }}</span>
+                        <span class="text-ink-400"> {{ row.uom ?? '' }}</span>
+                    </template>
+                    <template #cell:lot_no="{ value }">{{ value ?? '—' }}</template>
+                    <template #cell:reported_by="{ value }">{{ value ?? '—' }}</template>
+                </DataTable>
+            </Card>
+
+            <!--
+                The shift bookings behind those totals, and the only way to correct one. The
+                card showed that a step held 5,000 with no way to see which shift booked it,
+                who booked it, or that it was one mis-keyed entry.
+            -->
+            <Card
+                title="Shift bookings"
+                rule="I1"
+                subtitle="What the floor recorded, newest first. A correction is a reversing entry — the original row stays as booked."
+                :padded="false"
+            >
+                <template #actions>
+                    <!--
+                        The way in when the kiosk is down. Not the normal path, and it does not
+                        look like one: it asks which shift, which operator, and why.
+                    -->
+                    <Button
+                        v-if="mayBook"
+                        size="sm"
+                        variant="secondary"
+                        :disabled="nothingBookable"
+                        :title="nothingBookable ? nothingBookableReason : 'Key a booking the terminal could not take'"
+                        @click="openBooking"
+                    >
+                        Book output manually
+                    </Button>
+                </template>
+                <DataTable :columns="logColumns" :rows="operationLogs" empty="Nothing has been booked from the floor yet." dense>
+                    <template #cell:started_at="{ row, value }">
+                        <div :class="row.is_reversed ? 'text-ink-400' : 'text-ink-700'">{{ datetime(value) }}</div>
+                        <!--
+                            A reversal carries the window of the booking it cancels, so the two
+                            rows show the same time. When it was actually keyed is a different
+                            fact and belongs on the row that was keyed.
+                        -->
+                        <div v-if="row.reverses_log_id" class="text-[11px] text-ink-500">
+                            reversed {{ datetime(row.created_at) }}
+                        </div>
+                    </template>
+
+                    <template #cell:operation="{ row }">
+                        <div class="flex items-center gap-1.5">
+                            <span :class="row.is_reversed ? 'text-ink-400 line-through' : 'text-ink-800'">
+                                {{ row.sequence_no }} · {{ row.operation }}
+                            </span>
+                            <Badge v-if="row.reverses_log_id" tone="warning" label="reversal" />
+                            <Badge v-else-if="row.is_reversed" tone="neutral" label="reversed" />
+                            <Badge v-if="row.manual_reason" tone="info" label="desk" />
+                        </div>
+
+                        <!--
+                            The reasons, read rather than hovered. A correction with a stated
+                            reason is only useful if the reason is on the screen next to it.
+                        -->
+                        <p v-if="row.reversal_reason" class="mt-0.5 text-[11px] text-amber-800">
+                            Reversed: {{ row.reversal_reason }}
+                        </p>
+                        <p v-if="row.manual_reason" class="mt-0.5 text-[11px] text-ink-500">
+                            Keyed by {{ row.entered_by ?? 'a desk user' }}: {{ row.manual_reason }}
+                        </p>
+                        <p v-if="row.remarks" class="mt-0.5 text-[11px] text-ink-500">{{ row.remarks }}</p>
+                    </template>
+
+                    <template #cell:input_qty="{ row, value }">
+                        <span class="tnum text-ink-600">{{ qty(value) }}</span>
+                        <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
+                    </template>
+                    <template #cell:good_qty="{ row, value }">
+                        <span class="tnum" :class="Number(value) < 0 ? 'text-amber-700' : 'text-emerald-700'">{{ qty(value) }}</span>
+                        <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
+                    </template>
+                    <template #cell:waste_qty="{ row, value }">
+                        <span class="tnum" :class="Number(value) < 0 ? 'text-amber-700' : 'text-rose-600'">{{ qty(value) }}</span>
+                        <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
+                    </template>
+
+                    <!--
+                        Three columns of mostly-repeating text became one line. Operator,
+                        machine and shift are the same for every booking on a run, and reading
+                        the same three values down forty rows is how a table stops being read.
+                    -->
+                    <template #cell:who="{ row }">
+                        <span class="text-ink-700">{{ row.operator ?? '—' }}</span>
+                        <span v-if="row.machine" class="text-ink-400"> · {{ row.machine }}</span>
+                        <span v-if="row.shift" class="text-ink-400"> · {{ row.shift }}</span>
+                    </template>
+
+                    <template #cell:act="{ row }">
+                        <Button
+                            v-if="mayCorrect && !row.reverses_log_id && !row.is_reversed"
+                            size="sm"
+                            variant="ghost"
+                            @click="askReverse(row)"
+                        >
+                            Reverse
+                        </Button>
+                    </template>
+                </DataTable>
+            </Card>
+
             <!-- Operations -->
             <Card title="Operations" rule="J2" subtitle="Execute in sequence; a step cannot start before its predecessor closes" :padded="false">
                 <DataTable :columns="operationColumns" :rows="operations" empty="No operations scheduled." dense>
@@ -742,6 +1067,160 @@ const bomColumns = [
                 <Button @click="close">Cancel</Button>
                 <Button variant="danger" :loading="holdForm.processing" :disabled="!holdForm.hold_reason" @click="hold">
                     Hold
+                </Button>
+            </template>
+        </Modal>
+
+        <Modal
+            v-model:open="bookOpen"
+            title="Book output manually"
+            subtitle="For when the terminal could not take it. The same J3 and J5 limits apply, and this booking is marked as keyed at a desk."
+            width="max-w-2xl"
+        >
+            <div v-if="nothingBookable" class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {{ nothingBookableReason }}
+            </div>
+
+            <div v-else class="space-y-3">
+                <FormField label="Operation" :error="bookForm.errors.job_card_operation_id" required>
+                    <SelectInput v-model="bookForm.job_card_operation_id" :options="bookableOperations" hint-key="hint" />
+                </FormField>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <FormField label="Input received" :error="bookForm.errors.input_qty">
+                        <TextInput v-model="bookForm.input_qty" inputmode="decimal" />
+                    </FormField>
+                    <FormField label="Good" :error="bookForm.errors.good_qty" required>
+                        <TextInput v-model="bookForm.good_qty" inputmode="decimal" />
+                    </FormField>
+                    <FormField label="Waste" :error="bookForm.errors.waste_qty">
+                        <TextInput v-model="bookForm.waste_qty" inputmode="decimal" />
+                    </FormField>
+                </div>
+
+                <!-- G4 — waste with a cause, asked only when there is waste to explain. -->
+                <FormField v-if="Number(bookForm.waste_qty) > 0" label="What was the waste?" :error="bookForm.errors.waste_type" required>
+                    <SelectInput v-model="bookForm.waste_type" :options="WASTE_TYPES" />
+                </FormField>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <FormField
+                        label="Operator"
+                        hint="Whoever ran it, not whoever is typing."
+                        :error="bookForm.errors.operator_id"
+                        required
+                    >
+                        <SelectInput v-model="bookForm.operator_id" :options="operatorOptions" hint-key="hint" />
+                    </FormField>
+                    <FormField label="Machine" :error="bookForm.errors.machine_id">
+                        <SelectInput
+                            v-model="bookForm.machine_id"
+                            :options="machines.map((m) => ({ value: m.id, label: m.code, hint: m.name }))"
+                            hint-key="hint"
+                        />
+                    </FormField>
+                    <FormField label="Shift" :error="bookForm.errors.shift_id">
+                        <SelectInput
+                            v-model="bookForm.shift_id"
+                            :options="shifts.map((sh) => ({ value: sh.id, label: sh.name }))"
+                        />
+                    </FormField>
+                </div>
+
+                <FormField
+                    label="When was it made?"
+                    hint="The shift this output belongs to, not the moment you are typing it. Utilisation is measured from this."
+                    :error="bookForm.errors.occurred_at"
+                    required
+                >
+                    <input v-model="bookForm.occurred_at" type="datetime-local" class="form-input">
+                </FormField>
+
+                <FormField
+                    label="Why is this being keyed here?"
+                    hint="Kept on the row. A booking that did not come off the machine has to say so."
+                    :error="bookForm.errors.manual_reason"
+                    required
+                >
+                    <TextInput v-model="bookForm.manual_reason" placeholder="Terminal at loom 3 would not start; figures taken from the shift sheet" />
+                </FormField>
+
+                <FormField
+                    v-if="bookForm.errors.input_override_reason || bookForm.input_override_reason"
+                    label="Why more than planned?"
+                    :error="bookForm.errors.input_override_reason"
+                >
+                    <TextInput v-model="bookForm.input_override_reason" />
+                </FormField>
+
+                <FormField label="Remarks" :error="bookForm.errors.remarks">
+                    <TextInput v-model="bookForm.remarks" />
+                </FormField>
+            </div>
+
+            <template #footer="{ close }">
+                <Button @click="close">Cancel</Button>
+                <Button
+                    variant="primary"
+                    :loading="bookForm.processing"
+                    :disabled="!bookForm.job_card_operation_id || !bookForm.operator_id || (bookForm.manual_reason ?? '').length < 5"
+                    @click="submitBooking"
+                >
+                    Book output
+                </Button>
+            </template>
+        </Modal>
+
+        <!--
+            I1 — the original booking is never edited. It is what the operator recorded, and
+            rewriting it would destroy the evidence that the mistake happened; this books a
+            second row with negated quantities pointing back at it.
+        -->
+        <Modal
+            :open="reversing !== null"
+            title="Reverse this booking"
+            subtitle="The original stays on the record. A reversing entry cancels it, and the totals move back."
+            @update:open="reversing = null"
+        >
+            <div v-if="reversing" class="space-y-3">
+                <dl class="grid grid-cols-3 gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
+                    <div>
+                        <dt class="text-xs text-ink-500">Operation</dt>
+                        <dd class="font-medium">{{ reversing.sequence_no }} · {{ reversing.operation }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-ink-500">Good</dt>
+                        <dd class="font-medium tnum text-emerald-700">{{ qty(reversing.good_qty) }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-ink-500">Waste</dt>
+                        <dd class="font-medium tnum text-rose-600">{{ qty(reversing.waste_qty) }}</dd>
+                    </div>
+                </dl>
+
+                <FormField
+                    label="Why is this being reversed?"
+                    hint="Kept on the audit trail. A correction with no stated reason cannot be told apart from tampering."
+                    :error="reversalForm.errors.reason"
+                    required
+                >
+                    <textarea v-model="reversalForm.reason" rows="3" class="form-textarea" placeholder="Operator keyed 5,000 instead of 500" />
+                </FormField>
+
+                <p v-if="reversalForm.errors.operation_log_id" class="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    {{ reversalForm.errors.operation_log_id }}
+                </p>
+            </div>
+
+            <template #footer>
+                <Button @click="reversing = null">Cancel</Button>
+                <Button
+                    variant="danger"
+                    :loading="reversalForm.processing"
+                    :disabled="(reversalForm.reason ?? '').length < 5"
+                    @click="submitReversal"
+                >
+                    Reverse booking
                 </Button>
             </template>
         </Modal>

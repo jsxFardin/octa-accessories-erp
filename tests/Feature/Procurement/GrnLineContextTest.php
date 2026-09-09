@@ -220,11 +220,37 @@ it('records an over-receipt against the line rather than losing it', function ()
 it('drops a line id belonging to a different purchase order', function (): void {
     // Pointing the field at another order's line would credit that order's receipt and move
     // its outstanding quantity. The goods are still received; the false provenance is not.
-    $foreign = DB::table('purchase_order_lines')->where('po_id', '!=', $this->order->id)->first();
+    // A second order to borrow a line from. Built here rather than found: the seed carries no
+    // purchase orders at all, so this test skipped every run and the read-around it names —
+    // pointing the field at another order's line to credit that order's receipt — was never
+    // actually attempted against the guard.
+    $otherOrder = PurchaseOrder::query()->create([
+        'number' => 'PO-CTX-0002',
+        'supplier_id' => $this->order->supplier_id,
+        'factory_unit_id' => $this->order->factory_unit_id,
+        'order_date' => now()->toDateString(),
+        'currency_id' => $this->order->currency_id,
+        'exchange_rate' => $this->order->exchange_rate,
+        'subtotal' => 500,
+        'total' => 500,
+        'status' => 'approved',
+        'created_by' => $this->buyer->id,
+    ]);
 
-    if ($foreign === null) {
-        $this->markTestSkipped('No second purchase order to borrow a line from.');
-    }
+    $borrowed = $this->items->first();
+
+    $foreignId = DB::table('purchase_order_lines')->insertGetId([
+        'po_id' => $otherOrder->id,
+        'line_no' => 1,
+        'item_id' => $borrowed->id,
+        'description' => 'A line on somebody else\'s order',
+        'qty' => 50,
+        'uom_id' => $borrowed->base_uom_id,
+        'rate' => 10,
+        'amount' => 500,
+    ]);
+
+    $foreign = DB::table('purchase_order_lines')->where('id', $foreignId)->firstOrFail();
 
     $before = (float) $foreign->received_qty;
     $first = $this->poLines->first();

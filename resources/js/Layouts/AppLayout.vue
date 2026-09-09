@@ -112,26 +112,30 @@ const crumbs = computed(() => {
 });
 
 // --- Sidebar state -----------------------------------------------------------------------
-// The rail persists, and so does which groups are expanded: a click on a heading only ever
-// toggles it, never navigates, so open/closed state survives across pages and reloads the
-// same way the rail does. The group containing the active page always shows regardless.
+/*
+ * The rail persists. The open group does not, and there is only ever one.
+ *
+ * Groups used to expand independently and remember it across reloads, so a week's use left
+ * every heading open and the sidebar a single scrolling list of forty rows — the grouping
+ * stopped doing the one thing it is for. It is an accordion now: the group holding the current
+ * page is open, opening another closes it, and navigating puts you back on the group you are
+ * actually in.
+ */
 const railed = ref(localStorage.getItem('octa.sidebar.railed') === '1');
 const mobileOpen = ref(false);
 
-function loadOpenSections() {
-    try {
-        return new Set(JSON.parse(localStorage.getItem('octa.sidebar.open') ?? '[]'));
-    } catch {
-        return new Set();
-    }
-}
-
-const openSections = ref(loadOpenSections());
+/** A heading the user opened by hand; cleared on navigation, when the page decides again. */
+const openSection = ref(null);
 
 watch(railed, (value) => localStorage.setItem('octa.sidebar.railed', value ? '1' : '0'));
 watch(currentUrl, () => {
     mobileOpen.value = false;
+    openSection.value = null;
 });
+
+// The old multi-open state is no longer read; clearing it keeps a stale key from confusing
+// anyone reading localStorage in six months.
+localStorage.removeItem('octa.sidebar.open');
 
 function isSectionActive(section) {
     return section.items.some((item) => isActive(item));
@@ -142,25 +146,30 @@ function toggleSection(section) {
         return;
     }
 
-    const next = new Set(openSections.value);
-
-    next.has(section.label) ? next.delete(section.label) : next.add(section.label);
-    openSections.value = next;
-    localStorage.setItem('octa.sidebar.open', JSON.stringify([...next]));
+    // One at a time. Opening a heading closes whichever was open, including the active group —
+    // that is what makes it possible to look somewhere else without losing the sidebar to a
+    // wall of rows.
+    openSection.value = openSection.value === section.label ? null : section.label;
 }
 
 /**
- * Hubs with no heading are always visible. The active group is always visible, so you never
- * lose sight of where you are. Sections marked `open: true` (the small admin shell, where
- * collapsing three groups would hide three of six rows) never close. Others follow whatever
- * the user last chose, remembered across navigation and reload.
+ * Hubs with no heading are always visible. Sections marked `open: true` (the small admin
+ * shell, where collapsing three groups would hide three of six rows) never close.
+ *
+ * Otherwise exactly one group is open: whichever the user last clicked, or — once they
+ * navigate, which clears that — the one holding the page they are on. So the sidebar always
+ * shows where you are and nothing else.
  */
 function isOpen(section) {
-    if (section.heading === false || section.open === true || isSectionActive(section)) {
+    if (section.heading === false || section.open === true) {
         return true;
     }
 
-    return openSections.value.has(section.label);
+    if (openSection.value !== null) {
+        return openSection.value === section.label;
+    }
+
+    return isSectionActive(section);
 }
 
 // --- Account menu ------------------------------------------------------------------------

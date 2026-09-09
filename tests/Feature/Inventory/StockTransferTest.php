@@ -380,7 +380,12 @@ it('dispatches into a transit child lot and receives into a destination child lo
         ->and($children)->toHaveCount(1)
         ->and((int) $children->first()->parent_lot_id)->toBe((int) $lot->id)
         ->and($children->first()->bin_id)->toBeNull()
-        ->and($children->first()->barcode)->toBeNull()
+        // Its own barcode, not its parent's. This asserted null, which was the old behaviour
+        // rather than the intent: `birthChild()` wrote NULL explicitly, so a roll arrived at
+        // its new warehouse unlabelled at the one moment a store keeper needs to scan it.
+        // Non-inheritance is the rule, and a distinct barcode satisfies it more strongly.
+        ->and($children->first()->barcode)->toBe($children->first()->lot_no)
+        ->and($children->first()->barcode)->not->toBe($lot->barcode)
         ->and((string) $children->first()->status)->toBe('available')
         ->and((float) $children->first()->unit_cost)->toBe((float) $lot->unit_cost)
         ->and((float) $children->first()->balance_qty)->toBeQty($qty)

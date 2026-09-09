@@ -7,14 +7,15 @@ namespace App\Modules\Manufacturing\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
+use App\Modules\Manufacturing\Services\OperationBookingService;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
-use App\Support\Audit\AuditLogger;
 use App\Support\States\StateMachine;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 /**
  * The four buttons (07-api-contracts §2): start, log, finish, downtime.
@@ -27,13 +28,16 @@ class OperationEventController extends Controller
 {
     private const IDEMPOTENCY_TTL_HOURS = 24;
 
-    public function __construct(private readonly JobCardStateMachine $jobCards) {}
+    public function __construct(
+        private readonly JobCardStateMachine $jobCards,
+        private readonly OperationBookingService $bookings,
+    ) {}
 
     public function start(Request $request, JobCardOperation $operation): JsonResponse
     {
         $this->assertWithinUnit($request, $operation);
 
-        return $this->idempotent($request, function () use ($request, $operation): array {
+        return $this->idempotent($request, $operation, 'start', function () use ($request, $operation): array {
             // J2 — an operation cannot start before its predecessor is done, unless the
             // routing marks it parallel.
             $blocker = $operation->blockingPredecessor();
@@ -92,159 +96,41 @@ class OperationEventController extends Controller
             'output_lot_id' => ['nullable', 'integer', 'exists:stock_lots,id'],
             'remarks' => ['nullable', 'string', 'max:255'],
             'input_override_reason' => ['nullable', 'string', 'max:255'],
+            /*
+             * G4 — waste with a cause, not a bare number.
+             *
+             * Waste arrived as a quantity and nothing else, and `waste_logs` — the table built
+             * to hold the cause, the item, the lot and the value — was read by the job card
+             * and written by nothing at all, so its panel was permanently empty. "Wastage % per
+             * machine tracked and trending down" cannot be acted on without knowing whether a
+             * loom is losing metres to setup, to shade or to a weave defect, because each one
+             * is a different fix.
+             *
+             * The vocabulary is the table's own CHECK constraint, checked here so a bad value
+             * is a refusal rather than a 500 on the insert. Whether it is *required* is a
+             * question about the quantity, not the field, and is asked below: `required_with`
+             * fires on a present-but-zero `waste_qty`, which every ordinary booking sends.
+             */
+            'waste_type' => ['nullable', Rule::in(OperationBookingService::WASTE_TYPES)],
         ]);
 
-        return $this->idempotent($request, function () use ($request, $operation, $data): array {
+        // The reason is owed when there is waste to explain, not whenever the key is present.
+        if ((float) ($data['waste_qty'] ?? 0) > 0 && blank($data['waste_type'] ?? null)) {
+            abort(422, 'Waste needs a reason. Pick what the waste was: setup, shade, a print or weave defect, cutting, edge trim, damage, expiry, or other.');
+        }
+
+        return $this->idempotent($request, $operation, 'log', function () use ($request, $operation, $data): array {
             $session = $request->attributes->get('device_session');
-            $occurredAt = $this->occurredAt($request);
 
-            $good = (float) $data['good_qty'];
-            $waste = (float) ($data['waste_qty'] ?? 0);
-            $addedInput = (float) ($data['input_qty'] ?? 0);
-
-            DB::transaction(function () use ($operation, $data, $good, $waste, $addedInput, $occurredAt, $session): void {
-                /** @var JobCardOperation $locked */
-                $locked = JobCardOperation::query()->lockForUpdate()->findOrFail($operation->getKey());
-
-                // J7 / J2 — an operation's quantities may not exist independently of the
-                // step before it. Only `start` used to ask this, so posting straight to
-                // `log` recorded 5,000 good against three `pending` steps whose predecessor
-                // had produced nothing, and handed 21,500 to a packing step fed by a folding
-                // step that reported zero.
-                $this->guardChain($locked, $addedInput);
-
-                $newInput = (float) $locked->input_qty + $addedInput;
-                $newGood = (float) $locked->good_qty + $good;
-                $newWaste = (float) $locked->waste_qty + $waste;
-
-                if ($newGood + $newWaste > $newInput + 0.000001) {
-                    abort(422, sprintf(
-                        'J3: output %.3f exceeds the %.3f handed to this operation. Record the input first.',
-                        $newGood + $newWaste,
-                        $newInput,
-                    ));
-                }
-
-                $card = $locked->jobCard;
-
-                // The input a step receives is bounded too. A mis-keyed 5000 against a plan
-                // of 121 was accepted in silence, and every later booking on that step then
-                // measured itself against a false ceiling.
-                if ($addedInput > 0 && $card !== null) {
-                    $inputCeiling = (float) $locked->planned_qty * (1 + (float) $card->overrun_tolerance_pct / 100);
-
-                    if ($locked->planned_qty > 0
-                        && $newInput > $inputCeiling + 0.000001
-                        && blank($data['input_override_reason'] ?? null)) {
-                        abort(422, sprintf(
-                            'J3: %.3f handed to this operation exceeds its %.3f plan. Re-check the figure, or record why more was fed in.',
-                            $newInput,
-                            $inputCeiling,
-                        ));
-                    }
-                }
-
-                // J5 at the moment of booking, not only when the card closes. The terminal
-                // shows the ceiling on every screen, so a refusal that arrives days later at
-                // `closed` — with the goods already made — reads as the rule not existing.
-                // Only the last operation makes pieces; the ones before it make metres, and a
-                // ceiling in pieces has nothing to say about them (P0-2).
-                $isFinal = $locked->sequence_no === (int) JobCardOperation::query()
-                    ->where('job_card_id', $locked->job_card_id)
-                    ->max('sequence_no');
-
-                if ($card !== null && $isFinal) {
-                    $ceiling = $card->overrunCeiling();
-                    $produced = (float) $locked->good_qty + (float) $locked->waste_qty + $good + $waste;
-
-                    if ($produced > $ceiling + 0.000001) {
-                        abort(422, sprintf(
-                            'J5: %.3f would take this job past its %.3f ceiling (planned plus %s%% overrun).',
-                            $produced,
-                            $ceiling,
-                            rtrim(rtrim((string) $card->overrun_tolerance_pct, '0'), '.'),
-                        ));
-                    }
-                }
-
-                $logId = DB::table('operation_logs')->insertGetId([
-                    'job_card_operation_id' => $locked->id,
-                    'machine_id' => $data['machine_id'] ?? $locked->machine_id,
-                    'operator_id' => $session->employeeId,
-                    'shift_id' => $data['shift_id'] ?? null,
-                    'started_at' => $locked->started_at ?? $occurredAt,
-                    'ended_at' => $occurredAt,
-                    // No input_qty column here — per-shift input accumulates on the operation
-                    // row (J3 is checked against that running total, above).
-                    'good_qty' => $good,
-                    'waste_qty' => $waste,
-                    'input_lot_id' => $data['input_lot_id'] ?? null,
-                    'output_lot_id' => $data['output_lot_id'] ?? null,
-                    'remarks' => $data['remarks'] ?? null,
-                    'created_at' => now(),
-                ]);
-
-                // Production is a business event, and it is the one the trail was missing:
-                // `operation_logs` has no model of its own, so it goes through the same
-                // writer the reference tables use rather than a second mechanism.
-                app(AuditLogger::class)->recordTable('operation_logs', (int) $logId, 'created', null, [
-                    'job_card_id' => $locked->job_card_id,
-                    'job_card_operation_id' => $locked->id,
-                    'operation' => $locked->name,
-                    'good_qty' => $good,
-                    'waste_qty' => $waste,
-                    'input_qty' => $addedInput,
-                    'unit' => $locked->unit(),
-                    'operator_id' => $session->employeeId,
-                ]);
-
-                $locked->forceFill([
-                    'input_qty' => $newInput,
-                    'good_qty' => $newGood,
-                    'waste_qty' => $newWaste,
-                    // Booking output on a step that is queued is how the terminal is used —
-                    // the operator presses `+ OUTPUT`, not `START` then `+ OUTPUT`. The step
-                    // has passed the same J2/QC1 gates `start` applies, so it opens here
-                    // rather than staying `pending` with production against it.
-                    'status' => $locked->status === JobCardOperation::PENDING
-                        || $locked->status === JobCardOperation::READY
-                            ? JobCardOperation::IN_PROGRESS
-                            : $locked->status,
-                    'started_at' => $locked->started_at ?? $occurredAt,
-                ])->save();
-
-                $jobCard = $card;
-
-                if ($jobCard !== null) {
-                    // The card's running totals are maintained in the same transaction as the
-                    // event that moves them, so they reconcile against the logs. They are
-                    // running totals and nothing more: J6 says the job's output is the final
-                    // operation's, which is why these columns carry the `_running` suffix.
-                    $jobCard->forceFill([
-                        'good_qty_running' => (float) $jobCard->good_qty_running + $good,
-                        'waste_qty_running' => (float) $jobCard->waste_qty_running + $waste,
-                        'produced_qty_running' => (float) $jobCard->produced_qty_running + $good + $waste,
-                    ])->save();
-
-                    // P0-2 — the order line's produced total moves with the *final* operation's
-                    // good output, in this same transaction. Only the last operation counts:
-                    // 50,000 labels woven, cut and folded is 50,000 produced, not 150,000.
-                    // Atomic increment, not read-modify-write — two terminals logging the same
-                    // final operation must not lose an update. The S2 cancellation guard and
-                    // the job-card "remaining to cover" filter read this column.
-                    $finalSequence = (int) JobCardOperation::query()
-                        ->where('job_card_id', $locked->job_card_id)
-                        ->max('sequence_no');
-
-                    if ($good > 0
-                        && $locked->sequence_no === $finalSequence
-                        && $jobCard->sales_order_line_id !== null) {
-                        DB::table('sales_order_lines')
-                            ->where('id', $jobCard->sales_order_line_id)
-                            ->increment('produced_qty', $good);
-                    }
-                }
-            });
+            // The rules live in `OperationBookingService` because the desk can book too, and a
+            // guard that exists on one path and not the other is worse than no guard: it makes
+            // the weaker door the one people learn to use.
+            $this->bookings->book(
+                $operation,
+                $data,
+                $this->occurredAt($request),
+                operatorId: $session->employeeId,
+            );
 
             $operation->refresh();
 
@@ -261,7 +147,7 @@ class OperationEventController extends Controller
     {
         $this->assertWithinUnit($request, $operation);
 
-        return $this->idempotent($request, function () use ($request, $operation): array {
+        return $this->idempotent($request, $operation, 'finish', function () use ($request, $operation): array {
             $occurredAt = $this->occurredAt($request);
 
             // An operation that closes with nothing booked reports a machine that ran a shift
@@ -320,109 +206,46 @@ class OperationEventController extends Controller
         $data = $request->validate([
             'downtime_reason_id' => ['required', 'integer', 'exists:downtime_reasons,id'],
             'minutes' => ['required', 'numeric', 'gt:0'],
+            'machine_id' => ['nullable', 'integer', 'exists:machines,id'],
+            'shift_id' => ['nullable', 'integer', 'exists:shifts,id'],
             'remarks' => ['nullable', 'string', 'max:255'],
         ]);
 
-        return $this->idempotent($request, function () use ($request, $operation, $data): array {
+        return $this->idempotent($request, $operation, 'downtime', function () use ($request, $operation, $data): array {
             $occurredAt = $this->occurredAt($request);
             $session = $request->attributes->get('device_session');
 
             // Downtime is attributed to the machine (it feeds OEE), waste to the job card
             // (it feeds cost variance). Two tables, deliberately.
+            //
+            // `machine_id` is NOT NULL on this table. A step that has never been started and
+            // was never given a machine by the planner has none, and the insert died on the
+            // constraint — a 500 the offline queue files as a permanent reject, so the stop
+            // was lost rather than reported. Refuse it in words instead.
+            $machineId = $data['machine_id'] ?? $operation->machine_id;
+
+            if ($machineId === null) {
+                abort(422, 'This step is not on a machine yet, and downtime belongs to a machine. Start the operation first, or ask a planner to schedule it.');
+            }
+
             $id = DB::table('downtime_logs')->insertGetId([
-                'machine_id' => $operation->machine_id,
+                'machine_id' => $machineId,
                 'job_card_operation_id' => $operation->id,
                 'downtime_reason_id' => $data['downtime_reason_id'],
+                'shift_id' => $data['shift_id'] ?? null,
                 'started_at' => $occurredAt->subMinutes((int) $data['minutes']),
                 'ended_at' => $occurredAt,
                 'minutes' => $data['minutes'],
-                'logged_by' => $session->employeeId,
+                // The column is `reported_by`, and this table has no `created_at`. Both were
+                // wrong, so every press of DOWNTIME on the terminal answered 500 and no stop
+                // has ever been recorded — which is also why nothing downstream had any
+                // downtime to report on.
+                'reported_by' => $session->employeeId,
                 'remarks' => $data['remarks'] ?? null,
-                'created_at' => now(),
             ]);
 
             return ['downtime_log_id' => $id];
         });
-    }
-
-    /**
-     * J7 — the operation chain, enforced where production is recorded rather than only
-     * where it is started.
-     *
-     * Three questions, in the order a supervisor would ask them: is this step still open, is
-     * the step before it done, and is there enough of what that step made to hand over? The
-     * third is asked only when the two steps count in the same unit — weaving makes metres and
-     * cutting makes pieces out of them, and a metre figure has nothing to say about a piece
-     * figure (see JobCardOperation::inputAvailableFromPredecessor()).
-     */
-    private function guardChain(JobCardOperation $operation, float $addedInput): void
-    {
-        if (! $operation->acceptsProduction()) {
-            abort(422, sprintf(
-                'Production cannot be recorded for %s because the step is %s. Reopen it, or record against the step that is running.',
-                $operation->name,
-                str_replace('_', ' ', $operation->status),
-            ));
-        }
-
-        $blocker = $operation->blockingPredecessor();
-
-        if ($blocker !== null) {
-            $made = (float) $blocker->good_qty;
-
-            abort(422, sprintf(
-                'Production cannot be recorded for %s because %s (step %d) is still %s%s. Finish %s first, or ask a planner to skip it.',
-                $operation->name,
-                $blocker->name,
-                $blocker->sequence_no,
-                str_replace('_', ' ', $blocker->status),
-                $made > 0
-                    ? sprintf(' with %s %s booked', $this->trim($made), $blocker->unit())
-                    : ' and has produced nothing',
-                $blocker->name,
-            ));
-        }
-
-        // QC1 — the same gate `start` applies. Skipping `start` used to skip it too.
-        if (! $operation->qcClearedUpstream()) {
-            abort(422, sprintf(
-                'Production cannot be recorded for %s because an earlier operation needs an accepted inspection first (QC1). Ask QC to pass it.',
-                $operation->name,
-            ));
-        }
-
-        if ($addedInput <= 0) {
-            return;
-        }
-
-        $available = $operation->inputAvailableFromPredecessor();
-
-        if ($available === null) {
-            return;
-        }
-
-        $predecessor = $operation->feedingPredecessor();
-        $wouldHold = (float) $operation->input_qty + $addedInput;
-
-        if ($wouldHold > $available + 0.000001) {
-            abort(422, sprintf(
-                'Production cannot be recorded for %s because %s has produced %s %s, and %s %s would already have been handed to %s. Record %s\'s output first, or reduce the input.',
-                $operation->name,
-                $predecessor->name,
-                $this->trim($available),
-                $predecessor->unit(),
-                $this->trim($wouldHold),
-                $operation->unit(),
-                $operation->name,
-                $predecessor->name,
-            ));
-        }
-    }
-
-    /** A DECIMAL(18,6) figure as a person would write it. */
-    private function trim(float $value): string
-    {
-        return rtrim(rtrim(number_format($value, 6, '.', ','), '0'), '.');
     }
 
     /**
@@ -459,7 +282,18 @@ class OperationEventController extends Controller
         }
     }
 
-    private function idempotent(Request $request, callable $work): JsonResponse
+    /**
+     * Idempotency: the same key replays the stored response rather than repeating the write.
+     *
+     * The key is scoped to the device session, the endpoint and the operation, not taken on
+     * its own. A bare key is global: one value reused across `start` and `log` — a client bug,
+     * a device whose `crypto.randomUUID` fell back to something weaker, a captured request
+     * replayed — returned the *first* call's stored response and skipped the second write
+     * entirely. The terminal reads that as a 200 and clears the form, so a shift's output
+     * disappears with no error anywhere. Scoping makes a collision across two different writes
+     * impossible rather than unlikely.
+     */
+    private function idempotent(Request $request, JobCardOperation $operation, string $action, callable $work): JsonResponse
     {
         $key = $request->header('Idempotency-Key');
 
@@ -469,7 +303,17 @@ class OperationEventController extends Controller
             ], 428);
         }
 
-        $cacheKey = 'idempotency:'.hash('sha256', $key);
+        // Every caller runs `assertWithinUnit()` first, which aborts 401 when the session is
+        // missing, so by here there is one.
+        $session = $request->attributes->get('device_session');
+
+        $cacheKey = 'idempotency:'.hash('sha256', implode('|', [
+            $session->token,
+            $action,
+            (string) $operation->getKey(),
+            $key,
+        ]));
+
         $cached = Cache::get($cacheKey);
 
         if ($cached !== null) {
@@ -491,11 +335,21 @@ class OperationEventController extends Controller
     {
         $occurredAt = $request->input('occurred_at');
 
-        if ($occurredAt === null) {
+        if (! is_string($occurredAt) || $occurredAt === '') {
             return CarbonImmutable::now();
         }
 
-        $parsed = CarbonImmutable::parse($occurredAt);
+        // `occurred_at` is in no endpoint's validation rules — it is a queue stamp the client
+        // adds, not a field an operator fills — so it arrives unchecked. `parse()` throws on
+        // anything it cannot read, which surfaced as a 500; the offline queue treats a 5xx as
+        // a permanent reject and never retries, so one malformed stamp silently destroyed the
+        // shift booking it was attached to. A stamp that cannot be read is a broken clock,
+        // and a broken clock means now.
+        try {
+            $parsed = CarbonImmutable::parse($occurredAt);
+        } catch (\Throwable) {
+            return CarbonImmutable::now();
+        }
 
         // A clock ahead of the server is a device with a wrong clock, not a time traveller.
         return $parsed->isFuture() ? CarbonImmutable::now() : $parsed;

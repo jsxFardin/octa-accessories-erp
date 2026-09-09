@@ -17,6 +17,9 @@ parameters:
             - app/Support/Platform/Models/*
 
     ignoreErrors:
-        # Consequence of the exclusion above: the trait is applied only inside model bodies.
+        # Consequence of the exclusion above: these traits are applied only inside model
+        # bodies, which are scanned but not analysed, so their use sites are invisible here.
         - identifier: trait.unused
           path: app/Support/Audit/Auditable.php
+        - identifier: trait.unused
+          path: app/Support/Scoping/ScopedToFactoryUnit.php

@@ -211,8 +211,22 @@ it('loads every object the specification promises', function (): void {
     // which no guard can parse, so the three-quote rule could be avoided by not using the RFQ
     // screen. Nullable, because an order raised without an RFQ is legitimate — and above the
     // threshold that order needs a documented override rather than being impossible.
+    //
+    // The 411th is `operation_logs.reverses_log_id` (I1, applied to production): which shift
+    // booking a correction cancels. Production had no correction path at all — the table was
+    // write-once, the operation's `good_qty` only accumulated, and the order line's
+    // `produced_qty` was incremented and never decremented — so a mis-keyed 5,000 stayed on
+    // the order's fulfilment position for its whole life. It carries a UNIQUE key as well, so
+    // "reverse once" is a database guarantee rather than a check someone can forget.
+    //
+    // The 412th is `waste_logs.operation_log_id` (G4): which booking a waste record came from.
+    // Waste is now written by the terminal in the same transaction as the booking that
+    // produced it, which makes it derived data, and derived data has to come back out when
+    // that booking is reversed. `waste_logs_qty_chk` requires `qty > 0`, so there is no
+    // reversing entry to write on that table — the linked rows are removed, and the reversal
+    // stays on `operation_logs` and the audit trail.
     expect($tables)->toBe(155)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(410)
+        ->and($foreignKeys)->toBe(412)
         ->and($checks)->toBe(168);
 });

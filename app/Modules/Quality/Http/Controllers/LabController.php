@@ -231,9 +231,21 @@ class LabController extends Controller
             return 'na';
         }
 
+        /*
+         * The scale names are the ones `lab_tests_scale_chk` allows, which is the only set that
+         * can reach here: grey_1_5, percent, delta_e, pass_fail, numeric.
+         *
+         * This matched on 'grey' and 'percentage'. Neither is a value the column can hold, so
+         * both arms were unreachable and both scales fell through to `numericVerdict`.
+         *
+         * For grey scale that was harmless — the numeric rule is the same comparison. For
+         * percent it inverted the verdict: shrinkage is a limit not a target, so 5% against a
+         * 3% pass value must fail, and `>=` passed it. Every dimensional-shrinkage result on
+         * every lab certificate was decided the wrong way round.
+         */
         return match ($labTest->scale) {
-            'grey' => $this->greyScaleVerdict($resultValue, $passValue),
-            'percentage' => $this->percentageVerdict($resultValue, $passValue),
+            'grey_1_5' => $this->greyScaleVerdict($resultValue, $passValue),
+            'percent' => $this->percentageVerdict($resultValue, $passValue),
             'delta_e' => $this->deltaEVerdict($resultValue, $passValue),
             'pass_fail' => strtolower(trim($resultValue)) === 'pass' ? 'pass' : 'fail',
             default => $this->numericVerdict($resultValue, $passValue),

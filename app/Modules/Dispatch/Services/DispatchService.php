@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Dispatch\Services;
 
+use App\Modules\Compliance\Services\CocPeriodGuard;
 use App\Modules\Dispatch\Models\DeliveryChallan;
 use App\Modules\Inventory\Models\StockLot;
 use App\Modules\Inventory\Services\StockPostingService;
@@ -447,6 +448,9 @@ class DispatchService
 
         $shipped = (float) $line->qty;
         $basis = $this->certifiedMassBasis($lot, $shipped);
+
+        // C3 — a closed period does not take new transactions.
+        app(CocPeriodGuard::class)->assertOpenNow((string) $lot->cert_scheme);
 
         DB::table('coc_transactions')->insert([
             'scheme' => $lot->cert_scheme,

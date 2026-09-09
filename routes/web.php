@@ -337,8 +337,19 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:physical_count.view')->name('physical-counts.print');
 
     // ---- Operations ----------------------------------------------------------------
-    Route::get('planning', PlanningBoardController::class)
+    Route::get('planning', [PlanningBoardController::class, 'index'])
         ->middleware('can:production_plan.view_any')->name('planning.index');
+
+    /*
+     * The board's two writes. `scheduled_start`, `scheduled_finish` and the planner's choice
+     * of machine were columns nothing in the application ever set: the board rendered
+     * `v_machine_load`, which selects `WHERE scheduled_start IS NOT NULL`, so every cell was
+     * empty by construction, and the floor queue ordered by the same always-NULL column.
+     */
+    Route::post('planning/schedule', [PlanningBoardController::class, 'schedule'])
+        ->middleware('can:production_plan.update')->name('planning.schedule');
+    Route::post('planning/unschedule', [PlanningBoardController::class, 'unschedule'])
+        ->middleware('can:production_plan.update')->name('planning.unschedule');
     Route::get('mrp', [MrpController::class, 'index'])
         ->middleware('can:mrp.view_any')->name('mrp.index');
     Route::post('mrp/run', [MrpController::class, 'run'])
@@ -354,6 +365,24 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:job_card.view')->name('job-cards.show');
     Route::post('job-cards/{jobCard}/transition', [JobCardController::class, 'transition'])
         ->middleware('can:job_card.view')->name('job-cards.transition');
+
+    /*
+     * I1, applied to production: a correction is a reversing entry, never an edit. Gated on
+     * `operation.update` rather than the terminal's `operation.log` — an operator books their
+     * own output, a supervisor un-books it.
+     */
+    Route::post('job-cards/{jobCard}/reverse-log', [JobCardController::class, 'reverseLog'])
+        ->middleware('can:operation.update')->name('job-cards.reverse-log');
+
+    /*
+     * The second door onto production. The four device endpoints need a badge and a PIN rather
+     * than a permission, so a signed-in supervisor could not record a figure at all — right as
+     * a default, unworkable as the only option when the kiosk beside the machine has died
+     * mid-shift. Same guards, narrower terms: the shift is stated, the operator is named, and
+     * the reason stays on the row.
+     */
+    Route::post('job-cards/{jobCard}/book-output', [JobCardController::class, 'bookOutput'])
+        ->middleware('can:operation.log')->name('job-cards.book-output');
     // P0-3 — production output enters finished-goods stock through this one door.
     Route::post('job-cards/{jobCard}/fg-receipts', [FgReceiptController::class, 'store'])
         ->middleware('can:fg_receipt.post')->name('job-cards.fg-receipts.store');
@@ -398,6 +427,15 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:coc.view_any')->name('compliance.index');
     Route::get('compliance/reconciliation', [ComplianceController::class, 'reconciliation'])
         ->middleware('can:coc.reconcile')->name('compliance.reconciliation');
+
+    /*
+     * CP-5 AC3 / C3 — closing a period locks its transactions. `is_locked` was rendered on the
+     * compliance screen and set by nothing: the column, the permission and the invariant all
+     * existed, and no route did. A chain of custody that can still take rows for a month an
+     * auditor has already been shown is not a chain of custody.
+     */
+    Route::post('compliance/close-period', [ComplianceController::class, 'closePeriod'])
+        ->middleware('can:coc.lock_period')->name('compliance.close-period');
 
     // ---- Fulfilment ----------------------------------------------------------------
     Route::get('packing-lists', [PackingListController::class, 'index'])

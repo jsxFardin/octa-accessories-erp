@@ -19,9 +19,13 @@ function ql5CreateReport(object $test, ?array $overrides = null): TestReport
 {
     $results = $overrides ?? $test->labTests->map(fn ($t) => [
         'lab_test_id' => $t->id,
+        // The names `lab_tests_scale_chk` allows. This carried the same two wrong ones the
+        // controller did ('grey', 'percentage'), so every grey and percent test fell to the
+        // '5' default — and a 5% shrinkage against a 3% limit only counted as a pass because
+        // the verdict comparison was inverted for exactly that scale.
         'result_value' => match ($t->scale) {
-            'grey' => '4.5',
-            'percentage' => '1.5',
+            'grey_1_5' => '4.5',
+            'percent' => '1.5',
             'delta_e' => '0.5',
             'pass_fail' => 'pass',
             default => '5',
@@ -48,11 +52,10 @@ it('creates a test report with auto-computed verdicts', function (): void {
 });
 
 it('auto-fails when a test fails', function (): void {
-    $greyTest = $this->labTests->firstWhere('scale', 'grey');
-
-    if ($greyTest === null) {
-        $this->markTestSkipped('No grey-scale test seeded.');
-    }
+    // `grey_1_5` is what `lab_tests_scale_chk` allows and what the seed writes. Looking for
+    // 'grey' matched nothing, so this test skipped every run — and the controller was matching
+    // on the same non-existent name, which is how an unreachable branch went unnoticed.
+    $greyTest = $this->labTests->firstWhere('scale', 'grey_1_5');
 
     $report = ql5CreateReport($this, [[
         'lab_test_id' => $greyTest->id,
@@ -124,4 +127,55 @@ it('lists test reports on the lab index', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('Quality/Lab/Index')
             ->has('reports.data'));
+});
+
+/**
+ * QL-5 AC3 — the verdict rule has to match the scale, and the scale names have to be real.
+ *
+ * `computeVerdict()` matched on 'grey' and 'percentage'. `lab_tests_scale_chk` allows
+ * grey_1_5, percent, delta_e, pass_fail and numeric — so neither arm could ever be reached and
+ * both scales fell through to the numeric rule. Grey scale survived that by coincidence (same
+ * comparison); percent did not. Shrinkage is a limit, not a target: 5% against a 3% pass value
+ * must fail, and the numeric rule passed it. Every dimensional-shrinkage line on every lab
+ * certificate was decided the wrong way round.
+ */
+it('fails a percentage result that is over its limit, not under it', function (): void {
+    $shrinkage = $this->labTests->firstWhere('scale', 'percent');
+
+    expect($shrinkage)->not->toBeNull()
+        ->and($shrinkage->default_pass_value)->not->toBeNull();
+
+    $limit = (float) $shrinkage->default_pass_value;
+
+    // Over the limit: shrinking more than allowed is a failure.
+    $over = ql5CreateReport($this, [[
+        'lab_test_id' => $shrinkage->id,
+        'result_value' => (string) ($limit + 2),
+    ]]);
+
+    expect($over->lines()->where('lab_test_id', $shrinkage->id)->value('result'))->toBe('fail');
+
+    // Under it: shrinking less than allowed is a pass.
+    $under = ql5CreateReport($this, [[
+        'lab_test_id' => $shrinkage->id,
+        'result_value' => (string) max(0, $limit - 1),
+    ]]);
+
+    expect($under->lines()->where('lab_test_id', $shrinkage->id)->value('result'))->toBe('pass');
+});
+
+it('passes a grey-scale result at or above its grade', function (): void {
+    $grey = $this->labTests->firstWhere('scale', 'grey_1_5');
+
+    expect($grey)->not->toBeNull();
+
+    $grade = (float) $grey->default_pass_value;
+
+    // Grey scale runs the other way from percent: a higher grade is a better result.
+    $report = ql5CreateReport($this, [[
+        'lab_test_id' => $grey->id,
+        'result_value' => (string) ($grade + 0.5),
+    ]]);
+
+    expect($report->lines()->where('lab_test_id', $grey->id)->value('result'))->toBe('pass');
 });

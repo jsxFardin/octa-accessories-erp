@@ -26,9 +26,32 @@ One rule decides which you want: **a job card is planned at a desk and run on th
 
 **Production → Planning board.**
 
-Load by machine / day. Drag or assign job-card operations into capacity. An operation cannot be scheduled before its predecessor unless the routing allows parallel.
+Load by machine / day. This is the planner's morning screen. The board does not start the
+machine; the operator (or supervisor) does.
 
-This is the planner’s morning screen. The board does not start the machine; the operator (or supervisor) does.
+**Scheduling.** The board has two lists under the grid: **Unscheduled operations** (waiting for
+a machine and a slot) and **Scheduled in this window**. Press **Schedule** on an unscheduled
+row, pick a machine and a day, and the panel shows what that machine already has booked and
+what it would have after this step. **Take off** returns a step to the unscheduled list and
+frees the slot. To move a step, schedule it again — the new placement replaces the old one.
+
+Four rules hold, and each names itself when it refuses:
+
+| Rule | What it stops |
+|---|---|
+| Machine group | A step whose routing names *Weaving* cannot be put on a press. Only eligible machines are offered. |
+| Retired machines | An inactive or retired machine cannot take work. |
+| **BR-27** capacity | A day may not be booked past the machine's available minutes — shift minutes discounted by planned downtime *and* by the machine's own efficiency. |
+| **J2** sequence | A step cannot be scheduled to run before the step that feeds it is scheduled to finish, unless the routing allows parallel. |
+
+Capacity and holidays can both be overridden, but only with a written reason, and the reason is
+kept on the audit trail against that operation. Nothing overrides the machine group or J2 —
+those are plans that cannot run.
+
+Scheduling is what fills the board's cells and what orders the operator's work queue at the
+terminal. A step with no schedule reaches the floor in no particular order.
+
+Needs `production_plan.update` — the planner role. Everyone else sees the board read-only.
 
 ## Material plan
 
@@ -106,13 +129,73 @@ Tap an operation in the queue:
 | Action | Meaning |
 |---|---|
 | Start | Operation → running. Sequence guards still apply. |
-| Output | Input received, good and waste. Beyond plan needs a written reason (J3). |
+| Output | Input received, good and waste. Waste needs a cause; beyond plan needs a written reason (J3). |
 | Downtime | A reason from the list, plus minutes. |
 | Finish | Closes the step. Finishing with nothing booked asks why first. |
 | Queue | Back to the list without closing the step. |
 | Offline | If wifi drops, the terminal queues the action for up to four hours and replays it. Do not reboot to “fix” a pending queue. |
 
 Bangla labels are the default for operators. Output you type is the shop-floor truth; the job card on the desk updates from it.
+
+### Waste
+
+Waste is booked with a **cause**, not just a quantity. The terminal asks for one as soon as a
+waste figure is entered, from a fixed list: setup, shade, weave defect, print defect, cutting,
+edge trim, damaged, expired, other. A booking with no waste is still two numbers and SAVE.
+
+The cause is what makes the figure actionable — a loom losing metres to setup and a loom losing
+them to a weave defect are different problems with different fixes, and G4 ("wastage % per
+machine trending down") cannot be worked on without knowing which one you have.
+
+The job card's **Waste** panel lists them: when, which step, the cause, the quantity in that
+step's own unit, the lot if the operator named one, and who reported it.
+
+Waste value is not costed yet — the panel shows quantities. Costing WIP waste belongs to the
+consumption and cost-sheet chain, and a number invented at the terminal would be worse than an
+absent one.
+
+### Booking output from the desk
+
+Output normally reaches the system one way: an operator books it at the terminal, against the
+job running in front of them. That is deliberate — it is the shop-floor truth, recorded where
+and when the work happened.
+
+When the terminal cannot take it — the kiosk is down, the tablet is dead, the shift ran without
+one — a supervisor can key it from the job card instead: **Shift bookings → Book output
+manually**. It is the same rules and a narrower door:
+
+| | |
+|---|---|
+| Who | `operation.log` — production supervisor and operator |
+| Same limits | J3, J5, J7 and QC1 apply exactly as at the terminal. The guards live in one place, so neither door is the softer one. |
+| When | You state the shift it belongs to. It is **not** stamped "now" — a night shift keyed the next morning would otherwise land on the wrong day and skew utilisation. |
+| Who made it | You name the operator. The work belongs to whoever ran it, not whoever typed it. |
+| Why | A reason is required and stays on the row. |
+
+Manual bookings carry a **desk** badge in the Shift bookings list, and the reason is on the
+badge. That is the point: an exception you cannot tell apart from the norm stops being an
+exception, and an auditor asking "how do you know this is what was made" should get a different
+answer for a figure that came off the machine and one that was typed from a paper sheet.
+
+If you find yourself using this every day, the terminal is broken and that is the thing to fix.
+
+### Correcting a booking
+
+Output that was booked wrongly is **reversed, not edited** — the same rule inventory follows.
+The original row stays exactly as the operator recorded it; a second row with negated
+quantities cancels it, and the totals move back: the operation, the job card's running totals,
+and — when the reversal is on the *final* operation — the sales order line's produced quantity.
+
+On the job card, **Shift bookings** lists what the floor recorded, newest first: which step,
+how much good and waste, which operator, machine and shift. Press **Reverse** on a row and give
+a reason. The reason is required and is kept on the audit trail.
+
+| | |
+|---|---|
+| Who | Production supervisor (`operation.update`). An operator books their own output; they cannot un-book it. |
+| Once only | A booking can be reversed once, and a reversal cannot itself be reversed. To re-book, book again. |
+| Not on a closed card | Reopen the job card first. |
+| Waste goes too | Waste recorded by that booking is removed with it, so a reversed figure does not stand in the waste report. |
 
 ### When the queue is empty
 
