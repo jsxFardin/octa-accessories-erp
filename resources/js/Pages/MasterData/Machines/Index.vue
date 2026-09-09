@@ -70,7 +70,9 @@ const columns = [
         <p class="mb-3 text-sm text-ink-600">
             Operators pick a machine <span class="font-medium text-ink-800">by code</span> when they sign in at the
             <a href="/floor" target="_blank" rel="noopener" class="font-medium text-brand-700 underline underline-offset-2">shop floor terminal</a>,
-            and it filters the work queue they see. Their badge number and floor PIN are set per person under
+            and it filters the work queue they see. The operators themselves are maintained under
+            <Link href="/setup/employees" class="font-medium text-brand-700 underline underline-offset-2">Configuration → Lists → Employees</Link>,
+            and their floor PIN is set per person under
             <Link href="/admin/users" class="font-medium text-brand-700 underline underline-offset-2">Configuration → Users</Link>.
         </p>
 

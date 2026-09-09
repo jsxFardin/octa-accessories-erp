@@ -87,9 +87,25 @@ const bookableOperations = computed(() => props.operations
     .filter((op) => !['completed', 'skipped', 'cancelled'].includes(op.status))
     .map((op) => ({ value: op.id, label: `${op.sequence_no} · ${op.name}`, hint: op.unit })));
 
-const nothingBookable = computed(() => bookableOperations.value.length === 0);
+/*
+ * A booking needs a step that can take it and a person it belongs to. Missing either, the form
+ * cannot be completed, and saying so on the button beats opening it to an empty picker.
+ *
+ * Operators are employee records, which live under Configuration → Lists → Employees rather
+ * than under Production — configuration is deliberately kept out of the working sidebar, so
+ * the one place that can reasonably point at it is the field that needs it.
+ */
+const nothingBookable = computed(
+    () => bookableOperations.value.length === 0 || props.operators.length === 0,
+);
 
 const nothingBookableReason = computed(() => {
+    if (props.operators.length === 0) {
+        return 'No employees exist yet, so there is nobody to book this against. Add them under '
+            + 'Configuration → Lists → Employees — each needs a factory unit, and a card number if '
+            + 'they sign in at the floor terminal.';
+    }
+
     if (props.operations.length === 0) return 'This job card has no operations yet.';
 
     return 'Every step on this card is closed. Production cannot be booked against a completed step — '
@@ -1106,7 +1122,7 @@ const bomColumns = [
                 <div class="grid grid-cols-3 gap-3">
                     <FormField
                         label="Operator"
-                        hint="Whoever ran it, not whoever is typing."
+                        hint="Whoever ran it, not whoever is typing. From Configuration → Lists → Employees."
                         :error="bookForm.errors.operator_id"
                         required
                     >

@@ -167,6 +167,7 @@ manually**. It is the same rules and a narrower door:
 | | |
 |---|---|
 | Who | `operation.log` — production supervisor and operator |
+| Needs | At least one employee record. Operators come from **Configuration → Lists → Employees**, not from Production — with no employees the button is disabled and says so. |
 | Same limits | J3, J5, J7 and QC1 apply exactly as at the terminal. The guards live in one place, so neither door is the softer one. |
 | When | You state the shift it belongs to. It is **not** stamped "now" — a night shift keyed the next morning would otherwise land on the wrong day and skew utilisation. |
 | Who made it | You name the operator. The work belongs to whoever ran it, not whoever typed it. |
