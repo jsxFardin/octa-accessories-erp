@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\Services\DeviceSession;
 use App\Modules\Manufacturing\Services\DeviceSessionRegistry;
+use App\Support\Settings\Organisation;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -100,6 +102,53 @@ class FloorTerminalController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('floor.index');
+    }
+
+    /**
+     * The web app manifest, so the terminal installs to a tablet's home screen and opens
+     * without browser chrome.
+     *
+     * Served by the application rather than shipped as a static file because the name on the
+     * home screen follows the organisation profile, the way every other piece of branding in
+     * this system does — a rebrand should not need a deploy. Unauthenticated on purpose: the
+     * browser fetches a manifest before anybody has signed in, and it carries no data beyond
+     * the company name.
+     */
+    public function manifest(Organisation $organisation): JsonResponse
+    {
+        $names = $organisation->forFrontend();
+
+        return response()->json([
+            'id' => '/floor',
+            'name' => trim(($names['short_name'] ?: 'Octa ERP').' — Shop floor'),
+            'short_name' => 'Floor',
+            'description' => 'Badge in, run the work queue, book output — at the machine.',
+            'start_url' => '/floor',
+            'scope' => '/floor',
+            // Full screen, not standalone: a kiosk beside a loom has no use for a status bar,
+            // and an operator with gloves on should not be able to reach a URL bar at all.
+            'display' => 'fullscreen',
+            'display_override' => ['fullscreen', 'standalone'],
+            // slate-950, matching `.floor-scope` — the splash screen and the app behind it are
+            // the same colour, so the launch does not flash white in a dark weaving shed.
+            'background_color' => '#020617',
+            'theme_color' => '#020617',
+            'orientation' => 'any',
+            'lang' => 'bn',
+            'dir' => 'ltr',
+            /*
+             * Under `public/icons/`, not `public/floor/`. A real directory at `public/floor`
+             * shadows the route of the same name: PHP's built-in server answers `/floor` with
+             * "No such file or directory", and an nginx `try_files $uri $uri/ /index.php`
+             * resolves it to the directory before it ever reaches the application. The
+             * terminal's own front door is not worth an icon folder.
+             */
+            'icons' => [
+                ['src' => '/icons/floor-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any'],
+                ['src' => '/icons/floor-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any'],
+                ['src' => '/icons/floor-maskable-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
+            ],
+        ], 200, ['Content-Type' => 'application/manifest+json']);
     }
 
     public function queue(Request $request): Response

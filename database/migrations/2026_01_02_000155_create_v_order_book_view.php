@@ -22,7 +22,7 @@ return new class extends Migration
         DB::statement('DROP VIEW IF EXISTS `v_order_book`');
 
         DB::unprepared(<<<'SQL'
-CREATE VIEW v_order_book AS
+CREATE SQL SECURITY INVOKER VIEW v_order_book AS
 SELECT
     so.id          AS sales_order_id,
     so.number      AS so_number,

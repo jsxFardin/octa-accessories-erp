@@ -3282,8 +3282,19 @@ CREATE TABLE stock_balances (
     CONSTRAINT stock_balances_warehouse_fk FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+/*
+ * Every view below is SQL SECURITY INVOKER.
+ *
+ * MySQL's default is DEFINER, which bakes the creating account into the view and runs it as
+ * that account forever. Restore this schema under one MySQL user, connect the application as
+ * another, drop the first — and every screen that reads a view dies on
+ * "ERROR 1449: The user specified as a definer does not exist", which names a problem that
+ * has nothing to do with the query. INVOKER runs the view as whoever queries it, which is the
+ * application's own connection, and depends on no account outliving the install.
+ */
+
 -- Authoritative live balance from the append-only ledger (I3).
-CREATE VIEW v_stock_balances AS
+CREATE SQL SECURITY INVOKER VIEW v_stock_balances AS
 SELECT
     l.id                            AS lot_id,
     l.lot_no,
@@ -3301,7 +3312,7 @@ GROUP BY l.id, l.lot_no, l.item_id, l.product_id, l.warehouse_id,
          l.shade_code, l.cert_scheme, l.cert_claim_pct, l.received_on;
 
 -- Open order book with production progress.
-CREATE VIEW v_order_book AS
+CREATE SQL SECURITY INVOKER VIEW v_order_book AS
 SELECT
     so.id          AS sales_order_id,
     so.number      AS so_number,
@@ -3326,7 +3337,7 @@ JOIN products  p ON p.id = sol.product_id
 WHERE so.status IN ('confirmed','in_production','partially_delivered');
 
 -- Machine utilisation input (BR-27).
-CREATE VIEW v_machine_load AS
+CREATE SQL SECURITY INVOKER VIEW v_machine_load AS
 SELECT
     jco.machine_id,
     m.code                       AS machine_code,
@@ -3342,7 +3353,7 @@ GROUP BY jco.machine_id, m.code, DATE(jco.scheduled_start);
 -- Chain-of-custody reconciliation (BR-42).
 -- P0-2 — what a job card made: the final operation's output, and nothing summed across
 -- operations that do not share a unit (weaving books metres, packing books pieces).
-CREATE VIEW v_job_card_output AS
+CREATE SQL SECURITY INVOKER VIEW v_job_card_output AS
 SELECT
     jco.job_card_id,
     jco.sequence_no  AS final_sequence_no,
@@ -3360,7 +3371,7 @@ JOIN (
   ON last_op.job_card_id = jco.job_card_id
  AND last_op.sequence_no = jco.sequence_no;
 
-CREATE VIEW v_coc_reconciliation AS
+CREATE SQL SECURITY INVOKER VIEW v_coc_reconciliation AS
 SELECT
     scheme,
     period_year,

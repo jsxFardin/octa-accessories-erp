@@ -1,8 +1,9 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import FloorLayout from '@/Layouts/FloorLayout.vue';
 import { useOfflineQueue } from '@/Composables/useOfflineQueue';
+import { clearFloorCache } from '@/floor/serviceWorker';
 
 
 const props = defineProps({
@@ -17,7 +18,13 @@ const props = defineProps({
 const operations = ref([]);
 const loading = ref(true);
 const error = ref(null);
+/** When the queue on screen was last fetched from the server, if it did not come from one. */
+const cachedAt = ref(null);
 const { pending, online } = useOfflineQueue();
+
+const cachedTime = computed(() => (cachedAt.value
+    ? new Date(cachedAt.value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null));
 
 async function load() {
     if (props.deviceToken) {
@@ -36,9 +43,22 @@ async function load() {
         return;
     }
 
-    const response = await fetch(`/api/v1/floor/queue?machine_code=${props.machineCode ?? ''}`, {
-        headers: { Authorization: `Bearer ${session.token}`, Accept: 'application/json' },
-    });
+    let response;
+
+    try {
+        response = await fetch(`/api/v1/floor/queue?machine_code=${props.machineCode ?? ''}`, {
+            headers: { Authorization: `Bearer ${session.token}`, Accept: 'application/json' },
+        });
+    } catch {
+        // No link, and the service worker had nothing cached for this machine either — which
+        // on a kiosk means this terminal has never been opened here with a connection. It
+        // used to leave `loading` true, so the screen sat on an ellipsis for the rest of the
+        // shift with no way to tell that from a slow queue.
+        error.value = 'সংযোগ নেই · No connection, and no saved queue on this device. Reconnect, or ask your supervisor for the job card.';
+        loading.value = false;
+
+        return;
+    }
 
     if (response.status === 401) {
         localStorage.removeItem('octa.device_session');
@@ -56,6 +76,9 @@ async function load() {
 
     const payload = await response.json();
     operations.value = payload.operations;
+    // Set by the service worker when it answered from its cache instead of the server. A list
+    // of job cards with no date on it looks exactly like a live one.
+    cachedAt.value = payload.cached_at ?? null;
     loading.value = false;
 }
 
@@ -65,6 +88,9 @@ async function load() {
  */
 function endShift() {
     localStorage.removeItem('octa.device_session');
+    // The cached pages and work queue are this operator's too. Left behind, they would be
+    // handed to the next badge at this kiosk the moment the link dropped.
+    clearFloorCache();
     router.post('/floor/session/end');
 }
 
@@ -98,6 +124,19 @@ onMounted(load);
         </template>
 
         <p v-if="error" class="mb-4 rounded-xl bg-rose-600 px-5 py-4 text-xl font-semibold">{{ error }}</p>
+
+        <!--
+            Answered from the device's own cache because the link was down. Said plainly: the
+            work below is real, it is simply as of a time that is not now, and a job card
+            cancelled or reassigned since would still be sitting in this list.
+        -->
+        <p
+            v-if="cachedAt"
+            class="mb-4 rounded-xl bg-amber-500 px-5 py-4 text-lg font-semibold text-slate-900"
+        >
+            সংরক্ষিত তালিকা · Saved list from {{ cachedTime }} — not live. New or cancelled work will not
+            show until the connection returns.
+        </p>
 
         <p v-if="loading" class="text-2xl text-slate-400">…</p>
 

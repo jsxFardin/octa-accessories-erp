@@ -22,7 +22,7 @@ return new class extends Migration
         DB::statement('DROP VIEW IF EXISTS `v_coc_reconciliation`');
 
         DB::unprepared(<<<'SQL'
-CREATE VIEW v_coc_reconciliation AS
+CREATE SQL SECURITY INVOKER VIEW v_coc_reconciliation AS
 SELECT
     scheme,
     period_year,

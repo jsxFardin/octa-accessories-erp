@@ -107,6 +107,15 @@ hashed and is never shown back, so a forgotten one is reset, not looked up.
 Do not set the PIN to the last digits of the badge number. The badge is worn where anyone can
 read it.
 
+### Installing it on the tablet
+
+Open `/floor` in Chrome on the tablet and choose **Install app** (Chrome's ⋮ menu, or the prompt
+it offers). The terminal then has its own icon on the home screen and opens full screen, with no
+address bar for an operator to fall into. On an iPad it is *Share → Add to Home Screen*.
+
+Do this once per kiosk, on the wifi, before the tablet goes to the floor. The install is also
+what puts the terminal on the device: from then on it opens even when the network is down.
+
 ### Signing in
 
 Scan the badge, type the PIN, pick the machine, press **SIGN IN**. That is the whole login —
@@ -134,6 +143,21 @@ Tap an operation in the queue:
 | Finish | Closes the step. Finishing with nothing booked asks why first. |
 | Queue | Back to the list without closing the step. |
 | Offline | If wifi drops, the terminal queues the action for up to four hours and replays it. Do not reboot to “fix” a pending queue. |
+
+### When the wifi drops
+
+Keep working. Everything booked is held on the tablet and sent when the link returns — the
+badge at the top right shows **OFFLINE** and how many entries are waiting.
+
+Reloading is safe: the terminal opens from the tablet rather than the network, and comes back
+with the work list it had. It says so — *"Saved list from 14:20 — not live"* — because a job
+card cancelled or added while the link was down will not be in it.
+
+What does **not** work offline is opening a job card nobody has opened on that tablet yet; the
+terminal says so rather than doing nothing. Open the card you are about to run while you still
+have a connection, and you can work through the whole outage on it.
+
+Ending a shift clears the saved screens, so the next operator never sees the last one's work.
 
 Bangla labels are the default for operators. Output you type is the shop-floor truth; the job card on the desk updates from it.
 

@@ -55,6 +55,13 @@ it('guards every application route with a permission', function (): void {
         // who landed on the kiosk without terminal rights still has to be able to get off it.
         // `floor/session/continue` is *not* here — it carries `can:operation.terminal`.
         'floor/session', 'floor/session/end',
+        // Installability. The browser fetches both of these itself, for itself: the manifest
+        // whenever the badge screen is opened, the worker on registration and again on every
+        // update check — all of it before anybody has signed in, and none of it able to send
+        // a session cookie on a worker update. They carry no factory data: a company name and
+        // some icon paths, and a list of hashed asset filenames the build already serves
+        // publicly under /build.
+        'floor/manifest.webmanifest', 'floor/sw.js',
         'profile', 'profile/password', 'profile/locale', 'search',
         // Own-user inbox: the row belongs to the caller, so a route-level `can:` would
         // either lock everyone out or say nothing (same reasoning as profile).

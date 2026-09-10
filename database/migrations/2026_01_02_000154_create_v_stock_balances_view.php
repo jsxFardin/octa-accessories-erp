@@ -22,7 +22,7 @@ return new class extends Migration
         DB::statement('DROP VIEW IF EXISTS `v_stock_balances`');
 
         DB::unprepared(<<<'SQL'
-CREATE VIEW v_stock_balances AS
+CREATE SQL SECURITY INVOKER VIEW v_stock_balances AS
 SELECT
     l.id                            AS lot_id,
     l.lot_no,

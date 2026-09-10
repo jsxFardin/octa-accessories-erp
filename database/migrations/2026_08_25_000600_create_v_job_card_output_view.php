@@ -26,7 +26,7 @@ return new class extends Migration
         DB::statement('DROP VIEW IF EXISTS `v_job_card_output`');
 
         DB::unprepared(<<<'SQL'
-CREATE VIEW v_job_card_output AS
+CREATE SQL SECURITY INVOKER VIEW v_job_card_output AS
 SELECT
     jco.job_card_id,
     jco.sequence_no  AS final_sequence_no,

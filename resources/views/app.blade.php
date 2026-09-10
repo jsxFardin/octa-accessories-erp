@@ -16,7 +16,26 @@
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     @endif
 
-    <meta name="theme-color" content="#0071be">
+    {{--
+        The shop floor installs to a tablet's home screen; the desk does not. Two different
+        products in two different places — a manifest offered on every screen would have an
+        accountant's browser prompting to install a machine terminal.
+
+        The colours are the floor's own (`.floor-scope`, slate-950), so the splash screen and
+        the address bar match the application behind them instead of flashing brand azure in a
+        dark weaving shed.
+    --}}
+    @if (request()->is('floor', 'floor/*'))
+        <link rel="manifest" href="/floor/manifest.webmanifest">
+        <link rel="apple-touch-icon" href="/icons/floor-apple-touch.png">
+        <meta name="theme-color" content="#020617">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="Floor">
+    @else
+        <meta name="theme-color" content="#0071be">
+    @endif
 
     @routes
     @vite(['resources/css/app.css', 'resources/js/app.js'])

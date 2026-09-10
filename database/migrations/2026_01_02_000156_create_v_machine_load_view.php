@@ -22,7 +22,7 @@ return new class extends Migration
         DB::statement('DROP VIEW IF EXISTS `v_machine_load`');
 
         DB::unprepared(<<<'SQL'
-CREATE VIEW v_machine_load AS
+CREATE SQL SECURITY INVOKER VIEW v_machine_load AS
 SELECT
     jco.machine_id,
     m.code                       AS machine_code,
