@@ -77,7 +77,7 @@ function submit() {
 
 const columns = [
     { key: 'item_id', label: 'Item', width: '18rem' },
-    { key: 'qty', label: 'Quantity', width: '11rem', align: 'right' },
+    { key: 'qty', label: 'Quantity', width: '14rem', align: 'right' },
     { key: 'rounded', label: 'Orders as', width: '9rem', align: 'right' },
     { key: 'required_by', label: 'Required by', width: '9rem' },
     { key: 'remarks', label: 'Remarks' },
