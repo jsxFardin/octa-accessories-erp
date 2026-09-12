@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support\Settings;
 
+use Illuminate\Support\Facades\DB;
+
 /**
  * How each business setting is presented: a human label, the unit it is measured in, and the
  * rule it feeds.
@@ -117,6 +119,32 @@ class SettingCatalogue
     public function groupLabel(string $group): string
     {
         return self::GROUPS[$group] ?? ucfirst(str_replace('_', ' ', $group));
+    }
+
+    /**
+     * Settings whose value is picked from a list rather than typed.
+     *
+     * `base_currency` is the one that matters: it is compared against `currencies.code` on
+     * every money document, and a typed "Taka" or "BDT " silently matched nothing — every
+     * conversion then treated the base currency as foreign and looked for a rate that by
+     * definition does not exist.
+     *
+     * @return list<array{value: string, label: string, code: string}>
+     */
+    public function choices(string $key): array
+    {
+        return match ($key) {
+            'base_currency' => DB::table('currencies')
+                ->orderBy('code')
+                ->get(['code', 'name'])
+                ->map(fn (object $row): array => [
+                    'value' => (string) $row->code,
+                    'label' => (string) $row->name,
+                    'code' => (string) $row->code,
+                ])
+                ->all(),
+            default => [],
+        };
     }
 
     /** @return list<string> */

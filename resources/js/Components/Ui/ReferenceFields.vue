@@ -11,6 +11,15 @@ import { titleCase } from '@/plugins/formatting';
  * Shared by the Setup hub's inline cards and the full-list screen, so a lookup's form looks
  * and validates the same wherever it is opened.
  */
+/**
+ * A vocabulary written as a code (`centre_fold`) is title-cased for the eye; one that is
+ * already prose — a country name — is left exactly as it is, because "Côte d’Ivoire" comes
+ * back out of the title-caser spelled differently to how it goes in.
+ */
+function optionLabel(option) {
+    return /^[a-z0-9_]+$/.test(String(option)) ? titleCase(option) : String(option);
+}
+
 defineProps({
     /** Field definitions from ReferenceRegistry. */
     fields: { type: Array, required: true },
@@ -58,7 +67,7 @@ defineProps({
             <SelectInput
                 v-else-if="field.type === 'select'"
                 v-model="form[field.name]"
-                :options="field.options.map((option) => ({ value: option, label: titleCase(option) }))"
+                :options="field.options.map((option) => ({ value: option, label: optionLabel(option) }))"
                 placeholder="— select —"
             />
 

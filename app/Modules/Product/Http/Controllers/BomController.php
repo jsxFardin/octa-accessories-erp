@@ -111,7 +111,14 @@ class BomController extends Controller
             'lines.*.formula_ref' => ['nullable', 'string', 'max:20'],
         ]);
 
-        $bom = DB::transaction(function () use ($product, $data, $request): Bom {
+        // A BOM written to be used should not need a second trip to the product page to be
+        // activated. Activation is its own permission, so asking for it without holding it is
+        // refused here rather than silently granted by a checkbox.
+        $activate = $request->boolean('activate');
+
+        abort_if($activate && ! $request->user()->hasPermission('bom.activate'), 403);
+
+        $bom = DB::transaction(function () use ($product, $data, $request, $activate): Bom {
             $bom = Bom::query()->create([
                 'product_id' => $product->id,
                 'product_spec_id' => $data['product_spec_id'] ?? $product->currentSpec?->id,
@@ -135,10 +142,24 @@ class BomController extends Controller
                 ]);
             }
 
+            if ($activate) {
+                $this->promote($bom);
+            }
+
             return $bom;
         });
 
-        return back()->with('success', "BOM v{$bom->version_no} created as a draft.");
+        // Back to the product, where the BOM sits beside the spec and the artwork it is read
+        // with — the form itself only ever creates.
+        // `#bom` is the anchor the product page scrolls to on arrival.
+        return redirect()
+            ->to(route('products.show', $product).'#bom')
+            ->with(
+                'success',
+                $activate
+                    ? "BOM v{$bom->version_no} created and is now the active version."
+                    : "BOM v{$bom->version_no} created as a draft. Activate it before a job card can be released.",
+            );
     }
 
     /**
@@ -147,16 +168,23 @@ class BomController extends Controller
      */
     public function activate(Bom $bom): RedirectResponse
     {
-        DB::transaction(function () use ($bom): void {
-            Bom::query()
-                ->where('product_id', $bom->product_id)
-                ->where('id', '!=', $bom->getKey())
-                ->where('status', Bom::ACTIVE)
-                ->update(['status' => Bom::SUPERSEDED]);
-
-            $bom->update(['status' => Bom::ACTIVE]);
-        });
+        DB::transaction(fn () => $this->promote($bom));
 
         return back()->with('success', "BOM v{$bom->version_no} is now active.");
+    }
+
+    /**
+     * Supersede the outgoing version, then activate this one — in that order, inside a
+     * transaction the caller owns, or the unique index over `active_key` rejects the write.
+     */
+    private function promote(Bom $bom): void
+    {
+        Bom::query()
+            ->where('product_id', $bom->product_id)
+            ->where('id', '!=', $bom->getKey())
+            ->where('status', Bom::ACTIVE)
+            ->update(['status' => Bom::SUPERSEDED]);
+
+        $bom->update(['status' => Bom::ACTIVE]);
     }
 }

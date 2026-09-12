@@ -63,7 +63,7 @@ class PurchaseReport extends ReportQuery
 
     public function filterFields(): array
     {
-        $suppliers = DB::table('suppliers')->orderBy('name')->get(['id', 'name']);
+        $suppliers = DB::table('suppliers')->orderBy('name')->get(['id', 'code', 'name']);
 
         return [
             ['key' => 'supplier', 'label' => 'Supplier', 'options' => $suppliers->map(fn ($s): array => ['value' => $s->id, 'label' => $s->name])->all()],

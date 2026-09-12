@@ -50,7 +50,7 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','sent','accepted','rejected','revised','expired','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'customer', label: 'Customer', options: customers.map((c) => ({ value: c.id, label: c.name })) }]" placeholder="Search quotation number…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','sent','accepted','rejected','revised','expired','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'customer', label: 'Customer', options: customers.map((c) => ({ value: c.id, label: c.name, code: c.code })) }]" placeholder="Search quotation number…" />
 
             <DataTable
                 :columns="columns"

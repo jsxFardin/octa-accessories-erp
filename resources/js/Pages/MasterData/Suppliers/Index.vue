@@ -15,7 +15,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 
 const { confirm } = useConfirm();
 
-const props = defineProps({ suppliers: Object, filters: Object });
+const props = defineProps({ suppliers: Object, filters: Object, countries: Array });
 
 async function remove(row) {
     if (!await confirm({
@@ -66,7 +66,7 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'approved', label: 'Approved', options: [{ value: '1', label: 'Approved' }, { value: '0', label: 'Not approved' }] }]" placeholder="Search code, name or country…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'approved', label: 'Approved', options: [{ value: '1', label: 'Approved' }, { value: '0', label: 'Not approved' }] }, { key: 'country', label: 'Country', options: (countries ?? []).map((country) => ({ value: country, label: country })) }]" placeholder="Search code, name or country…" />
 
             <DataTable
                 :columns="columns"

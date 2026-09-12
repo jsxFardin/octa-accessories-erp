@@ -64,7 +64,7 @@ class ImportShipmentController extends Controller
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'supplier', 'mode']),
-            'suppliers' => DB::table('suppliers')->orderBy('name')->get(['id', 'name']),
+            'suppliers' => DB::table('suppliers')->orderBy('name')->get(['id', 'code', 'name']),
             'modes' => ImportShipment::MODES,
             'statuses' => ImportShipment::STATUSES,
         ]);
@@ -147,7 +147,7 @@ class ImportShipmentController extends Controller
             'costTypes' => ImportCost::TYPES,
             'allocableTypes' => ImportCost::ALLOCABLE_TYPES,
             'currencies' => DB::table('currencies')->orderBy('code')->get(['id', 'code', 'name']),
-            'vendors' => DB::table('suppliers')->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'vendors' => DB::table('suppliers')->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'statuses' => ImportShipment::STATUSES,
         ]);
     }

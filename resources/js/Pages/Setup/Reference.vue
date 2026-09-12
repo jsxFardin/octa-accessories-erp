@@ -151,7 +151,7 @@ function rowActions(row) {
                         {{ optionLabel(column.field, value) }}
                     </span>
                     <span v-else-if="column.field.type === 'select'">
-                        {{ value ? titleCase(value) : '—' }}
+                        {{ value ? (/^[a-z0-9_]+$/.test(String(value)) ? titleCase(value) : value) : '—' }}
                     </span>
                     <span v-else-if="column.field.type === 'date'">
                         {{ $fmt.date(value) }}

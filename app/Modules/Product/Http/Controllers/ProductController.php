@@ -7,6 +7,7 @@ namespace App\Modules\Product\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Brand;
 use App\Modules\MasterData\Models\Customer;
+use App\Modules\MasterData\Models\Employee;
 use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\Routing;
 use App\Support\Http\ContextualId;
@@ -51,7 +52,7 @@ class ProductController extends Controller
                 ],
             ),
             'filters' => $this->listingFilters($request, ['customer', 'type', 'status']),
-            'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'name']),
+            'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
             'productTypes' => Vocabulary::options('product_type'),
         ]);
     }
@@ -127,6 +128,12 @@ class ProductController extends Controller
                 'title' => $artwork->title,
                 'versions' => $artwork->versions->map->only(['id', 'version_no', 'status', 'submitted_at', 'approved_at', 'customer_ref']),
             ]),
+            // Gate 1 starts here, not on the artwork list. A product with no approved artwork
+            // cannot be produced, and this is the screen where that is noticed — so the first
+            // artwork is started from it rather than from a list that asks which product it
+            // belongs to all over again.
+            'designers' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            'suggestedArtworkCode' => $product->code.'-AW'.($product->artworks->count() + 1),
             'boms' => $product->boms->map(fn ($bom): array => [
                 ...$bom->only(['id', 'version_no', 'status', 'base_qty', 'notes']),
                 'lines' => $bom->lines->map(fn ($line): array => [
@@ -191,7 +198,7 @@ class ProductController extends Controller
     {
         return [
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
-            'brands' => Brand::query()->orderBy('name')->get(['id', 'name', 'customer_id']),
+            'brands' => Brand::query()->orderBy('name')->get(['id', 'code', 'name', 'customer_id']),
             'routings' => Routing::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name', 'product_type', 'max_lot_size']),
             'productTypes' => Vocabulary::options('product_type'),
             'statuses' => Vocabulary::options('product_status'),

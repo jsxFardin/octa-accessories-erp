@@ -71,7 +71,7 @@ class FulfilmentReport extends ReportQuery
     public function filterFields(): array
     {
         $statuses = DB::table('sales_orders')->distinct()->orderBy('status')->pluck('status');
-        $customers = DB::table('customers')->orderBy('name')->get(['id', 'name']);
+        $customers = DB::table('customers')->orderBy('name')->get(['id', 'code', 'name']);
 
         return [
             ['key' => 'status', 'label' => 'Status', 'options' => $statuses->map(fn ($s): array => ['value' => $s, 'label' => str_replace('_', ' ', ucfirst((string) $s))])->all()],

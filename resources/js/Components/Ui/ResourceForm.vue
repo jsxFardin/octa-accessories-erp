@@ -74,6 +74,8 @@ function submit() {
                             :options="field.options ?? []"
                             :value-key="field.valueKey ?? 'value'"
                             :label-key="field.labelKey ?? 'label'"
+                            :hint-key="field.hintKey ?? null"
+                            :code-key="field.codeKey ?? 'code'"
                             :error="form.errors[field.key]"
                         />
 

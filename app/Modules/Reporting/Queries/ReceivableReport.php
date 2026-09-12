@@ -66,7 +66,7 @@ class ReceivableReport extends ReportQuery
     public function filterFields(): array
     {
         $statuses = ['draft', 'issued', 'partially_paid', 'paid', 'overdue', 'cancelled'];
-        $customers = DB::table('customers')->orderBy('name')->get(['id', 'name']);
+        $customers = DB::table('customers')->orderBy('name')->get(['id', 'code', 'name']);
 
         return [
             ['key' => 'status', 'label' => 'Status', 'options' => array_map(fn (string $s): array => ['value' => $s, 'label' => str_replace('_', ' ', ucfirst($s))], $statuses)],

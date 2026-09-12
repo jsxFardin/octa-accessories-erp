@@ -106,12 +106,20 @@ class Vocabulary
     /**
      * As a `SelectInput` expects them.
      *
-     * @return list<array{value: string, label: string}>
+     * The code travels beside the name because that is how these lists are spoken about — a
+     * planner says RT-WOVEN and reads "Woven label", and a picker showing only one of the two
+     * sends them to the Setup screen to translate.
+     *
+     * @return list<array{value: string, label: string, code: string}>
      */
     public static function options(string $key): array
     {
         return array_map(
-            fn (array $row): array => ['value' => (string) $row['code'], 'label' => (string) $row['name']],
+            fn (array $row): array => [
+                'value' => (string) $row['code'],
+                'label' => (string) $row['name'],
+                'code' => (string) $row['code'],
+            ],
             self::rows($key),
         );
     }

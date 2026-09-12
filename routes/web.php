@@ -21,6 +21,8 @@ use App\Modules\Inventory\Http\Controllers\StockLotController;
 use App\Modules\Inventory\Http\Controllers\StockTransferController;
 use App\Modules\Manufacturing\Http\Controllers\FgReceiptController;
 use App\Modules\Manufacturing\Http\Controllers\JobCardController;
+use App\Modules\MasterData\Http\Controllers\BrandController;
+use App\Modules\MasterData\Http\Controllers\CustomerAddressController;
 use App\Modules\MasterData\Http\Controllers\CustomerController;
 use App\Modules\MasterData\Http\Controllers\ItemController;
 use App\Modules\MasterData\Http\Controllers\MachineController;
@@ -119,6 +121,23 @@ Route::middleware('auth')->group(function (): void {
         ->middlewareFor(['edit', 'update'], 'can:customer.update')
         ->middlewareFor('destroy', 'can:customer.delete');
 
+    // Addresses and brands belong to one customer and are maintained on that customer's page
+    // rather than in Setup. `customer.update` is the gate: editing where a customer's cartons
+    // go is editing the customer.
+    Route::post('customers/{customer}/addresses', [CustomerAddressController::class, 'store'])
+        ->middleware('can:customer.update')->name('customers.addresses.store');
+    Route::put('customers/{customer}/addresses/{address}', [CustomerAddressController::class, 'update'])
+        ->middleware('can:customer.update')->name('customers.addresses.update');
+    Route::delete('customers/{customer}/addresses/{address}', [CustomerAddressController::class, 'destroy'])
+        ->middleware('can:customer.update')->name('customers.addresses.destroy');
+
+    Route::post('customers/{customer}/brands', [BrandController::class, 'store'])
+        ->middleware('can:customer.update')->name('customers.brands.store');
+    Route::put('customers/{customer}/brands/{brand}', [BrandController::class, 'update'])
+        ->middleware('can:customer.update')->name('customers.brands.update');
+    Route::delete('customers/{customer}/brands/{brand}', [BrandController::class, 'destroy'])
+        ->middleware('can:customer.update')->name('customers.brands.destroy');
+
     Route::resource('suppliers', SupplierController::class)
         ->middlewareFor(['index', 'show'], 'can:supplier.view_any')
         ->middlewareFor(['create', 'store'], 'can:supplier.create')
@@ -157,6 +176,10 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:artwork.update')->name('artworks.update');
     Route::post('artworks/{artwork}/versions', [ArtworkVersionController::class, 'store'])
         ->middleware('can:artwork.create')->name('artworks.versions.store');
+    // The artwork file itself. It lives on the private disk — it is a customer's intellectual
+    // property — so it is streamed through the same permission as the screen that shows it.
+    Route::get('artwork-versions/{version}/file', [ArtworkVersionController::class, 'file'])
+        ->middleware('can:artwork.view')->name('artwork-versions.file');
     // Transition endpoints are gated on `.view`, not on one named action: a target's own
     // permission is checked by the state machine (StateMachine::assertPermitted). Gating the
     // route on `.submit` locked approvers out — the MD holds `artwork.approve` and nothing else.

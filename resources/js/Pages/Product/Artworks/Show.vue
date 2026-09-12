@@ -50,6 +50,46 @@ const blockedNextStep = computed(() => {
 
 const selected = ref(props.versions[0] ?? null);
 
+/*
+ * Gate 1 asks someone to approve a design, so the design has to be on the screen. The file is
+ * private — it is the customer's intellectual property and never had a public URL — so it is
+ * streamed through `/artwork-versions/{id}/file`, which carries the same permission as this
+ * page.
+ *
+ * A browser can draw a PNG, a JPEG, an SVG and a PDF. It cannot draw an AI, EPS, PSD or CDR,
+ * and those are the formats a studio actually works in — so those offer the file instead of
+ * pretending to render it.
+ */
+const IMAGE_FORMATS = ['png', 'jpg', 'svg'];
+
+function fileUrl(version) {
+    return `/artwork-versions/${version.id}/file`;
+}
+
+function downloadUrl(version) {
+    return `${fileUrl(version)}?download=1`;
+}
+
+function isImage(version) {
+    return IMAGE_FORMATS.includes(version.file_format);
+}
+
+function isPdf(version) {
+    return version.file_format === 'pdf';
+}
+
+function isRenderable(version) {
+    return isImage(version) || isPdf(version);
+}
+
+const previewOpen = ref(false);
+const previewed = ref(null);
+
+function openPreview(version) {
+    previewed.value = version;
+    previewOpen.value = true;
+}
+
 const uploadForm = useForm({ file: null });
 const approveForm = useForm({ to: 'approved', customer_ref: '' });
 const rejectForm = useForm({ to: 'rejected', rejection_reason: '' });
@@ -180,7 +220,27 @@ function openReject(version) {
                 <ul class="divide-y divide-slate-100">
                     <li v-for="version in versions" :key="version.id" class="p-3">
                         <div class="flex flex-wrap items-start justify-between gap-3">
-                            <div class="min-w-0">
+                            <!-- The design itself, at a size that says which one this is. -->
+                            <button
+                                v-if="isRenderable(version)"
+                                type="button"
+                                class="size-16 shrink-0 overflow-hidden rounded border border-slate-200 bg-slate-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                :aria-label="`Preview version ${version.version_no}`"
+                                @click="openPreview(version)"
+                            >
+                                <img
+                                    v-if="isImage(version)"
+                                    :src="fileUrl(version)"
+                                    :alt="`Artwork version ${version.version_no}`"
+                                    class="size-full object-contain"
+                                    loading="lazy"
+                                >
+                                <span v-else class="flex size-full items-center justify-center text-[10px] font-medium text-ink-500">
+                                    PDF
+                                </span>
+                            </button>
+
+                            <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm font-semibold text-ink-900">v{{ version.version_no }}</span>
                                     <Badge :status="version.status" />
@@ -220,6 +280,12 @@ function openReject(version) {
 
                             <!-- Only what the state machine will actually allow -->
                             <div class="flex shrink-0 flex-wrap gap-1.5">
+                                <Button v-if="isRenderable(version)" size="sm" @click="openPreview(version)">
+                                    Preview
+                                </Button>
+                                <!-- external: the file leaves the SPA, and an Inertia visit would
+                                     fetch bytes it cannot mount. -->
+                                <Button size="sm" external :href="downloadUrl(version)">Download</Button>
                                 <Button
                                     v-if="version.available_transitions.includes('submitted')"
                                     size="sm"
@@ -339,6 +405,40 @@ function openReject(version) {
                 <Button variant="primary" :loading="editForm.processing" :disabled="!editForm.title" @click="saveArtwork">
                     Save
                 </Button>
+            </template>
+        </Modal>
+        <!-- The design, full size. A PDF gets a frame because a browser draws one natively;
+             everything a browser cannot draw is offered as a file instead. -->
+        <Modal
+            v-model:open="previewOpen"
+            width="max-w-5xl"
+            :title="previewed ? `Version ${previewed.version_no}` : 'Preview'"
+            :subtitle="artwork.code + ' · ' + artwork.title"
+        >
+            <div v-if="previewed" class="space-y-2">
+                <div class="flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 p-2">
+                    <img
+                        v-if="isImage(previewed)"
+                        :src="fileUrl(previewed)"
+                        :alt="`Artwork version ${previewed.version_no}`"
+                        class="max-h-[70vh] w-auto max-w-full object-contain"
+                    >
+                    <iframe
+                        v-else-if="isPdf(previewed)"
+                        :src="fileUrl(previewed)"
+                        class="h-[70vh] w-full rounded bg-white"
+                        :title="`Artwork version ${previewed.version_no}`"
+                    />
+                </div>
+
+                <p v-if="previewed.checksum_sha256" class="font-mono text-[10px] break-all text-ink-400">
+                    sha256 {{ previewed.checksum_sha256 }}
+                </p>
+            </div>
+
+            <template #footer="{ close }">
+                <Button @click="close">Close</Button>
+                <Button v-if="previewed" variant="primary" external :href="downloadUrl(previewed)">Download file</Button>
             </template>
         </Modal>
     </AppLayout>

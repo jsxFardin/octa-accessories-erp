@@ -9,6 +9,7 @@ import FormLayout from '@/Components/Ui/FormLayout.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { mm, qty, titleCase } from '@/plugins/formatting';
+import { can } from '@/plugins/permissions';
 
 const props = defineProps({
     product: { type: Object, required: true },
@@ -16,6 +17,7 @@ const props = defineProps({
     cutTypes: { type: Array, default: () => [] },
     foldTypes: { type: Array, default: () => [] },
     schemes: { type: Array, default: () => [] },
+    countries: { type: Array, default: () => [] },
 });
 
 /**
@@ -48,7 +50,14 @@ const form = useForm({
     care_symbols: props.current?.care_symbols ?? [],
     claims: props.current?.claims ?? [],
     notes: '',
+    // P2 — promoting supersedes whatever is current now, in the same transaction. Off by
+    // default: a spec typed to check a geometry should not silently replace the one being
+    // quoted against.
+    make_current: false,
 });
+
+/** Promotion is its own permission; the server refuses the checkbox without it. */
+const canMakeCurrent = can('product_spec.make_current');
 
 const trialQty = ref(10000);
 const derived = ref(null);
@@ -147,7 +156,8 @@ function submit() {
         <template #title>New specification</template>
         <template #subtitle>
             {{ product.code }} — {{ product.name }}.
-            {{ current ? `Starting from v${current.version_no}; saving creates the next version as a draft.` : 'The first version, saved as a draft.' }}
+            {{ current ? `Starting from v${current.version_no}; saving creates the next version.` : 'The first version.' }}
+            Saving returns to the product.
         </template>
 
         <FormLayout @submit="submit">
@@ -287,7 +297,7 @@ function submit() {
                             </FormField>
 
                             <FormField label="Country of origin" :error="form.errors.country_of_origin">
-                                <TextInput v-model="form.country_of_origin" />
+                                <SelectInput v-model="form.country_of_origin" placeholder="— select —" :options="countries" />
                             </FormField>
 
                             <FormField
@@ -314,6 +324,25 @@ function submit() {
 
                             <FormField label="Notes" :error="form.errors.notes" class="sm:col-span-2">
                                 <textarea v-model="form.notes" rows="2" class="form-textarea" />
+                            </FormField>
+
+                            <FormField
+                                v-if="canMakeCurrent"
+                                label="On saving"
+                                rule="P2"
+                                class="sm:col-span-2"
+                                :error="form.errors.make_current"
+                            >
+                                <label class="flex items-center gap-2 text-sm text-ink-700">
+                                    <input v-model="form.make_current" type="checkbox" class="form-checkbox">
+                                    Make this the current specification
+                                </label>
+                                <p class="mt-1 text-[11px] text-ink-500">
+                                    Exactly one version is current at a time; ticking this supersedes
+                                    <template v-if="current">v{{ current.version_no }}</template>
+                                    <template v-else>nothing — this is the first version</template>.
+                                    Leave it clear to save a draft.
+                                </p>
                             </FormField>
                         </div>
                     </Card>
@@ -373,7 +402,12 @@ function submit() {
                 </Card>
             </div>
 
-            <FormFooter :form="form" label="Create draft spec" :cancel-href="`/products/${product.id}`" @save="submit" />
+            <FormFooter
+                :form="form"
+                :label="form.make_current ? 'Create and make current' : 'Create draft spec'"
+                :cancel-href="`/products/${product.id}`"
+                @save="submit"
+            />
         </FormLayout>
     </AppLayout>
 </template>

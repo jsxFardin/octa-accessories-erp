@@ -350,6 +350,16 @@ function save() {
                                     />
                                 </button>
 
+                                <!-- A value the rest of the system matches against a table — the base
+                                     currency against `currencies.code` — is picked, never typed. -->
+                                <SelectInput
+                                    v-else-if="setting.options?.length"
+                                    v-model="entry(setting.key).value"
+                                    :options="setting.options"
+                                    :placeholder="null"
+                                    class="w-full"
+                                />
+
                                 <template v-else>
                                     <input
                                         :id="`setting-${setting.key}`"

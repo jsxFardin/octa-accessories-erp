@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Modules\MasterData\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\MasterData\Models\Brand;
 use App\Modules\MasterData\Models\Customer;
 use App\Modules\MasterData\Models\PaymentTerm;
 use App\Support\Http\ListsResources;
+use App\Support\Reference\Countries;
 use App\Support\Reference\Vocabulary;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -69,6 +71,13 @@ class CustomerController extends Controller
 
         return Inertia::render('MasterData/Customers/Show', [
             'customer' => $customer,
+            // Addresses and brands are maintained here rather than in Setup: both belong to
+            // exactly this account, and a delivery address is what a packing list resolves
+            // its destination through.
+            'addresses' => $customer->addresses->sortByDesc('is_default')->values(),
+            'brands' => Brand::query()->where('customer_id', $customer->id)
+                ->orderBy('code')->get(['id', 'code', 'name', 'is_active']),
+            'countries' => Countries::options(),
             'products' => DB::table('products')->where('customer_id', $customer->id)
                 ->orderBy('code')->get(['id', 'code', 'name', 'product_type', 'status']),
             'openOrders' => DB::table('v_order_book')->where('customer_id', $customer->id)

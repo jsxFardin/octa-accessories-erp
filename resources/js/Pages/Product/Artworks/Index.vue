@@ -52,7 +52,19 @@ function create() {
     });
 }
 
+/** Only the formats a browser can actually draw; the rest are downloaded from the artwork. */
+const IMAGE_FORMATS = ['png', 'jpg', 'svg'];
+
+function thumbnailUrl(row) {
+    const version = row.preview_version;
+
+    return version && IMAGE_FORMATS.includes(version.file_format)
+        ? `/artwork-versions/${version.id}/file`
+        : null;
+}
+
 const columns = [
+    { key: 'preview', label: '', align: 'center' },
     { key: 'code', label: 'Code', sort: true },
     { key: 'title', label: 'Title', sort: true },
     { key: 'customer', label: 'Customer' },
@@ -96,6 +108,16 @@ const columns = [
                         @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
+                <template #cell:preview="{ row }">
+                    <img
+                        v-if="thumbnailUrl(row)"
+                        :src="thumbnailUrl(row)"
+                        :alt="`${row.code} artwork`"
+                        class="size-9 rounded border border-slate-200 bg-slate-50 object-contain"
+                        loading="lazy"
+                    >
+                    <span v-else class="block size-9 rounded border border-dashed border-slate-200" />
+                </template>
                 <template #cell:code="{ value }"><span class="doc-link-quiet">{{ value }}</span></template>
                 <template #cell:latest_version="{ value }">
                     <span v-if="value" class="flex items-center gap-1">
@@ -123,7 +145,8 @@ const columns = [
                         placeholder="— select —"
                         :options="products"
                         value-key="id"
-                        label-key="code"
+                        label-key="name"
+                        hint-key="customer_name"
                     />
                     <p v-if="chosenProduct" class="mt-1 text-[11px] text-ink-500">
                         {{ chosenProduct.name }}

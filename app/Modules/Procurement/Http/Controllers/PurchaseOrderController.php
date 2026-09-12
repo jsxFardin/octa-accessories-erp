@@ -58,7 +58,7 @@ class PurchaseOrderController extends Controller
         return Inertia::render('Procurement/PurchaseOrders/Index', [
             'purchase_orders' => $query->paginate($this->perPage($request))->withQueryString(),
             'filters' => $this->listingFilters($request, ['status', 'supplier']),
-            'suppliers' => Supplier::query()->orderBy('name')->get(['id', 'name']),
+            'suppliers' => Supplier::query()->orderBy('name')->get(['id', 'code', 'name']),
         ]);
     }
 

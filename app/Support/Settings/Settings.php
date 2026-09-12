@@ -133,6 +133,8 @@ class Settings
                 'label' => $described['label'],
                 'unit' => $described['unit'],
                 'hint' => $described['hint'] !== '' ? $described['hint'] : $row->description,
+                // Non-empty for a setting the screen should offer as a dropdown.
+                'options' => $catalogue->choices($row->key),
             ];
         }
 

@@ -66,7 +66,7 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'customer', label: 'Customer', options: customers.map((c) => ({ value: c.id, label: c.name })) }, { key: 'type', label: 'Type', options: productTypes.map((t) => ({ value: t.value, label: t.label })) }, { key: 'status', label: 'Status', options: ['development','active','on_hold','discontinued'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search code, name or customer style ref…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'customer', label: 'Customer', options: customers.map((c) => ({ value: c.id, label: c.name, code: c.code })) }, { key: 'type', label: 'Type', options: productTypes.map((t) => ({ value: t.value, label: t.label, code: t.code })) }, { key: 'status', label: 'Status', options: ['development','active','on_hold','discontinued'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search code, name or customer style ref…" />
 
             <DataTable
                 :columns="columns"

@@ -59,7 +59,7 @@ class ItemController extends Controller
                 ],
             ),
             'filters' => $this->listingFilters($request, ['category', 'active']),
-            'categories' => ItemCategory::query()->orderBy('name')->get(['id', 'name', 'item_class']),
+            'categories' => ItemCategory::query()->orderBy('name')->get(['id', 'code', 'name', 'item_class']),
         ]);
     }
 

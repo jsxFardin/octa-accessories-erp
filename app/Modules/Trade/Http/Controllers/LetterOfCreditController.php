@@ -65,7 +65,7 @@ class LetterOfCreditController extends Controller
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'supplier', 'kind']),
-            'suppliers' => DB::table('suppliers')->orderBy('name')->get(['id', 'name']),
+            'suppliers' => DB::table('suppliers')->orderBy('name')->get(['id', 'code', 'name']),
             'kinds' => LetterOfCredit::KINDS,
             'statuses' => LetterOfCredit::STATUSES,
         ]);

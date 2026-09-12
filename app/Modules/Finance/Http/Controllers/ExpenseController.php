@@ -62,7 +62,7 @@ class ExpenseController extends Controller
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'category', 'method']),
-            'categories' => ExpenseCategory::query()->active()->orderBy('name')->get(['id', 'name']),
+            'categories' => ExpenseCategory::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
             'methods' => Expense::METHODS,
             'statuses' => Expense::STATUSES,
             // The number people actually want off this screen: what has been spent, on what,

@@ -44,7 +44,7 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','open','quoted','won','lost','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'customer', label: 'Customer', options: customers.map((c) => ({ value: c.id, label: c.name })) }]" placeholder="Search inquiry number…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','open','quoted','won','lost','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'customer', label: 'Customer', options: customers.map((c) => ({ value: c.id, label: c.name, code: c.code })) }]" placeholder="Search inquiry number…" />
 
             <DataTable
                 :columns="columns"

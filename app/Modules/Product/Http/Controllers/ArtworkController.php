@@ -59,7 +59,11 @@ class ArtworkController extends Controller
                     'customer' => $artwork->product?->customer?->name,
                     'designer' => $artwork->designer?->name,
                     'version_count' => $artwork->versions->count(),
-                    'latest_version' => $artwork->versions->first()?->only(['id', 'version_no', 'status']),
+                    // The format travels with the version so the list can show the design
+                    // itself rather than a row of codes that all look the same.
+                    'latest_version' => $artwork->versions->first()?->only(['id', 'version_no', 'status', 'file_format']),
+                    'preview_version' => ($artwork->versions->firstWhere('status', ArtworkVersion::APPROVED)
+                        ?? $artwork->versions->first())?->only(['id', 'file_format']),
                     'approved_version' => $artwork->versions->firstWhere('status', ArtworkVersion::APPROVED)
                         ?->only(['id', 'version_no', 'approved_at', 'customer_ref']),
                 ],
@@ -72,7 +76,7 @@ class ArtworkController extends Controller
                 ->where('p.status', '!=', 'obsolete')
                 ->orderBy('p.code')
                 ->get(['p.id', 'p.code', 'p.name', 'c.name as customer_name']),
-            'designers' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'designers' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
         ]);
     }
 
@@ -104,7 +108,7 @@ class ArtworkController extends Controller
                 'referenced_by_production' => $version->isReferencedByProduction(),
             ]),
             'nextVersionNo' => $artwork->nextVersionNo(),
-            'designers' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'designers' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'codeLocked' => $artwork->versions->isNotEmpty(),
         ]);
     }

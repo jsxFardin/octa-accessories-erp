@@ -55,7 +55,7 @@ class InquiryController extends Controller
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'customer']),
-            'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'name']),
+            'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
         ]);
     }
 

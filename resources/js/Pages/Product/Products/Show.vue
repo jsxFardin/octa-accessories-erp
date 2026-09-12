@@ -1,10 +1,14 @@
 <script setup>
-import { computed, onMounted } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { computed, onMounted, ref } from 'vue';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import FormField from '@/Components/Ui/FormField.vue';
+import Modal from '@/Components/Ui/Modal.vue';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
+import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, mm, pcs, qty, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -18,7 +22,33 @@ const props = defineProps({
     boms: { type: Array, default: () => [] },
     currentSpecId: { type: Number, default: null },
     options: { type: Object, default: () => ({}) },
+    designers: { type: Array, default: () => [] },
+    suggestedArtworkCode: { type: String, default: '' },
 });
+
+/*
+ * Gate 1 is noticed here — the readiness panel above says "approved artwork: missing" — so the
+ * artwork is started here too, with the product already known. Saving lands on the new
+ * artwork's own page, which is where version 1 is uploaded.
+ */
+const artworkOpen = ref(false);
+
+const artworkForm = useForm({
+    product_id: props.product.id,
+    code: props.suggestedArtworkCode,
+    title: props.product.name,
+    designer_id: '',
+});
+
+function openArtwork() {
+    artworkForm.clearErrors();
+    artworkForm.reset();
+    artworkOpen.value = true;
+}
+
+function createArtwork() {
+    artworkForm.post('/artworks', { onSuccess: () => (artworkOpen.value = false) });
+}
 
 const currentSpec = computed(() => props.specs.find((s) => s.status === 'current') ?? null);
 
@@ -62,6 +92,7 @@ const bomColumns = [
         <template #actions>
             <Badge :status="product.status" />
             <Button v-if="can('product_spec.create')" size="sm" :href="`/products/${product.id}/specs/create`">New spec</Button>
+            <Button v-if="can('artwork.create')" size="sm" @click="openArtwork">New artwork</Button>
             <Button v-if="can('bom.create')" size="sm" :href="`/products/${product.id}/boms/create`">New BOM</Button>
             <Button v-if="can('product.update')" size="sm" :href="`/products/${product.id}/edit`">Edit</Button>
         </template>
@@ -141,6 +172,10 @@ const bomColumns = [
                 </Card>
 
                 <Card title="Artwork" rule="Gate 1" :padded="false">
+                    <template #actions>
+                        <Button v-if="can('artwork.create')" size="sm" @click="openArtwork">New artwork</Button>
+                    </template>
+
                     <ul class="divide-y divide-slate-100 text-sm">
                         <li v-for="artwork in artworks" :key="artwork.id" class="p-3">
                             <Link :href="`/artworks/${artwork.id}`" class="doc-link-quiet">
@@ -156,7 +191,10 @@ const bomColumns = [
                                 />
                             </div>
                         </li>
-                        <li v-if="artworks.length === 0" class="p-6 text-center text-ink-500">No artwork yet.</li>
+                        <li v-if="artworks.length === 0" class="p-6 text-center text-ink-500">
+                            No artwork yet. Production cannot be released against this product until one
+                            version is approved.
+                        </li>
                     </ul>
                 </Card>
             </div>
@@ -193,5 +231,36 @@ const bomColumns = [
                 </p>
             </Card>
         </div>
+        <Modal
+            v-model:open="artworkOpen"
+            title="New artwork"
+            :subtitle="`Filed against ${product.code}. Version 1 is uploaded on the artwork's own page.`"
+        >
+            <form class="space-y-3" @submit.prevent="createArtwork">
+                <FormField label="Code" hint="Printed on the approval sheet the customer signs." :error="artworkForm.errors.code" required>
+                    <TextInput v-model="artworkForm.code" />
+                </FormField>
+
+                <FormField label="Title" :error="artworkForm.errors.title" required>
+                    <TextInput v-model="artworkForm.title" />
+                </FormField>
+
+                <FormField label="Designer" :error="artworkForm.errors.designer_id">
+                    <SelectInput v-model="artworkForm.designer_id" :options="designers" value-key="id" label-key="name" />
+                </FormField>
+            </form>
+
+            <template #footer="{ close }">
+                <Button @click="close">Cancel</Button>
+                <Button
+                    variant="primary"
+                    :loading="artworkForm.processing"
+                    :disabled="!artworkForm.code || !artworkForm.title"
+                    @click="createArtwork"
+                >
+                    Create artwork
+                </Button>
+            </template>
+        </Modal>
     </AppLayout>
 </template>

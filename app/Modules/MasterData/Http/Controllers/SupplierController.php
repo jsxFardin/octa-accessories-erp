@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Modules\MasterData\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\MasterData\Models\Currency;
+use App\Modules\MasterData\Models\PaymentTerm;
 use App\Modules\MasterData\Models\Supplier;
 use App\Support\Http\ListsResources;
+use App\Support\Reference\Countries;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -39,12 +42,17 @@ class SupplierController extends Controller
         return Inertia::render('MasterData/Suppliers/Index', [
             'suppliers' => $query->paginate($this->perPage($request))->withQueryString(),
             'filters' => $this->listingFilters($request, ['active', 'approved', 'country']),
+            // Only the countries suppliers are actually in: a filter offering all 249 of them
+            // is a list to scroll, not a way to narrow one.
+            'countries' => Supplier::query()
+                ->whereNotNull('country')->where('country', '!=', '')
+                ->distinct()->orderBy('country')->pluck('country'),
         ]);
     }
 
     public function create(): Response
     {
-        return Inertia::render('MasterData/Suppliers/Form', ['supplier' => null]);
+        return Inertia::render('MasterData/Suppliers/Form', ['supplier' => null, ...$this->formOptions()]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -81,7 +89,7 @@ class SupplierController extends Controller
 
     public function edit(Supplier $supplier): Response
     {
-        return Inertia::render('MasterData/Suppliers/Form', ['supplier' => $supplier]);
+        return Inertia::render('MasterData/Suppliers/Form', ['supplier' => $supplier, ...$this->formOptions()]);
     }
 
     public function update(Request $request, Supplier $supplier): RedirectResponse
@@ -96,6 +104,22 @@ class SupplierController extends Controller
         $supplier->delete();
 
         return redirect()->route('suppliers.index')->with('success', "Supplier {$supplier->code} archived.");
+    }
+
+    /**
+     * Country, currency and payment terms are picked, not typed. Country in particular was
+     * free text on four screens, which is how the same supplier ended up in "UK", "U.K." and
+     * "United Kingdom" and none of the three filtered the other two.
+     *
+     * @return array<string, mixed>
+     */
+    private function formOptions(): array
+    {
+        return [
+            'countries' => Countries::options(),
+            'currencies' => Currency::query()->orderBy('code')->get(['id', 'code', 'name']),
+            'paymentTerms' => PaymentTerm::query()->orderBy('net_days')->get(['id', 'code', 'name']),
+        ];
     }
 
     /** @return array<string, mixed> */

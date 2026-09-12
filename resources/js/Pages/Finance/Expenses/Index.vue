@@ -121,7 +121,7 @@ const columns = [
                     :filters="filters"
                     :fields="[
                         { key: 'status', label: 'Status', options: statuses.map((s) => ({ value: s, label: titleCase(s) })) },
-                        { key: 'category', label: 'Category', options: categories.map((c) => ({ value: String(c.id), label: c.name })) },
+                        { key: 'category', label: 'Category', options: categories.map((c) => ({ value: String(c.id), label: c.name, code: c.code })) },
                         { key: 'method', label: 'Method', options: methods.map((m) => ({ value: m, label: titleCase(m) })) },
                     ]"
                     placeholder="Search number, payee or reference…"

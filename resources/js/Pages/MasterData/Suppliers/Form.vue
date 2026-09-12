@@ -4,7 +4,7 @@ import { Head } from '@inertiajs/vue3';
 import ResourceForm from '@/Components/Ui/ResourceForm.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
-const props = defineProps({ supplier: Object });
+const props = defineProps({ supplier: Object, countries: Array, currencies: Array, paymentTerms: Array });
 
 const isEdit = computed(() => Boolean(props.supplier));
 
@@ -14,7 +14,7 @@ const sections = computed(() => [
         fields: [
             { key: 'code', label: 'Code', required: true },
             { key: 'name', label: 'Name', required: true },
-            { key: 'country', label: 'Country', hint: 'Yarn: UK, Turkey, China, Hong Kong, India' },
+            { key: 'country', label: 'Country', type: 'select', options: props.countries, hint: 'Yarn: United Kingdom, Türkiye, China, Hong Kong, India.' },
             { key: 'bin_no', label: 'BIN' },
             { key: 'tin_no', label: 'TIN' },
         ],
@@ -23,6 +23,9 @@ const sections = computed(() => [
         title: 'Terms',
         rule: 'BR-26',
         fields: [
+            // BR-50 — a purchase order is raised in the supplier's currency, not the factory's.
+            { key: 'currency_id', label: 'Currency', type: 'select', options: props.currencies, valueKey: 'id', labelKey: 'name', rule: 'BR-50', hint: 'What this supplier quotes and invoices in. Blank falls back to the base currency.' },
+            { key: 'payment_term_id', label: 'Payment terms', type: 'select', options: props.paymentTerms, valueKey: 'id', labelKey: 'name' },
             { key: 'lead_time_days', label: 'Lead time (days)', type: 'number', rule: 'BR-26', hint: 'Default; a supplier-item row overrides it.' },
             { key: 'rating', label: 'Rating', type: 'number', step: '0.1' },
             { key: 'is_approved', label: 'Approved', type: 'checkbox', checkboxLabel: 'A PO may only be submitted to an approved supplier' },

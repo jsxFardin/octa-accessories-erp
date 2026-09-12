@@ -129,22 +129,10 @@ class ReferenceRegistry
             ],
 
             // --- Commercial -----------------------------------------------------------
-            'brands' => [
-                'table' => 'brands',
-                'group' => 'commercial',
-                'label' => 'Brands',
-                'singular' => 'brand',
-                'icon' => 'award',
-                'description' => 'A customer’s labels usually carry a brand of their own; products and artwork are filed under it.',
-                'searchable' => ['code', 'name'],
-                'fields' => [
-                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
-                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:150']],
-                    ['name' => 'customer_id', 'label' => 'Customer', 'type' => 'reference', 'reference' => 'customers', 'rules' => ['nullable', 'integer', 'exists:customers,id']],
-                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
-                ],
-            ],
-
+            // Brands and delivery addresses used to be filed here. They belong to one customer
+            // and are added on that customer's own page: a merchandiser setting up an account
+            // should not have to leave it for Setup, pick the customer back out of a dropdown,
+            // and hope they picked the right one.
             'buying-houses' => [
                 'table' => 'buying_houses',
                 'group' => 'commercial',
@@ -156,7 +144,7 @@ class ReferenceRegistry
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
                     ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:150']],
-                    ['name' => 'country', 'label' => 'Country', 'type' => 'text', 'rules' => ['nullable', 'string', 'max:60']],
+                    ['name' => 'country', 'label' => 'Country', 'type' => 'select', 'options' => Countries::names(), 'rules' => ['nullable', 'string', 'max:60']],
                     ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
                 ],
             ],

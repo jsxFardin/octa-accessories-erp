@@ -9,6 +9,7 @@ use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\ProductSpec;
 use App\Support\Calculators\ConsumptionCalculator;
 use App\Support\Calculators\SpecInput;
+use App\Support\Reference\Countries;
 use App\Support\Reference\Vocabulary;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -44,6 +45,10 @@ class ProductSpecController extends Controller
             'cutTypes' => Vocabulary::options('cut_type'),
             'foldTypes' => ['flat', 'centre_fold', 'end_fold', 'loop', 'mitre', 'manhattan', 'book_cover'],
             'schemes' => DB::table('certifications')->distinct()->orderBy('scheme')->pluck('scheme'),
+            // The country printed on a care label is a declaration; it is picked from ISO 3166
+            // rather than typed, because "Bangladesh" and "BANGLADESH" are not the same string
+            // to anything that later groups or filters by it.
+            'countries' => Countries::options(),
         ]);
     }
 
@@ -54,20 +59,44 @@ class ProductSpecController extends Controller
     public function store(Request $request, Product $product): RedirectResponse
     {
         $data = $this->validated($request, $product);
+        // Most specs are written to be used. Making that a second trip to the product page —
+        // find the version, press "Make current" — was a step nobody skipped on purpose.
+        //
+        // Promotion is its own permission, and the checkbox does not become a way around it:
+        // a user who may draft a spec but not promote one is refused here rather than quietly
+        // getting what the route `specs/{spec}/make-current` would have denied them.
+        $makeCurrent = $request->boolean('make_current');
 
-        $spec = DB::transaction(function () use ($product, $data, $request): ProductSpec {
+        abort_if($makeCurrent && ! $request->user()->hasPermission('product_spec.make_current'), 403);
+
+        $spec = DB::transaction(function () use ($product, $data, $request, $makeCurrent): ProductSpec {
             $versionNo = (int) $product->specs()->max('version_no') + 1;
 
-            return ProductSpec::query()->create([
+            $spec = ProductSpec::query()->create([
                 ...$data,
                 'product_id' => $product->id,
                 'version_no' => $versionNo,
                 'status' => ProductSpec::DRAFT,
                 'created_by' => $request->user()->id,
             ]);
+
+            if ($makeCurrent) {
+                $this->promote($spec);
+            }
+
+            return $spec;
         });
 
-        return back()->with('success', "Spec v{$spec->version_no} created as a draft.");
+        // Back to the product: the spec's own screen only ever creates, and what the author
+        // wants to see next is the version list with the new row on it.
+        return redirect()
+            ->route('products.show', $product)
+            ->with(
+                'success',
+                $makeCurrent
+                    ? "Spec v{$spec->version_no} created and is now the current version."
+                    : "Spec v{$spec->version_no} created as a draft. Make it current when it is ready to quote against.",
+            );
     }
 
     /**
@@ -77,17 +106,24 @@ class ProductSpecController extends Controller
      */
     public function makeCurrent(ProductSpec $spec): RedirectResponse
     {
-        DB::transaction(function () use ($spec): void {
-            ProductSpec::query()
-                ->where('product_id', $spec->product_id)
-                ->where('id', '!=', $spec->getKey())
-                ->where('status', ProductSpec::CURRENT)
-                ->update(['status' => ProductSpec::SUPERSEDED]);
-
-            $spec->update(['status' => ProductSpec::CURRENT]);
-        });
+        DB::transaction(fn () => $this->promote($spec));
 
         return back()->with('success', "Spec v{$spec->version_no} is now the current version.");
+    }
+
+    /**
+     * Supersede the outgoing version, then promote this one — in that order, inside a
+     * transaction the caller owns. Reversed, the `current_key` unique index rejects the write.
+     */
+    private function promote(ProductSpec $spec): void
+    {
+        ProductSpec::query()
+            ->where('product_id', $spec->product_id)
+            ->where('id', '!=', $spec->getKey())
+            ->where('status', ProductSpec::CURRENT)
+            ->update(['status' => ProductSpec::SUPERSEDED]);
+
+        $spec->update(['status' => ProductSpec::CURRENT]);
     }
 
     /**

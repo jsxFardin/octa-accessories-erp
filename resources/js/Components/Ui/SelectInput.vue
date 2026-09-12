@@ -26,6 +26,13 @@ const props = defineProps({
     /** Secondary line under each option — a name beside a code, a customer beside an order. */
     hintKey: { type: String, default: null },
     /**
+     * The short business code shown in front of the label — CUST-001 beside "Nordic Basics".
+     * People here speak in codes and read in names, and a picker that shows only one of the
+     * two makes them open the list screen to translate. It is skipped when the option has no
+     * code, or when the code *is* the label (an item picker already reads `code`).
+     */
+    codeKey: { type: String, default: 'code' },
+    /**
      * Options needed before the filter box appears. Zero — always — because a list that is
      * short today is long once a factory has been running a year, and a person who has learned
      * to type into one dropdown should not find the next one silently refusing.
@@ -60,6 +67,16 @@ function hintOf(option) {
     return props.hintKey ? (option[props.hintKey] ?? null) : null;
 }
 
+function codeOf(option) {
+    if (! props.codeKey || props.codeKey === props.labelKey) return null;
+
+    const code = option[props.codeKey];
+
+    if (code === null || code === undefined || code === '') return null;
+
+    return String(code) === labelOf(option) ? null : String(code);
+}
+
 const selected = computed(
     () => props.options.find((option) => String(valueOf(option)) === String(model.value)) ?? null,
 );
@@ -71,7 +88,7 @@ const filtered = computed(() => {
 
     // Matching the hint too is what makes "Nordic" find CUST-001.
     return props.options.filter((option) => {
-        const haystack = `${labelOf(option)} ${hintOf(option) ?? ''}`.toLowerCase();
+        const haystack = `${codeOf(option) ?? ''} ${labelOf(option)} ${hintOf(option) ?? ''}`.toLowerCase();
 
         return haystack.includes(needle);
     });
@@ -211,7 +228,11 @@ onUnmounted(() => {
             @keydown="onKeydown"
         >
             <span class="truncate" :class="selected ? 'text-ink-900' : 'text-ink-400'">
-                {{ selected ? labelOf(selected) : (placeholder || '—') }}
+                <template v-if="selected">
+                    <span v-if="codeOf(selected)" class="font-medium">{{ codeOf(selected) }}</span>
+                    <span v-if="codeOf(selected)" class="text-ink-400"> · </span>{{ labelOf(selected) }}
+                </template>
+                <template v-else>{{ placeholder || '—' }}</template>
             </span>
             <svg class="size-4 shrink-0 text-ink-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6">
                 <path d="M6 8l4 4 4-4" stroke-linecap="round" stroke-linejoin="round" />
@@ -261,7 +282,10 @@ onUnmounted(() => {
                         @click="choose(option)"
                         @mousemove="activeIndex = index"
                     >
-                        <span class="block truncate">{{ labelOf(option) }}</span>
+                        <span class="block truncate">
+                            <span v-if="codeOf(option)" class="font-medium">{{ codeOf(option) }}</span>
+                            <span v-if="codeOf(option)" class="text-ink-400"> · </span>{{ labelOf(option) }}
+                        </span>
                         <span v-if="hintOf(option)" class="block truncate text-[11px] text-ink-500">
                             {{ hintOf(option) }}
                         </span>

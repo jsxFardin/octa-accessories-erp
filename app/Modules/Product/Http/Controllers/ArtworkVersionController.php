@@ -13,7 +13,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ArtworkVersionController extends Controller
 {
@@ -25,6 +27,24 @@ class ArtworkVersionController extends Controller
 
     /** A JPEG arrives under either spelling; the column stores only one. */
     private const FORMAT_ALIASES = ['jpeg' => 'jpg'];
+
+    /**
+     * What to tell the browser a stored file is. The disk guesses from the *stored* name,
+     * which is a random hash with no extension at all, so every preview arrived as
+     * `application/octet-stream` and downloaded instead of rendering.
+     *
+     * @var array<string, string>
+     */
+    private const MIME_TYPES = [
+        'pdf' => 'application/pdf',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'svg' => 'image/svg+xml',
+        'ai' => 'application/postscript',
+        'eps' => 'application/postscript',
+        'psd' => 'image/vnd.adobe.photoshop',
+        'cdr' => 'application/vnd.corel-draw',
+    ];
 
     public function __construct(private readonly ArtworkVersionStateMachine $states) {}
 
@@ -56,6 +76,39 @@ class ArtworkVersionController extends Controller
         });
 
         return back()->with('success', "Version {$version->version_no} uploaded.");
+    }
+
+    /**
+     * The file itself, streamed from the private disk.
+     *
+     * Artwork is a customer's intellectual property and is stored on `local`, which has no
+     * public URL by design. Until this existed the screen could say a file had been uploaded
+     * and show its path and its checksum, but nobody could look at the thing they were being
+     * asked to approve — a sign-off on a filename is not a sign-off.
+     *
+     * Inline by default so a browser renders an image or a PDF in place; `?download=1` sends
+     * the same bytes as an attachment for the formats a browser cannot draw (AI, EPS, CDR,
+     * PSD).
+     */
+    public function file(Request $request, ArtworkVersion $version): StreamedResponse
+    {
+        $disk = Storage::disk('local');
+
+        abort_unless($disk->exists($version->file_path), 404, 'The file for this version is missing from storage.');
+
+        $filename = $version->artwork->code.'-v'.$version->version_no
+            .($version->file_format === null ? '' : '.'.$version->file_format);
+
+        return $request->boolean('download')
+            ? $disk->download($version->file_path, $filename)
+            : $disk->response($version->file_path, $filename, [
+                'Content-Type' => self::MIME_TYPES[$version->file_format] ?? 'application/octet-stream',
+                'Content-Disposition' => 'inline; filename="'.$filename.'"',
+                // An uploaded SVG is markup, and markup served inline from this origin can
+                // carry script. Sandboxed and un-sniffable, it can only draw itself.
+                'Content-Security-Policy' => "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox",
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
     }
 
     /**

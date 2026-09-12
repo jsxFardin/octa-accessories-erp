@@ -64,7 +64,7 @@ class PayablesReport extends ReportQuery
     public function filterFields(): array
     {
         $statuses = ['draft', 'approved', 'partially_paid', 'paid', 'cancelled'];
-        $suppliers = DB::table('suppliers')->orderBy('name')->get(['id', 'name']);
+        $suppliers = DB::table('suppliers')->orderBy('name')->get(['id', 'code', 'name']);
 
         return [
             ['key' => 'status', 'label' => 'Status', 'options' => array_map(fn (string $s): array => ['value' => $s, 'label' => str_replace('_', ' ', ucfirst($s))], $statuses)],

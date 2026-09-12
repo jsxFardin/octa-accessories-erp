@@ -10,6 +10,7 @@ import FormLayout from '@/Components/Ui/FormLayout.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { qty } from '@/plugins/formatting';
+import { can } from '@/plugins/permissions';
 
 const props = defineProps({
     product: { type: Object, required: true },
@@ -34,7 +35,13 @@ const form = useForm({
     lines: props.activeLines.length
         ? props.activeLines.map((line) => ({ ...line }))
         : [blankLine()],
+    // PD-3 — activating supersedes whatever is active now, in the same transaction. Off by
+    // default: a BOM drafted to price an option should not replace the one production runs.
+    activate: false,
 });
+
+/** Activation is its own permission; the server refuses the checkbox without it. */
+const canActivate = can('bom.activate');
 
 const itemsById = computed(() => Object.fromEntries(props.items.map((item) => [String(item.id), item])));
 
@@ -80,8 +87,8 @@ function submit() {
 
         <template #title>New bill of materials</template>
         <template #subtitle>
-            {{ product.code }} — {{ product.name }}. Saved as a draft; one BOM per product may be
-            active (PD-3), and the product page activates it.
+            {{ product.code }} — {{ product.name }}. Saved as a draft unless you activate it below;
+            one BOM per product is active at a time (PD-3). Saving returns to the product.
         </template>
 
         <FormLayout @submit="submit">
@@ -105,6 +112,23 @@ function submit() {
 
                     <FormField label="Notes" :error="form.errors.notes">
                         <TextInput v-model="form.notes" />
+                    </FormField>
+
+                    <FormField
+                        v-if="canActivate"
+                        label="On saving"
+                        rule="PD-3"
+                        class="sm:col-span-3"
+                        :error="form.errors.activate"
+                    >
+                        <label class="flex items-center gap-2 text-sm text-ink-700">
+                            <input v-model="form.activate" type="checkbox" class="form-checkbox">
+                            Activate this bill of materials
+                        </label>
+                        <p class="mt-1 text-[11px] text-ink-500">
+                            One BOM per product is active at a time, and a job card cannot be released
+                            without one. Ticking this supersedes the version currently active.
+                        </p>
                     </FormField>
                 </div>
             </Card>
@@ -196,7 +220,12 @@ function submit() {
                 A job card cannot complete while a non-optional item was never issued (I7).
             </p>
 
-            <FormFooter :form="form" label="Create draft BOM" :cancel-href="`/products/${product.id}`" @save="submit" />
+            <FormFooter
+                :form="form"
+                :label="form.activate ? 'Create and activate' : 'Create draft BOM'"
+                :cancel-href="`/products/${product.id}`"
+                @save="submit"
+            />
         </FormLayout>
     </AppLayout>
 </template>
