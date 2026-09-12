@@ -70,6 +70,7 @@ function lineValue(line) {
             >
                 Issue more material
             </Button>
+            <ActivityTrail :entries="trail" />
         </template>
 
         <div class="space-y-4">
@@ -147,8 +148,6 @@ function lineValue(line) {
                     </li>
                 </ul>
             </Card>
-
-            <ActivityTrail :entries="trail" title="Activity" />
         </div>
     </AppLayout>
 </template>

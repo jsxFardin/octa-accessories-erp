@@ -9,11 +9,16 @@
  * This is the operator's view: what happened, when, who did it, and what it became — in
  * sentences. The field-level before/after is folded away and only arrives at all for a viewer
  * the server decided may see it, so this component never has to make that judgement.
+ *
+ * It opens from a button rather than sitting at the foot of the page: the history is what
+ * happened, not what the document *is*, and a dozen edit entries pushed the order itself off
+ * the screen for everyone who never needed to read them.
  */
 import { ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
-import Card from '@/Components/Ui/Card.vue';
+import Button from '@/Components/Ui/Button.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
+import Modal from '@/Components/Ui/Modal.vue';
 import { datetime, relative } from '@/plugins/formatting';
 
 defineProps({
@@ -21,6 +26,8 @@ defineProps({
     entries: { type: Array, default: () => [] },
     title: { type: String, default: 'Activity' },
 });
+
+const open = ref(false);
 
 /** Which entries have their field-level detail open. Keyed by index — the list is static. */
 const expanded = ref(new Set());
@@ -51,9 +58,18 @@ function mark(event) {
 </script>
 
 <template>
-    <Card :title="title" :padded="false">
-        <ol v-if="entries.length" class="divide-y divide-slate-100">
-            <li v-for="(entry, index) in entries" :key="`${entry.event}-${entry.at}-${index}`" class="px-3 py-2.5">
+    <Button size="sm" :aria-expanded="open" @click="open = true">
+        {{ title }}
+        <span v-if="entries.length" class="text-ink-400 tnum">{{ entries.length }}</span>
+    </Button>
+
+    <!--
+        Tall histories scroll inside the dialog rather than the page behind it: a long trail
+        used to leave the reader scrolled somewhere else entirely once they closed it.
+    -->
+    <Modal v-model:open="open" :title="title" width="max-w-2xl">
+        <ol v-if="entries.length" class="-my-1 max-h-[65vh] divide-y divide-slate-100 overflow-y-auto">
+            <li v-for="(entry, index) in entries" :key="`${entry.event}-${entry.at}-${index}`" class="py-2.5">
                 <div class="flex items-start gap-3">
                     <span
                         class="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
@@ -132,5 +148,9 @@ function mark(event) {
             title="Nothing recorded yet"
             description="Sending, converting, editing and printing this document are all recorded here as they happen."
         />
-    </Card>
+
+        <template #footer="{ close }">
+            <Button @click="close">Close</Button>
+        </template>
+    </Modal>
 </template>

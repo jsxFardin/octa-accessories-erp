@@ -129,6 +129,8 @@ const lineColumns = [
             <Button v-if="can('sales_order.update') && !['closed', 'cancelled'].includes(order.status)" size="sm" :href="`/sales-orders/${order.id}/edit`">Edit</Button>
             <Button v-if="availableTransitions.includes('closed')" size="sm" @click="transition('closed')">Close</Button>
             <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="transition('cancelled')">Cancel</Button>
+            <!-- F-01/F-02 — confirmed, held, amended, closed: recorded all along, shown nowhere. -->
+            <ActivityTrail :entries="trail" />
             <DocumentActions document="sales-orders" :id="order.id" :status="order.status" />
         </template>
 
@@ -325,9 +327,6 @@ const lineColumns = [
                     </ul>
                 </Card>
             </div>
-
-            <!-- F-01/F-02 — confirmed, held, amended, closed: recorded all along, shown nowhere. -->
-            <ActivityTrail :entries="trail" title="Activity" />
         </div>
 
         <Modal v-model:open="releaseOpen" title="Release the credit hold" subtitle="Audit-logged, and only Accounts or the MD may do it.">

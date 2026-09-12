@@ -124,6 +124,7 @@ const orderColumns = [
             >
                 Mark lost
             </Button>
+            <ActivityTrail :entries="trail" />
             <DocumentActions document="inquiries" :id="inquiry.id" :status="inquiry.status" />
         </template>
 
@@ -236,8 +237,6 @@ const orderColumns = [
             <Card v-if="inquiry.notes" title="Notes">
                 <p class="text-sm whitespace-pre-line text-ink-700">{{ inquiry.notes }}</p>
             </Card>
-
-            <ActivityTrail :entries="trail" title="Activity" />
         </div>
 
         <Modal v-model:open="lostOpen" title="Mark this inquiry lost" subtitle="The reason feeds win/loss analysis.">

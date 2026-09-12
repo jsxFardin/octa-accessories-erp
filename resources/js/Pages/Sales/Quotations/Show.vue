@@ -99,6 +99,11 @@ async function transition(to) {
             <Button v-if="availableTransitions.includes('rejected')" size="sm" variant="danger" @click="rejectOpen = true">Rejected</Button>
             <!-- Repeat business is the norm: same labels, new season, different quantity. -->
             <Button v-if="can('quotation.create')" size="sm" @click="duplicate">Duplicate</Button>
+            <!--
+                F-01/F-02 — everything that had happened to this quotation was recorded and none
+                of it was on the document it happened to. It reads from here, on demand.
+            -->
+            <ActivityTrail :entries="trail" />
             <DocumentActions document="quotations" :id="quotation.id" :status="quotation.status" />
         </template>
 
@@ -302,12 +307,6 @@ async function transition(to) {
                     <div><dt class="text-ink-500">Valid until</dt><dd class="text-lg font-semibold">{{ date(quotation.valid_until) }}</dd></div>
                 </dl>
             </Card>
-
-            <!--
-                F-01/F-02 — the page used to end at the total. Everything that had happened to
-                this quotation was recorded and none of it was on the document it happened to.
-            -->
-            <ActivityTrail :entries="trail" title="Activity" />
         </div>
 
         <Modal v-model:open="rejectOpen" title="Customer rejected this quotation">
