@@ -87,7 +87,7 @@ class SupplierBillStateMachine extends StateMachine
         }
 
         $poLines = DB::table('purchase_order_lines')
-            ->where('purchase_order_id', $bill->po_id)
+            ->where('po_id', $bill->po_id)
             ->get()
             ->keyBy('item_id');
 

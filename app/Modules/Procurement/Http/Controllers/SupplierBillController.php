@@ -88,7 +88,7 @@ class SupplierBillController extends Controller
                 $grnLines = DB::table('grn_lines')->where('grn_id', $grn->id)->get();
 
                 $poLines = $grn->po_id
-                    ? DB::table('purchase_order_lines')->where('purchase_order_id', $grn->po_id)->get()->keyBy('item_id')
+                    ? DB::table('purchase_order_lines')->where('po_id', $grn->po_id)->get()->keyBy('item_id')
                     : collect();
 
                 $itemIds = $grnLines->pluck('item_id')->filter()->all();
@@ -214,7 +214,7 @@ class SupplierBillController extends Controller
 
         if ($supplierBill->po_id !== null && $supplierBill->grn_id !== null) {
             $poLines = DB::table('purchase_order_lines')
-                ->where('purchase_order_id', $supplierBill->po_id)
+                ->where('po_id', $supplierBill->po_id)
                 ->get()
                 ->keyBy('item_id');
 
