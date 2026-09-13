@@ -215,7 +215,15 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
                         </div>
 
                         <div class="flex items-center gap-1">
+                            <!--
+                                `type="button"`, because a `<button>` inside a form defaults to
+                                `type="submit"`. Counting a defect posted the inspection: every
+                                tap of + or − recorded another one, and an inspection has no
+                                edit or delete route by design, so each stray tap left a
+                                permanent QC record against the job card.
+                            -->
                             <button
+                                type="button"
                                 class="size-7 rounded-md border border-slate-300 text-ink-700 transition hover:bg-slate-100 disabled:opacity-30"
                                 :disabled="defectCount(defect.id) === 0"
                                 :aria-label="`One fewer ${defect.name}`"
@@ -227,6 +235,7 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
                                 {{ defectCount(defect.id) }}
                             </span>
                             <button
+                                type="button"
                                 class="size-7 rounded-md border border-slate-300 text-ink-700 transition hover:bg-slate-100"
                                 :aria-label="`One more ${defect.name}`"
                                 @click="bump(defect, 1)"

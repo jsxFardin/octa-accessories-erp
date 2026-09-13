@@ -502,7 +502,10 @@ function submit() {
                                 <span v-else class="text-xs text-ink-400">not needed</span>
                             </td>
                             <td class="px-3 py-2 text-right">
+                                <!-- `type="button"`: without it this posts the issue instead of
+                                     dropping the line, and a posted issue moves stock. -->
                                 <button
+                                    type="button"
                                     class="rounded p-1 text-ink-400 transition hover:bg-rose-50 hover:text-rose-600"
                                     aria-label="Remove line"
                                     @click="removeLine(index)"
