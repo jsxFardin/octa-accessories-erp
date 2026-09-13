@@ -48,7 +48,28 @@ class StockAvailability
     }
 
     /**
-     * J1's material condition: the BOM exploded against live availability.
+     * Net material already issued to a job card, by item — issues less returns, posted only.
+     *
+     * @return array<int, float>
+     */
+    public function issuedTo(JobCard $jobCard): array
+    {
+        // `selectRaw` then key by hand: `pluck()` with a raw aggregate cannot name the column
+        // it just built, and silently hands back a zero for every row.
+        return DB::table('material_issue_lines as mil')
+            ->join('material_issues as mi', 'mi.id', '=', 'mil.material_issue_id')
+            ->where('mi.job_card_id', $jobCard->getKey())
+            ->where('mi.status', 'posted')
+            ->groupBy('mil.item_id')
+            ->selectRaw("mil.item_id, SUM(CASE WHEN mi.issue_type = 'return' THEN -mil.qty ELSE mil.qty END) AS net_qty")
+            ->get()
+            ->mapWithKeys(fn (object $row): array => [(int) $row->item_id => (float) $row->net_qty])
+            ->all();
+    }
+
+    /**
+     * J1's material condition: the BOM exploded against live availability, less whatever the
+     * card already holds.
      *
      * @return list<array{item_id: int, item_code: string, item_name: string, required: float, available: float, on_order: float, short: float}>
      */
@@ -65,12 +86,26 @@ class StockAvailability
             ->select('bl.item_id', 'bl.qty_per_base', 'b.base_qty', 'i.code', 'i.name')
             ->get();
 
+        // What this card has already been given. The requirement is what it still needs, not
+        // what it needed before anything was issued — without this, a fully issued card reads
+        // as short by exactly its own consumption, because the material it is holding has left
+        // `stock_balances` and nothing put it back on the other side of the sum. Every card
+        // that had drawn its material displayed a red shortage panel for the rest of its life,
+        // and a part-issued one overstated what was left to find.
+        $issued = $this->issuedTo($jobCard);
+
         $shortages = [];
 
         foreach ($lines as $line) {
             // BOM quantities are per `base_qty` finished pieces — 1000 by default, because
             // everything in this business is quoted and consumed per 1000 (BR-1).
-            $required = (float) $line->qty_per_base * ((float) $jobCard->planned_qty / (float) $line->base_qty);
+            $gross = (float) $line->qty_per_base * ((float) $jobCard->planned_qty / (float) $line->base_qty);
+
+            $required = max(0.0, $gross - ($issued[(int) $line->item_id] ?? 0.0));
+
+            if ($required <= 0.000001) {
+                continue;
+            }
 
             $result = $this->mrp->netRequirement(
                 grossReq: $required,

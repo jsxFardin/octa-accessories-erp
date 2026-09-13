@@ -6,7 +6,9 @@ namespace App\Modules\Manufacturing\Services;
 
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
+use App\Modules\Manufacturing\States\JobCardStateMachine;
 use App\Support\Audit\AuditLogger;
+use App\Support\States\StateMachine;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -38,7 +40,10 @@ class OperationBookingService
         'cutting', 'edge_trim', 'damaged', 'expired', 'other',
     ];
 
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly JobCardStateMachine $jobCards,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data  the validated booking
@@ -253,6 +258,19 @@ class OperationBookingService
             'waste_qty_running' => (float) $card->waste_qty_running + $waste,
             'produced_qty_running' => (float) $card->produced_qty_running + $good + $waste,
         ])->save();
+
+        // A released card with production against it is in production, whichever door the
+        // booking came through. The terminal's `start` does this; the desk door did not, so a
+        // job worked entirely from a desk stayed `released` for its whole life: the last
+        // operation's `finish` only advances a card to `qc_pending` when it is already
+        // `in_production`, and the sales order never learned it was being made either.
+        //
+        // As the system, like the QC advance: the card moving is a consequence of production
+        // being recorded, not a second act by whoever keyed it — and the person keying a desk
+        // booking is often a supervisor who holds no `operation.start`.
+        if ($card instanceof JobCard && $card->status === JobCard::RELEASED) {
+            StateMachine::asSystem(fn () => $this->jobCards->transition($card, JobCard::IN_PRODUCTION));
+        }
 
         // P0-2 — the order line's produced total moves with the *final* operation's good
         // output. 50,000 labels woven, cut and folded is 50,000 produced, not 150,000. Atomic

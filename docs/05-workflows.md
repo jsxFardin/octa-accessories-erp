@@ -184,6 +184,7 @@ stateDiagram-v2
     qc_pending --> in_production : rework
     qc_pending --> completed : QC accepted
     completed --> closed : close
+    closed --> completed : reopen
     draft --> cancelled
     planned --> cancelled
     released --> cancelled
@@ -200,8 +201,22 @@ stateDiagram-v2
 | in_production → qc_pending | All operations `completed` or `skipped` (J2 order respected) | Create the final QC inspection |
 | qc_pending → in_production | QC disposition = `rework` | Reopen the named operation |
 | qc_pending → completed | QC `accepted` or `accepted_with_concession` | Enable FG receipt |
-| completed → closed | No open operations, no unresolved QC (J4); produced ≤ planned × (1 + overrun) (J5) | Release reservations; compute actual cost (BR-23); prompt to return unused material |
+| completed → closed | No open operations, no unresolved QC (J4); produced ≤ planned × (1 + overrun) (J5); **all output received into FG, or a reason plus `job_card.waive_material`** (P0-3) | Release reservations; compute actual cost (BR-23); prompt to return unused material |
+| closed → completed | `reopen_reason` present; permission `job_card.close` (P0-3) | Clear `closed_at`; `actual_finish` is **not** re-stamped |
 | → cancelled | No production logged, or supervisor approval | Release reservations; return issued material |
+
+### Why `closed` is not quite terminal
+
+Finished goods can only be received from a card that is `in_production`, `qc_pending` or
+`completed`. A card closed with output still unreceived therefore stranded it: the pieces
+recorded on the job, nothing in stock, and — because BR-49 counts a closed card's planned
+quantity as committed against the order line — no headroom left to raise a replacement card
+either. The order could not be shipped and the application offered no way out.
+
+Two changes, together: the close now refuses unreceived output unless someone signs for it,
+and `closed → completed` exists so a card closed in error is recoverable. Reopening does not
+re-ask the QC or material conditions — the card passed them on its way to `completed` and
+being closed cannot have undone that — it asks who and why.
 
 ---
 

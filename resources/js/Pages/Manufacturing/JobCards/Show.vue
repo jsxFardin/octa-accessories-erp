@@ -277,6 +277,15 @@ const fgForm = useForm({
  * So it appears as soon as the issued material fails to cover everything still receivable —
  * and always after a refusal that named it.
  */
+/**
+ * The statuses `FgReceiptService` will take a receipt from. Mirrored here so the form is
+ * absent rather than refused — a closed card is terminal, and offering it a receipt button
+ * suggests a recovery route the application does not have.
+ */
+const FG_RECEIVABLE_STATUSES = ['in_production', 'qc_pending', 'completed'];
+
+const canReceiveFg = computed(() => FG_RECEIVABLE_STATUSES.includes(props.jobCard.status));
+
 const needsMaterialWaiver = computed(() => {
     // The permission the rules name. Without it there is nothing to offer: the waiver would
     // be refused server-side anyway, and a field that cannot be used is worse than none.
@@ -334,6 +343,50 @@ function completeWithWaiver() {
         onSuccess: () => {
             completeOpen.value = false;
             completeForm.reset('material_waiver_reason');
+        },
+    });
+}
+
+/**
+ * P0-3 — closing is the last thing that happens to a card, and `closed` has no way back. Any
+ * output not received into finished goods by then is stranded: the pieces exist on the job and
+ * nowhere in stock, and the order they were made for cannot be packed. So the close asks.
+ */
+const closeOpen = ref(false);
+const closeForm = useForm({ to: 'closed', unreceived_output_reason: '' });
+
+const closeUnreceived = computed(() => Number(props.fgPosition.remaining_receivable ?? 0) > 0);
+
+function closeCard() {
+    if (closeUnreceived.value) {
+        closeOpen.value = true;
+
+        return;
+    }
+
+    transition('closed');
+}
+
+function closeWithReason() {
+    closeForm.post(`/job-cards/${props.jobCard.id}/transition`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeOpen.value = false;
+            closeForm.reset('unreceived_output_reason');
+        },
+    });
+}
+
+/** P0-3 — the one way out of `closed`, so unreceived output is recoverable rather than lost. */
+const reopenOpen = ref(false);
+const reopenForm = useForm({ to: 'completed', reopen_reason: '' });
+
+function reopen() {
+    reopenForm.post(`/job-cards/${props.jobCard.id}/transition`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            reopenOpen.value = false;
+            reopenForm.reset('reopen_reason');
         },
     });
 }
@@ -486,8 +539,21 @@ const bomColumns = [
             >
                 Complete
             </Button>
-            <Button v-if="availableTransitions.includes('closed')" size="sm" @click="transition('closed')">
+            <Button v-if="availableTransitions.includes('closed')" size="sm" @click="closeCard">
                 Close
+            </Button>
+            <!--
+                Only offered on a closed card, and only where there is something to go back
+                for: reopening a card whose output is all in stock changes nothing and invites
+                a status being flipped for no reason.
+            -->
+            <Button
+                v-if="jobCard.status === 'closed' && availableTransitions.includes('completed')"
+                size="sm"
+                :variant="fgPosition.remaining_receivable > 0 ? 'primary' : 'secondary'"
+                @click="reopenOpen = true"
+            >
+                Reopen
             </Button>
 
             <!-- The card is already known; QC opens with it chosen and its output as the lot. -->
@@ -938,8 +1004,23 @@ const bomColumns = [
                     </li>
                 </ul>
 
+                <!--
+                    P0-3 — a card whose status cannot take a receipt says so instead of
+                    offering a form that the service will refuse. `closed` is the one that
+                    matters: it is terminal and it cannot receive, so output left unreceived
+                    there is stranded, and a live-looking form on that screen reads as a way
+                    out that does not exist.
+                -->
+                <p
+                    v-if="!canReceiveFg && fgPosition.remaining_receivable > 0"
+                    class="mt-3 border-t border-slate-100 pt-3 text-xs text-rose-700"
+                >
+                    {{ pcs(fgPosition.remaining_receivable) }} unreceived. Finished goods cannot be
+                    received from a job card that is {{ titleCase(jobCard.status) }}.
+                </p>
+
                 <form
-                    v-if="can('fg_receipt.post') && fgPosition.remaining_receivable > 0"
+                    v-if="canReceiveFg && can('fg_receipt.post') && fgPosition.remaining_receivable > 0"
                     class="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3"
                     @submit.prevent="postFgReceipt"
                 >
@@ -1071,6 +1152,79 @@ const bomColumns = [
                     :disabled="!completeForm.material_waiver_reason"
                     @click="completeWithWaiver"
                 >Complete</Button>
+            </template>
+        </Modal>
+
+        <Modal
+            v-model:open="closeOpen"
+            title="Close with output still unreceived"
+            subtitle="P0-3: a closed card cannot receive finished goods, and cannot be reopened."
+        >
+            <div class="space-y-3">
+                <p class="text-sm text-ink-700">
+                    <strong>{{ pcs(fgPosition.remaining_receivable) }}</strong> of this job's output
+                    has never been received into stock. Closing now leaves it on the job card and
+                    nowhere in inventory — the order it was made for cannot be packed from it, and
+                    there is no way back. Receive it first unless it is genuinely not being stocked.
+                </p>
+
+                <FormField
+                    label="Why is the output not being stocked?"
+                    rule="P0-3"
+                    required
+                    hint="Scrapped after final QC, written off, absorbed by another job — say which."
+                    :error="closeForm.errors.unreceived_output_reason"
+                >
+                    <textarea v-model="closeForm.unreceived_output_reason" rows="2" class="form-textarea" />
+                </FormField>
+            </div>
+
+            <template #footer="{ close }">
+                <Button @click="close">Go back and receive</Button>
+                <Button
+                    variant="danger"
+                    :loading="closeForm.processing"
+                    :disabled="!closeForm.unreceived_output_reason"
+                    @click="closeWithReason"
+                >Close anyway</Button>
+            </template>
+        </Modal>
+
+        <Modal
+            v-model:open="reopenOpen"
+            title="Reopen this job card"
+            subtitle="P0-3: back to completed, so finished goods can be received from it."
+        >
+            <div class="space-y-3">
+                <p v-if="fgPosition.remaining_receivable > 0" class="text-sm text-ink-700">
+                    <strong>{{ pcs(fgPosition.remaining_receivable) }}</strong> of this job's output
+                    is still unreceived. Reopening puts the card back to <em>completed</em>, where a
+                    finished-goods receipt can be posted. Close it again afterwards.
+                </p>
+                <p v-else class="text-sm text-ink-700">
+                    This card's output is already in stock, so reopening changes nothing about
+                    inventory. It only returns the card to <em>completed</em>.
+                </p>
+
+                <FormField
+                    label="Why is this card being reopened?"
+                    rule="P0-3"
+                    required
+                    hint="Recorded on the card's history. Closing is normally final."
+                    :error="reopenForm.errors.reopen_reason"
+                >
+                    <textarea v-model="reopenForm.reopen_reason" rows="2" class="form-textarea" />
+                </FormField>
+            </div>
+
+            <template #footer="{ close }">
+                <Button @click="close">Cancel</Button>
+                <Button
+                    variant="primary"
+                    :loading="reopenForm.processing"
+                    :disabled="!reopenForm.reopen_reason"
+                    @click="reopen"
+                >Reopen</Button>
             </template>
         </Modal>
 

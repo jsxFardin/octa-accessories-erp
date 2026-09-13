@@ -545,6 +545,11 @@ class JobCardController extends Controller
             'hold_reason' => ['nullable', 'string', 'max:500'],
             'material_waiver_reason' => ['nullable', 'string', 'max:500'],
             'reason' => ['nullable', 'string', 'max:500'],
+            // P0-3 — why output is being left unreceived on a card that is about to become
+            // terminal. Kept on the transition's audit row by `auditContext()`.
+            'unreceived_output_reason' => ['nullable', 'string', 'max:500'],
+            // P0-3 — and why a closed one is being opened again.
+            'reopen_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         try {

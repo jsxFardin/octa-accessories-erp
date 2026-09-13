@@ -34,8 +34,11 @@ const isDraft = props.packingList.status === 'draft';
 const totals = computed(() => {
     const contents = props.cartons.flatMap((carton) => carton.contents ?? []);
     const sum = (rows, key) => rows.reduce((total, row) => total + (Number(row[key]) || 0), 0);
+    // Rounded, because these are kilograms summed in binary floating point: three cartons at
+    // 9.80 printed as 29.400000000000002, on a document that goes to a customer and a customs
+    // broker. Three decimals is finer than any scale on a packing bench.
     const weight = (key) => (props.cartons.some((carton) => carton[key] !== null)
-        ? sum(props.cartons, key)
+        ? Math.round(sum(props.cartons, key) * 1000) / 1000
         : null);
 
     return {
