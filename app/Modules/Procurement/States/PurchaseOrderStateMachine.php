@@ -248,18 +248,37 @@ class PurchaseOrderStateMachine extends StateMachine
     }
 
     /**
-     * Who this order needs, for the screen to say so before anyone presses submit.
+     * Who this order needs and what still stands between it and approval, for the screen to
+     * say so before anyone presses the button.
      *
-     * @return array{value: float, band: float, approver: string}
+     * BR-51 — the band is a base-currency figure, so the value weighed against it has to be
+     * the order's converted one. Comparing `total` raw told the screen a USD 1,000 order sat
+     * inside a purchase manager's BDT 100,000 band while `guardApproval()` refused that same
+     * order: the panel and the rule disagreed, and the buyer found out by being blocked.
+     *
+     * `needs_override` mirrors `guardQuotations()`. The override is a documented business act
+     * — a sole-source or urgent replacement order — so the screen asks for the reason up
+     * front rather than leaving the guard to refuse an approval nobody could have completed.
+     *
+     * @return array{value: float, band: float, approver: string, quote_threshold: float, quotations: int, needs_override: bool}
      */
     public function approvalBand(PurchaseOrder $order): array
     {
         $band = $this->settings->decimal('po_approval_band_manager', 100000);
+        $threshold = $this->settings->decimal('rfq_three_quote_value_threshold', 50000);
+        $value = $this->baseValue($order);
+
+        $quotations = $order->rfq_id === null
+            ? 0
+            : (int) DB::table('supplier_quotations')->where('rfq_id', $order->rfq_id)->count();
 
         return [
-            'value' => (float) $order->total,
+            'value' => $value,
             'band' => $band,
-            'approver' => (float) $order->total > $band ? 'Managing Director' : 'Purchase manager',
+            'approver' => $value > $band ? 'Managing Director' : 'Purchase manager',
+            'quote_threshold' => $threshold,
+            'quotations' => $quotations,
+            'needs_override' => $value > $threshold && $quotations < 3,
         ];
     }
 }

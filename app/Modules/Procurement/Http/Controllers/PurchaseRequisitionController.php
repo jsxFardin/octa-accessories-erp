@@ -93,6 +93,12 @@ class PurchaseRequisitionController extends Controller
                     'prl.id', 'prl.line_no', 'i.code as item_code', 'i.name as item_name',
                     'u.code as uom', 'prl.qty', 'prl.ordered_qty', 'prl.required_by', 'prl.remarks',
                 ]),
+            // The screen used to hardcode `status === 'draft'` checks of its own, which meant
+            // it offered the two ways forward and none of the ways back: a submitted
+            // requisition could be approved but never rejected or returned for changes, both
+            // of which the state machine allows. The machine is the authority on what may
+            // happen next, and permission filtering comes with it.
+            'availableTransitions' => $this->states->available($purchaseRequisition),
         ]);
     }
 

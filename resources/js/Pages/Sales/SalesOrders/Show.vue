@@ -39,6 +39,43 @@ const props = defineProps({
 const releaseOpen = ref(false);
 const releaseForm = useForm({ to: 'confirmed', release_reason: '' });
 
+/**
+ * BR-45 — short-closing an order, and cancelling one that has already produced something, are
+ * both decisions someone signs for: the guard wants a `close_reason` and refuses without one.
+ * The buttons sent the target status alone, so both refused every time and the reason they
+ * asked for could not be given. Only the paths that actually need a reason open the dialog —
+ * closing a fully delivered order, or cancelling one nothing has been made against, stays a
+ * single click.
+ */
+const closeOpen = ref(false);
+const closeForm = useForm({ to: 'closed', close_reason: '' });
+
+const cancelOpen = ref(false);
+const cancelForm = useForm({ to: 'cancelled', close_reason: '' });
+
+/** Anything made against this order is what turns a cancellation into a signed decision. */
+const hasProduced = computed(() => props.lines.some((line) => Number(line.produced_qty) > 0));
+
+function close() {
+    if (props.order.status === 'partially_delivered') {
+        closeOpen.value = true;
+
+        return;
+    }
+
+    transition('closed');
+}
+
+function cancel() {
+    if (hasProduced.value) {
+        cancelOpen.value = true;
+
+        return;
+    }
+
+    transition('cancelled');
+}
+
 const notReady = computed(() => props.readiness.filter((r) => !r.spec || !r.artwork));
 
 /**
@@ -127,8 +164,10 @@ const lineColumns = [
             </Button>
 
             <Button v-if="can('sales_order.update') && !['closed', 'cancelled'].includes(order.status)" size="sm" :href="`/sales-orders/${order.id}/edit`">Edit</Button>
-            <Button v-if="availableTransitions.includes('closed')" size="sm" @click="transition('closed')">Close</Button>
-            <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="transition('cancelled')">Cancel</Button>
+            <Button v-if="availableTransitions.includes('closed')" size="sm" @click="close">
+                {{ order.status === 'partially_delivered' ? 'Short close' : 'Close' }}
+            </Button>
+            <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="cancel">Cancel</Button>
             <!-- F-01/F-02 — confirmed, held, amended, closed: recorded all along, shown nowhere. -->
             <ActivityTrail :entries="trail" />
             <DocumentActions document="sales-orders" :id="order.id" :status="order.status" />
@@ -342,6 +381,58 @@ const lineColumns = [
                     @click="releaseForm.post(`/sales-orders/${order.id}/transition`, { onSuccess: () => (releaseOpen = false) })"
                 >
                     Release and confirm
+                </Button>
+            </template>
+        </Modal>
+
+        <Modal
+            v-model:open="closeOpen"
+            title="Short close this order"
+            subtitle="Closing below the ordered quantity releases the reservations and ends the order early."
+        >
+            <FormField label="Reason" :error="closeForm.errors.close_reason" required>
+                <textarea
+                    v-model="closeForm.close_reason"
+                    rows="3"
+                    class="form-textarea"
+                    placeholder="Customer accepted the short shipment — …"
+                />
+            </FormField>
+            <template #footer="{ close: dismiss }">
+                <Button @click="dismiss">Cancel</Button>
+                <Button
+                    variant="primary"
+                    :disabled="!closeForm.close_reason"
+                    :loading="closeForm.processing"
+                    @click="closeForm.post(`/sales-orders/${order.id}/transition`, { onSuccess: () => (closeOpen = false) })"
+                >
+                    Short close
+                </Button>
+            </template>
+        </Modal>
+
+        <Modal
+            v-model:open="cancelOpen"
+            title="Cancel an order with production against it"
+            subtitle="Something has already been made on this order, so the cancellation is recorded with its reason."
+        >
+            <FormField label="Reason" :error="cancelForm.errors.close_reason" required>
+                <textarea
+                    v-model="cancelForm.close_reason"
+                    rows="3"
+                    class="form-textarea"
+                    placeholder="Customer withdrew the programme — …"
+                />
+            </FormField>
+            <template #footer="{ close: dismiss }">
+                <Button @click="dismiss">Keep the order</Button>
+                <Button
+                    variant="danger"
+                    :disabled="!cancelForm.close_reason"
+                    :loading="cancelForm.processing"
+                    @click="cancelForm.post(`/sales-orders/${order.id}/transition`, { onSuccess: () => (cancelOpen = false) })"
+                >
+                    Cancel the order
                 </Button>
             </template>
         </Modal>

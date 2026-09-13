@@ -1,6 +1,6 @@
 <script setup>
-import { computed } from 'vue';
-import { Head, router } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -8,6 +8,8 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
+import FormField from '@/Components/Ui/FormField.vue';
+import Modal from '@/Components/Ui/Modal.vue';
 import { date, money, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -39,6 +41,25 @@ async function transition(to) {
 
     router.post(`/purchase-orders/${props.purchaseOrder.id}/transition`, { to }, { preserveScroll: true });
 }
+
+/**
+ * PR-2 — above the three-quote threshold with fewer than three quotations, approval needs a
+ * documented reason. The guard has always accepted one; this screen never sent it, so the
+ * refusal it raises told the buyer to "approve with an override reason" through a button that
+ * carried no such field. A sole-source order had no route through the interface at all.
+ */
+const approveOpen = ref(false);
+const approveForm = useForm({ to: 'approved', override_reason: '' });
+
+function approve() {
+    if (props.approval?.needs_override) {
+        approveOpen.value = true;
+
+        return;
+    }
+
+    transition('approved');
+}
 </script>
 
 <template>
@@ -59,8 +80,17 @@ async function transition(to) {
             <Button v-if="availableTransitions.includes('pending_approval')" size="sm" variant="primary" @click="transition('pending_approval')">
                 Submit for approval
             </Button>
-            <Button v-if="availableTransitions.includes('approved')" size="sm" variant="success" @click="transition('approved')">
+            <Button v-if="availableTransitions.includes('approved')" size="sm" variant="success" @click="approve">
                 Approve
+            </Button>
+            <!--
+                05-workflows §7 "return for changes". Legal from `pending_approval` and
+                permissioned like any edit, but it had no button — and `cancelled` is not
+                reachable from that status either, so an order the guard refused to approve
+                could not move in any direction. It was stranded on this screen.
+            -->
+            <Button v-if="availableTransitions.includes('draft')" size="sm" @click="transition('draft')">
+                Return for changes
             </Button>
             <Button v-if="availableTransitions.includes('sent')" size="sm" variant="primary" @click="transition('sent')">
                 Send to supplier
@@ -169,5 +199,37 @@ async function transition(to) {
                 </DataTable>
             </Card>
         </div>
+
+        <Modal
+            v-model:open="approveOpen"
+            title="Approve without three quotations"
+            subtitle="A sole-source or urgent order is legitimate, but the reason is recorded on the order and audit-logged."
+        >
+            <p v-if="approval" class="mb-3 text-sm text-ink-600">
+                This order is worth {{ money(approval.value) }}, above the
+                {{ money(approval.quote_threshold) }} threshold that requires three supplier
+                quotations. It has
+                {{ approval.quotations === 0 ? 'none' : approval.quotations }}.
+            </p>
+            <FormField label="Override reason" :error="approveForm.errors.override_reason" required>
+                <textarea
+                    v-model="approveForm.override_reason"
+                    rows="3"
+                    class="form-textarea"
+                    placeholder="Only approved supplier for this yarn — …"
+                />
+            </FormField>
+            <template #footer="{ close }">
+                <Button @click="close">Cancel</Button>
+                <Button
+                    variant="success"
+                    :disabled="!approveForm.override_reason"
+                    :loading="approveForm.processing"
+                    @click="approveForm.post(`/purchase-orders/${purchaseOrder.id}/transition`, { onSuccess: () => (approveOpen = false) })"
+                >
+                    Approve
+                </Button>
+            </template>
+        </Modal>
     </AppLayout>
 </template>
