@@ -8,6 +8,7 @@ use App\Modules\Compliance\Services\CocPeriodGuard;
 use App\Modules\Dispatch\Models\DeliveryChallan;
 use App\Modules\Inventory\Models\StockLot;
 use App\Modules\Inventory\Services\StockPostingService;
+use App\Modules\MasterData\Models\CustomerAddress;
 use App\Support\Calculators\SalesToleranceCalculator;
 use App\Support\States\TransitionDenied;
 use Illuminate\Support\Facades\DB;
@@ -118,6 +119,38 @@ class DispatchService
     }
 
     /**
+     * Re-resolve a draft challan's delivery address, for the case where there was none to
+     * resolve when it was created.
+     *
+     * The same chain `DeliveryChallanController::store()` walks — packing list, then order,
+     * then the customer's default — so a challan that is re-checked resolves to exactly what
+     * a new one would. Only `draft`: an issued challan's address is the historical fact of
+     * where the goods were sent, and nothing may rewrite it afterwards.
+     */
+    private function backfillDeliveryAddress(DeliveryChallan $challan): void
+    {
+        if ($challan->delivery_address_id !== null || $challan->status !== 'draft') {
+            return;
+        }
+
+        $addressId = DB::table('packing_lists')
+            ->where('id', $challan->packing_list_id)
+            ->value('delivery_address_id');
+
+        $addressId ??= $challan->sales_order_id === null
+            ? null
+            : DB::table('sales_orders')->where('id', $challan->sales_order_id)->value('delivery_address_id');
+
+        $addressId ??= CustomerAddress::defaultDeliveryFor((int) $challan->customer_id)?->id;
+
+        if ($addressId === null) {
+            return;
+        }
+
+        $challan->forceFill(['delivery_address_id' => $addressId])->save();
+    }
+
+    /**
      * D4 — goods do not leave the gate without a destination on the paperwork.
      *
      * Every delivery note in the system read "Customer —" because the list never loaded the
@@ -131,6 +164,19 @@ class DispatchService
     public function guardConsignee(DeliveryChallan $challan, string $action = 'issued'): void
     {
         $blocked = [];
+
+        // The address is resolved once, when the challan is created, and stored on the row.
+        // That snapshot is right for an issued challan — it records where the goods actually
+        // went, and must not drift when someone edits the customer months later — and wrong
+        // for a draft that has not gone anywhere.
+        //
+        // A challan raised before the customer had a delivery address stored `null` and kept
+        // it. Adding the address afterwards changed nothing, so the refusal below told the
+        // dispatcher to "add a delivery address for the customer" and then refused again once
+        // they had. The only way out was to cancel and start over — and a cancelled challan
+        // used to hide the button that raises a new one, which stranded the packing list
+        // completely. An instruction a document cannot act on is worse than no instruction.
+        $this->backfillDeliveryAddress($challan);
 
         $customer = DB::table('customers')->where('id', $challan->customer_id)->first(['id', 'name']);
 

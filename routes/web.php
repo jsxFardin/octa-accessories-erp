@@ -475,6 +475,8 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:packing_list.view')->name('packing-lists.transition');
     Route::post('packing-lists/{packingList}/cartons', [PackingListController::class, 'storeCarton'])
         ->middleware('can:packing_list.update')->name('packing-lists.cartons.store');
+    Route::put('packing-lists/{packingList}/cartons/{carton}', [PackingListController::class, 'updateCarton'])
+        ->middleware('can:packing_list.update')->name('packing-lists.cartons.update');
     Route::delete('packing-lists/{packingList}/cartons/{carton}', [PackingListController::class, 'destroyCarton'])
         ->middleware('can:packing_list.update')->name('packing-lists.cartons.destroy');
     Route::post('packing-lists/{packingList}/cartons/{carton}/contents', [PackingListController::class, 'storeContent'])

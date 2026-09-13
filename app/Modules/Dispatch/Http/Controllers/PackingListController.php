@@ -135,7 +135,8 @@ class PackingListController extends Controller
                     ->join('products as p', 'p.id', '=', 'sol.product_id')
                     ->where('sol.sales_order_id', $packingList->sales_order_id)
                     ->get(['sol.id', 'sol.line_no', 'sol.ordered_qty', 'sol.produced_qty', 'sol.delivered_qty',
-                        'sol.over_tolerance_pct', 'p.id as product_id', 'p.code as product_code'])
+                        'sol.over_tolerance_pct', 'sol.under_tolerance_pct',
+                        'p.id as product_id', 'p.code as product_code'])
                 : [],
             // The picker offers only what D1 will accept — and D1 re-checks anyway.
             'availableLots' => $packingList->sales_order_id
@@ -192,6 +193,31 @@ class PackingListController extends Controller
      * Add contents to a carton. Light validation here; the authoritative D1 + ceiling checks
      * run in the `packed` guard under locks — the frontend is never trusted.
      */
+    /**
+     * Correct a carton's weights.
+     *
+     * They were only settable at creation, so a mis-keyed figure could be fixed one way:
+     * delete the carton and build it again, losing its contents with it. A scale reading typed
+     * one digit wrong is not a reason to unpack a carton.
+     */
+    public function updateCarton(Request $request, PackingList $packingList, Carton $carton): RedirectResponse
+    {
+        abort_unless($packingList->status === 'draft', 422, 'Cartons can only be edited on a draft packing list.');
+        abort_unless((int) $carton->packing_list_id === (int) $packingList->id, 404);
+
+        $data = $request->validate([
+            'gross_weight_kg' => ['nullable', 'numeric', 'min:0'],
+            'net_weight_kg' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $carton->forceFill([
+            'gross_weight_kg' => $data['gross_weight_kg'] ?? null,
+            'net_weight_kg' => $data['net_weight_kg'] ?? null,
+        ])->save();
+
+        return back()->with('success', "Carton {$carton->carton_no} updated.");
+    }
+
     public function storeContent(Request $request, PackingList $packingList, Carton $carton): RedirectResponse
     {
         abort_unless($packingList->status === 'draft', 422, 'Contents can only be edited on a draft packing list.');

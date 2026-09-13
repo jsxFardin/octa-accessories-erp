@@ -158,7 +158,16 @@ it('refuses to issue a challan with no delivery address', function (): void {
     $challan = draftChallanFor($this);
 
     // The hole the audit found: a challan with nowhere to go, on its way out of the gate.
+    //
+    // Nulling the challan's own column is no longer enough to create that condition. A draft
+    // re-resolves its address from the packing list, the order and the customer's default
+    // before it is checked, so clearing only the challan describes a challan that has not
+    // looked yet — not one with nowhere to go. Every source has to be empty for the sentence
+    // "no delivery address" to be true.
     DB::table('delivery_challans')->where('id', $challan->id)->update(['delivery_address_id' => null]);
+    DB::table('packing_lists')->where('id', $challan->packing_list_id)->update(['delivery_address_id' => null]);
+    DB::table('sales_orders')->where('id', $challan->sales_order_id)->update(['delivery_address_id' => null]);
+    DB::table('customer_addresses')->where('customer_id', $challan->customer_id)->delete();
 
     $ledgerBefore = DB::table('stock_ledger')->count();
 
@@ -264,4 +273,80 @@ it('does not let a user without the issue permission move the challan out of the
 
     expect($challan->refresh()->status)->toBe('draft')
         ->and(DB::table('stock_ledger')->count())->toBe($ledgerBefore);
+});
+
+/**
+ * D4, the recovery path — the sequence a dispatcher actually hits.
+ *
+ * Raise a challan for a customer who has no delivery address yet, be refused, add the address,
+ * and press issue again. The refusal told them to add one; following that instruction has to
+ * work, or the message is a dead end and the only way out is to cancel and start over.
+ */
+it('issues once the missing delivery address is added, without starting over', function (): void {
+    $challan = draftChallanFor($this);
+
+    // The state the dispatcher was in: everything packed, nowhere to send it.
+    DB::table('delivery_challans')->where('id', $challan->id)->update(['delivery_address_id' => null]);
+    DB::table('packing_lists')->where('id', $challan->packing_list_id)->update(['delivery_address_id' => null]);
+    DB::table('sales_orders')->where('id', $challan->sales_order_id)->update(['delivery_address_id' => null]);
+    DB::table('customer_addresses')->where('customer_id', $challan->customer_id)->delete();
+
+    $dispatcher = User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail();
+
+    $this->actingAs($dispatcher)
+        ->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])
+        ->assertSessionHas('error');
+
+    expect($challan->refresh()->status)->toBe('draft')
+        ->and(session('error'))->toContain('no delivery address');
+
+    // They do what the message asked: add a delivery address for the customer.
+    CustomerAddress::query()->create([
+        'customer_id' => $challan->customer_id,
+        'label' => 'Address 1',
+        'kind' => 'delivery',
+        'line1' => 'addres 1',
+        'city' => 'Dhaka',
+        'country' => 'Bangladesh',
+        'is_default' => true,
+    ]);
+
+    // …and the same challan goes out. No cancelling, no second document.
+    $this->actingAs($dispatcher)
+        ->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])
+        ->assertSessionHas('success');
+
+    $challan->refresh();
+
+    expect($challan->status)->toBe('issued')
+        ->and($challan->delivery_address_id)->not->toBeNull();
+});
+
+/**
+ * The snapshot still holds where it matters. An issued challan records where the goods were
+ * actually sent, and editing the customer afterwards must not rewrite that.
+ */
+it('never re-resolves the address of a challan that has already been issued', function (): void {
+    $challan = draftChallanFor($this);
+
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail())
+        ->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])
+        ->assertSessionHas('success');
+
+    $sentTo = (int) $challan->refresh()->delivery_address_id;
+
+    // A second, later address for the same customer — the kind of edit that happens months on.
+    CustomerAddress::query()->create([
+        'customer_id' => $challan->customer_id,
+        'label' => 'New warehouse',
+        'kind' => 'delivery',
+        'line1' => 'somewhere else entirely',
+        'city' => 'Chattogram',
+        'country' => 'Bangladesh',
+        'is_default' => true,
+    ]);
+
+    app(App\Modules\Dispatch\Services\DispatchService::class)->guardConsignee($challan->refresh(), 'delivered');
+
+    expect((int) $challan->refresh()->delivery_address_id)->toBe($sentTo);
 });
