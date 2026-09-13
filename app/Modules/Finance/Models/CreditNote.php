@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $number
  * @property int $customer_id
  * @property int|null $sales_invoice_id
+ * @property int|null $sales_return_id
  * @property \Illuminate\Support\Carbon $note_date
  * @property string $reason
  * @property int|null $ncr_id
@@ -33,10 +34,26 @@ class CreditNote extends Model
 
     public const UPDATED_AT = null;
 
+    public const DRAFT = 'draft';
+
+    public const APPROVED = 'approved';
+
+    /** Fully consumed — every unit of its value has been applied or refunded. */
+    public const APPLIED = 'applied';
+
+    /** Fully consumed, with money paid back to the customer. */
+    public const REFUNDED = 'refunded';
+
+    public const CANCELLED = 'cancelled';
+
     protected $fillable = [
         'number',
         'customer_id',
+        // Where the credit came from, not where it is applied. `sales_invoice_id` is the
+        // invoice the goods were billed on; `sales_return_id` is the return that sent them
+        // back, when goods were involved at all.
         'sales_invoice_id',
+        'sales_return_id',
         'note_date',
         'reason',
         'ncr_id',
@@ -70,6 +87,7 @@ class CreditNote extends Model
         return [
             'customer_id' => 'integer',
             'sales_invoice_id' => 'integer',
+            'sales_return_id' => 'integer',
             'note_date' => 'date:Y-m-d',
             'ncr_id' => 'integer',
             'currency_id' => 'integer',
@@ -100,5 +118,11 @@ class CreditNote extends Model
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class);
+    }
+
+    /** The note's own reference, for messages raised before it has a number (BR-34). */
+    public function reference(): string
+    {
+        return $this->number ?? "draft credit note #{$this->id}";
     }
 }

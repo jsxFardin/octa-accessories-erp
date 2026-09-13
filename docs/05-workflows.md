@@ -362,6 +362,108 @@ Issued invoices are immutable; corrections are credit notes. `overdue` is set by
 
 ---
 
+---
+
+## 11a. Sales Return → Credit Note → Application / Refund
+
+A customer takes delivery, is invoiced, pays — and later sends some of it back.
+
+Until this existed the application could not record that at all. Two states are terminal and
+both stood in the way: `delivery_challans.delivered`, so the existing challan return could not
+be reached, and `sales_invoices.paid`, so the credit note that should answer the goods had
+nothing to attach to. The goods came back and the books could not say so.
+
+### Which return is which
+
+| | `delivery_challans → returned` | `sales_returns` |
+|---|---|---|
+| What happened | The consignment was refused at the gate or turned back in transit | The customer took delivery and later sent goods back |
+| Reachable from | `issued`, `in_transit` | Any invoice that billed something, **including `paid`** |
+| Scope | The whole challan | Per invoice line, partial, repeatable |
+| `delivered_qty` | Decremented — it never really arrived | Untouched — it did arrive |
+| Stock | Dispatch entries **reversed** | A new `sales_return` movement posted forward |
+| CoC output | Deleted | Reduced in proportion to what came back |
+
+Both still exist and neither is going away. They are different events.
+
+### Rejected, cancelled, returned
+
+**Rejected** is QC's verdict on goods that never left. **Cancelled** is a document that should
+not exist, keeping its number (05-workflows §13). **Returned** is goods that left, were
+invoiced, and came back — the only one of the three that produces a credit.
+
+```mermaid
+stateDiagram-v2
+    state "Sales Return" as SR {
+        [*] --> draft
+        draft --> approved : accounts agree the money
+        approved --> posted : dispatch put the goods back
+        draft --> cancelled
+        approved --> cancelled
+        posted --> [*]
+    }
+    state "Credit Note" as CN {
+        [*] --> cn_draft
+        cn_draft --> cn_approved
+        cn_approved --> applied : every unit consumed against invoices
+        cn_approved --> refunded : …or paid back as money
+        cn_draft --> cn_cancelled
+        cn_approved --> cn_cancelled
+    }
+    posted --> cn_draft : drafted automatically
+```
+
+| Transition | Guard | Effect |
+|---|---|---|
+| draft → approved | SR-1 invoice billed something and is not cancelled · SR-2 customer matches · SR-3 qty ≤ invoiced − already returned, per line · SR-4 line belongs to this invoice | Assign number (BR-34); stamp `approved_by` |
+| approved → posted | All of the above **re-derived under a row lock** · SR-5 every line names a lot that was dispatched on this invoice's challan | Increment `sales_invoice_lines.returned_qty`; post `sales_return` stock into the original lot at its own cost, into quarantine; reduce CoC output proportionally; **draft a credit note** |
+| → cancelled | — | Nothing was posted, so nothing unwinds. The quantity was never consumed |
+
+`posted` is terminal: the ledger is append-only (I1), and a mistake is corrected by a stock
+adjustment, never by unposting.
+
+### Provenance is not application
+
+The distinction the whole design turns on:
+
+```
+credit_notes.sales_invoice_id             → where did this credit come from
+credit_note_applications.sales_invoice_id → where was it consumed
+```
+
+`appliedCredits()` reads the second. It used to read the first, which was correct only while a
+credit could reduce nothing but the invoice it named. A return credit names the invoice the
+goods were billed on — often a paid one — so reading the old way would have counted it against
+an invoice with zero outstanding and driven `total = received + credited + outstanding`
+negative.
+
+**The paid invoice is never touched.** Not its status, not `received_amount`, not a single
+receipt allocation. `outstanding()` on it stays exactly 0.
+
+### Customer credit
+
+Derived, never stored. Available credit is `approved notes − applications − refunds`, and it
+nets against BR-46 exposure because credit the customer holds is the business owing them.
+Spent credit is deliberately excluded: an applied note has already reduced an invoice balance
+and a refunded one has left the bank, so counting it here as well would relieve the same
+exposure twice.
+
+### Inventory
+
+Returned goods post **forward** into the lot they shipped on, at that lot's own `unit_cost` —
+a return is not a purchase and must not move the weighted average (BR-36 is for inbound
+purchase cost). They land in `quarantine`, the same convention `FgReceiptService` applies to
+output with no accepted inspection behind it, so BR-37's lot suggestion will not offer them to
+the next job or packing list until somebody has looked at them.
+
+### Approvals
+
+Dispatch receive the goods; accounts agree the money. `sales_return.post` and
+`sales_return.approve` are separate rights held by different roles, because a return the people
+receiving it can also approve is a return nobody signed for.
+
+---
+
 ## 12. NCR / CAPA
 
 ```mermaid

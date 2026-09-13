@@ -43,8 +43,11 @@ class CreditNoteStateMachine extends StateMachine
     {
         return [
             'draft' => ['approved', 'cancelled'],
-            'approved' => ['applied', 'cancelled'],
+            // `refunded` sits beside `applied` rather than after it: both mean the note is
+            // spent, and they differ in where the value went — other invoices, or the bank.
+            'approved' => ['applied', 'refunded', 'cancelled'],
             'applied' => [],
+            'refunded' => [],
             'cancelled' => [],
         ];
     }
@@ -56,6 +59,9 @@ class CreditNoteStateMachine extends StateMachine
             'approved' => 'credit_note.approve',
             // Applying moves money arithmetic — the same right that allocates receipts.
             'applied' => 'receipt.allocate',
+            // Paying money back is a larger act than moving credit between receivables, so it
+            // is its own right rather than another use of `receipt.allocate`.
+            'refunded' => 'credit_note.refund',
             'cancelled' => 'credit_note.delete',
         ];
     }
@@ -69,6 +75,7 @@ class CreditNoteStateMachine extends StateMachine
         match ($to) {
             'approved' => $this->guardApproved($document),
             'applied' => $this->guardApplied($document),
+            'refunded' => $this->guardRefunded($document),
             default => null,
         };
     }
@@ -131,6 +138,19 @@ class CreditNoteStateMachine extends StateMachine
      */
     private function guardApplied(CreditNote $note): void
     {
+        // A note whose value has already been consumed through `credit_note_applications` is
+        // simply being marked spent, and every check below has already run — once per
+        // application, against the invoice that actually took the value, under that invoice's
+        // own lock. Re-running them here would ask about the *provenance* invoice, which for a
+        // customer return is the paid one the credit could never have gone to.
+        //
+        // This is not the outstanding rule being relaxed. It is the outstanding rule being
+        // asked where the money moved instead of where it came from. The path below is
+        // untouched and still governs every note applied the original way.
+        if (DB::table('credit_note_applications')->where('credit_note_id', $note->getKey())->exists()) {
+            return;
+        }
+
         if ($note->sales_invoice_id === null) {
             throw TransitionDenied::guard('P2-1', 'A credit note can only be applied against an invoice.');
         }
@@ -156,6 +176,39 @@ class CreditNoteStateMachine extends StateMachine
                     number_format($eligible, 2),
                     number_format((float) $note->amount, 2),
                 ),
+            );
+        }
+    }
+
+    /**
+     * A note is `refunded` when its value is gone and some of it went back as money. The
+     * refund rows are written first, by `RefundService`, under this note's own row lock; this
+     * only confirms that nothing is left before the note is called spent.
+     */
+    private function guardRefunded(CreditNote $note): void
+    {
+        $refunded = DB::table('refunds')
+            ->where('credit_note_id', $note->getKey())
+            ->where('status', 'posted')
+            ->exists();
+
+        if (! $refunded) {
+            throw TransitionDenied::guard(
+                'P2-1',
+                'No money has been refunded against this credit note.',
+            );
+        }
+
+        $applied = (float) DB::table('credit_note_applications')
+            ->where('credit_note_id', $note->getKey())->sum('amount');
+
+        $paid = (float) DB::table('refunds')
+            ->where('credit_note_id', $note->getKey())->where('status', 'posted')->sum('amount');
+
+        if (round((float) $note->amount - $applied - $paid, 4) > 0.0001) {
+            throw TransitionDenied::guard(
+                'P2-1',
+                'This credit note still has value left; it is not spent yet.',
             );
         }
     }
@@ -190,8 +243,28 @@ class CreditNoteStateMachine extends StateMachine
      */
     private function onApplied(CreditNote $note): void
     {
+        // Already consumed through `credit_note_applications` — each one re-derived its
+        // invoice's payment state as it landed. Nothing left to do but be spent.
+        if (DB::table('credit_note_applications')->where('credit_note_id', $note->getKey())->exists()) {
+            return;
+        }
+
         /** @var SalesInvoice $invoice */
         $invoice = SalesInvoice::query()->findOrFail($note->sales_invoice_id);
+
+        // The direct route: approve a note against an open invoice and apply it whole, which
+        // is how every credit note in this system worked before returns existed and how the
+        // accounts screen still does it. The status write used to *be* the application;
+        // `appliedCredits()` now reads the applications table, so the row that has always been
+        // implied is written here instead of inferred.
+        DB::table('credit_note_applications')->insert([
+            'credit_note_id' => $note->getKey(),
+            'sales_invoice_id' => $invoice->getKey(),
+            'amount' => round((float) $note->amount, 4),
+            'applied_on' => now()->toDateString(),
+            'created_by' => auth()->id(),
+            'created_at' => now(),
+        ]);
 
         $this->invoices->reflectPayment($invoice);
     }

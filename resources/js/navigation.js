@@ -123,6 +123,9 @@ export const navigation = [
             { label: 'Invoices', href: '/invoices', icon: 'invoice', permissions: ['sales_invoice.view_any'] },
             { label: 'Receipts', href: '/receipts', icon: 'receipt', permissions: ['receipt.view_any'] },
             { label: 'Credit notes', href: '/credit-notes', icon: 'bill', permissions: ['credit_note.view_any'] },
+            // Goods coming back sit under Dispatch with the goods going out; the credit they
+            // produce sits here. The document itself is listed in both places for that reason.
+            { label: 'Customer returns', href: '/sales-returns', icon: 'delivery', permissions: ['sales_return.view_any'] },
             { label: 'Supplier bills', href: '/supplier-bills', icon: 'bill', permissions: ['supplier_bill.view_any'] },
             { label: 'Payments', href: '/payments', icon: 'card', permissions: ['payment.view_any'] },
             { label: 'Expenses', href: '/expenses', icon: 'money', permissions: ['expense.view_any'] },

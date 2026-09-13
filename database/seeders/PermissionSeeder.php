@@ -105,6 +105,10 @@ class PermissionSeeder extends Seeder
         'fg_receipt' => ['Fulfilment', ['post']],
         'packing_list' => ['Fulfilment', ['pack']],
         'delivery_challan' => ['Fulfilment', ['issue', 'deliver', 'return']],
+        // The customer return of delivered, invoiced goods. `post` is separated from
+        // `approve` for the reason the comment above gives: agreeing a return is not the
+        // same act as putting the stock back.
+        'sales_return' => ['Fulfilment', ['approve', 'post']],
         'trip' => ['Fulfilment', ['start', 'complete', 'view_own']],
         'trip_stop' => ['Fulfilment', ['update']],
         'pod' => ['Fulfilment', ['create']],
@@ -121,7 +125,11 @@ class PermissionSeeder extends Seeder
         'expense' => ['Money', ['approve', 'pay']],
         'sales_invoice' => ['Money', ['issue', 'cancel']],
         'receipt' => ['Money', ['allocate']],
-        'credit_note' => ['Money', ['approve']],
+        // `apply` is separated from `approve` because putting a credit against a *different*
+        // invoice is a larger act than approving the credit itself, and `refund` from both
+        // because paying money back leaves the bank rather than moving a receivable.
+        'credit_note' => ['Money', ['approve', 'apply', 'refund']],
+        'refund' => ['Money', ['post']],
         'payment' => ['Money', ['allocate']],
 
         // Reporting

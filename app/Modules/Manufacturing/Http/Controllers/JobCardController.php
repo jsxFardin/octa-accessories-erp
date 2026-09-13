@@ -329,13 +329,14 @@ class JobCardController extends Controller
                 'good_qty' => $output['good'],
                 'waste_qty' => $output['waste'],
                 'produced_qty' => $output['produced'],
-                // Not the same question as `produced_qty`, and deliberately both. That one is
-                // the job's *output* — the final operation's, in pieces (J6). This one is
-                // "has anything at all been booked against this card", summed across
-                // operations and therefore across units, which is meaningless as a quantity
-                // and exactly right as a yes/no. `guardCancelled()` asks it, so the screen
-                // that offers cancelling has to be able to ask it too.
-                'produced_qty_running' => (float) $jobCard->produced_qty_running,
+                // A boolean, never the figure. `produced_qty_running` sums metres and pieces
+                // across operations, so as a quantity it is nonsense — 407 m + 30,050 pcs +
+                // 30,000 pcs reading as "60,457 good" is the misreading J6 exists to prevent,
+                // and `JobCardOutputReportingTest` asserts the column reaches no screen,
+                // export or report. The one honest question it answers is "has anything been
+                // booked at all", which is exactly what `guardCancelled()` asks — so the
+                // screen that offers cancelling gets the answer, not the number.
+                'has_booked_production' => (float) $jobCard->produced_qty_running > 0,
                 'product' => $jobCard->product?->only(['id', 'code', 'name', 'product_type']),
                 'customer' => $jobCard->product?->customer?->only(['id', 'name']),
                 // Where this card sits in the order it is making — the way back up the chain.

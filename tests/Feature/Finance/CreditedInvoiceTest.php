@@ -47,7 +47,7 @@ function issuedInvoice(string $suffix): SalesInvoice
 it('marks an invoice credited when credit alone settles it', function (): void {
     $invoice = issuedInvoice('CREDITED');
 
-    DB::table('credit_notes')->insert([
+    $noteId = DB::table('credit_notes')->insertGetId([
         'number' => "CN-TEST-{$invoice->id}",
         'customer_id' => $invoice->customer_id,
         'sales_invoice_id' => $invoice->id,
@@ -57,6 +57,19 @@ it('marks an invoice credited when credit alone settles it', function (): void {
         'amount' => $invoice->total,
         'status' => 'applied',
         'approved_by' => 1,
+        'created_at' => now(),
+    ]);
+
+    // The application itself. `applied` is the note's *state*; what it has been applied **to**
+    // is `credit_note_applications`, because a credit note no longer necessarily credits the
+    // invoice it names — a customer return credits goods billed on an invoice that may already
+    // be paid. Building the note by hand means building the application by hand too; every
+    // route in the application writes both together.
+    DB::table('credit_note_applications')->insert([
+        'credit_note_id' => $noteId,
+        'sales_invoice_id' => $invoice->id,
+        'amount' => $invoice->total,
+        'applied_on' => now()->toDateString(),
         'created_at' => now(),
     ]);
 

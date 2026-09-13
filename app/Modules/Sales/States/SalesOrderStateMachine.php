@@ -248,13 +248,33 @@ class SalesOrderStateMachine extends StateMachine
         // letting an order through. Each document converts at the rate it itself snapshotted
         // (BR-22) — never a live rate, which would restate the decision every time the screen
         // was opened.
-        $outstanding = (float) DB::table('sales_invoices')
-            ->where('customer_id', $order->customer_id)
-            ->whereIn('status', ['issued', 'partially_paid', 'overdue'])
-            ->sum(DB::raw('(total - received_amount) * COALESCE(exchange_rate, 1)'));
+        // P2-1 — the receivable is `total − received − applied credits`, which is what
+        // `SalesInvoiceStateMachine::outstanding()` has always returned. This sum only ever
+        // subtracted the money, so every invoice partly settled by a credit note was counted
+        // here at more than it was owed. That was invisible while a credit could only reduce
+        // the invoice it named — the overstatement and the credit moved together — and stops
+        // being invisible the moment a credit can be applied somewhere else.
+        $outstanding = (float) DB::table('sales_invoices as si')
+            ->leftJoin(DB::raw('(SELECT sales_invoice_id, SUM(amount) AS applied
+                                 FROM credit_note_applications GROUP BY sales_invoice_id) AS cna'),
+                'cna.sales_invoice_id', '=', 'si.id')
+            ->where('si.customer_id', $order->customer_id)
+            ->whereIn('si.status', ['issued', 'partially_paid', 'overdue'])
+            ->sum(DB::raw('(si.total - si.received_amount - COALESCE(cna.applied, 0)) * COALESCE(si.exchange_rate, 1)'));
+
+        // Credit the customer holds and has not spent is the business owing them, so it nets
+        // against what they owe. Without it a customer who has returned goods — the business
+        // holding their money, having agreed to give it back — would be refused an order
+        // against a limit they were, on balance, well inside.
+        //
+        // Spent credit is deliberately not counted: an applied note has already reduced an
+        // invoice balance in the sum above, and a refunded one has left the bank. Either way
+        // subtracting it here as well would relieve the same exposure twice.
+        $credit = app(\App\Modules\Finance\Services\CreditNoteApplicationService::class)
+            ->availableForCustomer((int) $order->customer_id);
 
         return $this->tolerance->creditCheck(
-            round($outstanding, 4),
+            round(max(0.0, $outstanding - $credit), 4),
             $this->baseValue($order),
             (float) $order->customer->credit_limit,
         );

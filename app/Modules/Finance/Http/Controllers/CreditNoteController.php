@@ -29,6 +29,8 @@ class CreditNoteController extends Controller
     public function __construct(
         private readonly CreditNoteStateMachine $states,
         private readonly SalesInvoiceStateMachine $invoices,
+        private readonly \App\Modules\Finance\Services\CreditNoteApplicationService $applications,
+        private readonly \App\Modules\Finance\Services\RefundService $refunds,
     ) {}
 
     public function index(Request $request): Response
@@ -127,8 +129,90 @@ class CreditNoteController extends Controller
                 'credited' => $this->invoices->appliedCredits($invoice),
                 'outstanding' => $this->invoices->outstanding($invoice),
             ] : null,
+            // The four figures a credit note is actually about. `applied` and `refunded` are
+            // where its value went; `available` is what is left to spend. The provenance
+            // invoice above says where the credit came from, which is a different question.
+            'money' => [
+                'amount' => (float) $creditNote->amount,
+                'applied' => (float) \Illuminate\Support\Facades\DB::table('credit_note_applications')
+                    ->where('credit_note_id', $creditNote->getKey())->sum('amount'),
+                'refunded' => (float) \Illuminate\Support\Facades\DB::table('refunds')
+                    ->where('credit_note_id', $creditNote->getKey())->where('status', 'posted')->sum('amount'),
+                'available' => $this->applications->available($creditNote),
+            ],
+            'applications' => \Illuminate\Support\Facades\DB::table('credit_note_applications as cna')
+                ->join('sales_invoices as si', 'si.id', '=', 'cna.sales_invoice_id')
+                ->where('cna.credit_note_id', $creditNote->getKey())
+                ->orderBy('cna.id')
+                ->get(['cna.id', 'cna.amount', 'cna.applied_on', 'si.id as invoice_id', 'si.number', 'si.status']),
+            'refunds' => \Illuminate\Support\Facades\DB::table('refunds')
+                ->where('credit_note_id', $creditNote->getKey())
+                ->orderBy('id')
+                ->get(['id', 'number', 'amount', 'method', 'reference_no', 'refund_date', 'status']),
+            // Only invoices that can actually take credit: same customer, same currency, and
+            // something still outstanding. Offering any other would be offering a refusal.
+            'targets' => \Illuminate\Support\Facades\DB::table('sales_invoices')
+                ->where('customer_id', $creditNote->customer_id)
+                ->where('currency_id', $creditNote->currency_id)
+                ->whereIn('status', ['issued', 'partially_paid', 'overdue'])
+                ->orderByDesc('id')->limit(100)
+                ->get(['id', 'number', 'total', 'received_amount', 'status'])
+                ->map(fn (object $row): array => [
+                    ...(array) $row,
+                    'outstanding' => $this->invoices->outstanding(SalesInvoice::query()->find($row->id)),
+                ])
+                ->filter(fn (array $row): bool => $row['outstanding'] > 0.0001)
+                ->values(),
+            'salesReturn' => $creditNote->sales_return_id
+                ? \Illuminate\Support\Facades\DB::table('sales_returns')
+                    ->where('id', $creditNote->sales_return_id)
+                    ->first(['id', 'number', 'returned_on', 'status'])
+                : null,
             'availableTransitions' => $this->states->available($creditNote),
         ]);
+    }
+
+    /**
+     * Apply part or all of this note to an invoice — which need not be the one it came from.
+     * The service takes both row locks and recomputes eligibility inside them.
+     */
+    public function apply(Request $request, CreditNote $creditNote): RedirectResponse
+    {
+        $data = $request->validate([
+            'sales_invoice_id' => ['required', 'integer', 'exists:sales_invoices,id'],
+            'amount' => ['required', 'numeric', 'gt:0'],
+        ]);
+
+        try {
+            $this->applications->apply(
+                $creditNote,
+                SalesInvoice::query()->findOrFail($data['sales_invoice_id']),
+                (float) $data['amount'],
+            );
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return back()->withErrors($e->errors())->withInput();
+        }
+
+        return back()->with('success', 'Credit applied.');
+    }
+
+    /** Pay part or all of this note back to the customer. */
+    public function refund(Request $request, CreditNote $creditNote): RedirectResponse
+    {
+        $data = $request->validate([
+            'amount' => ['required', 'numeric', 'gt:0'],
+            'method' => ['required', Rule::in(['cash', 'cheque', 'bank_transfer', 'adjustment'])],
+            'reference_no' => ['nullable', 'string', 'max:80'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $refund = $this->refunds->post($creditNote, (float) $data['amount'], $data);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return back()->withErrors($e->errors())->withInput();
+        }
+
+        return back()->with('success', "Refund {$refund->number} posted.");
     }
 
     public function transition(Request $request, CreditNote $creditNote): RedirectResponse

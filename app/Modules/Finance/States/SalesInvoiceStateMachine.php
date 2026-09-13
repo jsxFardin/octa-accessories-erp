@@ -135,14 +135,28 @@ class SalesInvoiceStateMachine extends StateMachine
     }
 
     /**
-     * P2-1 — the sum of credit notes applied against this invoice. Derived from
-     * `status = 'applied'` rows, never cached: there is no second column to drift.
+     * P2-1 — the credit consumed *against this invoice*. Derived from the applications
+     * themselves, never cached: there is no second column to drift.
+     *
+     * This used to read `credit_notes.sales_invoice_id` with `status = 'applied'`, which was
+     * correct while a credit note could only ever reduce the invoice it named. A customer
+     * return ends that: the goods were billed on an invoice the customer has already paid, so
+     * the note names that invoice as **provenance** while its value has to be consumed
+     * somewhere with something left to reduce.
+     *
+     * Reading the old way, a return credit note would have counted as applied against a paid
+     * invoice the moment it was approved — `total = received + credited + outstanding` with
+     * `received` already equal to `total` leaves `outstanding` negative, and receipts, credit
+     * applications and BR-46 exposure all read that figure.
+     *
+     * `credit_note_applications` was backfilled from every existing applied note in the same
+     * migration that created it, so this returns exactly what it always did for data that
+     * predates returns.
      */
     public function appliedCredits(SalesInvoice $invoice): float
     {
-        return (float) DB::table('credit_notes')
+        return (float) DB::table('credit_note_applications')
             ->where('sales_invoice_id', $invoice->getKey())
-            ->where('status', 'applied')
             ->sum('amount');
     }
 

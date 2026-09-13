@@ -225,8 +225,37 @@ it('loads every object the specification promises', function (): void {
     // that booking is reversed. `waste_logs_qty_chk` requires `qty > 0`, so there is no
     // reversing entry to write on that table — the linked rows are removed, and the reversal
     // stays on `operation_logs` and the audit trail.
-    expect($tables)->toBe(155)
+    // 156 and 157 are `sales_returns` and `sales_return_lines` (SR): the customer return of
+    // goods that were delivered and invoiced. The application already had a return — the
+    // challan's — but it is a different event: a consignment refused at the gate, reversed
+    // whole, reachable only before delivery completes. Neither it nor anything else could
+    // record a partial return against an invoice the customer had already paid, and
+    // `sales_invoices.paid` is terminal, so the goods came back and the books could not say so.
+    //
+    // The ten foreign keys are those two tables'; the three CHECKs are their status and qty
+    // vocabularies plus `sales_invoice_lines.returned_qty >= 0`. That column is the returnable
+    // balance a screen reads — the guard re-derives it from posted return lines under a row
+    // lock rather than trusting it, which is why over-returning is refused even when two
+    // approved returns race for the same remainder.
+    // The 423rd foreign key is `credit_notes.sales_return_id` (SR): which return a credit note
+    // answers. `sales_invoice_id` says where the credit came from and cannot say what happened
+    // — an accounts claim against an open invoice and the financial half of goods physically
+    // coming back are different events with the same column filled in. The alternative was
+    // prose in `remarks`, which is the mistake `purchase_orders.rfq_id` was added to undo.
+    // The 158th table is `credit_note_applications`: where a credit note's value was consumed,
+    // as opposed to where it came from. `credit_notes.sales_invoice_id` carried both meanings
+    // while they could not differ. A return credits goods billed on an invoice that may already
+    // be paid, and reading the old way would have counted that credit against a zero-outstanding
+    // invoice and driven `total = received + credited + outstanding` negative. Its three
+    // foreign keys and one CHECK bring the totals to 426 and 172.
+    // The 159th is `refunds`: money going back to a customer. `receipts` is customer money in,
+    // `payments` is supplier money out, and `receipts_amount_chk` forbids a negative receipt —
+    // so paying a customer back had no document at all. Adding a direction column to `receipts`
+    // was the alternative and would have put money flowing the wrong way inside every existing
+    // sum over receipts, allocations and BR-46 exposure unless each was found and filtered.
+    // Four more foreign keys and three more CHECKs, bringing the totals to 430 and 175.
+    expect($tables)->toBe(159)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(412)
-        ->and($checks)->toBe(168);
+        ->and($foreignKeys)->toBe(430)
+        ->and($checks)->toBe(175);
 });

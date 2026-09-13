@@ -49,6 +49,7 @@ use App\Modules\Sales\Http\Controllers\InquiryController;
 use App\Modules\Sales\Http\Controllers\PriceListController;
 use App\Modules\Sales\Http\Controllers\QuotationController;
 use App\Modules\Sales\Http\Controllers\SalesOrderController;
+use App\Modules\Sales\Http\Controllers\SalesReturnController;
 use App\Modules\Trade\Http\Controllers\ImportShipmentController;
 use App\Modules\Trade\Http\Controllers\LetterOfCreditController;
 use App\Support\Export\Http\Controllers\ExportController;
@@ -569,6 +570,27 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:credit_note.view')->name('credit-notes.show');
     Route::post('credit-notes/{creditNote}/transition', [CreditNoteController::class, 'transition'])
         ->middleware('can:credit_note.view')->name('credit-notes.transition');
+    // Applying to a *different* invoice and refunding are their own rights: one moves a
+    // receivable, the other takes money out of the bank.
+    Route::post('credit-notes/{creditNote}/apply', [CreditNoteController::class, 'apply'])
+        ->middleware('can:credit_note.apply')->name('credit-notes.apply');
+    Route::post('credit-notes/{creditNote}/refund', [CreditNoteController::class, 'refund'])
+        ->middleware('can:credit_note.refund')->name('credit-notes.refund');
+
+    // SR — the customer return of delivered, invoiced goods. Approving and posting carry
+    // their own permission in the state machine; the invoice is never reopened by any of it.
+    Route::get('sales-returns', [SalesReturnController::class, 'index'])
+        ->middleware('can:sales_return.view_any')->name('sales-returns.index');
+    Route::get('sales-returns/create', [SalesReturnController::class, 'create'])
+        ->middleware('can:sales_return.create')->name('sales-returns.create');
+    Route::get('sales-returns/invoice/{invoice}', [SalesReturnController::class, 'lines'])
+        ->middleware('can:sales_return.create')->name('sales-returns.lines');
+    Route::post('sales-returns', [SalesReturnController::class, 'store'])
+        ->middleware('can:sales_return.create')->name('sales-returns.store');
+    Route::get('sales-returns/{salesReturn}', [SalesReturnController::class, 'show'])
+        ->middleware('can:sales_return.view')->name('sales-returns.show');
+    Route::post('sales-returns/{salesReturn}/transition', [SalesReturnController::class, 'transition'])
+        ->middleware('can:sales_return.view')->name('sales-returns.transition');
 
     Route::get('receipts', [ReceiptController::class, 'index'])
         ->middleware('can:receipt.view_any')->name('receipts.index');

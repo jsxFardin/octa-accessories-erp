@@ -239,6 +239,10 @@ class RoleSeeder extends Seeder
             'label' => 'Dispatch officer',
             'grants' => [
                 'packing_list.*', 'delivery_challan.*', 'trip.*', 'trip_stop.*', 'pod.*',
+                // Goods coming back are received by the people who sent them out. Approval
+                // is not theirs — it sits with accounts, because a return becomes a credit.
+                'sales_return.create', 'sales_return.update', 'sales_return.post',
+                'sales_return:read',
                 'export_document.*', 'stock_lot.*',
                 // P0-4 — a challan's issue moves the order to partially_delivered; the officer
                 // advances fulfilment status without holding sales_order.update.
@@ -257,7 +261,13 @@ class RoleSeeder extends Seeder
             'label' => 'Accounts',
             'grants' => [
                 'sales_invoice.*', 'receipt.*', 'credit_note.*', 'supplier_bill.*', 'payment.*',
-                'credit_note.approve', 'sales_order.release_credit_hold',
+                'credit_note.approve', 'credit_note.apply', 'credit_note.refund',
+                'refund.*', 'sales_order.release_credit_hold',
+                // A customer return ends in a credit note, so the commercial sign-off is
+                // accounts' — the same hand that approves the credit it turns into. `update`
+                // comes with it because declining a return is cancelling it, and an approver
+                // who cannot say no is not approving anything.
+                'sales_return.approve', 'sales_return.update', 'sales_return:read',
                 'customer.*', 'supplier.*',
                 'sales_order:read', 'delivery_challan:read', 'purchase_order:read', 'grn:read',
                 'audit_log:read', 'report.*',

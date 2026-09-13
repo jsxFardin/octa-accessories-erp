@@ -387,8 +387,8 @@ function closeWithReason() {
 const cancelOpen = ref(false);
 const cancelForm = useForm({ to: 'cancelled', reason: '' });
 
-/** Anything booked at all — the cross-unit running total is the right question here (J6). */
-const cancelNeedsReason = computed(() => Number(props.jobCard.produced_qty_running ?? 0) > 0);
+/** Anything booked at all — a yes/no, because the cross-unit total is not a quantity (J6). */
+const cancelNeedsReason = computed(() => props.jobCard.has_booked_production === true);
 
 function cancelCard() {
     if (cancelNeedsReason.value) {

@@ -2846,6 +2846,7 @@ CREATE TABLE sales_invoice_lines (
     product_id          BIGINT UNSIGNED,
     description         VARCHAR(255) NOT NULL,
     qty                 DECIMAL(18,6) NOT NULL,
+    returned_qty        DECIMAL(18,6) NOT NULL DEFAULT 0,
     rate_per_m          DECIMAL(18,4) NOT NULL,
     tax_id              BIGINT UNSIGNED,
     tax_amount          DECIMAL(18,4) NOT NULL DEFAULT 0,
@@ -2858,7 +2859,63 @@ CREATE TABLE sales_invoice_lines (
     CONSTRAINT sales_invoice_lines_soline_fk  FOREIGN KEY (sales_order_line_id) REFERENCES sales_order_lines(id),
     CONSTRAINT sales_invoice_lines_product_fk FOREIGN KEY (product_id)          REFERENCES products(id),
     CONSTRAINT sales_invoice_lines_tax_fk     FOREIGN KEY (tax_id)              REFERENCES taxes(id),
-    CONSTRAINT sales_invoice_lines_qty_chk CHECK (qty > 0)
+    CONSTRAINT sales_invoice_lines_qty_chk CHECK (qty > 0),
+    CONSTRAINT sales_invoice_lines_returned_chk CHECK (returned_qty >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- The customer return of goods that were delivered and invoiced. Not `delivery_challans.returned`,
+-- which is a consignment refused at the gate or turned back in transit and reverses a whole
+-- challan: this one carries partial quantities, repeats against one invoice, and — the reason it
+-- exists — a return against an invoice that has already been paid. The invoice is never rewritten.
+CREATE TABLE sales_returns (
+    id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    number              VARCHAR(30),
+    sales_invoice_id    BIGINT UNSIGNED NOT NULL,
+    delivery_challan_id BIGINT UNSIGNED,
+    customer_id         BIGINT UNSIGNED NOT NULL,
+    warehouse_id        BIGINT UNSIGNED NOT NULL,
+    returned_on         DATE NOT NULL DEFAULT (CURRENT_DATE),
+    reason              VARCHAR(500) NOT NULL,
+    status              VARCHAR(20) NOT NULL DEFAULT 'draft',
+    approved_by         BIGINT UNSIGNED,
+    created_by          BIGINT UNSIGNED,
+    created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    UNIQUE KEY sales_returns_number_uq (number),
+    KEY sales_returns_invoice_idx (sales_invoice_id),
+    KEY sales_returns_challan_idx (delivery_challan_id),
+    KEY sales_returns_customer_idx (customer_id, returned_on),
+    KEY sales_returns_warehouse_idx (warehouse_id),
+    KEY sales_returns_approver_idx (approved_by),
+    KEY sales_returns_creator_idx (created_by),
+    CONSTRAINT sales_returns_invoice_fk   FOREIGN KEY (sales_invoice_id)    REFERENCES sales_invoices(id),
+    CONSTRAINT sales_returns_challan_fk   FOREIGN KEY (delivery_challan_id) REFERENCES delivery_challans(id),
+    CONSTRAINT sales_returns_customer_fk  FOREIGN KEY (customer_id)         REFERENCES customers(id),
+    CONSTRAINT sales_returns_warehouse_fk FOREIGN KEY (warehouse_id)        REFERENCES warehouses(id),
+    CONSTRAINT sales_returns_approver_fk  FOREIGN KEY (approved_by)         REFERENCES users(id),
+    CONSTRAINT sales_returns_creator_fk   FOREIGN KEY (created_by)          REFERENCES users(id),
+    CONSTRAINT sales_returns_status_chk CHECK (status IN ('draft','approved','posted','cancelled'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Anchored on the invoice line, not the product: the returnable quantity is a property of what
+-- was billed, and one product can sit on several lines of an invoice at different rates.
+CREATE TABLE sales_return_lines (
+    id                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    sales_return_id       BIGINT UNSIGNED NOT NULL,
+    line_no               SMALLINT UNSIGNED NOT NULL,
+    sales_invoice_line_id BIGINT UNSIGNED NOT NULL,
+    product_id            BIGINT UNSIGNED,
+    lot_id                BIGINT UNSIGNED,
+    qty                   DECIMAL(18,6) NOT NULL,
+    rate_per_m            DECIMAL(18,4) NOT NULL DEFAULT 0,
+    UNIQUE KEY sales_return_lines_uq (sales_return_id, line_no),
+    KEY sales_return_lines_invline_idx (sales_invoice_line_id),
+    KEY sales_return_lines_product_idx (product_id),
+    KEY sales_return_lines_lot_idx (lot_id),
+    CONSTRAINT sales_return_lines_return_fk  FOREIGN KEY (sales_return_id)       REFERENCES sales_returns(id) ON DELETE CASCADE,
+    CONSTRAINT sales_return_lines_invline_fk FOREIGN KEY (sales_invoice_line_id) REFERENCES sales_invoice_lines(id),
+    CONSTRAINT sales_return_lines_product_fk FOREIGN KEY (product_id)            REFERENCES products(id),
+    CONSTRAINT sales_return_lines_lot_fk     FOREIGN KEY (lot_id)                REFERENCES stock_lots(id),
+    CONSTRAINT sales_return_lines_qty_chk CHECK (qty > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE receipts (
@@ -2905,7 +2962,8 @@ CREATE TABLE credit_notes (
     id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     number           VARCHAR(30),
     customer_id      BIGINT UNSIGNED NOT NULL,
-    sales_invoice_id BIGINT UNSIGNED,
+    sales_invoice_id BIGINT UNSIGNED,                  -- provenance: which invoice the credit came from
+    sales_return_id  BIGINT UNSIGNED,                  -- …and which return, when goods came back
     note_date        DATE NOT NULL DEFAULT (CURRENT_DATE),
     reason           VARCHAR(30) NOT NULL,
     ncr_id           BIGINT UNSIGNED,
@@ -2918,17 +2976,41 @@ CREATE TABLE credit_notes (
     UNIQUE KEY credit_notes_number_uq (number),
     KEY credit_notes_customer_idx (customer_id, note_date),
     KEY credit_notes_invoice_idx (sales_invoice_id),
+    KEY credit_notes_return_idx (sales_return_id),
     KEY credit_notes_ncr_idx (ncr_id),
     KEY credit_notes_currency_idx (currency_id),
     KEY credit_notes_approver_idx (approved_by),
     CONSTRAINT credit_notes_customer_fk FOREIGN KEY (customer_id)      REFERENCES customers(id),
     CONSTRAINT credit_notes_invoice_fk  FOREIGN KEY (sales_invoice_id) REFERENCES sales_invoices(id),
+    CONSTRAINT credit_notes_return_fk   FOREIGN KEY (sales_return_id)  REFERENCES sales_returns(id) ON DELETE SET NULL,
     CONSTRAINT credit_notes_ncr_fk      FOREIGN KEY (ncr_id)           REFERENCES ncrs(id),
     CONSTRAINT credit_notes_currency_fk FOREIGN KEY (currency_id)      REFERENCES currencies(id),
     CONSTRAINT credit_notes_approver_fk FOREIGN KEY (approved_by)      REFERENCES users(id),
     CONSTRAINT credit_notes_reason_chk CHECK (reason IN ('quality_claim','short_delivery','rate_difference','return','discount','other')),
-    CONSTRAINT credit_notes_status_chk CHECK (status IN ('draft','approved','applied','cancelled')),
+    CONSTRAINT credit_notes_status_chk CHECK (status IN ('draft','approved','applied','refunded','cancelled')),
     CONSTRAINT credit_notes_amount_chk CHECK (amount > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Where a credit note's value was consumed, as distinct from where it came from. Mirrors
+-- `receipt_allocations`: one note, possibly several invoices, an amount each. Before customer
+-- returns existed these were always the same invoice and `credit_notes.sales_invoice_id`
+-- carried both meanings; a return credits goods billed on an invoice that may already be paid,
+-- so consumption had to become a record of its own.
+CREATE TABLE credit_note_applications (
+    id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    credit_note_id   BIGINT UNSIGNED NOT NULL,
+    sales_invoice_id BIGINT UNSIGNED NOT NULL,
+    amount           DECIMAL(18,4) NOT NULL,
+    applied_on       DATE NOT NULL DEFAULT (CURRENT_DATE),
+    created_by       BIGINT UNSIGNED,
+    created_at       DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    UNIQUE KEY credit_note_applications_uq (credit_note_id, sales_invoice_id),
+    KEY credit_note_applications_invoice_idx (sales_invoice_id),
+    KEY credit_note_applications_creator_idx (created_by),
+    CONSTRAINT credit_note_applications_note_fk    FOREIGN KEY (credit_note_id)   REFERENCES credit_notes(id) ON DELETE CASCADE,
+    CONSTRAINT credit_note_applications_invoice_fk FOREIGN KEY (sales_invoice_id) REFERENCES sales_invoices(id),
+    CONSTRAINT credit_note_applications_creator_fk FOREIGN KEY (created_by)       REFERENCES users(id),
+    CONSTRAINT credit_note_applications_amount_chk CHECK (amount > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE payments (
@@ -2968,6 +3050,37 @@ CREATE TABLE payment_allocations (
     CONSTRAINT payment_allocations_payment_fk FOREIGN KEY (payment_id)       REFERENCES payments(id) ON DELETE CASCADE,
     CONSTRAINT payment_allocations_bill_fk    FOREIGN KEY (supplier_bill_id) REFERENCES supplier_bills(id),
     CONSTRAINT payment_allocations_amount_chk CHECK (amount > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Money paid back to a customer against an approved credit note. `receipts` is customer money
+-- in and `payments` is supplier money out; neither can express this, and `receipts_amount_chk`
+-- forbids a negative receipt. Shaped after `payments`, the existing money-out document.
+CREATE TABLE refunds (
+    id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    number         VARCHAR(30),
+    credit_note_id BIGINT UNSIGNED NOT NULL,
+    customer_id    BIGINT UNSIGNED NOT NULL,
+    currency_id    BIGINT UNSIGNED NOT NULL,
+    refund_date    DATE NOT NULL DEFAULT (CURRENT_DATE),
+    method         VARCHAR(20) NOT NULL,
+    reference_no   VARCHAR(80),
+    amount         DECIMAL(18,4) NOT NULL,
+    reason         VARCHAR(500),
+    status         VARCHAR(20) NOT NULL DEFAULT 'posted',
+    created_by     BIGINT UNSIGNED,
+    created_at     DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    UNIQUE KEY refunds_number_uq (number),
+    KEY refunds_note_idx (credit_note_id),
+    KEY refunds_customer_idx (customer_id, refund_date),
+    KEY refunds_currency_idx (currency_id),
+    KEY refunds_creator_idx (created_by),
+    CONSTRAINT refunds_note_fk     FOREIGN KEY (credit_note_id) REFERENCES credit_notes(id),
+    CONSTRAINT refunds_customer_fk FOREIGN KEY (customer_id)    REFERENCES customers(id),
+    CONSTRAINT refunds_currency_fk FOREIGN KEY (currency_id)    REFERENCES currencies(id),
+    CONSTRAINT refunds_creator_fk  FOREIGN KEY (created_by)     REFERENCES users(id),
+    CONSTRAINT refunds_method_chk CHECK (method IN ('cash','cheque','bank_transfer','adjustment')),
+    CONSTRAINT refunds_status_chk CHECK (status IN ('draft','posted','cancelled')),
+    CONSTRAINT refunds_amount_chk CHECK (amount > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================================
