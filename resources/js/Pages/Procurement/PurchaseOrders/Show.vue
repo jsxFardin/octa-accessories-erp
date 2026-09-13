@@ -116,7 +116,19 @@ function reopen() {
             >
                 Reopen
             </Button>
-            <Button v-if="availableTransitions.includes('sent')" size="sm" variant="primary" @click="transition('sent')">
+            <!--
+                Not on a closed order. `closed → sent` exists so a closed order can be reopened
+                to receive a late delivery, which puts `sent` in `availableTransitions` — but
+                reaching it through this button would post the order to the supplier a second
+                time in the reader's mind, and skip the reason the reopen guard requires.
+                Reopening has its own button, above.
+            -->
+            <Button
+                v-if="availableTransitions.includes('sent') && purchaseOrder.status !== 'closed'"
+                size="sm"
+                variant="primary"
+                @click="transition('sent')"
+            >
                 Send to supplier
             </Button>
             <!-- The goods arrive against this order; the receipt opens with it already chosen. -->

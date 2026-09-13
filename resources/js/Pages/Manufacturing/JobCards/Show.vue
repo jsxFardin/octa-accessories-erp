@@ -410,7 +410,14 @@ function cancelWithReason() {
     });
 }
 
-/** P0-3 — the one way out of `closed`, so unreceived output is recoverable rather than lost. */
+/**
+ * P0-3 — the one way out of `closed`, so unreceived output is recoverable rather than lost.
+ *
+ * It targets `completed`, which is also where a QC-passed card goes, so a closed card has
+ * `completed` in `availableTransitions` and the generic Complete button above has to exclude
+ * it: two buttons for one transition, one of them labelled for a different act and skipping
+ * the reason this one requires.
+ */
 const reopenOpen = ref(false);
 const reopenForm = useForm({ to: 'completed', reopen_reason: '' });
 
@@ -565,7 +572,7 @@ const bomColumns = [
                 to happen, the click opens somewhere to write one instead of a dead refusal.
             -->
             <Button
-                v-if="availableTransitions.includes('completed')"
+                v-if="availableTransitions.includes('completed') && jobCard.status !== 'closed'"
                 size="sm"
                 variant="success"
                 @click="completeUnissued ? (completeOpen = true) : transition('completed')"
