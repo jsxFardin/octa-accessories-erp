@@ -244,6 +244,8 @@ class PurchaseOrderController extends Controller
             // PR-2 AC4 — the documented way past the three-quote requirement for a sole-source
             // or urgent order. Recorded on the order by the guard, never silently accepted.
             'override_reason' => ['nullable', 'string', 'max:255'],
+            // Why a closed order is being opened again, kept on the transition's audit row.
+            'reopen_reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         try {

@@ -377,6 +377,39 @@ function closeWithReason() {
     });
 }
 
+/**
+ * J6 — abandoning a card. The state machine has always allowed this from draft, planned and
+ * released, and `guardCancelled()` was written to demand a supervisor's reason once production
+ * had been logged. No screen ever offered it, so that guard had never run and a card raised in
+ * error stayed open for good — holding the order line's BR-49 headroom the whole time, which
+ * is what stops a replacement card being raised.
+ */
+const cancelOpen = ref(false);
+const cancelForm = useForm({ to: 'cancelled', reason: '' });
+
+/** Anything booked at all — the cross-unit running total is the right question here (J6). */
+const cancelNeedsReason = computed(() => Number(props.jobCard.produced_qty_running ?? 0) > 0);
+
+function cancelCard() {
+    if (cancelNeedsReason.value) {
+        cancelOpen.value = true;
+
+        return;
+    }
+
+    transition('cancelled');
+}
+
+function cancelWithReason() {
+    cancelForm.post(`/job-cards/${props.jobCard.id}/transition`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            cancelOpen.value = false;
+            cancelForm.reset('reason');
+        },
+    });
+}
+
 /** P0-3 — the one way out of `closed`, so unreceived output is recoverable rather than lost. */
 const reopenOpen = ref(false);
 const reopenForm = useForm({ to: 'completed', reopen_reason: '' });
@@ -571,6 +604,9 @@ const bomColumns = [
             <!-- Destructive last, after everything that moves the card forward. -->
             <Button v-if="availableTransitions.includes('on_hold')" size="sm" variant="danger" @click="holdOpen = true">
                 Hold
+            </Button>
+            <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="cancelCard">
+                Cancel card
             </Button>
         </template>
 
@@ -1225,6 +1261,38 @@ const bomColumns = [
                     :disabled="!reopenForm.reopen_reason"
                     @click="reopen"
                 >Reopen</Button>
+            </template>
+        </Modal>
+
+        <Modal
+            v-model:open="cancelOpen"
+            title="Cancel a job card with production against it"
+            subtitle="J6: something has already been booked, so the cancellation is signed for."
+        >
+            <div class="space-y-3">
+                <p class="text-sm text-ink-700">
+                    Cancelling releases this card's stock reservations and returns issued material.
+                    Booked production and its waste stay on the record — they happened.
+                </p>
+
+                <FormField
+                    label="Supervisor reason"
+                    rule="J6"
+                    required
+                    :error="cancelForm.errors.reason"
+                >
+                    <textarea v-model="cancelForm.reason" rows="2" class="form-textarea" />
+                </FormField>
+            </div>
+
+            <template #footer="{ close }">
+                <Button @click="close">Keep the card</Button>
+                <Button
+                    variant="danger"
+                    :loading="cancelForm.processing"
+                    :disabled="!cancelForm.reason"
+                    @click="cancelWithReason"
+                >Cancel the card</Button>
             </template>
         </Modal>
 

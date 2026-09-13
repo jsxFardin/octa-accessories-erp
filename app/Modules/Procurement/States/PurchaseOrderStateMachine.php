@@ -42,7 +42,14 @@ class PurchaseOrderStateMachine extends StateMachine
             'sent' => ['partially_received', 'received', 'cancelled'],
             'partially_received' => ['received', 'closed'],
             'received' => ['closed'],
-            'closed' => [],
+            // Closing early is a deliberate act — "stop expecting the balance, take it off the
+            // open-PO report" — and it was irreversible. Goods that then turned up against it
+            // could not be received at all: a GRN is only offered for `approved`, `sent` or
+            // `partially_received`, and nothing led out of `closed`. Reopening lands on `sent`
+            // regardless of where the order was closed from; the next posted GRN rolls the
+            // status back up to `partially_received` or `received` from the line quantities,
+            // which are never touched by closing.
+            'closed' => ['sent'],
             'cancelled' => [],
         ];
     }
@@ -68,11 +75,37 @@ class PurchaseOrderStateMachine extends StateMachine
      */
     protected function guard(Model $document, string $from, string $to, array $context): void
     {
-        match ($to) {
-            'pending_approval' => $this->guardSubmission($document),
-            'approved' => $this->guardApproved($document, $context),
+        match (true) {
+            $to === 'pending_approval' => $this->guardSubmission($document),
+            $to === 'approved' => $this->guardApproved($document, $context),
+            $to === 'sent' && $from === 'closed' => $this->guardReopen($context),
             default => null,
         };
+    }
+
+    /**
+     * Reopening a closed order, back to `sent`.
+     *
+     * Not re-asked: the approval guards. This order was approved once and the approval stands
+     * — reopening restores an order to the state it was already in, it does not raise a new
+     * commitment. What it asks is who and why. `purchase_order.close` rather than a new
+     * permission, so it works without reseeding; the target's own `purchase_order.send` is
+     * checked by the state machine on top of this.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function guardReopen(array $context): void
+    {
+        if (blank($context['reopen_reason'] ?? null)) {
+            throw TransitionDenied::guard(
+                '05-workflows §7',
+                'Reopening a closed purchase order needs a reason. It is recorded on the order\'s history.',
+            );
+        }
+
+        if (! (auth()->user()?->hasPermission('purchase_order.close') ?? false)) {
+            throw TransitionDenied::notPermitted('purchase_order.close');
+        }
     }
 
     /** A PO may not be submitted to a supplier nobody has approved (05-workflows §7). */

@@ -60,6 +60,23 @@ function approve() {
 
     transition('approved');
 }
+
+/**
+ * Closing a purchase order early is deliberate and was irreversible, so goods arriving against
+ * one that had been closed could not be received at all. This is the way back.
+ */
+const reopenOpen = ref(false);
+const reopenForm = useForm({ to: 'sent', reopen_reason: '' });
+
+function reopen() {
+    reopenForm.post(`/purchase-orders/${props.purchaseOrder.id}/transition`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            reopenOpen.value = false;
+            reopenForm.reset('reopen_reason');
+        },
+    });
+}
 </script>
 
 <template>
@@ -91,6 +108,13 @@ function approve() {
             -->
             <Button v-if="availableTransitions.includes('draft')" size="sm" @click="transition('draft')">
                 Return for changes
+            </Button>
+            <Button
+                v-if="purchaseOrder.status === 'closed' && availableTransitions.includes('sent')"
+                size="sm"
+                @click="reopenOpen = true"
+            >
+                Reopen
             </Button>
             <Button v-if="availableTransitions.includes('sent')" size="sm" variant="primary" @click="transition('sent')">
                 Send to supplier
@@ -228,6 +252,43 @@ function approve() {
                     @click="approveForm.post(`/purchase-orders/${purchaseOrder.id}/transition`, { onSuccess: () => (approveOpen = false) })"
                 >
                     Approve
+                </Button>
+            </template>
+        </Modal>
+
+        <Modal
+            v-model:open="reopenOpen"
+            title="Reopen this purchase order"
+            subtitle="Back to sent, so goods can be received against it again."
+        >
+            <p class="mb-3 text-sm text-ink-600">
+                The order returns to <em>sent</em> whichever state it was closed from. Line
+                quantities are untouched, so the next posted goods receipt will roll the status
+                back up to partially received or received on its own. The supplier is not
+                re-notified.
+            </p>
+            <FormField
+                label="Why is this order being reopened?"
+                :error="reopenForm.errors.reopen_reason"
+                hint="Recorded on the order's history. Closing is normally final."
+                required
+            >
+                <textarea
+                    v-model="reopenForm.reopen_reason"
+                    rows="2"
+                    class="form-textarea"
+                    placeholder="Balance delivered after the order was closed — …"
+                />
+            </FormField>
+            <template #footer="{ close }">
+                <Button @click="close">Cancel</Button>
+                <Button
+                    variant="primary"
+                    :disabled="!reopenForm.reopen_reason"
+                    :loading="reopenForm.processing"
+                    @click="reopen"
+                >
+                    Reopen
                 </Button>
             </template>
         </Modal>

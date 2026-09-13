@@ -245,6 +245,11 @@ stateDiagram-v2
 | approved → sent | — | Generate PDF; email supplier |
 | → partially/received | GRN posted | Update `received_qty` per line |
 | → closed | Fully received/billed, or manual close with reason | Remove from open-PO reports |
+| closed → sent | `reopen_reason` present; permission `purchase_order.close` | Reopen for receipt. Line quantities are untouched by closing, so the next posted GRN rolls the status back up to `partially_received`/`received`. The supplier is not re-notified |
+
+Closing early is deliberate — "stop expecting the balance" — and it used to be irreversible.
+A goods receipt is offered only for `approved`, `sent` and `partially_received`, so a balance
+delivered after a close could not be booked in at all, by any route.
 
 Changes to an approved PO create revision `n+1` with a reason.
 

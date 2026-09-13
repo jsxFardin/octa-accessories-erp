@@ -97,6 +97,12 @@ async function transition(to) {
             <Button v-if="availableTransitions.includes('revised')" size="sm" @click="transition('revised')">Revise</Button>
             <Button v-if="can('quotation.update') && quotation.status === 'draft'" size="sm" :href="`/quotations/${quotation.id}/edit`">Edit</Button>
             <Button v-if="availableTransitions.includes('rejected')" size="sm" variant="danger" @click="rejectOpen = true">Rejected</Button>
+            <!--
+                Legal from `draft` and offered nowhere, so a quotation raised in error stayed on
+                the list for good. Distinct from `rejected`, which is the customer's answer and
+                feeds win/loss: this one is "the document should not exist".
+            -->
+            <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="transition('cancelled')">Cancel</Button>
             <!-- Repeat business is the norm: same labels, new season, different quantity. -->
             <Button v-if="can('quotation.create')" size="sm" @click="duplicate">Duplicate</Button>
             <!--
