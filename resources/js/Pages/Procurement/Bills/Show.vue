@@ -79,13 +79,22 @@ const lineColumns = [
             >
                 Approve (override variance)
             </Button>
+            <!-- The next step for an approved bill: straight to the payment, with this bill chosen. -->
+            <Button
+                v-if="can('payment.allocate') && ['approved', 'partially_paid'].includes(bill.status) && Number(bill.outstanding) > 0"
+                size="sm"
+                variant="primary"
+                :href="`/payments?bill=${bill.id}`"
+            >
+                Record payment
+            </Button>
             <Button
                 v-if="availableTransitions.includes('cancelled')"
                 size="sm"
                 variant="danger"
                 @click="transition('cancelled')"
             >
-                Cancel
+                Cancel bill
             </Button>
         </template>
 

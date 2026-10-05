@@ -50,12 +50,60 @@ class PurchaseRequisitionController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
         return Inertia::render('Procurement/Requisitions/Form', [
             'requisition' => null,
+            'prefill' => $this->prefillFromMaterialPlan($request->integer('mrp_run')),
             ...$this->options(),
         ]);
+    }
+
+    /**
+     * A requisition started from the material plan arrives with that run's shortages on it.
+     *
+     * The plan worked out what was short, how much to order and by when — and the planner then
+     * retyped every line of it here. Nothing is saved by this: it only fills the form, and the
+     * quantities are the plan's suggested order quantities, free to change before saving.
+     *
+     * @return array{remarks: string, lines: list<array<string, mixed>>}|null
+     */
+    private function prefillFromMaterialPlan(int $runId): ?array
+    {
+        if ($runId === 0) {
+            return null;
+        }
+
+        $run = DB::table('mrp_runs')->find($runId);
+
+        if ($run === null) {
+            return null;
+        }
+
+        $lines = DB::table('material_requirements as mr')
+            ->join('items as i', 'i.id', '=', 'mr.item_id')
+            ->where('mr.mrp_run_id', $runId)
+            ->where('mr.is_shortage', true)
+            ->where('mr.suggested_po_qty', '>', 0)
+            ->orderBy('mr.need_date')
+            ->get(['mr.item_id', 'i.base_uom_id', 'mr.suggested_po_qty', 'mr.need_date'])
+            ->map(fn (object $row): array => [
+                'item_id' => (int) $row->item_id,
+                'uom_id' => $row->base_uom_id === null ? '' : (int) $row->base_uom_id,
+                'qty' => (float) $row->suggested_po_qty,
+                'required_by' => $row->need_date,
+                'remarks' => '',
+            ])
+            ->all();
+
+        if ($lines === []) {
+            return null;
+        }
+
+        return [
+            'remarks' => 'Shortages from the material plan run on '.date('j M Y', strtotime((string) $run->run_at)).'.',
+            'lines' => $lines,
+        ];
     }
 
     public function store(Request $request): RedirectResponse

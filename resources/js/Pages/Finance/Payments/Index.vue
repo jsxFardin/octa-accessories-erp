@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -98,8 +98,9 @@ function pickBill(allocation) {
         // decides the currency. `??=` kept the first bill's currency after the choice changed,
         // which the server then (correctly) refused with no way to correct it from here.
         form.currency_id = bill.currency_id ?? form.currency_id;
-        allocation.amount ??= (Number(bill.total) - Number(bill.paid_amount)).toFixed(2);
-        form.amount ??= allocation.amount;
+        // Assigned, not defaulted: choosing a different document must not keep the first one's figure.
+        allocation.amount = (Number(bill.total) - Number(bill.paid_amount)).toFixed(2);
+        form.amount = allocation.amount;
     }
 }
 
@@ -110,6 +111,21 @@ function pickBill(allocation) {
 const otherErrors = computed(() => ['exchange_rate', 'supplier_id', 'currency_id', 'allocations.0.supplier_bill_id', 'allocations.0.amount']
     .map((key) => form.errors[key])
     .filter(Boolean));
+
+/**
+ * Arriving from the document itself — "Record payment" on the bill — opens this dialog with it
+ * already chosen. Before, the user came here, opened the dialog, and searched for the document
+ * they had just been looking at.
+ */
+onMounted(() => {
+    const id = Number(new URLSearchParams(window.location.search).get('bill'));
+
+    if (!id || !props.openBills.some((row) => row.id === id)) return;
+
+    form.allocations[0].supplier_bill_id = id;
+    pickBill(form.allocations[0]);
+    createOpen.value = true;
+});
 
 function submit() {
     form.post('/payments', {

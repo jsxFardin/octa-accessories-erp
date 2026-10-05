@@ -221,6 +221,16 @@ watch(
  * from the inquiry, or with an existing draft, as soon as the form mounts.
  */
 onMounted(() => {
+    // Arriving from "Create a quotation" on a product: that product, for its customer, on line 1.
+    const wanted = Number(new URLSearchParams(window.location.search).get('product'));
+    const product = props.quotation || prefill ? null : props.products.find((row) => row.id === wanted);
+
+    if (product) {
+        form.customer_id = product.customer_id;
+        form.lines[0].product_id = product.id;
+        form.lines[0].description = product.name;
+    }
+
     form.lines.forEach((line) => {
         signatures.set(line, `${line.product_id}|${line.qty}|${line.margin_pct}`);
 

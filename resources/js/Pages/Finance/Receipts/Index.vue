@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -100,10 +100,26 @@ function pickInvoice(allocation) {
         // BR-57 — a receipt settles an invoice in the invoice's own currency, so choosing
         // the invoice decides the currency rather than merely defaulting it.
         form.currency_id = invoice.currency_id ?? form.currency_id;
-        allocation.amount ??= (Number(invoice.total) - Number(invoice.received_amount) - Number(invoice.credited_amount ?? 0)).toFixed(2);
-        form.amount ??= allocation.amount;
+        // Assigned, not defaulted: choosing a different document must not keep the first one's figure.
+        allocation.amount = (Number(invoice.total) - Number(invoice.received_amount) - Number(invoice.credited_amount ?? 0)).toFixed(2);
+        form.amount = allocation.amount;
     }
 }
+
+/**
+ * Arriving from the document itself — "Record receipt" on the invoice — opens this dialog with it
+ * already chosen. Before, the user came here, opened the dialog, and searched for the document
+ * they had just been looking at.
+ */
+onMounted(() => {
+    const id = Number(new URLSearchParams(window.location.search).get('invoice'));
+
+    if (!id || !props.openInvoices.some((row) => row.id === id)) return;
+
+    form.allocations[0].sales_invoice_id = id;
+    pickInvoice(form.allocations[0]);
+    createOpen.value = true;
+});
 
 function submit() {
     form.post('/receipts', {

@@ -443,6 +443,30 @@ const holdForm = useForm({ to: 'on_hold', hold_reason: '' });
 
 const checks = computed(() => Object.values(props.releaseGate.checks));
 
+/**
+ * Why Release will be refused, known before it is pressed.
+ *
+ * Only a material shortage can be waived, and only by someone allowed to. The button used to
+ * stay live whatever the gate said, so a card with unapproved artwork invited a release that
+ * could not succeed.
+ */
+const releaseBlockedBy = computed(() => {
+    if (props.releaseGate.ready) return null;
+
+    const gate = props.releaseGate.checks;
+    const fixed = ['artwork', 'bom', 'tools'].filter((key) => gate[key] && !gate[key].ok);
+
+    if (fixed.length) {
+        return `${fixed.map((key) => gate[key].label).join(', ')} must be put right first — this cannot be waived.`;
+    }
+
+    if (!can('job_card.waive_material')) {
+        return 'Material is short, and waiving that needs a production manager.';
+    }
+
+    return releaseForm.material_waiver_reason?.trim() ? null : 'Material is short. Give a reason to release without it.';
+});
+
 const progressPct = computed(() => {
     const planned = Number(props.jobCard.planned_qty) || 1;
 
@@ -549,12 +573,20 @@ const bomColumns = [
         <template #actions>
             <Badge :status="jobCard.status" />
 
+            <!-- The message after creating a card says to schedule it on the board; this is the way there. -->
+            <Button
+                v-if="['draft', 'planned'].includes(jobCard.status) && can('production_plan.view_any')"
+                size="sm"
+                :href="`/planning?job_card=${jobCard.id}`"
+            >
+                Schedule on the planning board
+            </Button>
             <Button
                 v-if="availableTransitions.includes('planned')"
                 size="sm"
                 @click="transition('planned')"
             >
-                Plan
+                Mark as planned
             </Button>
             <Button
                 v-if="availableTransitions.includes('released')"
@@ -1152,16 +1184,16 @@ const bomColumns = [
                     <p class="font-medium">This job card is not ready.</p>
                     <ul class="mt-1 list-disc pl-4 text-xs">
                         <li v-for="check in checks.filter((c) => !c.ok)" :key="check.label">
-                            {{ check.label }} ({{ check.rule }}) — {{ check.detail }}
+                            {{ check.label }} — {{ check.detail }}
                         </li>
                     </ul>
                 </div>
 
                 <FormField
-                    v-if="releaseGate.shortages.length"
+                    v-if="releaseGate.shortages.length && can('job_card.waive_material')"
                     label="Material waiver reason"
                     rule="J1"
-                    hint="Only material shortages can be waived, and only with a reason and the job_card.waive_material permission. Artwork cannot."
+                    hint="Only a material shortage can be waived, and only with a reason. Artwork, bill of materials and tools cannot."
                     :error="releaseForm.errors.material_waiver_reason"
                 >
                     <textarea v-model="releaseForm.material_waiver_reason" rows="2" class="form-textarea" />
@@ -1169,8 +1201,15 @@ const bomColumns = [
             </div>
 
             <template #footer="{ close }">
+                <span v-if="releaseBlockedBy" id="release-blocked" class="mr-auto text-xs text-rose-700">{{ releaseBlockedBy }}</span>
                 <Button @click="close">Cancel</Button>
-                <Button variant="primary" :loading="releaseForm.processing" @click="release">Release</Button>
+                <Button
+                    variant="primary"
+                    :loading="releaseForm.processing"
+                    :disabled="releaseBlockedBy !== null || releaseForm.processing"
+                    :aria-describedby="releaseBlockedBy ? 'release-blocked' : null"
+                    @click="release"
+                >Release</Button>
             </template>
         </Modal>
 

@@ -64,8 +64,18 @@ const columns = [
             <Button v-if="availableTransitions.includes('issued')" size="sm" variant="primary" @click="transition('issued')">
                 Issue
             </Button>
+            <!-- The next step for an invoice that is owed: straight to the receipt, with this
+                 invoice already chosen. -->
+            <Button
+                v-if="can('receipt.allocate') && ['issued', 'partially_paid', 'overdue'].includes(invoice.status) && Number(invoice.outstanding) > 0"
+                size="sm"
+                variant="primary"
+                :href="`/receipts?invoice=${invoice.id}`"
+            >
+                Record receipt
+            </Button>
             <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="transition('cancelled')">
-                Cancel
+                Cancel invoice
             </Button>
             <DocumentActions document="invoices" :id="invoice.id" :status="invoice.status" />
         </template>

@@ -126,6 +126,17 @@ const columns = [
             >
                 Create invoice
             </Button>
+            <!-- The next step for a note going out on the factory's own vehicle. -->
+            <Button
+                v-if="!challan.trip && challan.mode === 'own_fleet' && challan.status === 'issued' && can('trip.create')"
+                size="sm"
+                :href="`/trips/create?challan=${challan.id}`"
+            >
+                Plan a trip
+            </Button>
+            <Button v-if="challan.trip" size="sm" :href="`/trips/${challan.trip.id}`">
+                Open trip {{ challan.trip.number }}
+            </Button>
             <!-- Destructive last, after everything that moves the delivery forward. -->
             <Button v-if="availableTransitions.includes('returned')" size="sm" variant="danger" @click="returnOpen = true">Return</Button>
             <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" :loading="busy === 'cancelled'" :disabled="busy !== null" @click="move('cancelled')">Cancel delivery note</Button>

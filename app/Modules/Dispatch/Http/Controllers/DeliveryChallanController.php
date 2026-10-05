@@ -181,6 +181,13 @@ class DeliveryChallanController extends Controller
                 'sales_order_id' => $deliveryChallan->sales_order_id,
                 'sales_order' => $deliveryChallan->salesOrder?->only(['id', 'number', 'status', 'customer_po_no']),
                 'customer' => $deliveryChallan->customer?->only(['id', 'code', 'name']),
+                // The trip this note is travelling on, if it has been put on one. The note page
+                // used to give no sign of it and no way to plan one.
+                'trip' => DB::table('trip_stops as ts')
+                    ->join('trips as t', 't.id', '=', 'ts.trip_id')
+                    ->where('ts.delivery_challan_id', $deliveryChallan->getKey())
+                    ->orderByDesc('ts.id')
+                    ->first(['t.id', 't.number', 't.status', 'ts.sequence_no', 'ts.status as stop_status']),
                 // The consignee is not a second copy of a name and an address: it is the
                 // customer and the `customer_addresses` row this challan points at. D4
                 // refuses to issue without one, so a challan that reaches the gate has it.

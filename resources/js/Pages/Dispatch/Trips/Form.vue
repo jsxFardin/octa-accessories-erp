@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
@@ -40,6 +40,13 @@ function removeStop(index) {
 }
 
 const availableChallans = computed(() => props.challans.filter((c) => !form.stops.find((s) => s.delivery_challan_id === c.id)));
+
+// Arriving from "Plan a trip" on a delivery note puts that note on the trip to begin with.
+onMounted(() => {
+    const id = Number(new URLSearchParams(window.location.search).get('challan'));
+
+    if (id && props.challans.some((challan) => challan.id === id)) addStop(id);
+});
 
 function submit() {
     form.post('/trips', { preserveScroll: true });

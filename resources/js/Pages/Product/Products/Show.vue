@@ -188,6 +188,13 @@ const bomColumns = [
         <div class="space-y-4">
             <!-- What this product still needs, in working order, and the one thing to do next. -->
             <Card title="Setup" :subtitle="setupSummary" :padded="false">
+                <!-- Setup used to end on a trial price and nothing else. Once everything is in
+                     place, the next thing anyone does with a product is quote it. -->
+                <template v-if="outstanding.length === 0 && can('quotation.create')" #actions>
+                    <Button size="sm" variant="primary" :href="`/quotations/create?product=${product.id}`">
+                        Create a quotation
+                    </Button>
+                </template>
                 <ol class="divide-y divide-slate-100">
                     <li v-for="step in steps" :key="step.key" class="px-4 py-3">
                         <div class="flex flex-wrap items-start gap-x-4 gap-y-2">

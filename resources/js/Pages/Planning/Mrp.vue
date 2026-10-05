@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -15,6 +16,9 @@ const props = defineProps({
 });
 
 const form = useForm({ horizon_days: 60 });
+
+/** What the plan says to order: short, and with a quantity to buy. */
+const toOrder = computed(() => props.requirements.filter((row) => row.is_shortage && Number(row.suggested_po_qty) > 0));
 
 const columns = [
     { key: 'item_code', label: 'Item' },
@@ -79,6 +83,12 @@ const columns = [
             </Card>
 
             <Card class="xl:col-span-3" title="Requirements" rule="BR-24 · BR-25 · BR-26" :padded="false">
+                <!-- The plan named what to order; the planner then retyped it in Buying. -->
+                <template v-if="run && toOrder.length && can('purchase_requisition.create')" #actions>
+                    <Button size="sm" variant="primary" :href="`/purchase-requisitions/create?mrp_run=${run.id}`">
+                        Create a requisition for {{ toOrder.length }} {{ toOrder.length === 1 ? 'shortage' : 'shortages' }}
+                    </Button>
+                </template>
                 <DataTable :columns="columns" :rows="requirements" row-key="id" empty="Run MRP to see requirements." dense>
                     <template #cell:item_code="{ row }">
                         <span class="font-medium">{{ row.item_code }}</span>

@@ -19,6 +19,8 @@ const props = defineProps({
     departments: { type: Array, default: () => [] },
     items: { type: Array, default: () => [] },
     uoms: { type: Array, default: () => [] },
+    /** Lines carried in from the material plan's shortages, when the form was opened from there. */
+    prefill: { type: Object, default: null },
 });
 
 const isEdit = computed(() => Boolean(props.requisition));
@@ -32,10 +34,12 @@ const form = useForm({
     department_id: props.requisition?.department_id ?? '',
     requested_on: isoDate(props.requisition?.requested_on) || todayIso(),
     required_by: isoDate(props.requisition?.required_by),
-    remarks: props.requisition?.remarks ?? '',
+    remarks: props.requisition?.remarks ?? props.prefill?.remarks ?? '',
     lines: props.requisition?.lines?.length
         ? props.requisition.lines.map((line) => ({ ...line }))
-        : [blankLine()],
+        : props.prefill?.lines?.length
+            ? props.prefill.lines.map((line) => ({ ...blankLine(), ...line, required_by: isoDate(line.required_by) }))
+            : [blankLine()],
 });
 
 function itemFor(line) {
