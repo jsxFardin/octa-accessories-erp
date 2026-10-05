@@ -158,6 +158,8 @@ Route::middleware('auth')->group(function (): void {
         ->middlewareFor(['edit', 'update'], 'can:product.update')
         ->middlewareFor('destroy', 'can:product.delete');
 
+    Route::put('products/{product}/routing', [ProductController::class, 'updateRouting'])
+        ->middleware('can:product.update')->name('products.routing.update');
     Route::get('products/{product}/specs/create', [ProductSpecController::class, 'create'])
         ->middleware('can:product_spec.create')->name('products.specs.create');
     Route::post('products/{product}/specs', [ProductSpecController::class, 'store'])

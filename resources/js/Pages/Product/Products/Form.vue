@@ -26,7 +26,7 @@ const sections = computed(() => [
         title: 'Manufacturing',
         fields: [
             { key: 'product_type', label: 'Product type', type: 'select', options: props.productTypes, required: true },
-            { key: 'routing_id', label: 'Routing', type: 'select', options: props.routings, valueKey: 'id', labelKey: 'name' },
+            { key: 'routing_id', label: 'Routing', type: 'select', options: props.routings, valueKey: 'id', labelKey: 'label', hint: 'Must match the product type. Left blank, a new product takes the default routing for its type.' },
             { key: 'is_running_programme', label: 'Running programme', type: 'checkbox', rule: 'BR-15', checkboxLabel: 'Amortise tooling over the annual forecast' },
             { key: 'annual_forecast_qty', label: 'Annual forecast qty', type: 'number', step: '0.000001', rule: 'BR-15' },
             { key: 'status', label: 'Status', type: 'select', default: 'development', options: props.statuses },

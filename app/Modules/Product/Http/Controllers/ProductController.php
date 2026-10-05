@@ -10,6 +10,7 @@ use App\Modules\MasterData\Models\Customer;
 use App\Modules\MasterData\Models\Employee;
 use App\Modules\Product\Models\Product;
 use App\Modules\Product\Models\Routing;
+use App\Modules\Product\Services\ProductSetup;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Reference\Vocabulary;
@@ -75,17 +76,39 @@ class ProductController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $data = $this->validated($request);
+
+        // A product with no routing is costed with no machine time, and nothing said so. The
+        // type's default routing is what was going to be picked anyway.
+        $data['routing_id'] ??= Routing::query()
+            ->where('product_type', $data['product_type'])
+            ->where('is_active', true)
+            ->where('is_default', true)
+            ->value('id');
+
         $product = Product::query()->create([
-            ...$this->validated($request),
+            ...$data,
             'created_by' => $request->user()->id,
         ]);
 
         return redirect()
             ->route('products.show', $product)
-            ->with('success', "Product {$product->code} created. Add a spec and an artwork before it can be ordered.");
+            ->with('success', "Product {$product->code} created. The setup list below shows what it needs next.");
     }
 
-    public function show(Product $product): Response
+    /** The routing is chosen from the product page's setup list, not three screens away. */
+    public function updateRouting(Request $request, Product $product): RedirectResponse
+    {
+        $data = $request->validate([
+            'routing_id' => ['required', 'integer', $this->routingOfType($product->product_type)],
+        ]);
+
+        $product->update($data);
+
+        return back()->with('success', 'Routing updated.');
+    }
+
+    public function show(Product $product, ProductSetup $setup): Response
     {
         $product->load([
             'customer',
@@ -109,8 +132,15 @@ class ProductController extends Controller
                 'brand' => $product->brand?->only(['id', 'name']),
                 'routing' => $product->routing?->only(['id', 'code', 'name']),
             ],
-            // S3 / Gate 1 — the readiness panel a merchandiser checks before confirming.
-            'readiness' => $product->readiness(),
+            // What the product still needs, in the order the work is done. Not "does one exist"
+            // — a spec with no web width exists — but "will it cost".
+            'setup' => $setup->steps($product),
+            'routings' => Routing::query()
+                ->where('is_active', true)
+                ->where('product_type', $product->product_type)
+                ->orderByDesc('is_default')
+                ->orderBy('code')
+                ->get(['id', 'code', 'name', 'is_default']),
             'specs' => $product->specs->map(fn ($spec): array => [
                 ...$spec->only([
                     'id', 'version_no', 'status', 'label_width_mm', 'label_height_mm', 'web_width_mm',
@@ -180,7 +210,7 @@ class ProductController extends Controller
             // artwork approval and the price both belong to that relationship.
             'customer_id' => ['required', 'integer', 'exists:customers,id'],
             'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
-            'routing_id' => ['nullable', 'integer', 'exists:routings,id'],
+            'routing_id' => ['nullable', 'integer', $this->routingOfType((string) $request->input('product_type'))],
             'code' => ['required', 'string', 'max:40', Rule::unique('products', 'code')->ignore($product?->id)],
             'name' => ['required', 'string', 'max:180'],
             'customer_style_ref' => ['nullable', 'string', 'max:80'],
@@ -193,13 +223,31 @@ class ProductController extends Controller
         ]);
     }
 
+    /** A woven label run down a flexo routing is costed at the wrong machines' rates. */
+    private function routingOfType(string $productType): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($productType): void {
+            $routing = Routing::query()->find($value);
+
+            if ($routing === null) {
+                $fail('Choose a routing from the list.');
+            } elseif ($routing->product_type !== null && $routing->product_type !== $productType) {
+                $fail("{$routing->code} is a routing for another product type. Choose one that matches this product.");
+            }
+        };
+    }
+
     /** @return array<string, mixed> */
     private function formOptions(): array
     {
         return [
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
             'brands' => Brand::query()->orderBy('name')->get(['id', 'code', 'name', 'customer_id']),
-            'routings' => Routing::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name', 'product_type', 'max_lot_size']),
+            'routings' => Routing::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name', 'product_type', 'max_lot_size'])
+                ->map(fn (Routing $routing): array => [
+                    ...$routing->only(['id', 'code', 'name', 'product_type', 'max_lot_size']),
+                    'label' => "{$routing->code} · {$routing->name}",
+                ]),
             'productTypes' => Vocabulary::options('product_type'),
             'statuses' => Vocabulary::options('product_status'),
             // The gap travels with the option so the spec form can prefill it (BR-4).
