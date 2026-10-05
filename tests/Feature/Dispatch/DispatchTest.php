@@ -323,6 +323,47 @@ it('returns the goods when a delivery fails', function (): void {
         ->count())->toBe(0);
 });
 
+/*
+ * UX audit C-09 / H-36. The dialog disables "Received by" once a failure is being recorded, but
+ * the server demanded it anyway, so a failed drop needed an invented receiver. And when it did
+ * go through, the flash said "Stop delivered."
+ */
+it('records a failed drop with no receiver, and says it failed', function (): void {
+    $challan = packAndDraftChallan($this, 2000);
+    $this->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])->assertSessionHas('success');
+
+    [$trip, $stop] = failedStopFor($this, $challan->refresh());
+
+    $driver = User::query()->where('email', 'driver@octapussolution.com')->firstOrFail();
+
+    $this->actingAs($driver)
+        ->post("/trips/{$trip}/stops/{$stop}/deliver", ['failure_reason' => 'Gate closed.'])
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success', 'Stop marked as not delivered. The goods on its delivery note are returned to stock.');
+
+    expect(DB::table('trip_stops')->where('id', $stop)->value('status'))->toBe('failed')
+        ->and($challan->refresh()->status)->toBe('returned');
+});
+
+it('still requires a receiver when the stop is delivered', function (): void {
+    $challan = packAndDraftChallan($this, 2000);
+    $this->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])->assertSessionHas('success');
+
+    [$trip, $stop] = failedStopFor($this, $challan->refresh());
+
+    $driver = User::query()->where('email', 'driver@octapussolution.com')->firstOrFail();
+
+    $this->actingAs($driver)
+        ->post("/trips/{$trip}/stops/{$stop}/deliver", [])
+        ->assertSessionHasErrors(['received_by_name' => 'Enter the name of the person who received the goods.']);
+
+    expect(DB::table('trip_stops')->where('id', $stop)->value('status'))->toBe('pending');
+
+    $this->actingAs($driver)
+        ->post("/trips/{$trip}/stops/{$stop}/deliver", ['received_by_name' => 'Gate clerk'])
+        ->assertSessionHas('success', 'Stop delivered.');
+});
+
 it('refuses a certified shipment when the certificate has no document on file', function (): void {
     // Validity dates without the certificate behind them prove nothing, and the registry
     // happily held rows reading "pending upload of the signed certificate".

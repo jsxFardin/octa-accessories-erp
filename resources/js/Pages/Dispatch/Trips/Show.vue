@@ -34,22 +34,37 @@ const podStop = ref(null);
 const podForm = useForm({ received_by_name: '', failure_reason: '' });
 
 /*
- * One dialog, two outcomes. Both fields used to sit open at once with a single "Confirm"
- * button, so a driver could name a receiver *and* a failure reason and have no idea which one
- * the system would believe. The reason decides, and the dialog now says so.
+ * One dialog, two outcomes, chosen explicitly. Both fields used to sit open at once and the
+ * failure reason quietly decided which one the system believed — while the server still
+ * demanded a receiver's name for a drop nobody received.
  */
-const podFailing = computed(() => Boolean(podForm.failure_reason));
+const podOutcome = ref('delivered');
+const podFailing = computed(() => podOutcome.value === 'failed');
 
 function openPod(stop) {
     podStop.value = stop;
+    podOutcome.value = 'delivered';
     podForm.reset();
+    podForm.clearErrors();
 }
 
+const podBlockedBy = computed(() => {
+    if (podFailing.value) {
+        return podForm.failure_reason.trim() ? null : 'Say why the goods could not be delivered.';
+    }
+
+    return podForm.received_by_name.trim() ? null : 'Enter the name of the person who received the goods.';
+});
+
 function submitPod() {
-    podForm.post(`/trips/${props.trip.id}/stops/${podStop.value.id}/deliver`, {
-        preserveScroll: true,
-        onSuccess: () => { podStop.value = null; },
-    });
+    podForm
+        .transform((data) => (podFailing.value
+            ? { failure_reason: data.failure_reason }
+            : { received_by_name: data.received_by_name }))
+        .post(`/trips/${props.trip.id}/stops/${podStop.value.id}/deliver`, {
+            preserveScroll: true,
+            onSuccess: () => { podStop.value = null; },
+        });
 }
 </script>
 
@@ -110,32 +125,60 @@ function submitPod() {
             </Card>
         </div>
 
-        <Modal v-if="podStop" v-model:open="podStop" title="Capture POD" width="max-w-md" @update:open="(v) => { if (!v) podStop = null; }">
+        <Modal v-if="podStop" v-model:open="podStop" title="Record this stop" width="max-w-md" @update:open="(v) => { if (!v) podStop = null; }">
             <div class="flex flex-col gap-3">
+                <div class="grid grid-cols-2 gap-2" role="group" aria-label="What happened at this stop">
+                    <button
+                        type="button"
+                        class="min-h-11 rounded-md border px-3 py-2 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                        :class="!podFailing ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-300 bg-white text-ink-700 hover:bg-slate-50'"
+                        :aria-pressed="!podFailing"
+                        @click="podOutcome = 'delivered'"
+                    >Delivered</button>
+                    <button
+                        type="button"
+                        class="min-h-11 rounded-md border px-3 py-2 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                        :class="podFailing ? 'border-rose-600 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white text-ink-700 hover:bg-slate-50'"
+                        :aria-pressed="podFailing"
+                        @click="podOutcome = 'failed'"
+                    >Could not deliver</button>
+                </div>
+
                 <FormField
+                    v-if="!podFailing"
                     label="Received by"
                     :error="podForm.errors.received_by_name"
-                    :required="!podFailing"
-                    :hint="podFailing ? 'Not needed — this stop is being recorded as failed.' : 'The name written on the gate copy.'"
+                    required
+                    hint="The name written on the gate copy."
                 >
-                    <TextInput v-model="podForm.received_by_name" placeholder="Receiver name" :disabled="podFailing" />
+                    <TextInput v-model="podForm.received_by_name" placeholder="Receiver name" />
                 </FormField>
-                <FormField
-                    label="Failure reason"
-                    :error="podForm.errors.failure_reason"
-                    hint="Fill this in only if the stop did not deliver — it marks the stop failed."
-                >
-                    <TextInput v-model="podForm.failure_reason" placeholder="Refused at the gate, address closed…" />
-                </FormField>
+
+                <template v-else>
+                    <FormField
+                        label="Why it could not be delivered"
+                        :error="podForm.errors.failure_reason"
+                        required
+                    >
+                        <TextInput v-model="podForm.failure_reason" placeholder="Refused at the gate, address closed…" />
+                    </FormField>
+                    <p class="rounded-md bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                        The goods stay on the vehicle. Their delivery note is marked returned and the
+                        quantity goes back into stock. This cannot be undone from this screen.
+                    </p>
+                </template>
+
+                <p v-if="podBlockedBy" id="pod-blocked" class="text-xs text-ink-600">{{ podBlockedBy }}</p>
             </div>
             <template #footer>
                 <Button @click="podStop = null">Cancel</Button>
                 <Button
                     :variant="podFailing ? 'danger' : 'primary'"
                     :loading="podForm.processing"
-                    :disabled="podForm.processing || (!podFailing && !podForm.received_by_name)"
+                    :disabled="podForm.processing || podBlockedBy !== null"
+                    :aria-describedby="podBlockedBy ? 'pod-blocked' : null"
                     @click="submitPod"
-                >{{ podFailing ? 'Mark failed' : 'Confirm delivery' }}</Button>
+                >{{ podFailing ? 'Mark as not delivered' : 'Confirm delivery' }}</Button>
             </template>
         </Modal>
 

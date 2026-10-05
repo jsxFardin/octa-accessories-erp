@@ -215,12 +215,18 @@ class TripController extends Controller
         }
 
         $data = $request->validate([
-            'received_by_name' => ['required', 'string', 'max:150'],
+            // A failed drop has no receiver to name. Requiring one regardless meant a failure
+            // could only be recorded by inventing somebody.
+            'received_by_name' => ['nullable', 'required_without:failure_reason', 'string', 'max:150'],
             'failure_reason' => ['nullable', 'string', 'max:255'],
+        ], [
+            'received_by_name.required_without' => 'Enter the name of the person who received the goods.',
         ]);
 
-        DB::transaction(function () use ($stop, $data): void {
-            if (isset($data['failure_reason']) && $data['failure_reason'] !== '') {
+        $failed = isset($data['failure_reason']) && $data['failure_reason'] !== '';
+
+        DB::transaction(function () use ($stop, $data, $failed): void {
+            if ($failed) {
                 $stop->forceFill([
                     'status' => 'failed',
                     'failure_reason' => $data['failure_reason'],
@@ -265,7 +271,9 @@ class TripController extends Controller
             }
         });
 
-        return back()->with('success', 'Stop delivered.');
+        return back()->with('success', $failed
+            ? 'Stop marked as not delivered. The goods on its delivery note are returned to stock.'
+            : 'Stop delivered.');
     }
 
     /** Complete the trip when all stops are done. */
