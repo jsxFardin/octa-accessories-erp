@@ -115,6 +115,20 @@ const orderColumns = [
                 Edit
             </Button>
 
+            <!--
+                An inquiry raised in error had no way out: only "Mark lost", which is a different
+                thing and asks for a reason the customer gave. Offered once the inquiry has its
+                number; cancelling an unnumbered draft is left for a decision on numbering.
+            -->
+            <Button
+                v-if="inquiry.status === 'open' && can('inquiry.close')"
+                size="sm"
+                variant="danger"
+                @click="transition('cancelled')"
+            >
+                Cancel inquiry
+            </Button>
+
             <!-- Destructive, last. -->
             <Button
                 v-if="['open', 'quoted'].includes(inquiry.status) && can('inquiry.close')"

@@ -44,6 +44,7 @@ const COMMON = {
 const BY_DOCUMENT = {
     inquiry: {
         open: { verb: 'Submit', message: 'The inquiry is given its number and can then be quoted.' },
+        cancelled: { ...CANCEL, message: 'Use this for an inquiry raised by mistake. It can no longer be quoted. If the customer simply went elsewhere, use "Mark lost" instead.' },
     },
     quotation: {
         sent: { verb: 'Mark as sent', title: (name) => `Mark ${name} as sent?`, label: 'Mark as sent', message: 'The quotation is given its number and its prices and exchange rate are fixed. It can no longer be edited — a change after this is a new revision. Nothing is emailed from here.' },

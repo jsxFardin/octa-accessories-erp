@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { useBookedRate } from '@/composables/useBookedRate';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -133,11 +133,42 @@ function band(line) {
     };
 }
 
+/** A row nobody typed into — the blank one a new order starts with, or a stray "Add line". */
+function isBlank(line) {
+    return !line.id && !line.product_id && !line.ordered_qty && !line.rate_per_m;
+}
+
 function submit() {
+    // Blank rows are dropped rather than failing the save with "line 3 product is required".
+    form.transform((data) => ({ ...data, lines: data.lines.filter((line) => !isBlank(line)) }));
+
     isEdit.value
         ? form.put(`/sales-orders/${props.order.id}`)
         : form.post('/sales-orders');
 }
+
+/**
+ * Products belong to one customer. Changing the customer narrowed the picker but left the
+ * previous customer's products on the lines, where they could be saved.
+ */
+const droppedProducts = ref(0);
+
+watch(() => form.customer_id, (customer) => {
+    droppedProducts.value = 0;
+
+    if (!customer) return;
+
+    form.lines.forEach((line) => {
+        const product = productOf(line);
+
+        // A line with production against it keeps its product: that is history, not a typo.
+        if (product && product.customer_id !== Number(customer) && !(Number(line.produced_qty) > 0)) {
+            line.product_id = '';
+            line.product_spec_id = '';
+            droppedProducts.value += 1;
+        }
+    });
+});
 
 const columns = [
     { key: 'product_id', label: 'Product', width: '15rem', errorKeys: ['product_id', 'product_spec_id'] },
@@ -294,6 +325,12 @@ const columns = [
                             </tr>
                         </template>
                     </LineItemsTable>
+
+                    <p v-if="droppedProducts" role="status" class="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        {{ droppedProducts }} {{ droppedProducts === 1 ? 'line had a product' : 'lines had products' }}
+                        belonging to the previous customer. {{ droppedProducts === 1 ? 'It has' : 'They have' }} been
+                        cleared — choose again from this customer's products.
+                    </p>
 
                     <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
 
