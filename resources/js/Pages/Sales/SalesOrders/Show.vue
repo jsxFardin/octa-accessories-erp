@@ -10,7 +10,7 @@ import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import ActivityTrail from '@/Components/Ui/ActivityTrail.vue';
-import { baseCurrency, date, isoDate, money, pcs, ratePerM, relative, titleCase } from '@/plugins/formatting';
+import { baseCurrency, date, isoDate, money, pcs, rate, relative, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -296,7 +296,7 @@ const lineColumns = [
                     <template #cell:band="{ row }">
                         <span class="text-xs text-ink-500">{{ pcs(row.delivery_band.min) }}–{{ pcs(row.delivery_band.max) }}</span>
                     </template>
-                    <template #cell:rate_per_m="{ value }">{{ ratePerM(value, order.currency) }}</template>
+                    <template #cell:rate_per_m="{ value }">{{ rate(value, order.currency) }}</template>
                     <template #cell:line_total="{ value }">{{ money(value, order.currency) }}</template>
                     <template #cell:gate="{ row }">
                         <span class="flex gap-1">

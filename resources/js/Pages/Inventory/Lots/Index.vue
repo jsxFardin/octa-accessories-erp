@@ -13,9 +13,19 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({ lots: Object, filters: Object, warehouses: Array });
 
+/** What a lot holds, in the store's words. */
+const LOT_KINDS = [
+    { value: 'raw_material', label: 'Material' },
+    { value: 'finished_goods', label: 'Product (finished goods)' },
+    { value: 'wip', label: 'Work in progress' },
+    { value: 'second_quality', label: 'Second quality' },
+    { value: 'sample', label: 'Sample' },
+    { value: 'scrap', label: 'Scrap' },
+];
+
 const columns = [
     { key: 'lot_no', label: 'Lot', sort: true },
-    { key: 'item', label: 'Material' },
+    { key: 'item', label: 'Material or product' },
     { key: 'warehouse', label: 'Warehouse' },
     { key: 'shade_code', label: 'Shade' },
     { key: 'balance_qty', label: 'Balance', align: 'right', sort: true },
@@ -39,7 +49,7 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['quarantine','available','reserved','consumed','blocked','expired','scrapped'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'warehouse', label: 'Warehouse', options: warehouses.map((w) => ({ value: w.id, label: w.code })) }, { key: 'scheme', label: 'Scheme', options: ['GRS','FSC','OEKO_TEX','SCOPE'].map((s) => ({ value: s, label: s })) }]" placeholder="Search lot number, barcode, batch or shade…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'kind', label: 'Type', options: LOT_KINDS }, { key: 'status', label: 'Status', options: ['quarantine','available','reserved','consumed','blocked','expired','scrapped'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'warehouse', label: 'Warehouse', options: warehouses.map((w) => ({ value: w.id, label: w.code })) }, { key: 'scheme', label: 'Scheme', options: ['GRS','FSC','OEKO_TEX','SCOPE'].map((s) => ({ value: s, label: s })) }]" placeholder="Search lot number, barcode, batch or shade…" />
 
             <DataTable
                 :columns="columns"
@@ -48,7 +58,13 @@ const columns = [
                 empty="No lots match these filters."
             >
                 <template #cell:lot_no="{ row, value }"><span class="font-mono text-xs font-medium text-ink-900">{{ value }}</span></template>
-                <template #cell:item="{ row, value }"><span v-if="row.item"><span class="font-medium">{{ row.item.code }}</span> <span class="text-ink-500">{{ row.item.name }}</span></span></template>
+                <template #cell:item="{ row }">
+                    <span class="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 whitespace-normal">
+                        <Badge :tone="row.product ? 'info' : 'neutral'" :label="row.product ? 'Product' : 'Material'" />
+                        <span class="font-medium">{{ (row.product ?? row.item)?.code ?? '—' }}</span>
+                        <span class="text-ink-600">{{ (row.product ?? row.item)?.name }}</span>
+                    </span>
+                </template>
                 <template #cell:balance_qty="{ row, value }">{{ qty(value) }}</template>
                 <template #cell:unit_cost="{ row, value }">{{ money(value) }}</template>
                 <template #cell:cert="{ row, value }"><Badge v-if="row.cert_scheme" tone="success" :label="`${row.cert_scheme} ${row.cert_claim_pct}%`" /><span v-else class="text-ink-400">—</span></template>

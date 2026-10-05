@@ -41,7 +41,7 @@ class StockEnquiryController extends Controller
                 'sb.balance_qty', 'sb.received_on',
                 'sl.unit_cost', 'sl.expiry_date',
                 'i.code', 'i.name',
-                'p.code as product_code',
+                'p.code as product_code', 'p.name as product_name',
                 'w.code as warehouse_code', 'w.is_nettable',
                 'u.code as uom_code', 'u.dimension as uom_dimension',
             ])
@@ -49,13 +49,17 @@ class StockEnquiryController extends Controller
                 $sub->where('i.code', 'like', "%{$term}%")
                     ->orWhere('i.name', 'like', "%{$term}%")
                     ->orWhere('p.code', 'like', "%{$term}%")
+                    ->orWhere('p.name', 'like', "%{$term}%")
                     ->orWhere('sb.lot_no', 'like', "%{$term}%");
             }))
             ->when($request->query('warehouse'), fn ($q, $id) => $q->where('sb.warehouse_id', $id))
             ->when($request->query('scheme'), fn ($q, $s) => $q->where('sb.cert_scheme', $s))
             ->when($request->query('nettable') === '1', fn ($q) => $q->where('w.is_nettable', true))
+            // Materials or products: a balance row holds one or the other.
+            ->when($request->query('type') === 'material', fn ($q) => $q->whereNotNull('sb.item_id'))
+            ->when($request->query('type') === 'product', fn ($q) => $q->whereNotNull('sb.product_id'))
             ->where('sb.balance_qty', '>', 0)
-            ->orderBy('i.code')
+            ->orderByRaw('COALESCE(i.code, p.code)')
             ->orderBy('sb.received_on')
             ->paginate(50)
             ->withQueryString()
@@ -63,7 +67,8 @@ class StockEnquiryController extends Controller
                 'lot_id' => $row->lot_id,
                 'lot_no' => $row->lot_no,
                 'item_code' => $row->code ?? $row->product_code ?? null,
-                'item_name' => $row->name ?? null,
+                'item_name' => $row->name ?? $row->product_name ?? null,
+                'holds' => $row->code === null && $row->product_code !== null ? 'product' : 'material',
                 'warehouse' => $row->warehouse_code ?? null,
                 'uom' => $row->uom_code ?? null,
                 // Piece counts render whole; metres and kilograms keep their decimals.
@@ -87,7 +92,7 @@ class StockEnquiryController extends Controller
 
         return Inertia::render('Inventory/Stock/Index', [
             'rows' => $rows,
-            'filters' => $request->only(['q', 'warehouse', 'scheme', 'nettable']),
+            'filters' => $request->only(['q', 'type', 'warehouse', 'scheme', 'nettable']),
             'warehouses' => DB::table('warehouses')->orderBy('code')->get(['id', 'code', 'name', 'kind', 'is_nettable']),
             'reconciliation' => $this->reconciliation(),
         ]);

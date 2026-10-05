@@ -112,7 +112,7 @@ class PhysicalCountController extends Controller
 
     public function show(PhysicalCount $count): Response
     {
-        $count->load(['warehouse:id,code,name', 'creator:id,name', 'lines.lot.item', 'lines.counter:id,name']);
+        $count->load(['warehouse:id,code,name', 'creator:id,name', 'lines.lot.item', 'lines.lot.product', 'lines.counter:id,name']);
 
         $blind = $count->status === PhysicalCount::COUNTING;
         $lines = $this->mapLines($count, includeSystem: ! $blind);
@@ -152,7 +152,7 @@ class PhysicalCountController extends Controller
                 ->with('error', 'Only a count in progress can be edited.');
         }
 
-        $count->load(['warehouse:id,code,name', 'lines.lot.item']);
+        $count->load(['warehouse:id,code,name', 'lines.lot.item', 'lines.lot.product']);
 
         return Inertia::render('Inventory/Counts/Form', [
             'count' => [
@@ -264,13 +264,14 @@ class PhysicalCountController extends Controller
             abort(403, 'The blind count sheet is only available once counting has started.');
         }
 
-        $count->load(['warehouse:id,code,name', 'lines.lot.item']);
+        $count->load(['warehouse:id,code,name', 'lines.lot.item', 'lines.lot.product']);
 
         $binCodes = $this->binCodeByLot($count);
 
         $lines = $count->lines->map(fn (PhysicalCountLine $line): array => [
             'lot_no' => $line->lot?->lot_no,
-            'item_code' => $line->lot?->item?->code,
+            'item_code' => $line->lot?->item?->code ?? $line->lot?->product?->code,
+            'holds' => $line->lot?->product_id !== null && $line->lot?->item_id === null ? 'product' : 'material',
             'bin_code' => $binCodes[$line->lot_id] ?? null,
             'remarks' => $line->remarks,
         ])->all();
@@ -312,7 +313,8 @@ class PhysicalCountController extends Controller
                 'id' => $line->id,
                 'lot_id' => $line->lot_id,
                 'lot_no' => $lot?->lot_no,
-                'item_code' => $lot?->item?->code,
+                'item_code' => $lot?->item?->code ?? $lot?->product?->code,
+                'holds' => $lot?->product_id !== null && $lot?->item_id === null ? 'product' : 'material',
                 'bin_code' => $binCodes[$line->lot_id] ?? null,
                 'counted_qty' => $line->counted_qty,
                 'counted_by' => $line->counter?->name,
@@ -351,7 +353,8 @@ class PhysicalCountController extends Controller
             'id' => $line->id,
             'lot_id' => $line->lot_id,
             'lot_no' => $line->lot?->lot_no,
-            'item_code' => $line->lot?->item?->code,
+            'item_code' => $line->lot?->item?->code ?? $line->lot?->product?->code,
+            'holds' => $line->lot?->product_id !== null && $line->lot?->item_id === null ? 'product' : 'material',
             'bin_code' => $binCodes[$line->lot_id] ?? null,
             'counted_qty' => $line->counted_qty,
             'remarks' => $line->remarks,

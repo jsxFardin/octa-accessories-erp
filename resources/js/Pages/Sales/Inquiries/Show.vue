@@ -11,7 +11,7 @@ import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import ActivityTrail from '@/Components/Ui/ActivityTrail.vue';
-import { date, money, pcs, ratePerM, titleCase } from '@/plugins/formatting';
+import { date, money, pcs, rate, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
@@ -49,7 +49,7 @@ const lineColumns = [
     { key: 'product', label: 'Product' },
     { key: 'product_type', label: 'Type' },
     { key: 'qty', label: 'Requested qty', align: 'right' },
-    { key: 'target_rate_per_m', label: 'Target rate', align: 'right' },
+    { key: 'target_rate_per_m', label: 'Target rate per 1,000 pcs', align: 'right' },
 ];
 
 const quotationColumns = [
@@ -163,7 +163,7 @@ const orderColumns = [
                     <!-- An inquiry carries no currency of its own; the target is understood in
                          the currency the customer trades in, so that is what is shown. -->
                     <template #cell:target_rate_per_m="{ value }">
-                        {{ value ? ratePerM(value, inquiry.currency) : '—' }}
+                        {{ value ? rate(value, inquiry.currency) : '—' }}
                     </template>
                 </DataTable>
             </Card>

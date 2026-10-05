@@ -26,6 +26,7 @@ const form = useForm(
                   lot_id: line.lot_id,
                   lot_no: line.lot_no,
                   item_code: line.item_code,
+                  holds: line.holds,
                   bin_code: line.bin_code,
                   counted_qty: line.counted_qty ?? '',
                   remarks: line.remarks ?? '',
@@ -185,7 +186,7 @@ function submit() {
                         <div class="sm:col-span-4">
                             <p class="font-mono text-sm font-medium text-ink-900">{{ line.lot_no }}</p>
                             <p class="text-xs text-ink-500">
-                                {{ [line.item_code, line.bin_code].filter(Boolean).join(' · ') || '—' }}
+                                {{ [line.holds === 'product' ? 'Product' : 'Material', line.item_code, line.bin_code].filter(Boolean).join(' · ') }}
                             </p>
                         </div>
                         <FormField class="sm:col-span-3" label="Counted qty" :error="lineError(line, 'counted_qty')">

@@ -323,17 +323,29 @@ export function qtyFor(value, dimension) {
  * omit it for the factory's own currency, or pass `false` where the block already states it
  * once.
  */
-export function ratePerM(value, currency = undefined) {
+export function ratePerM(value, currency = undefined, { unit = true } = {}) {
     const formatted = toNumber(value).toLocaleString(locale(), {
         minimumFractionDigits: 4,
         maximumFractionDigits: 4,
     });
 
-    if (currency === false) return `${formatted} /M`;
+    // Said in full. "/M" is the trade's shorthand for "per thousand", and in a factory that
+    // measures ribbon it reads as "per metre".
+    const suffix = unit ? ' per 1,000 pcs' : '';
+
+    if (currency === false) return `${formatted}${suffix}`;
 
     const code = currencyCode(currency) ?? settings.baseCurrency;
 
-    return code ? `${code} ${formatted} /M` : `${formatted} /M`;
+    return code ? `${code} ${formatted}${suffix}` : `${formatted}${suffix}`;
+}
+
+/**
+ * The same rate for a cell that sits under a "Rate per 1,000 pcs" heading: the heading has
+ * already said the unit, and repeating it on every row is noise.
+ */
+export function rate(value, currency = undefined) {
+    return ratePerM(value, currency, { unit: false });
 }
 
 /**
@@ -461,6 +473,7 @@ export default {
             baseCurrency,
             inBaseCurrency,
             ratePerM,
+            rate,
             unitCost,
             pct,
             mm,

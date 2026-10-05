@@ -9,7 +9,7 @@ import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { baseCurrency, date, inBaseCurrency, isoDate, money, number, pcs, pct, qty, ratePerM, titleCase, unitCost } from '@/plugins/formatting';
+import { baseCurrency, date, inBaseCurrency, isoDate, money, number, pcs, pct, qty, rate, ratePerM, titleCase, unitCost } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { conversionAction } from '@/plugins/documentActions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -303,12 +303,12 @@ async function transition(to) {
                             </div>
                             <div class="flex justify-between rounded bg-slate-100 px-2 py-1">
                                 <dt class="text-ink-600">Cost per 1,000 pcs</dt>
-                                <dd class="tnum">{{ ratePerM(line.cost_sheet.rate_per_m) }}</dd>
+                                <dd class="tnum">{{ rate(line.cost_sheet.rate_per_m) }}</dd>
                             </div>
                             <!-- What the customer is actually being charged, in their currency. -->
                             <div class="flex justify-between rounded bg-brand-50 px-2 py-1">
                                 <dt class="font-semibold text-brand-900">Quoted rate per 1,000 pcs</dt>
-                                <dd class="tnum font-semibold text-brand-900">{{ ratePerM(line.rate_per_m, quotation.currency) }}</dd>
+                                <dd class="tnum font-semibold text-brand-900">{{ rate(line.rate_per_m, quotation.currency) }}</dd>
                             </div>
                         </dl>
 

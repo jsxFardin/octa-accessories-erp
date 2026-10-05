@@ -14,7 +14,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { addCalendarDays, baseCurrency, date, isoDate, money, number, pcs, qty, ratePerM, titleCase, todayIso, unitCost } from '@/plugins/formatting';
+import { addCalendarDays, baseCurrency, date, isoDate, money, number, pcs, qty, rate, titleCase, todayIso, unitCost } from '@/plugins/formatting';
 
 const props = defineProps({
     quotation: { type: Object, default: null },
@@ -542,7 +542,7 @@ const columns = [
                             <div class="text-right">
                                 <span v-if="pending[index]" class="text-xs text-ink-500">pricing…</span>
                                 <span v-else class="text-sm font-semibold tnum text-ink-900">
-                                    {{ line.rate_per_m ? ratePerM(line.rate_per_m, currencyCode) : '—' }}
+                                    {{ line.rate_per_m ? rate(line.rate_per_m, currencyCode) : '—' }}
                                 </span>
                                 <p class="text-xs text-ink-500">computed</p>
                             </div>
@@ -676,7 +676,7 @@ const columns = [
                             <div class="flex justify-between rounded bg-brand-50 px-2 py-1">
                                 <dt class="font-semibold text-brand-900">Quoted rate per 1,000 pcs</dt>
                                 <dd class="tnum font-semibold text-brand-900">
-                                    {{ ratePerM(sheet.sheet.rate_per_m_in_currency, currencyCode) }}
+                                    {{ rate(sheet.sheet.rate_per_m_in_currency, currencyCode) }}
                                 </dd>
                             </div>
                         </dl>

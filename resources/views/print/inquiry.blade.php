@@ -48,7 +48,7 @@
                 <th>Description</th>
                 <th style="width:34mm">Type</th>
                 <th class="num" style="width:24mm">Quantity</th>
-                <th class="num" style="width:28mm">Target rate / 1,000</th>
+                <th class="num" style="width:28mm">Target rate per 1,000 pcs</th>
             </tr>
         </thead>
         <tbody>

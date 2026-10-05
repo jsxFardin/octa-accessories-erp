@@ -25,7 +25,7 @@ class StockLotController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = StockLot::query()->with(['item:id,code,name', 'warehouse:id,code,name']);
+        $query = StockLot::query()->with(['item:id,code,name', 'product:id,code,name', 'warehouse:id,code,name']);
 
         $this->applyListing(
             $query,
@@ -45,6 +45,8 @@ class StockLotController extends Controller
                         'cert_scheme', 'cert_claim_pct', 'status', 'barcode',
                     ]),
                     'item' => $lot->item?->only(['id', 'code', 'name']),
+                    // A finished-goods lot holds a product, not a material; its cell used to be blank.
+                    'product' => $lot->product?->only(['id', 'code', 'name']),
                     'warehouse' => $lot->warehouse?->code,
                 ],
             ),

@@ -25,7 +25,7 @@ const readOnly = computed(() => ['posted', 'cancelled'].includes(props.count.sta
 const columns = computed(() => {
     const base = [
         { key: 'lot_no', label: 'Lot' },
-        { key: 'item_code', label: 'Material' },
+        { key: 'item_code', label: 'Material or product' },
         { key: 'bin_code', label: 'Bin' },
     ];
 
@@ -164,6 +164,12 @@ async function transition(to) {
                 <DataTable :columns="columns" :rows="lines" row-key="id" empty="No lines yet. Start counting to list the lots in this warehouse as they stand now." dense>
                     <template #cell:lot_no="{ value }">
                         <span class="font-mono text-xs">{{ value }}</span>
+                    </template>
+                    <template #cell:item_code="{ row, value }">
+                        <span class="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 whitespace-normal">
+                            <Badge :tone="row.holds === 'product' ? 'info' : 'neutral'" :label="row.holds === 'product' ? 'Product' : 'Material'" />
+                            <span class="font-medium">{{ value ?? '—' }}</span>
+                        </span>
                     </template>
                     <template #cell:system_qty="{ value }">{{ qty(value) }}</template>
                     <template #cell:counted_qty="{ value }">{{ value === null || value === '' ? '—' : qty(value) }}</template>

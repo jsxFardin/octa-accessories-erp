@@ -35,7 +35,7 @@
                 <th style="width:8mm">#</th>
                 <th>Description</th>
                 <th class="num" style="width:22mm">Quantity</th>
-                <th class="num" style="width:24mm">Rate / 1,000</th>
+                <th class="num" style="width:24mm">Rate per 1,000 pcs</th>
                 <th class="num" style="width:22mm">Tooling</th>
                 <th class="num" style="width:26mm">Amount</th>
             </tr>

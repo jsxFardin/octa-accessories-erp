@@ -8,7 +8,7 @@ import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { date, money, pcs, ratePerM, titleCase } from '@/plugins/formatting';
+import { date, money, pcs, rate, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -84,7 +84,7 @@ const columns = [
             <Card title="Lines" rule="FN-1 · billed = delivered" :padded="false">
                 <DataTable :columns="columns" :rows="lines" row-key="id" empty="No lines." dense>
                     <template #cell:qty="{ value }">{{ pcs(value) }}</template>
-                    <template #cell:rate_per_m="{ value }">{{ ratePerM(value, invoice.currency) }}</template>
+                    <template #cell:rate_per_m="{ value }">{{ rate(value, invoice.currency) }}</template>
                     <template #cell:amount="{ value }">{{ money(value, invoice.currency) }}</template>
                 </DataTable>
             </Card>

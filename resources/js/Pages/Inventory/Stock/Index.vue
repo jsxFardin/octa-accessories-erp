@@ -18,7 +18,7 @@ const props = defineProps({
 
 const columns = [
     { key: 'lot_no', label: 'Lot' },
-    { key: 'item_code', label: 'Material' },
+    { key: 'item_code', label: 'Material or product' },
     { key: 'warehouse', label: 'Warehouse' },
     { key: 'shade_code', label: 'Shade' },
     { key: 'balance_qty', label: 'Balance', align: 'right' },
@@ -73,11 +73,12 @@ const columns = [
                 <FilterBar
                     :filters="filters"
                     :fields="[
+                        { key: 'type', label: 'Type', options: [{ value: 'material', label: 'Materials' }, { value: 'product', label: 'Products' }] },
                         { key: 'warehouse', label: 'Warehouse', options: warehouses.map((w) => ({ value: w.id, label: w.code })) },
                         { key: 'scheme', label: 'Scheme', options: ['GRS','FSC','OEKO_TEX','SCOPE'].map((s) => ({ value: s, label: s })) },
                         { key: 'nettable', label: 'Nettable', options: [{ value: '1', label: 'Only stock the material plan can use' }] },
                     ]"
-                    placeholder="Search item code, name or lot number…"
+                    placeholder="Search material, product or lot number…"
                 />
 
                 <DataTable :columns="columns" :rows="rows" row-key="lot_id" empty="No stock matches these filters." dense>
@@ -95,7 +96,10 @@ const columns = [
                         </Link>
                     </template>
                     <template #cell:item_code="{ row }">
-                        <CodeName :code="row.item_code" :name="row.item_name" />
+                        <span class="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 whitespace-normal">
+                            <Badge :tone="row.holds === 'product' ? 'info' : 'neutral'" :label="row.holds === 'product' ? 'Product' : 'Material'" />
+                            <CodeName :code="row.item_code" :name="row.item_name" />
+                        </span>
                     </template>
                     <template #cell:warehouse="{ row }">
                         {{ row.warehouse }}

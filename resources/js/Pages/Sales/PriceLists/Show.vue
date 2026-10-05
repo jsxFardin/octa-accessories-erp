@@ -6,7 +6,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
-import { date, pcs, ratePerM } from '@/plugins/formatting';
+import { date, pcs, rate } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 
 const props = defineProps({
@@ -71,7 +71,7 @@ const byProduct = computed(() => {
                     empty="No breaks."
                 >
                     <template #cell:min_qty="{ value }">{{ pcs(value) }} pcs</template>
-                    <template #cell:rate_per_m="{ value }">{{ ratePerM(value, list.currency) }}</template>
+                    <template #cell:rate_per_m="{ value }">{{ rate(value, list.currency) }}</template>
                 </DataTable>
             </Card>
 

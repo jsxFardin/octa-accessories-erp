@@ -155,12 +155,13 @@ What the screens said and what they say now. Covers findings M-03 to M-07, L-06,
 | Supplier bill | Supplier invoice |
 | Materials | Items |
 | Material plan (MRP) | MRP alone |
-| Rate per 1,000 pcs | Rate /M, Rate / 1,000 |
+| Rate per 1,000 pcs as a heading, with a bare figure under it; “… per 1,000 pcs” after a figure in running text | Rate /M, Rate / 1,000, a “/M” suffix on figures |
+| Material or product, with a Material / Product badge per row, where a list holds both (lots, on-hand, stock count) | Material alone on mixed stock |
 | Warehouse, Unit, Minimum order | WH, UoM, MOQ |
 
 ## Left as they are, on purpose
 
-- The printed delivery note is still titled “Delivery challan”: that is the word on the customer's gate copy.
+- **“Delivery challan” on the printed delivery note.** The paper keeps its trade name: it is the word on the customer's gate copy and on the supplier's own notes. On screen the document is a delivery note. (Decided 6 Oct 2026.)
 - “Supplier delivery note (challan)” on the goods receipt form: it is the supplier's own document, and that is the word printed on it.
 - `FIFO` inside the lot picker on the material issue form, where it labels the suggested lot; the surrounding text now says “oldest first”.
 - English refusal sentences in the floor API. The terminal does not show them; it shows its own Bangla and English sentence for each refusal.
