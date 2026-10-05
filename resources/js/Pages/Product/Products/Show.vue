@@ -380,9 +380,15 @@ const bomColumns = [
                             <Badge :status="bom.status" />
                             <span class="text-xs text-ink-500">per {{ pcs(bom.base_qty) }} pcs</span>
                         </div>
-                        <Button v-if="bom.status !== 'active' && can('bom.activate')" size="sm" :disabled="busy !== null" @click="activateBom(bom)">
-                            Activate
-                        </Button>
+                        <div class="flex items-center gap-2">
+                            <!-- A draft can be corrected; before, a typo meant a whole new version. -->
+                            <Button v-if="bom.status === 'draft' && can('bom.update')" size="sm" :href="`/boms/${bom.id}/edit`" data-edit-bom>
+                                Edit
+                            </Button>
+                            <Button v-if="bom.status !== 'active' && can('bom.activate')" size="sm" :disabled="busy !== null" @click="activateBom(bom)">
+                                Activate
+                            </Button>
+                        </div>
                     </div>
 
                     <DataTable :columns="bomColumns" :rows="bom.lines" row-key="id" dense empty="No lines.">

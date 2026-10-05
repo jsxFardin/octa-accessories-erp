@@ -197,6 +197,10 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:bom.create')->name('products.boms.create');
     Route::post('products/{product}/boms', [BomController::class, 'store'])
         ->middleware('can:bom.create')->name('products.boms.store');
+    Route::get('boms/{bom}/edit', [BomController::class, 'edit'])
+        ->middleware('can:bom.update')->name('boms.edit');
+    Route::put('boms/{bom}', [BomController::class, 'update'])
+        ->middleware('can:bom.update')->name('boms.update');
     Route::post('boms/{bom}/activate', [BomController::class, 'activate'])
         ->middleware('can:bom.activate')->name('boms.activate');
 

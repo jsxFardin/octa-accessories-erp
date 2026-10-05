@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
@@ -15,6 +15,11 @@ import { can } from '@/plugins/permissions';
 const props = defineProps({
     product: { type: Object, required: true },
     spec: { type: Object, default: null },
+    /** The draft being corrected, or null when this is a new version. */
+    bom: { type: Object, default: null },
+    /** The version a new one starts as a copy of: the newest, whatever its status. */
+    basedOn: { type: Object, default: null },
+    /** The lines the form opens with. */
     activeLines: { type: Array, default: () => [] },
     items: { type: Array, default: () => [] },
     uoms: { type: Array, default: () => [] },
@@ -30,8 +35,8 @@ function blankLine() {
  */
 const form = useForm({
     product_spec_id: props.spec?.id ?? '',
-    base_qty: 1000,
-    notes: '',
+    base_qty: Number(props.bom?.base_qty ?? props.basedOn?.base_qty ?? 1000),
+    notes: props.bom?.notes ?? '',
     lines: props.activeLines.length
         ? props.activeLines.map((line) => ({ ...line }))
         : [blankLine()],
@@ -86,22 +91,45 @@ const colourOptions = computed(() =>
     })),
 );
 
+const isEdit = computed(() => props.bom !== null);
+
+const STATUS_WORDS = { draft: 'a draft', active: 'the active version', superseded: 'superseded' };
+
 function submit() {
-    form.post(`/products/${props.product.id}/boms`);
+    if (isEdit.value) form.put(`/boms/${props.bom.id}`);
+    else form.post(`/products/${props.product.id}/boms`);
 }
 </script>
 
 <template>
     <AppLayout>
-        <Head :title="`New BOM — ${product.code}`" />
+        <Head :title="isEdit ? `Edit BOM v${bom.version_no} — ${product.code}` : `New BOM — ${product.code}`" />
 
-        <template #title>New bill of materials</template>
+        <template #title>{{ isEdit ? `Edit bill of materials v${bom.version_no}` : 'New bill of materials' }}</template>
         <template #subtitle>
-            {{ product.code }} — {{ product.name }}. Saved as a draft unless you activate it below;
-            one BOM per product is active at a time (PD-3). Saving returns to the product.
+            {{ product.code }} — {{ product.name }}.
+            <template v-if="isEdit">This version is a draft, so it can still be corrected. Saving returns to the product.</template>
+            <template v-else>
+                Saved as a draft unless you activate it below; one bill of materials per product is active at a time.
+                Saving returns to the product.
+            </template>
         </template>
 
         <FormLayout @submit="submit">
+            <!-- What the lines below are a copy of, so nobody wonders where they came from. -->
+            <p
+                v-if="!isEdit && basedOn"
+                class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-ink-700"
+                data-based-on
+            >
+                Starts as a copy of v{{ basedOn.version_no }}, the newest version ({{ STATUS_WORDS[basedOn.status] ?? basedOn.status }}).
+                Change what is different and save it as a new version.
+                <template v-if="basedOn.status === 'draft' && can('bom.update')">
+                    To correct v{{ basedOn.version_no }} itself,
+                    <Link :href="`/boms/${basedOn.id}/edit`" class="font-medium text-brand-700 underline">edit that draft</Link>.
+                </template>
+            </p>
+
             <Card title="Basis" rule="BR-1">
                 <div class="grid gap-x-4 gap-y-3 sm:grid-cols-3">
                     <FormField
@@ -214,7 +242,9 @@ function submit() {
 
             <FormFooter
                 :form="form"
-                :label="form.activate ? 'Create and activate' : 'Create draft BOM'"
+                :label="isEdit
+                    ? (form.activate ? 'Save and activate' : 'Save draft')
+                    : (form.activate ? 'Create and activate' : 'Create draft BOM')"
                 :cancel-href="`/products/${product.id}`"
                 @save="submit"
             />

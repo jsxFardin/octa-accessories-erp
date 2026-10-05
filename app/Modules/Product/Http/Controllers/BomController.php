@@ -65,39 +65,124 @@ class BomController extends Controller
      */
     public function create(Product $product): Response
     {
-        $product->load(['currentSpec', 'activeBom.lines']);
+        $product->load(['currentSpec']);
+
+        /*
+         * A new version opens on the newest one, whatever its status. It used to open on the
+         * active version, so a planner who had drafted v3 and came back to continue was handed
+         * v2 again and redid the changes.
+         */
+        $newest = $product->boms()->with('lines')->orderByDesc('version_no')->first();
 
         return Inertia::render('Product/Boms/Form', [
             'product' => $product->only(['id', 'code', 'name', 'product_type']),
             'spec' => $product->currentSpec?->only(['id', 'version_no', 'colours', 'colour_list']),
-            // A new BOM opens on the active one: most revisions swap an item or a quantity.
-            'activeLines' => $product->activeBom?->lines->map(fn ($line): array => [
-                'item_id' => $line->item_id,
-                'uom_id' => $line->uom_id,
-                'qty_per_base' => $line->qty_per_base,
-                'wastage_pct' => $line->wastage_pct,
-                'colour_index' => $line->colour_index,
-                'is_optional' => (bool) $line->is_optional,
-            ])->all() ?? [],
+            'bom' => null,
+            'basedOn' => $newest?->only(['id', 'version_no', 'status', 'base_qty']),
+            'activeLines' => $newest === null ? [] : $this->formLines($newest),
+            ...$this->formOptions(),
+        ]);
+    }
+
+    /**
+     * Correct a draft.
+     *
+     * A draft could be created and activated and nothing else, so a typo in one quantity
+     * meant a whole new version. Only a draft: an active or superseded BOM is what job cards
+     * were planned from, and stays as it was.
+     */
+    public function edit(Bom $bom): Response|RedirectResponse
+    {
+        if ($refusal = $this->notEditable($bom)) {
+            return redirect()->to(route('products.show', $bom->product_id).'#bom')->with('error', $refusal);
+        }
+
+        $bom->load(['product', 'spec', 'lines']);
+
+        return Inertia::render('Product/Boms/Form', [
+            'product' => $bom->product->only(['id', 'code', 'name', 'product_type']),
+            'spec' => $bom->spec?->only(['id', 'version_no', 'colours', 'colour_list']),
+            'bom' => $bom->only(['id', 'version_no', 'status', 'base_qty', 'notes']),
+            'basedOn' => null,
+            'activeLines' => $this->formLines($bom),
+            ...$this->formOptions(),
+        ]);
+    }
+
+    public function update(Request $request, Bom $bom): RedirectResponse
+    {
+        if ($refusal = $this->notEditable($bom)) {
+            return back()->with('error', $refusal);
+        }
+
+        $data = $this->validated($request);
+        $activate = $request->boolean('activate');
+
+        abort_if($activate && ! $request->user()->hasPermission('bom.activate'), 403);
+
+        DB::transaction(function () use ($bom, $data, $activate): void {
+            $bom->update(['base_qty' => $data['base_qty'], 'notes' => $data['notes'] ?? null]);
+
+            BomLine::query()->where('bom_id', $bom->id)->delete();
+            $this->writeLines($bom, $data['lines']);
+
+            if ($activate) {
+                $this->promote($bom);
+            }
+        });
+
+        return redirect()
+            ->to(route('products.show', $bom->product_id).'#bom')
+            ->with('success', $activate
+                ? "BOM v{$bom->version_no} saved and is now the active version."
+                : "BOM v{$bom->version_no} saved. It is still a draft.");
+    }
+
+    /** Why this BOM cannot be changed, or null when it can. */
+    private function notEditable(Bom $bom): ?string
+    {
+        if ($bom->status !== Bom::DRAFT) {
+            return "BOM v{$bom->version_no} is {$bom->status}, so it cannot be edited. Create a new version instead.";
+        }
+
+        if (DB::table('job_cards')->where('bom_id', $bom->id)->exists()) {
+            return "BOM v{$bom->version_no} is already used by a job card, so it cannot be edited. Create a new version instead.";
+        }
+
+        return null;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function formLines(Bom $bom): array
+    {
+        return $bom->lines->map(fn ($line): array => [
+            'item_id' => $line->item_id,
+            'uom_id' => $line->uom_id,
+            'qty_per_base' => $line->qty_per_base,
+            'wastage_pct' => $line->wastage_pct,
+            'colour_index' => $line->colour_index,
+            'is_optional' => (bool) $line->is_optional,
+            'formula_ref' => $line->formula_ref,
+        ])->values()->all();
+    }
+
+    /** @return array<string, mixed> */
+    private function formOptions(): array
+    {
+        return [
             'items' => DB::table('items as i')
                 ->leftJoin('item_categories as c', 'c.id', '=', 'i.item_category_id')
                 ->where('i.is_active', true)
                 ->orderBy('i.code')
                 ->get(['i.id', 'i.code', 'i.name', 'i.base_uom_id', 'c.item_class']),
             'uoms' => DB::table('uoms')->orderBy('code')->get(['id', 'code', 'name']),
-        ]);
+        ];
     }
 
-    /**
-     * BOM quantities are per `base_qty` finished pieces — 1000 by default (BR-1).
-     *
-     * `formula_ref` marks a line whose quantity is *derived* rather than fixed: MRP recomputes
-     * those from the spec instead of trusting the stored number, so a spec revision does not
-     * silently leave the BOM wrong (02-database-schema §3.3).
-     */
-    public function store(Request $request, Product $product): RedirectResponse
+    /** @return array<string, mixed> */
+    private function validated(Request $request): array
     {
-        $data = $request->validate([
+        return $request->validate([
             'product_spec_id' => ['nullable', 'integer', 'exists:product_specs,id'],
             'base_qty' => ['required', 'numeric', 'gt:0'],
             'notes' => ['nullable', 'string'],
@@ -109,7 +194,42 @@ class BomController extends Controller
             'lines.*.colour_index' => ['nullable', 'integer', 'min:1'],
             'lines.*.is_optional' => ['nullable', 'boolean'],
             'lines.*.formula_ref' => ['nullable', 'string', 'max:20'],
+        ], [
+            'lines.required' => 'A bill of materials needs at least one material.',
+            'lines.*.item_id.required' => 'Choose a material.',
+            'lines.*.uom_id.required' => 'Choose a unit.',
+            'lines.*.qty_per_base.required' => 'Enter a quantity.',
+            'lines.*.qty_per_base.gt' => 'The quantity must be more than zero.',
         ]);
+    }
+
+    /** @param  list<array<string, mixed>>  $lines */
+    private function writeLines(Bom $bom, array $lines): void
+    {
+        foreach ($lines as $line) {
+            BomLine::query()->create([
+                'bom_id' => $bom->id,
+                'item_id' => $line['item_id'],
+                'uom_id' => $line['uom_id'],
+                'qty_per_base' => $line['qty_per_base'],
+                'wastage_pct' => $line['wastage_pct'] ?? 0,
+                'colour_index' => $line['colour_index'] ?? null,
+                'is_optional' => $line['is_optional'] ?? false,
+                'formula_ref' => $line['formula_ref'] ?? null,
+            ]);
+        }
+    }
+
+    /**
+     * BOM quantities are per `base_qty` finished pieces — 1000 by default (BR-1).
+     *
+     * `formula_ref` marks a line whose quantity is *derived* rather than fixed: MRP recomputes
+     * those from the spec instead of trusting the stored number, so a spec revision does not
+     * silently leave the BOM wrong (02-database-schema §3.3).
+     */
+    public function store(Request $request, Product $product): RedirectResponse
+    {
+        $data = $this->validated($request);
 
         // A BOM written to be used should not need a second trip to the product page to be
         // activated. Activation is its own permission, so asking for it without holding it is
@@ -129,18 +249,7 @@ class BomController extends Controller
                 'created_by' => $request->user()->id,
             ]);
 
-            foreach ($data['lines'] as $line) {
-                BomLine::query()->create([
-                    'bom_id' => $bom->id,
-                    'item_id' => $line['item_id'],
-                    'uom_id' => $line['uom_id'],
-                    'qty_per_base' => $line['qty_per_base'],
-                    'wastage_pct' => $line['wastage_pct'] ?? 0,
-                    'colour_index' => $line['colour_index'] ?? null,
-                    'is_optional' => $line['is_optional'] ?? false,
-                    'formula_ref' => $line['formula_ref'] ?? null,
-                ]);
-            }
+            $this->writeLines($bom, $data['lines']);
 
             if ($activate) {
                 $this->promote($bom);
