@@ -90,6 +90,12 @@ onMounted(() => {
 
         if (leaving) return;
 
+        // A visit that keeps this page's state is not leaving the form: it is the form asking
+        // the server for something — the lines of the order just chosen, an invoice's
+        // returnable balance. Asking "leave without saving?" there would be asking permission
+        // to carry on filling the form in.
+        if (event.detail.visit.preserveState === true) return;
+
         // Inertia decides here and now whether the visit goes ahead and cannot wait on a
         // promise. So the visit is stopped, the question is asked in the application's own
         // dialog, and on "leave" the same visit is issued again with the guard stood down.
