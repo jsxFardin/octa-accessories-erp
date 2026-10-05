@@ -13,6 +13,7 @@ use App\Modules\Procurement\Models\PurchaseRequisition;
 use App\Modules\Procurement\States\PurchaseRequisitionStateMachine;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -201,7 +202,7 @@ class PurchaseRequisitionController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Requisition moved to {$data['to']}.");
+        return back()->with('success', 'Requisition is now '.Plain::status($data['to']).'.');
     }
 
     /** @return array<string, mixed> */

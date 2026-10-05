@@ -20,7 +20,7 @@ it('br3: converts using the lot attribute first, then the item row, then the glo
 
 it('br3: fails loudly rather than assuming 1:1', function (): void {
     expect(fn () => $this->inventory->convert(1, null, null, null, 'cone', 'kg'))
-        ->toThrow(InvalidArgumentException::class, 'No conversion from [cone] to [kg]');
+        ->toThrow(InvalidArgumentException::class, 'There is no conversion from cone to kg');
 });
 
 it('br36: recomputes the weighted average on receipt', function (): void {

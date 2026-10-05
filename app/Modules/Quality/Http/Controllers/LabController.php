@@ -10,6 +10,7 @@ use App\Modules\Quality\Models\TestReportLine;
 use App\Modules\Quality\States\TestReportStateMachine;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -282,7 +283,7 @@ class LabController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Report moved to {$data['to']}.");
+        return back()->with('success', 'Report is now '.Plain::status($data['to']).'.');
     }
 
     /**

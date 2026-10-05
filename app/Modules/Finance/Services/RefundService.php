@@ -9,6 +9,7 @@ use App\Modules\Finance\Models\Refund;
 use App\Modules\Finance\States\CreditNoteStateMachine;
 use App\Support\Numbering\NumberAllocator;
 use App\Support\States\StateMachine;
+use App\Support\Text\Plain;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -48,7 +49,7 @@ class RefundService
 
             if (! in_array((string) $locked->status, [CreditNote::APPROVED, CreditNote::APPLIED], true)) {
                 throw ValidationException::withMessages([
-                    'credit_note_id' => "Credit note {$locked->reference()} is {$locked->status} — only an approved note can be refunded.",
+                    'credit_note_id' => "Credit note {$locked->reference()} is ".Plain::status($locked->status).' — only an approved note can be refunded.',
                 ]);
             }
 

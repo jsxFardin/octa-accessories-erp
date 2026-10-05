@@ -11,6 +11,7 @@ use App\Modules\Finance\States\CreditNoteStateMachine;
 use App\Modules\Finance\States\SalesInvoiceStateMachine;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -76,7 +77,7 @@ class CreditNoteController extends Controller
         $invoice = SalesInvoice::query()->findOrFail($data['sales_invoice_id']);
 
         if (! in_array($invoice->status, ['issued', 'partially_paid', 'overdue'], true)) {
-            return back()->with('error', "Invoice {$invoice->number} is {$invoice->status} — nothing to credit against.");
+            return back()->with('error', "Invoice {$invoice->number} is ".Plain::status($invoice->status).' — nothing to credit against.');
         }
 
         // Advisory only — the binding check runs under the invoice lock at application.
@@ -225,6 +226,6 @@ class CreditNoteController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Credit note {$creditNote->refresh()->number} is now {$data['to']}.");
+        return back()->with('success', "Credit note {$creditNote->refresh()->number} is now ".Plain::status($data['to']).'.');
     }
 }

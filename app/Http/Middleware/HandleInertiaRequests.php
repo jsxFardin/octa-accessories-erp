@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\Print\DocumentRegistry;
 use App\Support\Settings\Organisation;
 use App\Support\Settings\Settings;
+use App\Support\Text\Plain;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Middleware;
@@ -93,10 +94,16 @@ class HandleInertiaRequests extends Middleware
              */
             'documents' => DocumentRegistry::forFrontend(),
 
+            /*
+             * Said without the rule number. The code that refuses something names its rule
+             * ("J3: …", "… (P1-1 · QC1)") because that is how the rule is found in the logs and
+             * the documents; on a banner the number reads as an error code. The reference stays
+             * in the rule tooltips, which is where a person can look it up.
+             */
             'flash' => [
-                'success' => fn () => $request->session()->get('success'),
-                'error' => fn () => $request->session()->get('error'),
-                'warning' => fn () => $request->session()->get('warning'),
+                'success' => fn () => Plain::message($request->session()->get('success')),
+                'error' => fn () => Plain::message($request->session()->get('error')),
+                'warning' => fn () => Plain::message($request->session()->get('warning')),
             ],
 
             /*
@@ -120,5 +127,24 @@ class HandleInertiaRequests extends Middleware
                 'location' => $request->url(),
             ],
         ];
+    }
+
+    /**
+     * Validation messages, likewise without their rule numbers — these are the sentences shown
+     * under a field and in the summary beside Save.
+     *
+     * @return object
+     */
+    public function resolveValidationErrors(Request $request)
+    {
+        $errors = (array) parent::resolveValidationErrors($request);
+
+        array_walk_recursive($errors, function (mixed &$message): void {
+            if (is_string($message)) {
+                $message = Plain::message($message);
+            }
+        });
+
+        return (object) $errors;
     }
 }

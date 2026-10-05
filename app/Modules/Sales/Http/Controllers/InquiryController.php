@@ -12,6 +12,7 @@ use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use App\Support\Reference\Vocabulary;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -234,7 +235,7 @@ class InquiryController extends Controller
             $inquiry->update($data);
         });
 
-        return back()->with('success', "Inquiry moved to {$data['status']}.");
+        return back()->with('success', 'Inquiry is now '.Plain::status($data['status']).'.');
     }
 
     /** @return array<string, mixed> */

@@ -9,6 +9,7 @@ use App\Modules\Product\Models\Artwork;
 use App\Modules\Product\Models\ArtworkVersion;
 use App\Modules\Product\States\ArtworkVersionStateMachine;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -167,7 +168,7 @@ class ArtworkVersionController extends Controller
             'success',
             $data['to'] === ArtworkVersion::APPROVED
                 ? "Version {$version->version_no} approved. It is now the only version production may run against."
-                : "Version {$version->version_no} moved to {$data['to']}.",
+                : "Version {$version->version_no} is now ".Plain::status($data['to']).'.',
         );
     }
 

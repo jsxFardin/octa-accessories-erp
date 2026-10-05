@@ -11,6 +11,7 @@ use App\Modules\Procurement\States\SupplierBillStateMachine;
 use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -126,7 +127,7 @@ class PaymentController extends Controller
 
                     if (! in_array($bill->status, ['approved', 'partially_paid'], true)) {
                         throw ValidationException::withMessages([
-                            'allocations' => "Bill {$bill->number} is {$bill->status} — it cannot receive payment.",
+                            'allocations' => "Bill {$bill->number} is ".Plain::status($bill->status).' — it cannot receive payment.',
                         ]);
                     }
 

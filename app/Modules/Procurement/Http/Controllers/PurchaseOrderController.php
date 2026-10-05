@@ -18,6 +18,7 @@ use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Settings\Settings;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -254,7 +255,7 @@ class PurchaseOrderController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Purchase order moved to {$data['to']}.");
+        return back()->with('success', 'Purchase order is now '.Plain::status($data['to']).'.');
     }
 
     /** @return array<string, mixed> */

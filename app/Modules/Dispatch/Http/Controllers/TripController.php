@@ -12,6 +12,7 @@ use App\Modules\Dispatch\States\DeliveryChallanStateMachine;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use App\Support\States\StateMachine;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -339,7 +340,7 @@ class TripController extends Controller
         }
 
         if ($stop->status !== 'pending' && $stop->status !== 'arrived') {
-            return back()->with('error', "Stop is already {$stop->status}.");
+            return back()->with('error', 'Stop is already '.Plain::status($stop->status).'.');
         }
 
         $data = $request->validate([

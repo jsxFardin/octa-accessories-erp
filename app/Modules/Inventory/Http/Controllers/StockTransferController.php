@@ -15,6 +15,7 @@ use App\Modules\MasterData\Models\Warehouse;
 use App\Support\Audit\AuditLog;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -328,7 +329,7 @@ class StockTransferController extends Controller
 
             if ((string) $lot->status !== 'available') {
                 throw ValidationException::withMessages([
-                    "lines.{$index}.lot_id" => "Lot {$lot->lot_no} is {$lot->status} and cannot be transferred.",
+                    "lines.{$index}.lot_id" => "Lot {$lot->lot_no} is ".Plain::status($lot->status).' and cannot be transferred.',
                 ]);
             }
 

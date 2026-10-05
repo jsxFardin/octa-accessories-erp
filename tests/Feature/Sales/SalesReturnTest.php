@@ -229,7 +229,9 @@ it('refuses a return larger than the invoiced quantity', function (): void {
     $this->actingAs($this->accounts);
 
     expect(fn () => app(SalesReturnStateMachine::class)->transition($return, SalesReturn::APPROVED))
-        ->toThrow(TransitionDenied::class, 'SR-3');
+        ->toThrow(fn (TransitionDenied $denied) => expect($denied->rule)->toBe('SR-3')
+            // The rule number is for the logs; the sentence shown to a person does not carry it.
+            ->and($denied->getMessage())->not->toContain('SR-3'));
 });
 
 it('refuses a return against a draft invoice, which has billed nothing', function (): void {
@@ -276,7 +278,7 @@ it('refuses a line that belongs to another invoice', function (): void {
     $this->actingAs($this->accounts);
 
     expect(fn () => app(SalesReturnStateMachine::class)->transition($return, SalesReturn::APPROVED))
-        ->toThrow(TransitionDenied::class, 'SR-4');
+        ->toThrow(fn (TransitionDenied $denied) => expect($denied->rule)->toBe('SR-4'));
 });
 
 it('refuses a return whose customer is not the invoice customer', function (): void {
@@ -318,7 +320,7 @@ it('makes a posted return immutable — it cannot be cancelled', function (): vo
     $this->actingAs($this->dispatch);
 
     expect(fn () => app(SalesReturnStateMachine::class)->transition($return, SalesReturn::CANCELLED))
-        ->toThrow(TransitionDenied::class, 'cannot move from [posted]');
+        ->toThrow(TransitionDenied::class, 'Sales return is posted, so it cannot be changed to cancelled.');
 });
 
 it('lets a draft or approved return be cancelled, and frees the quantity again', function (): void {
@@ -372,7 +374,7 @@ it('refuses the transition to someone without the permission', function (): void
     $this->actingAs(User::query()->where('email', 'driver@octapussolution.com')->firstOrFail());
 
     expect(fn () => app(SalesReturnStateMachine::class)->transition($return, SalesReturn::APPROVED))
-        ->toThrow(TransitionDenied::class, 'sales_return.approve');
+        ->toThrow(fn (TransitionDenied $denied) => expect($denied->permission)->toBe('sales_return.approve'));
 });
 
 it('audits every transition with its reason', function (): void {

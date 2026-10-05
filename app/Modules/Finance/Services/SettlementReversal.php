@@ -11,6 +11,7 @@ use App\Modules\Finance\States\SalesInvoiceStateMachine;
 use App\Modules\Procurement\Models\SupplierBill;
 use App\Modules\Procurement\States\SupplierBillStateMachine;
 use App\Support\Audit\AuditLogger;
+use App\Support\Text\Plain;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -48,7 +49,7 @@ final class SettlementReversal
 
             if ($locked->status !== 'posted') {
                 throw ValidationException::withMessages([
-                    'reason' => "Receipt {$locked->number} is already {$locked->status}.",
+                    'reason' => "Receipt {$locked->number} is already ".Plain::status($locked->status).'.',
                 ]);
             }
 
@@ -84,7 +85,7 @@ final class SettlementReversal
 
             if ($locked->status !== 'posted') {
                 throw ValidationException::withMessages([
-                    'reason' => "Payment {$locked->number} is already {$locked->status}.",
+                    'reason' => "Payment {$locked->number} is already ".Plain::status($locked->status).'.',
                 ]);
             }
 

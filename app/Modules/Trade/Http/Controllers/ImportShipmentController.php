@@ -12,6 +12,7 @@ use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\Http\RefusesActions;
 use App\Support\Numbering\NumberAllocator;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -202,7 +203,7 @@ class ImportShipmentController extends Controller
             'be_date' => $data['be_date'] ?? null,
         ], fn ($value): bool => $value !== null))->save();
 
-        return back()->with('success', "Shipment {$importShipment->number} is now {$data['status']}.");
+        return back()->with('success', "Shipment {$importShipment->number} is now ".Plain::status($data['status']).'.');
     }
 
     /** Add a cost against the shipment: freight, duty, the C&F agent's bill. */

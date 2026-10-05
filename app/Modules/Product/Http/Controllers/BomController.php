@@ -9,6 +9,7 @@ use App\Modules\Product\Models\Bom;
 use App\Modules\Product\Models\BomLine;
 use App\Modules\Product\Models\Product;
 use App\Support\Http\ListsResources;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -142,7 +143,7 @@ class BomController extends Controller
     private function notEditable(Bom $bom): ?string
     {
         if ($bom->status !== Bom::DRAFT) {
-            return "BOM v{$bom->version_no} is {$bom->status}, so it cannot be edited. Create a new version instead.";
+            return "BOM v{$bom->version_no} is ".Plain::status($bom->status).', so it cannot be edited. Create a new version instead.';
         }
 
         if (DB::table('job_cards')->where('bom_id', $bom->id)->exists()) {

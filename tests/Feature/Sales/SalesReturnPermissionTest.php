@@ -66,7 +66,7 @@ it('lets dispatch post the goods back but not approve the return', function (): 
     $this->actingAs($this->dispatchUser);
 
     expect(fn () => app(SalesReturnStateMachine::class)->transition($return, SalesReturn::APPROVED))
-        ->toThrow(TransitionDenied::class, 'sales_return.approve');
+        ->toThrow(fn (TransitionDenied $denied) => expect($denied->permission)->toBe('sales_return.approve'));
 
     expect($this->dispatchUser->hasPermission('sales_return.post'))->toBeTrue();
 });

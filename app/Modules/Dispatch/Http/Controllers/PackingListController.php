@@ -14,6 +14,7 @@ use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Http\RefusesActions;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -254,7 +255,7 @@ class PackingListController extends Controller
         $lot = DB::table('stock_lots')->where('id', $data['lot_id'])->first();
 
         if ($lot->kind !== 'finished_goods' || $lot->status !== 'available') {
-            return back()->with('error', "D1: lot {$lot->lot_no} is {$lot->status} — only available finished goods can be packed.");
+            return back()->with('error', "D1: lot {$lot->lot_no} is ".Plain::status($lot->status).' — only available finished goods can be packed.');
         }
 
         if ($data['sales_order_line_id'] !== null) {
@@ -298,6 +299,6 @@ class PackingListController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Packing list {$packingList->refresh()->number} is now {$data['to']}.");
+        return back()->with('success', "Packing list {$packingList->refresh()->number} is now ".Plain::status($data['to']).'.');
     }
 }

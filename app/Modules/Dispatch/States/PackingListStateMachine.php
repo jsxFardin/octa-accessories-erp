@@ -9,6 +9,7 @@ use App\Support\Calculators\ClaimDilutionCalculator;
 use App\Support\Numbering\NumberAllocator;
 use App\Support\States\StateMachine;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -102,7 +103,7 @@ class PackingListStateMachine extends StateMachine
 
             if ($lot->kind !== 'finished_goods' || $lot->status !== 'available') {
                 // D1 — the block names why: quarantine, blocked, consumed, or not FG at all.
-                $blocked[] = "Lot {$lot->lot_no} is {$lot->status} ".($lot->kind !== 'finished_goods' ? "({$lot->kind})" : '(final QC has not released it)').' — it cannot be packed.';
+                $blocked[] = "Lot {$lot->lot_no} is ".Plain::status($lot->status).' '.($lot->kind !== 'finished_goods' ? "({$lot->kind})" : '(final QC has not released it)').' — it cannot be packed.';
 
                 continue;
             }

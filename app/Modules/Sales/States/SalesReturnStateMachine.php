@@ -13,6 +13,7 @@ use App\Support\Audit\AuditLogger;
 use App\Support\Numbering\NumberAllocator;
 use App\Support\States\StateMachine;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -144,7 +145,7 @@ class SalesReturnStateMachine extends StateMachine
         if (! in_array((string) $invoice->status, self::RETURNABLE_INVOICE_STATUSES, true)) {
             throw TransitionDenied::guard(
                 'SR-1',
-                "Invoice {$invoice->number} is {$invoice->status} — goods cannot be returned against it.",
+                "Invoice {$invoice->number} is ".Plain::status($invoice->status).' — goods cannot be returned against it.',
             );
         }
 

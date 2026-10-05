@@ -10,6 +10,7 @@ use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\Http\RefusesActions;
 use App\Support\Numbering\NumberAllocator;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -229,7 +230,7 @@ class LetterOfCreditController extends Controller
             'issued_on' => $data['issued_on'] ?? ($data['status'] === 'opened' ? now()->toDateString() : $letterOfCredit->issued_on?->toDateString()),
         ], fn ($value): bool => $value !== null));
 
-        return back()->with('success', "Letter of credit {$letterOfCredit->number} is now {$data['status']}.");
+        return back()->with('success', "Letter of credit {$letterOfCredit->number} is now ".Plain::status($data['status']).'.');
     }
 
     /** Attach a purchase order to the credit that pays for it. */

@@ -11,6 +11,7 @@ use App\Modules\Dispatch\States\DeliveryChallanStateMachine;
 use App\Modules\MasterData\Models\CustomerAddress;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -87,7 +88,7 @@ class DeliveryChallanController extends Controller
         $packingList = PackingList::query()->findOrFail($data['packing_list_id']);
 
         if ($packingList->status !== 'packed') {
-            return back()->with('error', "D3: only a packed packing list can raise a challan (this one is {$packingList->status}).");
+            return back()->with('error', 'D3: only a packed packing list can raise a challan (this one is '.Plain::status($packingList->status).').');
         }
 
         $existing = DeliveryChallan::query()
@@ -246,6 +247,6 @@ class DeliveryChallanController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Challan {$deliveryChallan->refresh()->number} is now {$data['to']}.");
+        return back()->with('success', "Challan {$deliveryChallan->refresh()->number} is now ".Plain::status($data['to']).'.');
     }
 }

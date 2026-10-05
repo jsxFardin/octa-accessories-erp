@@ -22,6 +22,7 @@ use App\Support\Reference\Vocabulary;
 use App\Support\Settings\Settings;
 use App\Support\States\StateMachine;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -358,7 +359,7 @@ class SalesOrderController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Order moved to {$data['to']}.");
+        return back()->with('success', 'Order is now '.Plain::status($data['to']).'.');
     }
 
     /** @return array<string, mixed> */

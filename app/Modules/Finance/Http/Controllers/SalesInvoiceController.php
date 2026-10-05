@@ -12,6 +12,7 @@ use App\Modules\Finance\States\SalesInvoiceStateMachine;
 use App\Support\Calculators\CostSheetCalculator;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -68,7 +69,7 @@ class SalesInvoiceController extends Controller
         $challan = DeliveryChallan::query()->findOrFail($data['delivery_challan_id']);
 
         if (! in_array($challan->status, ['issued', 'in_transit', 'delivered'], true)) {
-            return back()->with('error', "Only dispatched goods are billable — this challan is {$challan->status}.");
+            return back()->with('error', 'Only dispatched goods are billable — this challan is '.Plain::status($challan->status).'.');
         }
 
         $duplicate = SalesInvoice::query()
@@ -197,6 +198,6 @@ class SalesInvoiceController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Invoice {$invoice->refresh()->number} is now {$data['to']}.");
+        return back()->with('success', "Invoice {$invoice->refresh()->number} is now ".Plain::status($data['to']).'.');
     }
 }

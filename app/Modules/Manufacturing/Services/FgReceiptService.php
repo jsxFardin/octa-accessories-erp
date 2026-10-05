@@ -12,6 +12,7 @@ use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Support\Audit\AuditLogger;
 use App\Support\Calculators\ClaimDilutionCalculator;
 use App\Support\Numbering\NumberAllocator;
+use App\Support\Text\Plain;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -82,7 +83,7 @@ class FgReceiptService
 
             if (! in_array($locked->status, self::RECEIVABLE_STATUSES, true)) {
                 throw ValidationException::withMessages([
-                    'qty' => "FG cannot be received from a job in status [{$locked->status}].",
+                    'qty' => 'FG cannot be received from a job that is '.Plain::status($locked->status).'.',
                 ]);
             }
 

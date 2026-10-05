@@ -195,7 +195,9 @@ it('keeps the credit note out of reach without the refund permission', function 
     $this->actingAs($this->dispatchUser);
 
     expect(fn () => app(CreditNoteStateMachine::class)->transition($note, CreditNote::REFUNDED))
-        ->toThrow(App\Support\States\TransitionDenied::class, 'credit_note.refund');
+        ->toThrow(fn (App\Support\States\TransitionDenied $denied) => expect($denied->permission)->toBe('credit_note.refund')
+            // …and the sentence a person sees names the action, not the key.
+            ->and($denied->getMessage())->toContain('You do not have permission to')->not->toContain('credit_note.refund'));
 });
 
 it('audits the refund and the note transition', function (): void {

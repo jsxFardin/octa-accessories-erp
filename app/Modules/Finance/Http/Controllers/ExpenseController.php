@@ -11,6 +11,7 @@ use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\Http\RefusesActions;
 use App\Support\Numbering\NumberAllocator;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -161,7 +162,7 @@ class ExpenseController extends Controller
             'reference_no' => $data['reference_no'] ?? null,
         ], fn ($value): bool => $value !== null))->save();
 
-        return back()->with('success', "Expense {$expense->number} is now {$data['status']}.");
+        return back()->with('success', "Expense {$expense->number} is now ".Plain::status($data['status']).'.');
     }
 
     public function destroy(Expense $expense): RedirectResponse

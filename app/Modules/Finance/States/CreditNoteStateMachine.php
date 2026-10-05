@@ -10,6 +10,7 @@ use App\Support\Numbering\NumberAllocator;
 use App\Support\Settings\Settings;
 use App\Support\States\StateMachine;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -161,7 +162,7 @@ class CreditNoteStateMachine extends StateMachine
         if (! in_array($invoice->status, ['issued', 'partially_paid', 'overdue'], true)) {
             throw TransitionDenied::guard(
                 'P2-1',
-                "Invoice {$invoice->number} is {$invoice->status} — nothing is outstanding to credit against.",
+                "Invoice {$invoice->number} is ".Plain::status($invoice->status).' — nothing is outstanding to credit against.',
             );
         }
 

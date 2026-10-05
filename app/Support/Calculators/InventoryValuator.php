@@ -179,8 +179,8 @@ class InventoryValuator
 
         if ($factor === null || $factor <= 0) {
             throw new InvalidArgumentException(
-                "No conversion from [{$from}] to [{$to}] (BR-3). Add a uom_conversions row; "
-                .'the system will not assume 1:1.',
+                "There is no conversion from {$from} to {$to} (BR-3). Add one under Configuration → Lists → Unit conversions; "
+                .'the system will not assume one equals the other.',
             );
         }
 

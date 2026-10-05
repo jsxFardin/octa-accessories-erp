@@ -10,6 +10,7 @@ use App\Modules\Finance\Models\SalesInvoice;
 use App\Modules\Finance\States\CreditNoteStateMachine;
 use App\Modules\Finance\States\SalesInvoiceStateMachine;
 use App\Support\States\StateMachine;
+use App\Support\Text\Plain;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -184,7 +185,7 @@ class CreditNoteApplicationService
     {
         if (! in_array((string) $note->status, ['approved', 'applied'], true)) {
             throw ValidationException::withMessages([
-                'credit_note_id' => "Credit note {$note->reference()} is {$note->status} — only an approved note can be applied.",
+                'credit_note_id' => "Credit note {$note->reference()} is ".Plain::status($note->status).' — only an approved note can be applied.',
             ]);
         }
     }
@@ -196,7 +197,7 @@ class CreditNoteApplicationService
         // avoid — stated here as a rule rather than left to the arithmetic.
         if (! in_array((string) $invoice->status, ['issued', 'partially_paid', 'overdue'], true)) {
             throw ValidationException::withMessages([
-                'sales_invoice_id' => "Invoice {$invoice->number} is {$invoice->status} — it has nothing outstanding to credit.",
+                'sales_invoice_id' => "Invoice {$invoice->number} is ".Plain::status($invoice->status).' — it has nothing outstanding to credit.',
             ]);
         }
 

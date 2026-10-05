@@ -12,6 +12,7 @@ use App\Modules\Procurement\States\SupplierBillStateMachine;
 use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -396,6 +397,6 @@ class SupplierBillController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Bill moved to {$data['to']}.");
+        return back()->with('success', 'Bill is now '.Plain::status($data['to']).'.');
     }
 }

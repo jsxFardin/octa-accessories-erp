@@ -10,6 +10,7 @@ use App\Modules\Procurement\Models\PurchaseRequisition;
 use App\Modules\Procurement\States\PurchaseOrderStateMachine;
 use App\Modules\Procurement\States\PurchaseRequisitionStateMachine;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -57,7 +58,7 @@ class BulkTransitionController extends Controller
         }
 
         $label = $done === 1 ? $noun : $noun.'s';
-        $message = $done > 0 ? "{$done} {$label} moved to {$data['to']}." : 'Nothing was changed.';
+        $message = $done > 0 ? "{$done} {$label} is now ".Plain::status($data['to']).'.' : 'Nothing was changed.';
 
         if ($failures !== []) {
             // Named, not counted: "3 failed" tells a manager nothing they can act on.

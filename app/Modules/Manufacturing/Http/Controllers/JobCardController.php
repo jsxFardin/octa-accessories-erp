@@ -21,6 +21,7 @@ use App\Support\Calculators\ConsumptionCalculator;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -602,6 +603,6 @@ class JobCardController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Job card {$jobCard->reference()} moved to {$data['to']}.");
+        return back()->with('success', "Job card {$jobCard->reference()} is now ".Plain::status($data['to']).'.');
     }
 }

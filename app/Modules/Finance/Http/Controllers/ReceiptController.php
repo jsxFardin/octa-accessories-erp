@@ -11,6 +11,7 @@ use App\Modules\Finance\States\SalesInvoiceStateMachine;
 use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -132,7 +133,7 @@ class ReceiptController extends Controller
 
                     if (! in_array($invoice->status, ['issued', 'partially_paid', 'overdue'], true)) {
                         throw ValidationException::withMessages([
-                            'allocations' => "Invoice {$invoice->number} is {$invoice->status} — it cannot receive money.",
+                            'allocations' => "Invoice {$invoice->number} is ".Plain::status($invoice->status).' — it cannot receive money.',
                         ]);
                     }
 

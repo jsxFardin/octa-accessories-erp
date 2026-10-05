@@ -11,6 +11,7 @@ use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\MasterData\Models\CustomerAddress;
 use App\Support\Calculators\SalesToleranceCalculator;
 use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -75,7 +76,7 @@ class DispatchService
             }
 
             if ($lot->kind !== 'finished_goods' || $lot->status !== 'available') {
-                $blocked[] = "Lot {$lot->lot_no} is {$lot->status} — it cannot leave the factory.";
+                $blocked[] = "Lot {$lot->lot_no} is ".Plain::status($lot->status).' — it cannot leave the factory.';
 
                 continue;
             }
