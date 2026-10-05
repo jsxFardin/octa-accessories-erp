@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
+import { clearListFilters, publishListFilters } from '@/composables/useListFilters';
 import { router } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
 import Icon from '@/Components/Ui/Icon.vue';
@@ -84,6 +85,10 @@ const chips = computed(() =>
             };
         }),
 );
+
+// Said once, here; the export dialog repeats it rather than inventing its own wording.
+watch(chips, (value) => publishListFilters(value), { immediate: true });
+onUnmounted(clearListFilters);
 
 function clearOne(key) {
     state.value = { ...state.value, [key]: '' };
