@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import DateInput from '@/Components/Ui/DateInput.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
@@ -115,7 +116,7 @@ function submit() {
                         />
                     </FormField>
                     <FormField label="Count date" :error="form.errors.counted_on">
-                        <TextInput v-model="form.counted_on" type="date" />
+                        <DateInput v-model="form.counted_on" />
                     </FormField>
                 </div>
             </Card>

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
+import DateInput from '@/Components/Ui/DateInput.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -320,7 +321,7 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
                     <TextInput v-model="openForm.lc_no" />
                 </FormField>
                 <FormField label="Issued on" :error="openForm.errors.issued_on">
-                    <TextInput v-model="openForm.issued_on" type="date" />
+                    <DateInput v-model="openForm.issued_on" />
                 </FormField>
             </div>
 
@@ -333,16 +334,16 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
         <Modal v-model:open="amending" width="max-w-2xl" title="Record an amendment" subtitle="Value, dates and what the bank charged for the change.">
             <div class="grid gap-3 sm:grid-cols-2">
                 <FormField label="Amended on" required :error="amendForm.errors.amended_on">
-                    <TextInput v-model="amendForm.amended_on" type="date" />
+                    <DateInput v-model="amendForm.amended_on" />
                 </FormField>
                 <FormField label="Value change" hint="Negative to reduce the credit." :error="amendForm.errors.amount_delta">
                     <TextInput v-model="amendForm.amount_delta" type="number" step="0.0001" numeric />
                 </FormField>
                 <FormField label="New last shipment date" :error="amendForm.errors.new_last_shipment_date">
-                    <TextInput v-model="amendForm.new_last_shipment_date" type="date" />
+                    <DateInput v-model="amendForm.new_last_shipment_date" />
                 </FormField>
                 <FormField label="New expiry date" :error="amendForm.errors.new_expiry_date">
-                    <TextInput v-model="amendForm.new_expiry_date" type="date" />
+                    <DateInput v-model="amendForm.new_expiry_date" />
                 </FormField>
                 <FormField label="Bank charges" :error="amendForm.errors.charges_amount">
                     <TextInput v-model="amendForm.charges_amount" type="number" step="0.0001" numeric />

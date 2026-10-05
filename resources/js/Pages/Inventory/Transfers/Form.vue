@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import DateInput from '@/Components/Ui/DateInput.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
@@ -144,7 +145,7 @@ function submit() {
                         />
                     </FormField>
                     <FormField label="Transfer date" :error="form.errors.transfer_date" required>
-                        <TextInput v-model="form.transfer_date" type="date" />
+                        <DateInput v-model="form.transfer_date" />
                     </FormField>
                     <FormField label="Remarks" :error="form.errors.remarks">
                         <textarea v-model="form.remarks" rows="2" class="form-textarea" maxlength="255" />

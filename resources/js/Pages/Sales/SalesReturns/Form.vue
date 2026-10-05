@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
+import DateInput from '@/Components/Ui/DateInput.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
@@ -8,7 +9,7 @@ import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { money, pcs } from '@/plugins/formatting';
+import { money, pcs, todayIso } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -22,7 +23,8 @@ const props = defineProps({
 const form = useForm({
     sales_invoice_id: props.preselectInvoiceId ?? props.invoice?.id ?? '',
     warehouse_id: props.warehouses.find((w) => w.kind === 'finished_goods')?.id ?? '',
-    returned_on: new Date().toISOString().slice(0, 10),
+    // The local calendar day. `toISOString()` is UTC, which before 06:00 in Dhaka is yesterday.
+    returned_on: todayIso(),
     reason: '',
     lines: [],
 });
@@ -144,7 +146,7 @@ const selectedInvoice = computed(
                     </FormField>
 
                     <FormField label="Returned on" :error="form.errors.returned_on" required>
-                        <TextInput v-model="form.returned_on" type="date" />
+                        <DateInput v-model="form.returned_on" />
                     </FormField>
                 </div>
 

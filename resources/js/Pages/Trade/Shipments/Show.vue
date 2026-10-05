@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
+import DateInput from '@/Components/Ui/DateInput.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -405,7 +406,7 @@ const byLine = computed(() => {
                     />
                 </FormField>
                 <FormField label="Date" required :error="costForm.errors.incurred_on">
-                    <TextInput v-model="costForm.incurred_on" type="date" />
+                    <DateInput v-model="costForm.incurred_on" />
                 </FormField>
                 <FormField label="Description" class="sm:col-span-2" :error="costForm.errors.description">
                     <TextInput v-model="costForm.description" />
