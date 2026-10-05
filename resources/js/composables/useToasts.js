@@ -16,23 +16,35 @@ const timers = new Map();
 export const toasts = ref([]);
 
 /**
- * How long each tone stays.
+ * How long each tone stays. An error has no duration: it stays until it is dismissed or
+ * replaced.
  *
- * Errors used to stay until dismissed, on the reasoning that a refusal names the rule that
- * stopped you and must not slide away while you are reading it. In practice they simply piled
- * up: a J3 refusal sat over the screen through the correction, the retry and the next page.
- * They time out now, but at twice the length — a refusal is a sentence to read, not a word —
- * and hovering one holds it open for as long as it is under the pointer.
+ * Errors have been both ways. Left up forever they piled over the screen through the
+ * correction, the retry and the next page; given ten seconds they vanished while a slow reader
+ * or a touch user (who has no hover to hold one open) was still on the first line — and on a
+ * form with no inline errors the toast is the only explanation there is. So an error persists,
+ * and the pile is prevented instead: there is one error at a time, a new one replaces the old,
+ * and the next submit clears it (`clearErrorToasts`, called from `app.js`).
  */
-const DURATIONS = { error: 10000, warning: 7000, success: 5000 };
+const DURATIONS = { warning: 7000, success: 5000 };
 
 function schedule(id, tone) {
     clearTimeout(timers.get(id));
+
+    if (tone === 'error') return;
+
     timers.set(id, setTimeout(() => removeToast(id), DURATIONS[tone] ?? DURATIONS.success));
+}
+
+/** Drops every error on screen — a fresh attempt deserves a clean slate. */
+export function clearErrorToasts() {
+    toasts.value.filter((toast) => toast.tone === 'error').forEach((toast) => removeToast(toast.id));
 }
 
 export function pushToast(tone, message) {
     if (!message) return null;
+
+    if (tone === 'error') clearErrorToasts();
 
     const id = ++sequence;
     toasts.value.push({ id, tone, message });

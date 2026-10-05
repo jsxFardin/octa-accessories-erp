@@ -18,9 +18,8 @@ const flash = computed(() => page.props.flash ?? {});
 const remove = removeToast;
 
 /**
- * Every tone times out now, errors included — they used to stay until dismissed and in practice
- * just accumulated over the screen. Length is set per tone in `useToasts`, and hovering holds
- * one open, so a long refusal can still be read at whatever pace it takes.
+ * Success and warning time out and hovering holds them open. An error stays until dismissed or
+ * replaced — see `useToasts` for why, and for what keeps them from piling up.
  */
 watch(
     flash,
@@ -61,9 +60,10 @@ const TONES = {
                 @focusin="holdToast(toast.id)"
                 @focusout="releaseToast(toast.id, toast.tone)"
             >
-                <p class="min-w-0 flex-1 break-words whitespace-pre-line">{{ toast.message }}</p>
+                <p class="max-h-[50vh] min-w-0 flex-1 overflow-y-auto break-words whitespace-pre-line">{{ toast.message }}</p>
                 <button
-                    class="shrink-0 text-lg leading-none opacity-50 transition hover:opacity-100"
+                    type="button"
+                    class="-my-0.5 -mr-1 flex size-6 shrink-0 items-center justify-center rounded text-lg leading-none opacity-60 transition hover:opacity-100 focus-visible:ring-2 focus-visible:ring-current focus-visible:outline-none"
                     aria-label="Dismiss"
                     @click="remove(toast.id)"
                 >

@@ -6,7 +6,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createPinia } from 'pinia';
 import { ZiggyVue } from 'ziggy';
 
-import { pushToast } from '@/composables/useToasts';
+import { clearErrorToasts, pushToast } from '@/composables/useToasts';
 import permissions from '@/plugins/permissions';
 import formatting, { configureFormatting } from '@/plugins/formatting';
 
@@ -23,13 +23,21 @@ let appName = fallbackName;
  * this is the floor under them.
  */
 router.on('error', (event) => {
-    const messages = Object.values(event.detail?.errors ?? {}).flat().filter(Boolean);
+    const messages = [...new Set(Object.values(event.detail?.errors ?? {}).flat().filter(Boolean))];
 
     if (messages.length === 0) return;
 
+    // Every message, not "the first and 3 more": on a form that renders no inline errors this
+    // toast is the whole explanation, and a count tells nobody which fields to fix.
     pushToast('error', messages.length === 1
         ? messages[0]
-        : `${messages[0]}\n(and ${messages.length - 1} more field${messages.length > 2 ? 's' : ''} to fix)`);
+        : `${messages.length} things to fix:\n${messages.map((message) => `• ${message}`).join('\n')}`);
+});
+
+// A new attempt starts clean. Errors stay on screen until dismissed, so without this the
+// refusal from the last save would still be showing over the result of this one.
+router.on('start', (event) => {
+    if ((event.detail?.visit?.method ?? 'get').toLowerCase() !== 'get') clearErrorToasts();
 });
 
 createInertiaApp({
