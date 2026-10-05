@@ -9,7 +9,7 @@ import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { baseCurrency, date, inBaseCurrency, money, pcs, pct, qty, ratePerM, titleCase, unitCost } from '@/plugins/formatting';
+import { baseCurrency, date, inBaseCurrency, isoDate, money, pcs, pct, qty, ratePerM, titleCase, unitCost } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { conversionAction } from '@/plugins/documentActions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -46,7 +46,8 @@ const convertOpen = ref(false);
 const convertAction = computed(() => conversionAction(props.quotation, props.conversion, can));
 
 const rejectForm = useForm({ to: 'rejected', reject_reason: '' });
-const convertForm = useForm({ customer_po_no: '', delivery_date: '' });
+// The delivery date starts from what the customer asked for on the inquiry, when there is one.
+const convertForm = useForm({ customer_po_no: '', delivery_date: isoDate(props.inquiry?.required_by) || '' });
 
 const confirmTransition = useTransitionConfirm('quotation');
 
@@ -163,6 +164,29 @@ async function transition(to) {
                     <span class="text-sm font-semibold tnum text-ink-900">{{ money(line.line_total, quotation.currency) }}</span>
                     <Badge v-if="line.cost_sheet?.is_locked" tone="neutral" label="Locked" />
                 </template>
+
+                <!-- What else was entered on this line, and what the customer asked for. Tooling
+                     and lead time were stored and totalled but shown nowhere. -->
+                <dl
+                    v-if="Number(line.tooling_charge) > 0 || line.lead_time_days || line.inquiry_line"
+                    class="flex flex-wrap gap-x-8 gap-y-1 border-b border-slate-100 px-3 py-2 text-xs"
+                >
+                    <div v-if="Number(line.tooling_charge) > 0" class="flex gap-1.5">
+                        <dt class="text-ink-500">Tooling charge</dt>
+                        <dd class="font-medium tnum text-ink-900">{{ money(line.tooling_charge, quotation.currency) }}</dd>
+                    </div>
+                    <div v-if="line.lead_time_days" class="flex gap-1.5">
+                        <dt class="text-ink-500">Lead time</dt>
+                        <dd class="font-medium tnum text-ink-900">{{ line.lead_time_days }} days</dd>
+                    </div>
+                    <div v-if="line.inquiry_line" class="flex gap-1.5">
+                        <dt class="text-ink-500">The customer asked for</dt>
+                        <dd class="text-ink-800">
+                            {{ pcs(line.inquiry_line.qty) }} pcs<template v-if="Number(line.inquiry_line.target_rate_per_m) > 0">
+                                at a target of {{ ratePerM(line.inquiry_line.target_rate_per_m, quotation.currency) }}</template>
+                        </dd>
+                    </div>
+                </dl>
 
                 <div v-if="line.cost_sheet" class="grid gap-0 lg:grid-cols-3">
                     <!-- Every line names the rule that produced it (02-database-schema §3.4) -->
@@ -305,8 +329,15 @@ async function transition(to) {
                 </div>
 
                 <p v-else class="px-3 py-6 text-center text-sm text-amber-700">
-                    No cost sheet on this line. It cannot be sent (Q1).
+                    This line has no price yet, so the quotation cannot be sent. Edit the quotation and
+                    choose a product for it, or
+                    <Link v-if="line.product?.id" :href="`/products/${line.product.id}`" class="font-medium underline">finish setting up {{ line.product.code }}</Link>
+                    <Link v-else href="/products/create" class="font-medium underline">set up the product</Link>.
                 </p>
+            </Card>
+
+            <Card v-if="quotation.terms" title="Terms and conditions">
+                <p class="max-w-prose text-sm leading-relaxed whitespace-pre-line text-ink-800">{{ quotation.terms }}</p>
             </Card>
 
             <Card title="Document total">
@@ -336,12 +367,16 @@ async function transition(to) {
             </template>
         </Modal>
 
-        <Modal v-model:open="convertOpen" title="Convert to a sales order" subtitle="Q3: only an accepted quotation converts.">
+        <Modal v-model:open="convertOpen" title="Convert to a sales order" subtitle="A draft sales order is created with these lines and prices. The quotation is then closed to further changes.">
             <div class="space-y-3">
-                <FormField label="Customer PO number" :error="convertForm.errors.customer_po_no">
+                <FormField label="Customer PO number" hint="The customer's own order reference, if they have given one. It can be added later." :error="convertForm.errors.customer_po_no">
                     <TextInput v-model="convertForm.customer_po_no" />
                 </FormField>
-                <FormField label="Delivery date" :error="convertForm.errors.delivery_date">
+                <FormField
+                    label="Delivery date"
+                    :hint="inquiry?.required_by ? `The inquiry asked for ${date(inquiry.required_by)}.` : 'When the customer needs the goods.'"
+                    :error="convertForm.errors.delivery_date"
+                >
                     <DateInput v-model="convertForm.delivery_date" />
                 </FormField>
             </div>

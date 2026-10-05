@@ -78,6 +78,11 @@ function cancel() {
 
 const notReady = computed(() => props.readiness.filter((r) => !r.spec || !r.artwork));
 
+/** Not a bar to confirming, but the next thing that will stop the order: no job card releases without one. */
+const withoutBom = computed(() => props.readiness.filter((r) => r.bom === false));
+
+const PRIORITY_LABELS = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
+
 /**
  * What can happen next, from this order.
  *
@@ -150,6 +155,8 @@ const lineColumns = [
             <Badge :status="order.status" />
 
             <Button v-if="availableTransitions.includes('confirmed')" size="sm" variant="primary"
+                    :disabled="order.status === 'draft' && notReady.length > 0"
+                    :title="order.status === 'draft' && notReady.length > 0 ? 'A line has no current specification or approved artwork — see below.' : null"
                     @click="order.status === 'credit_hold' ? (releaseOpen = true) : transition('confirmed')">
                 {{ order.status === 'credit_hold' ? 'Release credit hold' : 'Confirm' }}
             </Button>
@@ -180,15 +187,46 @@ const lineColumns = [
                 class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900"
             >
                 <p class="font-medium">This order cannot be confirmed yet.</p>
-                <ul class="mt-1 list-disc pl-5 text-xs">
+                <ul class="mt-1 list-disc space-y-0.5 pl-5 text-xs">
                     <li v-for="row in notReady" :key="row.line_no">
                         Line {{ row.line_no }} ({{ row.product }}):
-                        <span v-if="!row.spec">no current spec</span>
+                        <span v-if="!row.spec">no current specification</span>
                         <span v-if="!row.spec && !row.artwork">, </span>
-                        <span v-if="!row.artwork">no approved artwork version</span>
+                        <span v-if="!row.artwork">no approved artwork</span>.
+                        <!-- It named what was missing and left the user to find the product by hand. -->
+                        <Link v-if="row.product_id" :href="`/products/${row.product_id}`" class="font-medium underline">
+                            Open {{ row.product }} to fix it
+                        </Link>
                     </li>
                 </ul>
             </div>
+
+            <div
+                v-if="withoutBom.length && ['draft', 'confirmed'].includes(order.status)"
+                class="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-ink-700"
+            >
+                <span class="font-medium text-ink-900">Before production can start:</span>
+                <template v-for="(row, index) in withoutBom" :key="row.line_no">
+                    <span v-if="index > 0">; </span>
+                    line {{ row.line_no }} ({{ row.product }}) has no active bill of materials
+                    <Link v-if="row.product_id" :href="`/products/${row.product_id}#bom`" class="font-medium text-brand-700 underline">add one</Link>
+                </template>.
+                A job card cannot be released without it.
+            </div>
+
+            <!-- Typed on the form and then shown nowhere but the edit screen. -->
+            <Card v-if="order.notes || order.priority" title="For the planner and packer">
+                <dl class="grid gap-3 text-sm sm:grid-cols-4">
+                    <div>
+                        <dt class="text-xs text-ink-500">Priority</dt>
+                        <dd class="font-medium text-ink-900">{{ PRIORITY_LABELS[order.priority] ?? order.priority ?? '—' }}</dd>
+                    </div>
+                    <div class="sm:col-span-3">
+                        <dt class="text-xs text-ink-500">Order notes</dt>
+                        <dd class="whitespace-pre-line text-ink-800">{{ order.notes || 'None.' }}</dd>
+                    </div>
+                </dl>
+            </Card>
 
             <!-- BR-46 -->
             <div

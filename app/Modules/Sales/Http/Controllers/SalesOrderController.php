@@ -190,6 +190,8 @@ class SalesOrderController extends Controller
             'readiness' => $salesOrder->lines->map(fn (SalesOrderLine $line): array => [
                 'line_no' => $line->line_no,
                 'product' => $line->product?->code,
+                // So the banner can link to the product instead of only naming it.
+                'product_id' => $line->product_id,
                 'spec' => $line->spec?->isCurrent() ?? false,
                 'artwork' => $line->product?->artworks
                     ->flatMap->versions
