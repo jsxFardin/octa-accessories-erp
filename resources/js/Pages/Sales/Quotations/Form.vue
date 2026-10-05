@@ -14,7 +14,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { baseCurrency, date, isoDate, money, pcs, qty, ratePerM, titleCase, todayIso, unitCost } from '@/plugins/formatting';
+import { addCalendarDays, baseCurrency, date, isoDate, money, pcs, qty, ratePerM, titleCase, todayIso, unitCost } from '@/plugins/formatting';
 
 const props = defineProps({
     quotation: { type: Object, default: null },
@@ -73,7 +73,8 @@ const form = useForm({
     inquiry_id: props.quotation?.inquiry_id ?? props.inquiryId ?? '',
     customer_id: props.quotation?.customer_id ?? prefill?.customer_id ?? '',
     quotation_date: isoDate(props.quotation?.quotation_date) || todayIso(),
-    valid_until: isoDate(props.quotation?.valid_until),
+    // Thirty days, the same default a duplicated quotation gets; a new one used to start with none.
+    valid_until: isoDate(props.quotation?.valid_until) || (props.quotation ? '' : addCalendarDays(todayIso(), 30)),
     currency_id:
         props.quotation?.currency_id
         ?? prefill?.currency_id
@@ -109,14 +110,58 @@ const availableProducts = computed(() =>
 const sheets = ref({});
 const pending = ref({});
 
-async function priceLine(index) {
-    const line = form.lines[index];
+/**
+ * Each line is priced on its own, a moment after the typing stops, and only the newest answer
+ * for a line is believed.
+ *
+ * Every change to any line used to re-price every line at once, on every keystroke, with
+ * nothing to stop a slow earlier answer landing after a newer one. On a ten-line quotation
+ * typing a four-digit quantity sent forty requests, the rates flickered, and on a poor
+ * connection the rate that finally stuck could belong to a quantity typed two digits ago.
+ */
+const PRICE_DELAY_MS = 400;
+const timers = new Map();
+/** The number of the latest request sent for each line; an answer to an older one is dropped. */
+const latest = new Map();
+
+function schedulePrice(line) {
+    clearTimeout(timers.get(line));
+    timers.set(line, setTimeout(() => priceLine(line), PRICE_DELAY_MS));
+}
+
+async function priceLine(line) {
+    const index = form.lines.indexOf(line);
+
+    if (index === -1) return;
 
     if (!line.product_id || !line.qty) {
+        line.rate_per_m = '';
+
+        // Removed, not set to undefined: the breakdown cards below iterate this map.
+        const { [index]: dropped, ...rest } = sheets.value;
+
+        sheets.value = rest;
+
         return;
     }
 
+    const ticket = (latest.get(line) ?? 0) + 1;
+
+    latest.set(line, ticket);
     pending.value = { ...pending.value, [index]: true };
+
+    /** The line may have moved up the table, or been removed, while the request was out. */
+    const settle = (sheet, rate) => {
+        if (latest.get(line) !== ticket) return;
+
+        const now = form.lines.indexOf(line);
+
+        if (now === -1) return;
+
+        line.rate_per_m = rate;
+        sheets.value = { ...sheets.value, [now]: sheet };
+        pending.value = { ...pending.value, [now]: false };
+    };
 
     try {
         const response = await fetch('/cost-sheets/calculate', {
@@ -138,54 +183,69 @@ async function priceLine(index) {
 
         if (!response.ok) {
             const payload = await response.json().catch(() => ({}));
+
             // A rate left over from before the failure would still save, against a spec that
             // no longer prices.
-            form.lines[index].rate_per_m = '';
-            sheets.value = { ...sheets.value, [index]: { error: Object.values(payload.errors ?? {}).flat()[0] ?? 'Could not price this line.' } };
+            settle({ error: Object.values(payload.errors ?? {}).flat()[0] ?? 'Could not price this line.' }, '');
 
             return;
         }
 
         const payload = await response.json();
-        sheets.value = { ...sheets.value, [index]: payload };
 
         // The computed rate is the answer; typing over it is what BR-20 exists to prevent.
-        form.lines[index].rate_per_m = payload.sheet.rate_per_m_in_currency;
+        settle(payload, payload.sheet.rate_per_m_in_currency);
     } catch {
-        sheets.value = { ...sheets.value, [index]: { error: 'Could not reach the cost sheet. Check the connection and change the line to retry.' } };
-    } finally {
-        pending.value = { ...pending.value, [index]: false };
+        settle({ error: 'Could not reach the cost sheet. Check the connection and change the line to retry.' }, '');
     }
 }
 
-/** Re-price when the inputs that feed a rate change — not on every keystroke elsewhere. */
+/** What feeds each line's rate. A line is re-priced when its own inputs change, not its neighbours'. */
+const signatures = new WeakMap();
+
 watch(
-    () => form.lines.map((line) => `${line.product_id}|${line.qty}|${line.margin_pct}`).join(','),
-    () => form.lines.forEach((_, index) => priceLine(index)),
+    () => form.lines.map((line) => `${line.product_id}|${line.qty}|${line.margin_pct}`),
+    (now) => {
+        form.lines.forEach((line, index) => {
+            if (signatures.get(line) !== now[index]) {
+                signatures.set(line, now[index]);
+                schedulePrice(line);
+            }
+        });
+    },
 );
 
 /**
  * A prefilled line arrives with a product and a quantity already on it, so the watcher above
- * — which only fires on a *change* — never ran and the rate stayed empty. The rate is computed
- * and displayed, not an input, so saving failed on a field the merchandiser had no way to
- * fill. Price what came in from the inquiry as soon as the form mounts.
+ * — which only fires on a *change* — never ran and the rate stayed empty. Price what came in
+ * from the inquiry, or with an existing draft, as soon as the form mounts.
  */
 onMounted(() => {
-    if (prefill) {
-        form.lines.forEach((_, index) => priceLine(index));
-    }
+    form.lines.forEach((line) => {
+        signatures.set(line, `${line.product_id}|${line.qty}|${line.margin_pct}`);
+
+        if (line.product_id && line.qty) priceLine(line);
+    });
 });
 
-watch(() => form.exchange_rate, () => form.lines.forEach((_, index) => priceLine(index)));
+// The currency or its rate changed: every rate on the page is in the old one.
+watch(() => [form.exchange_rate, form.currency_id], () => form.lines.forEach((line) => schedulePrice(line)));
 
 function addLine() {
     form.lines = [...form.lines, blankLine()];
 }
 
+/** The sheets are kept by row position, so removing a row moves the ones below it up. */
 function removeLine(index) {
+    const shift = (map) => Object.fromEntries(
+        Object.entries(map)
+            .filter(([key]) => Number(key) !== index)
+            .map(([key, value]) => [Number(key) > index ? Number(key) - 1 : Number(key), value]),
+    );
+
+    sheets.value = shift(sheets.value);
+    pending.value = shift(pending.value);
     form.lines = form.lines.filter((_, i) => i !== index);
-    sheets.value = {};
-    form.lines.forEach((_, i) => priceLine(i));
 }
 
 function lineTotal(line) {
@@ -234,9 +294,10 @@ function unpricedReason(index) {
 const unpriced = computed(() =>
     form.lines
         .map((line, index) => ({ line, index }))
-        .filter(({ line }) => !line.product_id || !line.qty || !line.rate_per_m)
+        .filter(({ line }) => !isBlank(line) && (!line.product_id || !line.qty || !line.rate_per_m))
         .map(({ line, index }) => ({
             no: index + 1,
+            productId: line.product_id || null,
             reason: !line.product_id
                 ? 'needs a product before it can be priced'
                 : !line.qty
@@ -251,18 +312,80 @@ const selectedCustomer = computed(
     () => props.customers.find((customer) => String(customer.id) === String(form.customer_id)) ?? null,
 );
 
+/** A row nobody typed anything into — the blank one a new form starts with, or a stray "Add line". */
+function isBlank(line) {
+    return !line.product_id && !String(line.description ?? '').trim() && !line.qty;
+}
+
+/** Why the draft cannot be saved at all. Unpriced lines are not on this list: a draft may have them. */
+const blockedBy = computed(() => {
+    if (!form.customer_id) return 'Choose the customer this quotation is for.';
+
+    const lines = form.lines.filter((line) => !isBlank(line));
+
+    if (lines.length === 0) return 'Add at least one line.';
+
+    const noQuantity = form.lines.map((line, index) => ({ line, index }))
+        .filter(({ line }) => !isBlank(line) && !(Number(line.qty) > 0));
+
+    if (noQuantity.length) return `Line ${noQuantity.map(({ index }) => index + 1).join(', ')} needs a quantity.`;
+
+    return null;
+});
+
 function submit() {
+    form
+        .transform((data) => ({
+            ...data,
+            // Blank rows are dropped rather than failing the save, and a line with a product
+            // but no wording of its own is described by the product's name.
+            lines: data.lines.filter((line) => !isBlank(line)).map((line) => ({
+                ...line,
+                description: String(line.description ?? '').trim()
+                    || props.products.find((product) => product.id === Number(line.product_id))?.name
+                    || '',
+                rate_per_m: line.rate_per_m === '' ? null : line.rate_per_m,
+                product_id: line.product_id || null,
+            })),
+        }));
+
     isEdit.value
         ? form.put(`/quotations/${props.quotation.id}`)
         : form.post('/quotations');
 }
+
+/**
+ * Products belong to one customer. Changing the customer used to narrow the picker and leave
+ * the previous customer's products sitting on the lines, where they could be saved.
+ */
+const droppedProducts = ref(0);
+
+watch(() => form.customer_id, (customer) => {
+    droppedProducts.value = 0;
+
+    if (!customer) return;
+
+    form.lines.forEach((line) => {
+        const product = props.products.find((row) => row.id === Number(line.product_id));
+
+        if (product && product.customer_id !== Number(customer)) {
+            line.product_id = '';
+            line.product_spec_id = '';
+            line.rate_per_m = '';
+            droppedProducts.value += 1;
+        }
+    });
+});
 
 const columns = [
     { key: 'product_id', label: 'Product', width: '15rem', errorKeys: ['product_id', 'product_spec_id'] },
     { key: 'description', label: 'Description' },
     { key: 'qty', label: 'Quantity', width: '8rem', align: 'right' },
     { key: 'margin_pct', label: 'Margin %', width: '7rem', align: 'right' },
-    { key: 'rate_per_m', label: 'Rate /M', width: '9rem', align: 'right' },
+    { key: 'rate_per_m', label: 'Rate per 1,000 pcs', width: '9rem', align: 'right' },
+    // In the line's state and in its total all along, with no box to type either into.
+    { key: 'tooling_charge', label: 'Tooling charge', width: '8rem', align: 'right' },
+    { key: 'lead_time_days', label: 'Lead time, days', width: '7rem', align: 'right' },
     { key: 'line_total', label: 'Line value', width: '9rem', align: 'right' },
 ];
 </script>
@@ -307,8 +430,9 @@ const columns = [
                 </p>
             </div>
 
-            <Card title="Header">
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <Card title="Customer and dates">
+                <!-- Three across until 1536 px: five across at 1280 cut the date to "05 Oct 202". -->
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
                     <FormField label="Customer" :error="form.errors.customer_id" required>
                         <SelectInput
                             v-model="form.customer_id"
@@ -358,7 +482,7 @@ const columns = [
                         :errors="form.errors"
                         add-label="Add line"
                         empty="No lines yet"
-                    empty-hint="Add a product and a quantity — the rate is computed from a cost sheet, never typed by hand."
+                    empty-hint="Add a product and a quantity. The price is worked out from the product's cost sheet."
                         @add="addLine"
                         @remove="removeLine"
                     >
@@ -374,8 +498,15 @@ const columns = [
                             <p v-if="line.product_id" class="mt-1 truncate text-[11px] text-ink-500">
                                 {{ availableProducts.find((p) => p.id === Number(line.product_id))?.name }}
                             </p>
-                            <p v-if="sheets[index]?.error" class="mt-1 text-[11px] text-rose-600">
+                            <p v-if="sheets[index]?.error" class="mt-1 text-xs text-rose-700">
                                 {{ sheets[index].error }}
+                                <a
+                                    :href="`/products/${line.product_id}`"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="font-medium underline"
+                                >Open the product in a new tab</a>
+                                to fix it — this quotation stays here.
                             </p>
                         </template>
 
@@ -399,12 +530,20 @@ const columns = [
 
                         <template #cell:rate_per_m="{ line, index }">
                             <div class="text-right">
-                                <span v-if="pending[index]" class="text-xs text-ink-400">pricing…</span>
+                                <span v-if="pending[index]" class="text-xs text-ink-500">pricing…</span>
                                 <span v-else class="text-sm font-semibold tnum text-ink-900">
                                     {{ line.rate_per_m ? ratePerM(line.rate_per_m, currencyCode) : '—' }}
                                 </span>
-                                <p class="text-[10px] text-ink-400">computed</p>
+                                <p class="text-xs text-ink-500">computed</p>
                             </div>
+                        </template>
+
+                        <template #cell:tooling_charge="{ line }">
+                            <TextInput cell v-model="line.tooling_charge" type="number" step="0.01" min="0" numeric />
+                        </template>
+
+                        <template #cell:lead_time_days="{ line }">
+                            <TextInput cell v-model="line.lead_time_days" type="number" step="1" min="0" numeric />
                         </template>
 
                         <template #cell:line_total="{ line }">
@@ -413,7 +552,7 @@ const columns = [
 
                         <template #footer>
                             <tr>
-                                <td colspan="5" class="px-3 py-2 text-right text-xs text-ink-700">Subtotal</td>
+                                <td colspan="7" class="px-3 py-2 text-right text-xs text-ink-700">Subtotal</td>
                                 <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
                                     {{ money(subtotal, currencyCode) }}
                                 </td>
@@ -424,20 +563,44 @@ const columns = [
 
                     <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
 
+<p v-if="droppedProducts" role="status" class="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        {{ droppedProducts }} {{ droppedProducts === 1 ? 'line had a product' : 'lines had products' }}
+                        belonging to the previous customer. {{ droppedProducts === 1 ? 'It has' : 'They have' }} been
+                        cleared — choose again from this customer's products.
+                    </p>
+
                     <div
                         v-if="unpriced.length"
                         class="mt-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-ink-700"
                         role="status"
                     >
-                        <p>Not ready to save yet:</p>
+                        <p class="font-medium text-ink-900">
+                            This can be saved as a draft, but not sent until every line has a price:
+                        </p>
                         <ul class="mt-1 list-disc pl-4">
-                            <li v-for="item in unpriced" :key="item.no">Line {{ item.no }} {{ item.reason }}.</li>
+                            <li v-for="item in unpriced" :key="item.no">
+                                Line {{ item.no }} {{ item.reason }}.
+                                <a
+                                    v-if="item.productId"
+                                    :href="`/products/${item.productId}`"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="font-medium text-brand-700 underline"
+                                >Open the product</a>
+                                <a
+                                    v-else
+                                    href="/products/create"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="font-medium text-brand-700 underline"
+                                >Set up a new product</a>
+                            </li>
                         </ul>
                     </div>
 
                     <p v-if="belowFloor" class="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
                         A line is priced below the {{ marginFloorPct }}% margin floor. Sending this
-                        quotation needs the <span class="font-mono">cost_sheet.override_margin</span> permission.
+                        quotation needs someone who is allowed to approve a margin below the floor.
                     </p>
                 </div>
             </Card>
@@ -446,7 +609,7 @@ const columns = [
             <Card
                 v-for="(sheet, index) in sheets"
                 :key="`sheet-${index}`"
-                v-show="sheet.sheet"
+                v-show="sheet?.sheet"
                 :title="`Line ${Number(index) + 1} — cost breakdown`"
                 rule="BR-14 … BR-22"
                 :padded="false"
@@ -585,12 +748,10 @@ const columns = [
                 <FormFooter
                     :form="form"
                     cancel-href="/quotations"
-                    :disabled="unpriced.length > 0"
-                    :disabled-reason="unpriced.length
-                        ? unpriced.map(({ no, reason }) => `Line ${no} ${reason}.`).join(' ')
-                        : null"
+                    :disabled="blockedBy !== null"
+                    :disabled-reason="blockedBy"
                     :summary="unpriced.length
-                        ? `${unpriced.length} ${unpriced.length === 1 ? 'line is' : 'lines are'} not priced yet`
+                        ? `${unpriced.length} ${unpriced.length === 1 ? 'line is' : 'lines are'} not priced yet — saved as a draft`
                         : `${filledLines} ${filledLines === 1 ? 'line' : 'lines'} · ${money(subtotal, currencyCode)}`"
                     :label="isEdit ? 'Save changes' : 'Save draft'"
                     @save="submit"

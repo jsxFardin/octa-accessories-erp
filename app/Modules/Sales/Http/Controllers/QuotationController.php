@@ -481,11 +481,20 @@ class QuotationController extends Controller
             // asked for. Validated against the inquiry named on this quotation in
             // `assertInquiryLinesBelong()`, so it cannot be pointed at someone else's inquiry.
             'lines.*.inquiry_line_id' => ['nullable', 'integer', 'exists:inquiry_lines,id'],
-            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            /*
+             * A draft may hold a line that cannot be priced yet. The product may not exist, or
+             * may lack the specification or bill of materials a cost sheet is built from, and
+             * the only way to save used to be to abandon the quotation, fix the product, and
+             * type it all again. Product and rate are therefore optional here. Sending is what
+             * requires them: `QuotationStateMachine` refuses a quotation with any line that has
+             * no rate or no cost sheet. The quantity stays required — the merchandiser knows it
+             * from the inquiry, and the table itself refuses a line without one.
+             */
+            'lines.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
             'lines.*.product_spec_id' => ['nullable', 'integer', 'exists:product_specs,id'],
             'lines.*.description' => ['required', 'string', 'max:255'],
             'lines.*.qty' => ['required', 'numeric', 'gt:0'],
-            'lines.*.rate_per_m' => ['required', 'numeric', 'min:0'],
+            'lines.*.rate_per_m' => ['nullable', 'numeric', 'min:0'],
             'lines.*.tooling_charge' => ['nullable', 'numeric', 'min:0'],
             'lines.*.margin_pct' => ['nullable', 'numeric', 'min:0', 'lt:100'],
             'lines.*.lead_time_days' => ['nullable', 'integer', 'min:0'],
@@ -547,6 +556,11 @@ class QuotationController extends Controller
         $subtotal = 0.0;
 
         foreach ($lines as $index => $line) {
+            // An unpriced draft line is stored with a rate of zero — the column is not nullable —
+            // and is worth nothing until it is priced.
+            $line['rate_per_m'] = (float) ($line['rate_per_m'] ?? 0);
+            $line['product_id'] = $line['product_id'] ?? null;
+
             $lineTotal = $this->calculator->lineValue((int) $line['qty'], (float) $line['rate_per_m'])
                 + (float) ($line['tooling_charge'] ?? 0);
             $subtotal += $lineTotal;
@@ -564,7 +578,9 @@ class QuotationController extends Controller
                 'lead_time_days' => $line['lead_time_days'] ?? null,
             ]);
 
-            $product = Product::query()->with(['customer', 'routing.operations', 'activeBom'])->find($line['product_id']);
+            $product = $line['product_id'] === null
+                ? null
+                : Product::query()->with(['customer', 'routing.operations', 'activeBom'])->find($line['product_id']);
             $spec = $line['product_spec_id'] ?? null
                 ? ProductSpec::query()->find($line['product_spec_id'])
                 : $product?->currentSpec;
