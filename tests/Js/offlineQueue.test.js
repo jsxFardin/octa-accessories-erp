@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitExpired } from '../../resources/js/Composables/useOfflineQueue.js';
+import { describeRejected, rejectedRecords, splitExpired } from '../../resources/js/Composables/useOfflineQueue.js';
 
 const HOUR = 60 * 60 * 1000;
 const now = Date.parse('2026-10-05T12:00:00.000Z');
@@ -49,5 +49,55 @@ describe('queuedOutputFor', () => {
 
         expect(queuedOutputFor(7, queue)).toEqual({ good: 750, waste: 12, input: 520, count: 2 });
         expect(queuedOutputFor(9, queue)).toEqual({ good: 0, waste: 0, input: 0, count: 0 });
+    });
+});
+
+// UX audit H-33: the rejected list was a count. These are what the "Not sent" screen reads.
+describe('rejected records', () => {
+    const refused = {
+        key: 'k1',
+        url: '/api/v1/operations/42/log',
+        payload: { good_qty: 500, waste_qty: 10, input_qty: 520 },
+        occurredAt: at(2),
+        rejectedAt: at(1),
+        status: 422,
+        reason: 'refused',
+        body: JSON.stringify({ message: 'J3: …', code: 'output_exceeds_input', params: { output: 510, input: 400 } }),
+        meta: { job: 'JC-26-00007', step: 'Weaving', unit: 'm', operator: 'Rahim' },
+    };
+
+    it('names the job, step, unit, operator, figures and the coded reason', () => {
+        expect(describeRejected(refused)).toMatchObject({
+            key: 'k1',
+            operationId: 42,
+            action: 'log',
+            expired: false,
+            code: 'output_exceeds_input',
+            params: { output: 510, input: 400 },
+            job: 'JC-26-00007',
+            step: 'Weaving',
+            unit: 'm',
+            operator: 'Rahim',
+            payload: { good_qty: 500 },
+        });
+    });
+
+    it('marks a record that outlived the window as expired', () => {
+        const record = describeRejected({ ...refused, status: 0, body: '', reason: 'expired' });
+
+        expect(record.expired).toBe(true);
+        expect(record.code).toBeNull();
+    });
+
+    it('still describes a record filed before the terminal kept the job with it', () => {
+        const record = describeRejected({ key: 'old', url: '/api/v1/operations/9/finish', payload: {}, occurredAt: at(5), status: 500, body: '<html>Server Error</html>' });
+
+        expect(record).toMatchObject({ operationId: 9, action: 'finish', job: null, code: null, status: 500 });
+    });
+
+    it('lists them oldest first', () => {
+        const list = [{ ...refused, key: 'late', occurredAt: at(1) }, { ...refused, key: 'early', occurredAt: at(3) }];
+
+        expect(rejectedRecords(list).map((record) => record.key)).toEqual(['early', 'late']);
     });
 });

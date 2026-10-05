@@ -161,10 +161,11 @@ class FloorTerminalController extends Controller
             // bouncing the operator back to the badge screen.
             'deviceToken' => $request->session()->get(self::TOKEN_KEY),
             'operator' => $request->user()?->name,
+            'canClearUnsent' => $this->mayClearUnsent($request),
         ]);
     }
 
-    public function operation(JobCardOperation $operation): Response
+    public function operation(Request $request, JobCardOperation $operation): Response
     {
         $operation->load(['jobCard.product', 'jobCard.artworkVersion.artwork', 'machine', 'routingOperation']);
 
@@ -194,7 +195,20 @@ class FloorTerminalController extends Controller
             'downtimeReasons' => DB::table('downtime_reasons')->orderBy('name')
                 ->get(['id', 'code', 'name', 'category']),
             'shifts' => DB::table('shifts')->orderBy('code')->get(['id', 'code', 'name']),
+            'canClearUnsent' => $this->mayClearUnsent($request),
         ]);
+    }
+
+    /**
+     * Who may take a record off the terminal's "Not sent" list.
+     *
+     * A record on that list never reached the server, and removing it is the one way output
+     * leaves a device unbooked. It is for whoever can book it by hand on the job card at the
+     * desk — a supervisor — and not for the operator whose record it is.
+     */
+    private function mayClearUnsent(Request $request): bool
+    {
+        return (bool) $request->user()?->hasPermission('job_card.update');
     }
 
     /**

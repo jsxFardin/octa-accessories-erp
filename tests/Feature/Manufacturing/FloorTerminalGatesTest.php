@@ -162,3 +162,40 @@ it('names a refusal that comes from the API controller itself', function (): voi
         ->assertJsonPath('code', 'waste_reason_needed')
         ->assertJsonStructure(['message', 'code', 'params']);
 });
+
+/*
+ * UX audit M-34. The queue card shows progress, and progress is a figure with a unit.
+ */
+it('tells the work queue which unit each step is counted in', function (): void {
+    $operation = $this->jobCard->operations()->orderBy('sequence_no')->firstOrFail();
+    $operation->forceFill(['status' => JobCardOperation::IN_PROGRESS])->save();
+
+    $rows = $this->getJson('/api/v1/floor/queue', ['Authorization' => "Bearer {$this->token}"])
+        ->assertOk()
+        ->json('operations');
+
+    expect($rows)->not->toBeEmpty();
+
+    foreach ($rows as $row) {
+        expect($row['unit'])->toBeIn(['m', 'pcs']);
+    }
+});
+
+/*
+ * UX audit H-33. An operator can read the terminal's "Not sent" list; only someone who can book
+ * the record by hand at the desk may take it off.
+ */
+it('lets a supervisor, not an operator, clear a record from the not-sent list', function (): void {
+    $operation = $this->jobCard->operations()->orderBy('sequence_no')->firstOrFail();
+
+    $flag = fn (string $email, string $url): bool => (bool) $this
+        ->actingAs(User::query()->where('email', $email)->firstOrFail())
+        ->get($url)
+        ->assertOk()
+        ->viewData('page')['props']['canClearUnsent'];
+
+    expect($flag('supervisor@octapussolution.com', '/floor/queue'))->toBeTrue()
+        ->and($flag('supervisor@octapussolution.com', "/floor/operations/{$operation->id}"))->toBeTrue()
+        ->and($flag('operator@octapussolution.com', '/floor/queue'))->toBeFalse()
+        ->and($flag('operator@octapussolution.com', "/floor/operations/{$operation->id}"))->toBeFalse();
+});

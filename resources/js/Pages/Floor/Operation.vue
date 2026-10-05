@@ -3,19 +3,31 @@ import { computed, reactive, ref } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import FloorLayout from '@/Layouts/FloorLayout.vue';
 import { idempotencyKey, queuedOutputFor, useOfflineQueue } from '@/Composables/useOfflineQueue';
+import NotSent from '@/Components/Floor/NotSent.vue';
+import { guide, label, refusal, unitLabel, WASTE_TYPES } from '@/floor/dictionary';
 
 
 const props = defineProps({
     operation: { type: Object, required: true },
     downtimeReasons: { type: Array, default: () => [] },
     shifts: { type: Array, default: () => [] },
+    // Whether this person may take a record off the "Not sent" list — a supervisor, not an operator.
+    canClearUnsent: { type: Boolean, default: false },
 });
 
 const { send, flush, pending, rejected, online, revision } = useOfflineQueue();
 
 /** বাংলা first, English second — the unit every figure on this screen is counted in. */
-const UNITS = { m: 'মিটার · m', pcs: 'পিস · pcs' };
-const unit = computed(() => UNITS[props.operation.unit] ?? props.operation.unit ?? '');
+const unit = computed(() => unitLabel(props.operation.unit));
+
+/** Kept with each record, never posted: what the "Not sent" screen needs to name it. */
+const meta = computed(() => ({
+    job: props.operation.job_card.number,
+    step: props.operation.name,
+    unit: props.operation.unit,
+}));
+
+const showNotSent = ref(false);
 
 /** What has been booked here and not reached the server yet. Shown in the tiles as pending. */
 const queued = computed(() => {
@@ -68,19 +80,9 @@ const wasteType = ref('');
  * weave defect are different problems with different fixes, and the figure alone cannot tell
  * a supervisor which one they have.
  *
- * The vocabulary is the one the table's own CHECK constraint allows.
+ * The vocabulary is the one the table's own CHECK constraint allows; its words are in the
+ * floor dictionary with everything else the terminal says.
  */
-const WASTE_TYPES = [
-    { value: 'setup', label: 'সেটআপ · Setup' },
-    { value: 'shade', label: 'শেড · Shade' },
-    { value: 'weave_defect', label: 'বুনন ত্রুটি · Weave defect' },
-    { value: 'print_defect', label: 'প্রিন্ট ত্রুটি · Print defect' },
-    { value: 'cutting', label: 'কাটিং · Cutting' },
-    { value: 'edge_trim', label: 'ধার · Edge trim' },
-    { value: 'damaged', label: 'ক্ষতিগ্রস্ত · Damaged' },
-    { value: 'expired', label: 'মেয়াদোত্তীর্ণ · Expired' },
-    { value: 'other', label: 'অন্যান্য · Other' },
-];
 const noOutputReason = ref('');
 /** `{ tone: 'sent' | 'queued', text }` — a record the server has, or one only this device has. */
 const message = ref(null);
@@ -91,7 +93,9 @@ const error = ref(null);
  * silence, so a server-side block looked exactly like a slow network.
  */
 function handled(result) {
-    error.value = result?.error ? result.message : null;
+    // Said from the dictionary by the code the server named it with — never the server's own
+    // English sentence, which carries rule numbers and was unreadable to the person it stopped.
+    error.value = result?.error ? refusal(result) : null;
 
     return !result?.error;
 }
@@ -102,18 +106,18 @@ function handled(result) {
  */
 function report(result, sentText) {
     message.value = result?.queued
-        ? { tone: 'queued', text: 'এই ডিভাইসে সেভ হয়েছে — সংযোগ ফিরলে পাঠানো হবে · Saved on this device — it will be sent when the connection is back' }
+        ? { tone: 'queued', text: guide('saved_on_device') }
         : { tone: 'sent', text: sentText };
 }
 
 function start() {
     return sending('start', async () => {
-        const result = await send(`/api/v1/operations/${props.operation.id}/start`, {}, keys.start);
+        const result = await send(`/api/v1/operations/${props.operation.id}/start`, {}, keys.start, meta.value);
 
         if (!handled(result)) return;
 
         keys.start = idempotencyKey();
-        report(result, 'শুরু হয়েছে · Started');
+        report(result, label('started'));
         if (!result?.queued) router.reload();
     });
 }
@@ -126,12 +130,12 @@ function log() {
             input_qty: Number(inputQty.value || 0),
             input_override_reason: overrideReason.value || null,
             waste_type: Number(wasteQty.value || 0) > 0 ? wasteType.value || null : null,
-        }, keys.log);
+        }, keys.log, meta.value);
 
         if (!handled(result)) return;
 
         keys.log = null;
-        report(result, 'রেকর্ড হয়েছে · Sent');
+        report(result, label('sent'));
         mode.value = null;
         goodQty.value = wasteQty.value = inputQty.value = overrideReason.value = wasteType.value = '';
         if (!result?.queued) router.reload();
@@ -142,10 +146,10 @@ function finish() {
     return sending('finish', async () => {
         const result = await send(`/api/v1/operations/${props.operation.id}/finish`, {
             no_output_reason: noOutputReason.value || null,
-        }, keys.finish);
+        }, keys.finish, meta.value);
 
         // Nothing booked: ask why rather than closing a shift's worth of machine time at zero.
-        if (result?.error && result.status === 422 && !noOutputReason.value) {
+        if (result?.error && result.status === 422 && !noOutputReason.value && (result.code ?? 'nothing_booked') === 'nothing_booked') {
             mode.value = 'no-output';
             error.value = null;
 
@@ -167,12 +171,12 @@ function logDowntime() {
             // The shifts were fetched for this screen and then never sent, so every stop landed
             // with no shift against it and no report could break downtime down by one.
             shift_id: shiftId.value ? Number(shiftId.value) : null,
-        }, keys.downtime);
+        }, keys.downtime, meta.value);
 
         if (!handled(result)) return;
 
         keys.downtime = null;
-        report(result, 'ডাউনটাইম রেকর্ড · Downtime sent');
+        report(result, label('downtime_sent'));
         mode.value = null;
         downtimeMinutes.value = '';
     });
@@ -204,7 +208,7 @@ async function sendNow() {
         <template #actions>
             <div class="flex flex-wrap items-center gap-3">
                 <span class="rounded-full px-4 py-2 text-lg font-bold" :class="online ? 'bg-emerald-600' : 'bg-amber-500 text-slate-900'">
-                    {{ online ? 'ONLINE' : 'OFFLINE' }}
+                    {{ label(online ? 'online' : 'offline') }}
                 </span>
 
                 <!--
@@ -218,7 +222,7 @@ async function sendNow() {
                     :disabled="sendingNow"
                     @click="sendNow"
                 >
-                    {{ pending }}টি অপেক্ষায় · {{ pending }} WAITING — {{ sendingNow ? '…' : 'এখন পাঠান · SEND NOW' }}
+                    {{ label('waiting_count', { n: pending }) }} — {{ sendingNow ? '…' : label('send_now') }}
                 </button>
 
                 <!--
@@ -227,10 +231,10 @@ async function sendNow() {
                     hunting for the browser's back button on a kiosk that has no chrome.
                 -->
                 <button
-                    class="rounded-full bg-white/10 px-5 py-2 text-lg font-bold hover:bg-white/20"
+                    class="min-h-11 rounded-full bg-white/10 px-5 py-2 text-lg font-bold hover:bg-white/20"
                     @click="router.visit('/floor/queue')"
                 >
-                    ← কাজের তালিকা · QUEUE
+                    ← {{ label('back_to_queue') }}
                 </button>
             </div>
         </template>
@@ -248,57 +252,75 @@ async function sendNow() {
             <!-- Refusals are loud on purpose: the operator is standing at a machine. -->
             <p v-if="error" role="alert" class="rounded-xl bg-rose-600 px-5 py-4 text-xl font-semibold">{{ error }}</p>
 
-            <p v-if="rejected" class="rounded-xl bg-amber-500 px-5 py-4 text-lg font-semibold text-slate-900">
-                {{ rejected }}টি রেকর্ড পাঠানো যায়নি — সুপারভাইজারকে জানান · {{ rejected }} record(s) not sent — call your supervisor
-            </p>
+<button
+                v-if="rejected && !showNotSent"
+                class="flex min-h-14 w-full flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-500 px-5 py-4 text-left text-lg font-semibold text-slate-900"
+                data-open-not-sent
+                @click="showNotSent = true; message = null"
+            >
+                <span>{{ label('not_sent_count', { n: rejected }) }}</span>
+                <span class="rounded-full bg-slate-900 px-4 py-1 text-white">{{ label('view') }}</span>
+            </button>
 
-            <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <NotSent v-if="showNotSent" :can-remove="canClearUnsent" :revision="revision" @close="showNotSent = false" />
+
+            <div v-show="!showNotSent" class="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <!--
                     Every figure says what it is counted in, and a figure that includes bookings
                     still waiting on this device says how much of it is waiting.
                 -->
                 <div class="rounded-2xl bg-white/5 p-4">
-                    <p class="text-sm text-slate-300">পরিকল্পিত · Planned</p>
+                    <p class="text-sm text-slate-300">{{ label('planned') }}</p>
                     <p class="text-3xl font-bold tnum">{{ Number(operation.planned_qty).toLocaleString() }}</p>
                     <p class="text-base text-slate-300">{{ unit }}</p>
                 </div>
                 <div class="rounded-2xl bg-white/5 p-4">
-                    <p class="text-sm text-slate-300">ইনপুট · Input</p>
+                    <p class="text-sm text-slate-300">{{ label('input') }}</p>
                     <p class="text-3xl font-bold tnum">{{ (Number(operation.input_qty) + queued.input).toLocaleString() }}</p>
                     <p class="text-base text-slate-300">{{ unit }}</p>
-                    <p v-if="queued.input > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ queued.input.toLocaleString() }} অপেক্ষায় · waiting</p>
+                    <p v-if="queued.input > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ queued.input.toLocaleString() }} {{ label('waiting_marker') }}</p>
                 </div>
                 <div class="rounded-2xl bg-white/5 p-4">
-                    <p class="text-sm text-slate-300">ভালো · Good</p>
+                    <p class="text-sm text-slate-300">{{ label('good') }}</p>
                     <p class="text-3xl font-bold tnum text-emerald-400">{{ (Number(operation.good_qty) + queued.good).toLocaleString() }}</p>
                     <p class="text-base text-slate-300">{{ unit }}</p>
-                    <p v-if="queued.good > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ queued.good.toLocaleString() }} অপেক্ষায় · waiting</p>
+                    <p v-if="queued.good > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ queued.good.toLocaleString() }} {{ label('waiting_marker') }}</p>
                 </div>
                 <div class="rounded-2xl bg-white/5 p-4">
-                    <p class="text-sm text-slate-300">নষ্ট · Waste</p>
+                    <p class="text-sm text-slate-300">{{ label('waste') }}</p>
                     <p class="text-3xl font-bold tnum text-rose-400">{{ (Number(operation.waste_qty) + queued.waste).toLocaleString() }}</p>
                     <p class="text-base text-slate-300">{{ unit }}</p>
-                    <p v-if="queued.waste > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ queued.waste.toLocaleString() }} অপেক্ষায় · waiting</p>
+                    <p v-if="queued.waste > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ queued.waste.toLocaleString() }} {{ label('waiting_marker') }}</p>
                 </div>
             </div>
 
             <!-- Gate 1, on the floor: the operator can see which artwork version this run prints -->
-            <p class="rounded-xl bg-white/5 px-4 py-3 text-lg text-slate-300">
-                আর্টওয়ার্ক · Artwork: <span class="font-bold text-white">{{ operation.job_card.artwork }}</span>
+            <p v-show="!showNotSent" class="rounded-xl bg-white/5 px-4 py-3 text-lg text-slate-300">
+                {{ label('artwork') }}: <span class="font-bold text-white">{{ operation.job_card.artwork }}</span>
             </p>
 
             <!-- Four buttons. That is the whole vocabulary. -->
-            <div v-if="!mode" class="grid grid-cols-2 gap-3">
-                <button
-                    class="floor-btn bg-emerald-500 disabled:opacity-30"
-                    :disabled="operation.status === 'in_progress' || busy !== null"
-                    @click="start"
+            <template v-if="showNotSent" />
+
+            <div v-else-if="!mode" class="grid grid-cols-2 gap-3">
+                <!--
+                    A step that is already running has nothing to start. The greyed-out START
+                    that sat here looked like a fault and gave no reason; this says what is true.
+                -->
+                <p
+                    v-if="operation.status === 'in_progress'"
+                    class="flex min-h-24 flex-col items-center justify-center rounded-2xl border-2 border-emerald-400 px-3 text-center"
+                    data-running
                 >
-                    {{ busy === 'start' ? '…' : 'শুরু · START' }}
+                    <span class="text-2xl font-bold text-emerald-300">{{ label('running') }}</span>
+                    <span class="text-base text-slate-300">{{ guide('running_hint') }}</span>
+                </p>
+                <button v-else class="floor-btn bg-emerald-500" :disabled="busy !== null" @click="start">
+                    {{ busy === 'start' ? '…' : label('start') }}
                 </button>
-                <button class="floor-btn bg-sky-500" :disabled="busy !== null" @click="open('log')">আউটপুট · OUTPUT</button>
-                <button class="floor-btn bg-amber-500 text-slate-900" :disabled="busy !== null" @click="open('downtime')">ডাউনটাইম · DOWNTIME</button>
-                <button class="floor-btn bg-slate-600" :disabled="busy !== null" @click="open('confirm-finish')">শেষ · FINISH</button>
+                <button class="floor-btn bg-sky-500" :disabled="busy !== null" @click="open('log')">{{ label('output') }}</button>
+                <button class="floor-btn bg-amber-500 text-slate-900" :disabled="busy !== null" @click="open('downtime')">{{ label('downtime') }}</button>
+                <button class="floor-btn bg-slate-600" :disabled="busy !== null" @click="open('confirm-finish')">{{ label('finish') }}</button>
             </div>
 
             <!--
@@ -308,40 +330,37 @@ async function sendNow() {
             -->
             <div v-else-if="mode === 'confirm-finish'" class="space-y-4">
                 <div class="rounded-2xl bg-amber-500 px-5 py-5 text-slate-900">
-                    <p class="text-2xl font-bold">এই ধাপ শেষ করবেন? · Finish this step?</p>
+                    <p class="text-2xl font-bold">{{ label('finish_question') }}</p>
                     <p class="mt-2 text-xl font-semibold">
                         {{ operation.job_card.number }} · {{ operation.name }}
                     </p>
                     <p class="mt-2 text-xl">
-                        ভালো · Good: <span class="font-bold tnum">{{ (Number(operation.good_qty) + queued.good).toLocaleString() }} {{ operation.unit }}</span>
+                        {{ label('good') }}: <span class="font-bold tnum">{{ (Number(operation.good_qty) + queued.good).toLocaleString() }} {{ unit }}</span>
                         &nbsp;·&nbsp;
-                        নষ্ট · Waste: <span class="font-bold tnum">{{ (Number(operation.waste_qty) + queued.waste).toLocaleString() }} {{ operation.unit }}</span>
+                        {{ label('waste') }}: <span class="font-bold tnum">{{ (Number(operation.waste_qty) + queued.waste).toLocaleString() }} {{ unit }}</span>
                     </p>
-                    <p class="mt-3 text-lg">
-                        শেষ করার পর এই টার্মিনাল থেকে এই ধাপে আর কিছু বুক করা যাবে না।
-                        · After this, nothing more can be booked on this step from the terminal.
-                    </p>
+                    <p class="mt-3 text-lg">{{ guide('finish_consequence') }}</p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
-                    <button class="floor-btn bg-slate-600" @click="mode = null">না, ফিরে যান · NO, GO BACK</button>
+                    <button class="floor-btn bg-slate-600" @click="mode = null">{{ label('finish_no') }}</button>
                     <button class="floor-btn bg-emerald-500 disabled:opacity-30" :disabled="busy !== null" @click="finish">
-                        {{ busy === 'finish' ? '…' : 'হ্যাঁ, শেষ · YES, FINISH' }}
+                        {{ busy === 'finish' ? '…' : label('finish_yes') }}
                     </button>
                 </div>
             </div>
 
             <div v-else-if="mode === 'log'" class="space-y-4">
                 <div>
-                    <label for="floor-input" class="mb-1 block text-xl">ইনপুট · Input received ({{ unit }})</label>
+                    <label for="floor-input" class="mb-1 block text-xl">{{ label('input_received') }} ({{ unit }})</label>
                     <input id="floor-input" v-model="inputQty" inputmode="decimal" class="w-full rounded-xl bg-white/10 px-5 py-5 text-4xl tnum text-white">
                 </div>
                 <div>
-                    <label for="floor-good" class="mb-1 block text-xl">ভালো · Good ({{ unit }})</label>
+                    <label for="floor-good" class="mb-1 block text-xl">{{ label('good') }} ({{ unit }})</label>
                     <input id="floor-good" v-model="goodQty" inputmode="decimal" class="w-full rounded-xl bg-white/10 px-5 py-5 text-4xl tnum text-white">
                 </div>
                 <div>
-                    <label for="floor-waste" class="mb-1 block text-xl">নষ্ট · Waste ({{ unit }})</label>
+                    <label for="floor-waste" class="mb-1 block text-xl">{{ label('waste') }} ({{ unit }})</label>
                     <input id="floor-waste" v-model="wasteQty" inputmode="decimal" class="w-full rounded-xl bg-white/10 px-5 py-5 text-4xl tnum text-white">
                 </div>
 
@@ -351,52 +370,49 @@ async function sendNow() {
                     downtime lists: gloves, no keyboard.
                 -->
                 <div v-if="Number(wasteQty) > 0">
-                    <label class="mb-1 block text-xl">নষ্টের কারণ · What was the waste?</label>
-                    <select v-model="wasteType" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
-                        <option value="" class="text-slate-900">— কারণ · reason —</option>
-                        <option v-for="type in WASTE_TYPES" :key="type.value" :value="type.value" class="text-slate-900">
-                            {{ type.label }}
+                    <label for="floor-waste-type" class="mb-1 block text-xl">{{ label('waste_what') }}</label>
+                    <select id="floor-waste-type" v-model="wasteType" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
+                        <option value="" class="text-slate-900">— {{ label('choose_reason') }} —</option>
+                        <option v-for="type in WASTE_TYPES" :key="type" :value="type" class="text-slate-900">
+                            {{ label(`waste_${type}`) }}
                         </option>
                     </select>
                 </div>
-                <p class="text-lg text-slate-400">
-                    এই ধাপে আর সর্বোচ্চ {{ Number(operation.remaining_allowance).toLocaleString() }} {{ unit }} বুক করা যাবে
-                    · At most {{ Number(operation.remaining_allowance).toLocaleString() }} {{ operation.unit }} more can be booked on this step
-                </p>
+                <p class="text-lg text-slate-300">{{ guide('allowance', { qty: Number(operation.remaining_allowance).toLocaleString(), unit }) }}</p>
 
                 <!-- Input beyond the plan is allowed, but it has to be explained (J3). -->
                 <div v-if="Number(inputQty) > Number(operation.planned_qty) * 1.03">
-                    <label class="mb-1 block text-xl">
-                        কারণ · Why more than {{ Number(operation.planned_qty).toLocaleString() }} {{ operation.unit }}?
+                    <label for="floor-override" class="mb-1 block text-xl">
+                        {{ guide('why_more', { qty: Number(operation.planned_qty).toLocaleString(), unit }) }}
                     </label>
-                    <input v-model="overrideReason" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
+                    <input id="floor-override" v-model="overrideReason" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
                 </div>
                 <div class="grid grid-cols-2 gap-3">
-                    <button class="floor-btn bg-slate-600" @click="mode = null">বাতিল · CANCEL</button>
+                    <button class="floor-btn bg-slate-600" @click="mode = null">{{ label('cancel') }}</button>
                     <button
                         class="floor-btn bg-emerald-500 disabled:opacity-30"
                         :disabled="busy !== null || (Number(wasteQty) > 0 && !wasteType)"
                         @click="log"
                     >
-                        {{ busy === 'log' ? '…' : 'সেভ · SAVE' }}
+                        {{ busy === 'log' ? '…' : label('save') }}
                     </button>
                 </div>
             </div>
 
             <div v-else-if="mode === 'no-output'" class="space-y-4">
                 <p class="rounded-xl bg-amber-500 px-5 py-4 text-xl font-semibold text-slate-900">
-                    কিছু রেকর্ড হয়নি · Nothing was booked against this operation.
+                    {{ guide('nothing_booked') }}
                 </p>
 
                 <div>
-                    <label class="mb-1 block text-xl">কারণ · Reason</label>
-                    <input v-model="noOutputReason" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
+                    <label for="floor-no-output" class="mb-1 block text-xl">{{ label('reason') }}</label>
+                    <input id="floor-no-output" v-model="noOutputReason" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
-                    <button class="floor-btn bg-slate-600" @click="mode = null">বাতিল · CANCEL</button>
+                    <button class="floor-btn bg-slate-600" @click="mode = null">{{ label('cancel') }}</button>
                     <button class="floor-btn bg-emerald-500 disabled:opacity-30" :disabled="!noOutputReason || busy !== null" @click="finish">
-                        {{ busy === 'finish' ? '…' : 'শেষ · FINISH' }}
+                        {{ busy === 'finish' ? '…' : label('finish') }}
                     </button>
                 </div>
             </div>
@@ -406,8 +422,8 @@ async function sendNow() {
                     Native picker on purpose: the floor terminal is touched with gloves and has
                     no keyboard, so the OS wheel beats a filter box the operator cannot type in.
                 -->
-                <select v-model="downtimeReasonId" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
-                    <option value="" class="text-slate-900">— কারণ · reason —</option>
+                <select v-model="downtimeReasonId" :aria-label="label('reason')" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
+                    <option value="" class="text-slate-900">— {{ label('choose_reason') }} —</option>
                     <option v-for="reason in downtimeReasons" :key="reason.id" :value="reason.id" class="text-slate-900">
                         {{ reason.name }}
                     </option>
@@ -415,23 +431,24 @@ async function sendNow() {
                 <input
                     v-model="downtimeMinutes"
                     inputmode="numeric"
-                    placeholder="মিনিট · minutes"
+                    :placeholder="label('minutes')"
+                    :aria-label="label('minutes')"
                     class="w-full rounded-xl bg-white/10 px-5 py-5 text-4xl tnum text-white"
                 >
-                <select v-if="shifts.length" v-model="shiftId" class="w-full rounded-xl bg-white/10 px-5 py-4 text-2xl text-white">
-                    <option value="" class="text-slate-900">— শিফট · shift —</option>
+                <select v-if="shifts.length" v-model="shiftId" :aria-label="label('choose_shift')" class="w-full rounded-xl bg-white/10 px-5 py-4 text-2xl text-white">
+                    <option value="" class="text-slate-900">— {{ label('choose_shift') }} —</option>
                     <option v-for="shift in shifts" :key="shift.id" :value="shift.id" class="text-slate-900">
                         {{ shift.name }}
                     </option>
                 </select>
                 <div class="grid grid-cols-2 gap-3">
-                    <button class="floor-btn bg-slate-600" @click="mode = null">বাতিল · CANCEL</button>
+                    <button class="floor-btn bg-slate-600" @click="mode = null">{{ label('cancel') }}</button>
                     <button
                         class="floor-btn bg-amber-500 text-slate-900 disabled:opacity-30"
                         :disabled="!downtimeReasonId || !downtimeMinutes || busy !== null"
                         @click="logDowntime"
                     >
-                        {{ busy === 'downtime' ? '…' : 'সেভ · SAVE' }}
+                        {{ busy === 'downtime' ? '…' : label('save') }}
                     </button>
                 </div>
             </div>

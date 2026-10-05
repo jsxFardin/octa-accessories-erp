@@ -30,7 +30,7 @@ class FloorQueueController extends Controller
                 'jobCard:id,number,product_id,colourway,planned_qty,due_date,factory_unit_id',
                 'jobCard.product:id,code,name',
                 'machine:id,code,name',
-                'routingOperation:id,allow_parallel',
+                'routingOperation:id,allow_parallel,consumes_web',
             ])
             ->whereHas(
                 'jobCard',
@@ -67,6 +67,8 @@ class FloorQueueController extends Controller
                 'code' => $op->code,
                 'name' => $op->name,
                 'status' => $op->status,
+                // Metres or pieces — the queue card prints progress, and a bare figure is not one.
+                'unit' => $op->unit(),
                 'planned_qty' => (float) $op->planned_qty,
                 'input_qty' => (float) $op->input_qty,
                 'good_qty' => (float) $op->good_qty,

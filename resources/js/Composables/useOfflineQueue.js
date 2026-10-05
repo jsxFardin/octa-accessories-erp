@@ -34,6 +34,71 @@ function readRejected() {
     }
 }
 
+/** Told when the rejected list changes, so every screen's count follows a removal. */
+const CHANGED = 'octa:offline-queue-changed';
+
+function announce() {
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(CHANGED));
+}
+
+const ACTIONS = { start: 'start', log: 'log', finish: 'finish', downtime: 'downtime' };
+
+/**
+ * One rejected record, in the shape the "Not sent" screen shows it.
+ *
+ * The list used to be a count and nothing else: "2 records not sent — call your supervisor",
+ * and a supervisor who came had no way to learn which job, what quantity or why. Everything
+ * needed to book it by hand at the desk is read back out here. Records filed before the
+ * terminal started keeping `meta` still show their action, figures and time.
+ */
+export function describeRejected(entry) {
+    const match = /\/operations\/(\d+)\/(\w+)$/.exec(entry.url ?? '');
+    let body = {};
+
+    try {
+        body = typeof entry.body === 'string' && entry.body !== '' ? JSON.parse(entry.body) : (entry.body ?? {});
+    } catch {
+        body = {};
+    }
+
+    return {
+        key: entry.key,
+        operationId: match ? Number(match[1]) : null,
+        action: ACTIONS[match?.[2]] ?? 'log',
+        occurredAt: entry.occurredAt,
+        rejectedAt: entry.rejectedAt,
+        expired: entry.reason === 'expired',
+        status: entry.status ?? 0,
+        code: body?.code ?? null,
+        params: body?.params ?? {},
+        payload: entry.payload ?? {},
+        job: entry.meta?.job ?? null,
+        step: entry.meta?.step ?? null,
+        unit: entry.meta?.unit ?? null,
+        operator: entry.meta?.operator ?? null,
+    };
+}
+
+/** Every record this device could not send, oldest first. */
+export function rejectedRecords(list = readRejected()) {
+    return list
+        .map(describeRejected)
+        .sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)));
+}
+
+/**
+ * Takes one record off the rejected list — after a supervisor has booked it at the desk.
+ * This is the only place a record leaves the device without the server having accepted it.
+ */
+export function removeRejected(key, rejectedAt) {
+    const kept = readRejected().filter((entry) => !(entry.key === key && entry.rejectedAt === rejectedAt));
+
+    localStorage.setItem(REJECTED_KEY, JSON.stringify(kept));
+    announce();
+
+    return kept.length;
+}
+
 function reject(entry, status, body, reason = 'refused') {
     const rejected = readRejected();
     rejected.push({ ...entry, status, body, reason, rejectedAt: new Date().toISOString() });
@@ -195,15 +260,19 @@ export function useOfflineQueue() {
      * @param {string} url
      * @param {object} payload
      * @param {string|null} key  from `idempotencyKey()`, made when the form was opened
+     * @param {object|null} meta  `{ job, step, unit }` — shown if the record cannot be sent
      * @returns {Promise<object>} `{ queued: true }` when it is saved on this device only,
      *   `{ error: true, … }` when the server refused it, otherwise the server's answer.
      */
-    async function send(url, payload, key = null) {
+    async function send(url, payload, key = null, meta = null) {
         const entry = {
             url,
             payload,
             key: key ?? idempotencyKey(),
             occurredAt: new Date().toISOString(),
+            // Never posted. Kept so that a record which ends up on the "Not sent" screen can
+            // say which job and step it was for, in what unit, and who booked it.
+            meta: { ...(meta ?? {}), operator: session()?.employee_name ?? null },
         };
 
         if (!navigator.onLine) {
@@ -228,6 +297,10 @@ export function useOfflineQueue() {
                 return {
                     error: true,
                     status: response.status,
+                    // What the floor rules named it, and the figures behind it — the terminal
+                    // says the sentence itself, in both languages (`floor/dictionary.js`).
+                    code: body.code ?? null,
+                    params: body.params ?? {},
                     message: body.message ?? `The server refused this (HTTP ${response.status}).`,
                 };
             }
@@ -251,9 +324,14 @@ export function useOfflineQueue() {
         online.value = false;
     }
 
+    function onChanged() {
+        sync();
+    }
+
     onMounted(() => {
         window.addEventListener('online', onOnline);
         window.addEventListener('offline', onOffline);
+        window.addEventListener(CHANGED, onChanged);
         flush();
 
         // `online` only fires when the browser's own idea of the network changes. A server that
@@ -266,6 +344,7 @@ export function useOfflineQueue() {
     onUnmounted(() => {
         window.removeEventListener('online', onOnline);
         window.removeEventListener('offline', onOffline);
+        window.removeEventListener(CHANGED, onChanged);
         clearInterval(retryTimer);
     });
 

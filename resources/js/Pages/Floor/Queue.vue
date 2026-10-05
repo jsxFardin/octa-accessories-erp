@@ -4,6 +4,8 @@ import { Head, router } from '@inertiajs/vue3';
 import FloorLayout from '@/Layouts/FloorLayout.vue';
 import { useOfflineQueue } from '@/Composables/useOfflineQueue';
 import { clearFloorCache } from '@/floor/serviceWorker';
+import NotSent from '@/Components/Floor/NotSent.vue';
+import { guide, label, unitLabel } from '@/floor/dictionary';
 
 
 const props = defineProps({
@@ -13,6 +15,8 @@ const props = defineProps({
     // recovers on the next page load instead of bouncing back to the badge screen.
     deviceToken: { type: String, default: null },
     operator: { type: String, default: null },
+    // Whether this person may take a record off the "Not sent" list — a supervisor, not an operator.
+    canClearUnsent: { type: Boolean, default: false },
 });
 
 const operations = ref([]);
@@ -20,7 +24,28 @@ const loading = ref(true);
 const error = ref(null);
 /** When the queue on screen was last fetched from the server, if it did not come from one. */
 const cachedAt = ref(null);
-const { pending, rejected, online, flush } = useOfflineQueue();
+const { pending, rejected, online, flush, revision } = useOfflineQueue();
+
+/** The "Not sent" list, shown in place of the queue. */
+const showNotSent = ref(false);
+
+/** How far along a step is, for the bar on its card. Never past the end of the bar. */
+function progress(op) {
+    const planned = Number(op.planned_qty);
+
+    return planned > 0 ? Math.min(100, Math.round((Number(op.good_qty) / planned) * 100)) : 0;
+}
+
+/** dd/mm — the year is this one, and the card has no room for it. */
+function dueDate(iso) {
+    const [, month, day] = String(iso ?? '').split('-');
+
+    return day ? `${day}/${month}` : null;
+}
+
+function overdue(iso) {
+    return Boolean(iso) && iso < new Date().toISOString().slice(0, 10);
+}
 
 const cachedTime = computed(() => (cachedAt.value
     ? new Date(cachedAt.value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -54,7 +79,7 @@ async function load() {
         // on a kiosk means this terminal has never been opened here with a connection. It
         // used to leave `loading` true, so the screen sat on an ellipsis for the rest of the
         // shift with no way to tell that from a slow queue.
-        error.value = 'সংযোগ নেই · No connection, and no saved queue on this device. Reconnect, or ask your supervisor for the job card.';
+        error.value = 'no_saved_queue';
         loading.value = false;
 
         return;
@@ -68,7 +93,7 @@ async function load() {
     }
 
     if (!response.ok) {
-        error.value = 'কাজের তালিকা আসেনি · The work queue could not be loaded. Call your supervisor.';
+        error.value = 'queue_failed';
         loading.value = false;
 
         return;
@@ -93,7 +118,7 @@ async function sendNow() {
 }
 
 const ending = ref(false);
-/** Why the shift could not be ended, when it could not. */
+/** Why the shift could not be ended, when it could not: `{ key, params }` for the dictionary. */
 const endBlocked = ref(null);
 
 /**
@@ -114,14 +139,14 @@ async function endShift() {
     await flush();
 
     if (pending.value > 0) {
-        endBlocked.value = `${pending.value}টি রেকর্ড এখনো পাঠানো হয়নি — এখন শিফট শেষ করা যাবে না। সংযোগ ফিরলে আবার চেষ্টা করুন। · ${pending.value} record(s) not sent yet — the shift cannot be ended. Try again when the connection is back.`;
+        endBlocked.value = { key: 'end_blocked_pending', params: { n: pending.value } };
         ending.value = false;
 
         return;
     }
 
     if (!navigator.onLine) {
-        endBlocked.value = 'সংযোগ নেই — সংযোগ ফিরলে শিফট শেষ করুন। · No connection — end the shift when the connection is back.';
+        endBlocked.value = { key: 'end_blocked_offline', params: {} };
         ending.value = false;
 
         return;
@@ -147,7 +172,7 @@ onMounted(load);
     <FloorLayout>
         <Head title="Work queue" />
 
-        <template #title>কাজের তালিকা · Work queue</template>
+        <template #title>{{ label('work_queue') }}</template>
         <template #subtitle>{{ operator }}<span v-if="machineCode"> · {{ machineCode }}</span></template>
 
         <template #actions>
@@ -157,7 +182,7 @@ onMounted(load);
                     class="rounded-full px-4 py-2 text-lg font-bold"
                     :class="online ? 'bg-emerald-600' : 'bg-amber-500 text-slate-900'"
                 >
-                    {{ online ? 'ONLINE' : 'OFFLINE' }}
+                    {{ label(online ? 'online' : 'offline') }}
                 </span>
 
                 <!-- Shown whenever anything is waiting, whatever the browser thinks of the link. -->
@@ -167,26 +192,38 @@ onMounted(load);
                     :disabled="sendingNow"
                     @click="sendNow"
                 >
-                    {{ pending }}টি অপেক্ষায় · {{ pending }} WAITING — {{ sendingNow ? '…' : 'এখন পাঠান · SEND NOW' }}
+                    {{ label('waiting_count', { n: pending }) }} — {{ sendingNow ? '…' : label('send_now') }}
                 </button>
 
                 <button
-                    class="rounded-full bg-white/10 px-5 py-2 text-lg font-bold hover:bg-white/20 disabled:opacity-60"
+                    class="min-h-11 rounded-full bg-white/10 px-5 py-2 text-lg font-bold hover:bg-white/20 disabled:opacity-60"
                     :disabled="ending"
                     @click="endShift"
                 >
-                    {{ ending ? '…' : 'শিফট শেষ · END SHIFT' }}
+                    {{ ending ? '…' : label('end_shift') }}
                 </button>
             </div>
         </template>
 
-        <p v-if="error" class="mb-4 rounded-xl bg-rose-600 px-5 py-4 text-xl font-semibold">{{ error }}</p>
+        <p v-if="error" role="alert" class="mb-4 rounded-xl bg-rose-600 px-5 py-4 text-xl font-semibold">{{ guide(error) }}</p>
 
-        <p v-if="rejected" class="mb-4 rounded-xl bg-amber-500 px-5 py-4 text-lg font-semibold text-slate-900">
-            {{ rejected }}টি রেকর্ড পাঠানো যায়নি — সুপারভাইজারকে জানান · {{ rejected }} record(s) not sent — call your supervisor
+        <!--
+            A count that opens. It used to be a sentence with nothing behind it, and the
+            supervisor who was called could not find out which records it meant.
+        -->
+        <button
+            v-if="rejected && !showNotSent"
+            class="mb-4 flex min-h-14 w-full flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-500 px-5 py-4 text-left text-lg font-semibold text-slate-900"
+            data-open-not-sent
+            @click="showNotSent = true"
+        >
+            <span>{{ label('not_sent_count', { n: rejected }) }}</span>
+            <span class="rounded-full bg-slate-900 px-4 py-1 text-white">{{ label('view') }}</span>
+        </button>
+
+        <p v-if="endBlocked" role="alert" class="mb-4 rounded-xl bg-amber-500 px-5 py-4 text-xl font-semibold text-slate-900">
+            {{ guide(endBlocked.key, endBlocked.params) }}
         </p>
-
-        <p v-if="endBlocked" role="alert" class="mb-4 rounded-xl bg-amber-500 px-5 py-4 text-xl font-semibold text-slate-900">{{ endBlocked }}</p>
 
         <!--
             Answered from the device's own cache because the link was down. Said plainly: the
@@ -197,47 +234,80 @@ onMounted(load);
             v-if="cachedAt"
             class="mb-4 rounded-xl bg-amber-500 px-5 py-4 text-lg font-semibold text-slate-900"
         >
-            সংরক্ষিত তালিকা · Saved list from {{ cachedTime }} — not live. New or cancelled work will not
-            show until the connection returns.
+            {{ guide('saved_list', { time: cachedTime }) }}
         </p>
 
-        <p v-if="loading" class="text-2xl text-slate-400">…</p>
+        <NotSent v-if="showNotSent" :can-remove="canClearUnsent" :revision="revision" @close="showNotSent = false" />
+
+        <p v-else-if="loading" class="text-2xl text-slate-400">…</p>
 
         <div v-else-if="operations.length === 0" class="rounded-2xl bg-white/5 px-6 py-10 text-center">
-            <p class="text-2xl text-slate-300">কোনো কাজ নেই · Nothing to run</p>
+            <p class="text-2xl text-slate-300">{{ label('nothing_to_run') }}</p>
             <!--
                 An empty queue has three ordinary causes and no way to tell them apart from the
                 machine. Naming them stops the operator concluding the terminal is broken.
             -->
-            <p class="mx-auto mt-3 max-w-lg text-lg leading-relaxed text-slate-400">
-                Either nothing is scheduled for
-                <span class="font-semibold">{{ machineCode ?? 'your unit' }}</span> right now, the job cards for it
-                are not released yet, or the step before this one has not finished. Ask your supervisor to check the
-                planning board.
+            <p class="mx-auto mt-3 max-w-lg text-lg leading-relaxed text-slate-300">
+                {{ guide('queue_empty_why', { machine: machineCode ?? label('any_machine') }) }}
             </p>
         </div>
 
         <ul v-else class="space-y-3">
-            <li
-                v-for="op in operations"
-                :key="op.operation_id"
-                class="rounded-2xl bg-white/5 p-5 transition hover:bg-white/10"
-                @click="router.visit(`/floor/operations/${op.operation_id}`)"
-            >
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <p class="text-3xl font-bold">{{ op.job_card.number }}</p>
-                        <p class="text-xl text-slate-300">
-                            {{ op.job_card.product_code }} · {{ op.name }}
-                            <span v-if="op.job_card.colourway"> · {{ op.job_card.colourway }}</span>
-                        </p>
+            <!--
+                A real button inside each card: the whole card used to be a click handler on a
+                list item, which a keyboard or a screen reader could not reach at all.
+            -->
+            <li v-for="op in operations" :key="op.operation_id">
+                <button
+                    class="block w-full rounded-2xl bg-white/5 p-5 text-left transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white"
+                    :class="op.status === 'in_progress' ? 'ring-2 ring-emerald-400' : ''"
+                    data-queue-card
+                    @click="router.visit(`/floor/operations/${op.operation_id}`)"
+                >
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="flex flex-wrap items-center gap-3 text-3xl font-bold">
+                                {{ op.job_card.number }}
+                                <!-- Which of these is already on a machine: the first thing a relieving operator asks. -->
+                                <span
+                                    class="rounded-full px-3 py-1 text-base font-bold"
+                                    :class="op.status === 'in_progress' ? 'bg-emerald-500 text-white' : 'bg-white/10 text-slate-200'"
+                                >
+                                    {{ label(op.status === 'in_progress' ? 'running' : 'not_started') }}
+                                </span>
+                            </p>
+                            <p class="text-xl text-slate-300">
+                                {{ op.job_card.product_code }} · {{ op.name }}
+                                <span v-if="op.job_card.colourway"> · {{ op.job_card.colourway }}</span>
+                            </p>
+                        </div>
+
+                        <div class="text-right">
+                            <p class="text-lg text-slate-300">{{ op.machine ?? '—' }}</p>
+                            <p
+                                v-if="dueDate(op.job_card.due_date)"
+                                class="text-lg font-semibold"
+                                :class="overdue(op.job_card.due_date) ? 'text-rose-300' : 'text-slate-200'"
+                            >
+                                {{ label('due') }}: <span class="tnum">{{ dueDate(op.job_card.due_date) }}</span>
+                            </p>
+                        </div>
                     </div>
 
-                    <div class="text-right">
-                        <p class="text-2xl font-bold tnum">{{ Number(op.planned_qty).toLocaleString() }}</p>
-                        <p class="text-lg text-slate-400">{{ op.machine ?? '—' }}</p>
+                    <!-- Made so far against the plan, with the unit: a bare "5,000" said neither. -->
+                    <div class="mt-4">
+                        <p class="flex flex-wrap items-baseline justify-between gap-x-4 text-xl">
+                            <span>
+                                <span class="font-bold tnum">{{ Number(op.good_qty).toLocaleString() }}</span>
+                                <span class="text-slate-300"> / {{ Number(op.planned_qty).toLocaleString() }} {{ unitLabel(op.unit) }}</span>
+                            </span>
+                            <span class="font-bold tnum">{{ progress(op) }}%</span>
+                        </p>
+                        <div class="mt-2 h-3 overflow-hidden rounded-full bg-white/10" role="presentation">
+                            <div class="h-full rounded-full bg-emerald-400" :style="{ width: `${progress(op)}%` }" />
+                        </div>
                     </div>
-                </div>
+                </button>
             </li>
         </ul>
     </FloorLayout>

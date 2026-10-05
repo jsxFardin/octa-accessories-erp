@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { registerFloorServiceWorker, warmQueue } from '@/floor/serviceWorker';
+import { guide, showEnglish, toggleEnglish } from '@/floor/dictionary';
 
 /**
  * The shop-floor layout. Nothing here is shared with AppLayout on purpose: gloves, glare and
@@ -71,7 +72,22 @@ onUnmounted(() => stopListening.forEach((stop) => stop()));
                 <h1 class="text-2xl font-bold"><slot name="title" /></h1>
                 <p class="text-sm text-slate-300"><slot name="subtitle" /></p>
             </div>
-            <slot name="actions" />
+            <div class="flex flex-wrap items-center gap-3">
+                <slot name="actions" />
+                <!--
+                    Long guidance is Bangla. This switches it — the whole terminal, on this
+                    device — for the supervisor or engineer reading over a shoulder. It names
+                    the language it switches *to*, in that language.
+                -->
+                <button
+                    class="min-h-11 rounded-full border border-white/20 px-4 py-2 text-base font-semibold text-slate-200 hover:bg-white/10"
+                    :aria-pressed="showEnglish"
+                    data-language-toggle
+                    @click="toggleEnglish"
+                >
+                    {{ showEnglish ? 'বাংলা' : 'English' }}
+                </button>
+            </div>
         </header>
 
         <div
@@ -93,8 +109,7 @@ onUnmounted(() => stopListening.forEach((stop) => stop()));
             v-if="unreachable"
             class="mx-6 mt-4 rounded-xl bg-amber-500 px-5 py-4 text-lg font-semibold text-slate-900"
         >
-            স্ক্রিন খোলা যায়নি · That screen could not be opened — no connection, and it is not saved on this
-            device. Work you have already booked is safe and will be sent when the link returns.
+            {{ guide('screen_unreachable') }}
         </div>
 
         <main class="p-6">
