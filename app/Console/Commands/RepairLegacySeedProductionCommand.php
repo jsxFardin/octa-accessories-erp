@@ -236,7 +236,7 @@ class RepairLegacySeedProductionCommand extends Command
                     'issued_on' => now()->toDateString(),
                     'issue_type' => 'issue',
                     'status' => 'posted',
-                    'remarks' => 'Recorded retrospectively: this job produced before BR-48 required the issue.',
+                    'remarks' => 'Recorded retrospectively: this job produced before a material issue was required.',
                 ]);
 
                 $lineNo = 0;

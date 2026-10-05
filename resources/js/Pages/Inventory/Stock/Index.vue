@@ -64,7 +64,7 @@ const columns = [
 
                 <ul v-if="reconciliation.mismatched.length" class="mt-2 space-y-0.5 font-mono text-xs">
                     <li v-for="row in reconciliation.mismatched" :key="row.lot_id">
-                        {{ row.lot_no }}: cached {{ qty(row.cached_qty) }} vs ledger {{ qty(row.ledger_qty) }}
+                        {{ row.lot_no }}: shown {{ qty(row.cached_qty) }}, movements add up to {{ qty(row.ledger_qty) }}
                     </li>
                 </ul>
             </div>
@@ -85,7 +85,7 @@ const columns = [
                         <EmptyState
                             icon="stock"
                             title="No stock on hand"
-                            description="Balances are derived from the append-only ledger — they are never edited directly."
+                            description="Balances are worked out from stock movements. They are never edited directly."
                             :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
                         />
                     </template>

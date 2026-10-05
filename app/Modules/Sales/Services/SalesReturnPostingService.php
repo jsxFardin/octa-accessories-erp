@@ -77,7 +77,7 @@ class SalesReturnPostingService
 
                 if ($shipped <= 0.000001) {
                     throw TransitionDenied::guard('SR-5', sprintf(
-                        'Lot %s was never dispatched on the challan behind this invoice.',
+                        'Lot %s was never dispatched on the delivery note behind this invoice.',
                         $lot->lot_no,
                     ));
                 }

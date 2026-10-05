@@ -75,7 +75,7 @@ const props = defineProps({
                 <dl class="space-y-2 text-sm">
                     <div class="flex justify-between"><dt class="text-ink-500">Cached balance</dt><dd class="tnum">{{ qty(lot.balance_qty) }}</dd></div>
                     <div class="flex justify-between">
-                        <dt class="text-ink-500">Ledger balance</dt>
+                        <dt class="text-ink-500">Balance from movements</dt>
                         <!-- I3: the ledger is the truth; a difference here is a posting bug -->
                         <dd class="tnum font-medium" :class="Math.abs(ledgerBalance - Number(lot.balance_qty)) > 0.000001 ? 'text-rose-600' : 'text-emerald-700'">
                             {{ qty(ledgerBalance) }}
@@ -120,8 +120,8 @@ const props = defineProps({
             <Card class="lg:col-span-1" title="Certification" rule="Gate 2 · I5">
                 <p v-if="lot.cert_scheme" class="text-sm text-ink-700">
                     This lot carries a <strong>{{ lot.cert_scheme }}</strong> claim of
-                    <strong>{{ lot.cert_claim_pct }}%</strong>, inherited from its GRN line. Output made from
-                    it dilutes by consumption-weighted average and rounds down.
+                    <strong>{{ lot.cert_claim_pct }}%</strong>, taken from the goods receipt it came in on. Output made from
+                    it carries a lower claim, in proportion to how much of it is used, rounded down.
                 </p>
                 <p v-else class="text-sm text-ink-500">
                     No certification claim. Output made from this lot cannot carry one — nothing downstream
@@ -129,7 +129,7 @@ const props = defineProps({
                 </p>
             </Card>
 
-            <Card class="lg:col-span-3" title="Stock ledger" rule="I1 · I3" subtitle="Append-only: corrections are reversing entries, never edits" :padded="false">
+            <Card class="lg:col-span-3" title="Stock movements" rule="I1 · I3" subtitle="Movements are never edited. A correction is a new entry that reverses the wrong one." :padded="false">
                 <DataTable
                     :columns="[
                         { key: 'occurred_at', label: 'When' },

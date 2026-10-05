@@ -320,7 +320,7 @@ it('makes a posted return immutable — it cannot be cancelled', function (): vo
     $this->actingAs($this->dispatch);
 
     expect(fn () => app(SalesReturnStateMachine::class)->transition($return, SalesReturn::CANCELLED))
-        ->toThrow(TransitionDenied::class, 'Sales return is posted, so it cannot be changed to cancelled.');
+        ->toThrow(TransitionDenied::class, 'Sales return is posted, so it cannot be cancelled.');
 });
 
 it('lets a draft or approved return be cancelled, and frees the quantity again', function (): void {

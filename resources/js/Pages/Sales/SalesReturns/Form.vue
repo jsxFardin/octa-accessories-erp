@@ -177,7 +177,7 @@ const selectedInvoice = computed(
                     <thead class="border-b border-slate-200 text-xs text-ink-500">
                         <tr>
                             <th class="px-2 py-2 text-left">#</th>
-                            <th class="px-2 py-2 text-left">Material</th>
+                            <th class="px-2 py-2 text-left">Product</th>
                             <th class="px-2 py-2 text-right">Invoiced</th>
                             <th class="px-2 py-2 text-right">Returned</th>
                             <th class="px-2 py-2 text-right">Returnable</th>

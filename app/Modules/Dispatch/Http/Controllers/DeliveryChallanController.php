@@ -88,7 +88,7 @@ class DeliveryChallanController extends Controller
         $packingList = PackingList::query()->findOrFail($data['packing_list_id']);
 
         if ($packingList->status !== 'packed') {
-            return back()->with('error', 'D3: only a packed packing list can raise a challan (this one is '.Plain::status($packingList->status).').');
+            return back()->with('error', 'D3: only a packed packing list can raise a delivery note (this one is '.Plain::status($packingList->status).').');
         }
 
         $existing = DeliveryChallan::query()
@@ -97,7 +97,7 @@ class DeliveryChallanController extends Controller
             ->exists();
 
         if ($existing) {
-            return back()->with('error', 'A challan already exists for this packing list.');
+            return back()->with('error', 'A delivery note already exists for this packing list.');
         }
 
         // D4 — a delivery note is a document about a destination. The customer and the
@@ -170,7 +170,7 @@ class DeliveryChallanController extends Controller
 
         return redirect()
             ->route('delivery-challans.show', $challan)
-            ->with('success', 'Challan drafted. Issuing it posts the dispatch and moves delivered quantities.');
+            ->with('success', 'Delivery note drafted. Stock leaves the store, and the order is updated, when it is issued.');
     }
 
     public function show(DeliveryChallan $deliveryChallan): Response
@@ -247,6 +247,6 @@ class DeliveryChallanController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Challan {$deliveryChallan->refresh()->number} is now ".Plain::status($data['to']).'.');
+        return back()->with('success', "Delivery note {$deliveryChallan->refresh()->number} is now ".Plain::status($data['to']).'.');
     }
 }

@@ -110,7 +110,9 @@ it('br52: refuses the waiver from a user without the permission', function (): v
         $this->fail('The waiver should have been refused.');
     } catch (ValidationException $e) {
         expect(implode(' ', $e->errors()['material_waiver_reason'] ?? []))
-            ->toContain('job_card.waive_material');
+            // Said as what the permission allows, not by its key.
+            ->toContain('needs permission to release a job card without all its material')
+            ->not->toContain('job_card.waive_material');
     }
 
     expect(DB::table('fg_receipts')->where('job_card_id', $this->jobCard->id)->count())->toBe(0);

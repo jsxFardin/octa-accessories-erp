@@ -151,7 +151,9 @@ const orderCurrency = computed(() => props.purchaseOrder?.currency ?? baseCurren
                 </DataTable>
             </Card>
 
-            <Card title="Lots created" rule="I1" :subtitle="`Each line became a barcoded lot in stock, valued in ${baseCurrency()}`" :padded="false">
+            <Card :title="grn.status === 'draft' ? 'Lots' : 'Lots created'" rule="I1" :subtitle="grn.status === 'draft'
+                    ? 'None yet. Posting this receipt will turn each line into a lot in stock.'
+                    : `Each line became a lot in stock, valued in ${baseCurrency()}. Print lot labels to put a barcode on each.`" :padded="false">
                 <DataTable
                     :columns="[
                         { key: 'lot_no', label: 'Lot' },

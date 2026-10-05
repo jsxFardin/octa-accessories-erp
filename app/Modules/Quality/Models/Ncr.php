@@ -145,7 +145,7 @@ class Ncr extends Model
             'rework' => [
                 'kind' => 'rework',
                 'status' => 'applied',
-                'detail' => 'Rework was applied at QC rejection: the flagged operation reopened through the job-card state machine.',
+                'detail' => 'Rework was applied at QC rejection: the flagged step was reopened on the job card.',
             ],
             'scrap' => [
                 'kind' => 'scrap',

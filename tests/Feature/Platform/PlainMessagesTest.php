@@ -35,20 +35,47 @@ it('shows a validation message without its rule number, under the same field', f
         ->where('errors.web_width_mm', fn (string $message): bool => str_starts_with($message, 'A web width is needed') || str_starts_with($message, 'Enter a web width')));
 });
 
-it('says a refused status change in words', function (): void {
-    expect(TransitionDenied::notAllowed('PurchaseOrder', 'pending_approval', 'received')->getMessage())
-        ->toBe('Purchase order is pending approval, so it cannot be changed to received.')
-        ->and(TransitionDenied::notAllowed('JobCard', 'qc_pending', 'released')->getMessage())
-        ->toBe('Job card is QC pending, so it cannot be changed to released.');
-});
+it('says a refused status change with the verb for where it was going', function (string $class, string $from, string $to, string $sentence): void {
+    expect(TransitionDenied::notAllowed($class, $from, $to)->getMessage())->toBe($sentence);
+})->with([
+    ['PurchaseOrder', 'pending_approval', 'received', 'Purchase order is pending approval, so it cannot be received.'],
+    ['JobCard', 'qc_pending', 'released', 'Job card is QC pending, so it cannot be released.'],
+    ['SalesReturn', 'posted', 'cancelled', 'Sales return is posted, so it cannot be cancelled.'],
+    ['Quotation', 'accepted', 'sent', 'Quotation is accepted, so it cannot be marked as sent.'],
+    ['DeliveryChallan', 'draft', 'in_transit', 'Delivery note is draft, so it cannot be marked as in transit.'],
+    ['JobCard', 'draft', 'on_hold', 'Job card is draft, so it cannot be put on hold.'],
+    ['Ncr', 'open', 'investigating', 'NCR is open, so it cannot be put under investigation.'],
+    // A status with no verb of its own: the fallback names it, capitalised.
+    ['Ncr', 'open', 'preventive', 'NCR is open, so it cannot be moved to Preventive.'],
+    ['TestReport', 'draft', 'archived_copy', 'Test report is draft, so it cannot be moved to Archived copy.'],
+]);
 
-it('says a missing permission as the action it allows, and keeps the key for the logs', function (): void {
-    $denied = TransitionDenied::notPermitted('job_card.close');
+it('says a missing permission as an action, with its article or plural', function (string $key, string $action): void {
+    $denied = TransitionDenied::notPermitted($key);
 
-    expect($denied->permission)->toBe('job_card.close')
-        ->and($denied->getMessage())->toStartWith('You do not have permission to ')
-        ->and($denied->getMessage())->not->toContain('job_card.close')->not->toContain('[');
-});
+    expect($denied->permission)->toBe($key)
+        ->and($denied->getMessage())->toBe("You do not have permission to {$action}. Ask an administrator to give your role that permission.")
+        ->and($denied->getMessage())->not->toContain($key)->not->toContain('[');
+})->with([
+    ['job_card.close', 'close a job card'],
+    ['sales_invoice.view_any', 'see the list of invoices'],
+    ['inquiry.view', 'open an inquiry'],
+    ['ncr.create', 'create an NCR'],
+    ['rfq.update', 'edit an RFQ'],
+    ['bom.activate', 'activate a bill of materials'],
+    ['bom.export', 'export bills of materials'],
+    ['grn.post', 'post a goods receipt'],
+    ['delivery_challan.issue', 'issue a delivery note'],
+    ['job_card.waive_material', 'release a job card without all its material'],
+    ['user.assign_role', 'give a user a role'],
+    ['uom.create', 'create a unit'],
+    ['currency.export', 'export currencies'],
+    ['trip.view_own', 'see your own trips'],
+    ['credit_note.refund', 'refund a credit note'],
+    ['mrp.run', 'run the material plan'],
+    // An action with no template of its own still reads as a sentence.
+    ['warehouse.audit_trail', 'audit trail a warehouse'],
+]);
 
 it('keeps the rule on a guard refusal without printing it', function (): void {
     $denied = TransitionDenied::guard('P1-1 · QC1', 'Final inspection QI-7 is still pending.');

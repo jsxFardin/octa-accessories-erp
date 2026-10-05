@@ -332,8 +332,8 @@ const columns = [
                     <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
 
                     <div class="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-ink-700">
-                        A line that demands a certification claim makes the GRN's certification fields
-                        mandatory — that is the only door a claim enters the system through.
+                        A line that asks for a certification claim makes the certification fields on its goods
+                        receipt compulsory. That is the only place a claim is recorded.
                     </div>
                 </div>
             </Card>

@@ -13,6 +13,7 @@ use App\Modules\Sales\Models\SalesOrderLine;
 use App\Support\Audit\AuditLogger;
 use App\Support\Calculators\CostSheetCalculator;
 use App\Support\Settings\Settings;
+use App\Support\Text\Plain;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -115,7 +116,7 @@ class QuotationConversionService
     {
         if (! $user->hasPermission('sales_order.create')) {
             throw ValidationException::withMessages([
-                'quotation' => 'You do not have the [sales_order.create] permission, so this quotation cannot be converted. Ask a merchandiser or sales manager to raise the order.',
+                'quotation' => 'You do not have permission to '.Plain::permission('sales_order.create').', so this quotation cannot be converted. Ask a merchandiser or sales manager to raise the order.',
             ]);
         }
 

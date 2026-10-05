@@ -290,7 +290,7 @@ const columns = [
                         <DateInput v-model="form.received_on" />
                     </FormField>
 
-                    <FormField label="Supplier bill number" :error="form.errors.invoice_no">
+                    <FormField label="Supplier bill (invoice) number" :error="form.errors.invoice_no">
                         <TextInput v-model="form.invoice_no" />
                     </FormField>
 

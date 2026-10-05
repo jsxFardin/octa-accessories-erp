@@ -27,13 +27,13 @@ class DispatchReport extends ReportQuery
 
     public function subtitle(): string
     {
-        return 'Challans, packing lists and net delivered qty after returns';
+        return 'Delivery notes, packing lists and net delivered quantity after returns';
     }
 
     public function columns(): array
     {
         return [
-            ['key' => 'number', 'label' => 'Challan'],
+            ['key' => 'number', 'label' => 'Delivery note'],
             ['key' => 'packing_list', 'label' => 'Packing list'],
             ['key' => 'so_number', 'label' => 'Sales order'],
             ['key' => 'customer', 'label' => 'Customer'],

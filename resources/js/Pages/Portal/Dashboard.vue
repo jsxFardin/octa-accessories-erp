@@ -12,12 +12,10 @@ defineOptions({ layout: null });
         <div class="mx-auto max-w-3xl">
             <h1 class="mb-4 text-xl font-semibold text-ink-900">Customer portal</h1>
 
-            <Card title="Coming in Phase 4">
+            <Card title="Coming soon">
                 <p class="text-sm text-ink-700">
-                    Order status, documents, artwork approval and inquiry submission — scoped to your
-                    company by a global query scope resolved once at the middleware, so a missing
-                    <code class="rounded bg-slate-100 px-1 font-mono text-xs">where</code> in one
-                    controller cannot leak another customer's data.
+                    Order status, documents, artwork approval and new inquiries will appear here.
+                    You will only ever see your own company's records.
                 </p>
             </Card>
         </div>

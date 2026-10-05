@@ -366,7 +366,7 @@ const byLine = computed(() => {
             >
                 <DataTable
                     :columns="[
-                        { key: 'grn_number', label: 'GRN' },
+                        { key: 'grn_number', label: 'Goods receipt' },
                         { key: 'item_code', label: 'Material' },
                         { key: 'lot_no', label: 'Lot' },
                         { key: 'received_qty', label: 'Qty', align: 'right' },

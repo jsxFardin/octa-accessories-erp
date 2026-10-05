@@ -64,7 +64,7 @@ class JobCardReleaseGate
                 'detail' => match (true) {
                     $shortages === [] => 'All BOM materials are available.',
                     $materialWaived => count($shortages).' shortage(s) waived by a planner with a reason.',
-                    default => count($shortages).' material(s) short. Waive with a reason, or wait for the GRN.',
+                    default => count($shortages).' material(s) short. Waive with a reason, or wait for the goods receipt.',
                 },
             ],
         ];

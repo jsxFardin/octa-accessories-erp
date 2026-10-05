@@ -147,9 +147,9 @@ async function transition(to) {
                 <!-- Q1: a sent quotation is a snapshot, not a live query -->
                 <template v-if="quotation.status !== 'draft'">
                     <br>
-                    <span class="font-medium">Snapshotted</span> on send (Q1): item rates, machine
-                    rates, overhead percentages and that exchange rate are copies. Master data
-                    moving since then has not changed a number on this document.
+                    <span class="font-medium">Fixed when sent:</span> material rates, machine
+                    rates, overhead percentages and that exchange rate are kept as they were. Later
+                    changes to those lists have not changed a number on this document.
                 </template>
             </div>
 
@@ -318,7 +318,7 @@ async function transition(to) {
                         >
                             Converted from {{ baseCurrency() }} at
                             <span class="tnum">{{ number(quotation.exchange_rate, 4, 4) }}</span>
-                            (BR-22), snapshotted when the quotation was sent.
+                            , the rate fixed when the quotation was sent.
                         </p>
 
                         <p class="mt-2 text-xs text-ink-500">

@@ -585,8 +585,8 @@ function submit() {
                         quantity is issued minus already returned, for this job only.
                     </p>
                     <p v-else class="mt-3 text-xs leading-relaxed text-ink-500">
-                        Lots are picked oldest-first. A line that departs from that carries the
-                        reason with it, onto the ledger.
+                        Lots are picked oldest first. A line that uses a different lot keeps the
+                        reason with it in the stock record.
                     </p>
                 </Card>
             </template>

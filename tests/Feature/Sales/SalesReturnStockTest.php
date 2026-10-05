@@ -287,7 +287,7 @@ it('refuses a lot that never left on this invoice\'s challan', function (): void
     $this->actingAs($this->dispatchUser);
 
     expect(fn () => $states->transition($return->refresh(), SalesReturn::POSTED))
-        ->toThrow(TransitionDenied::class, 'never dispatched on the challan');
+        ->toThrow(TransitionDenied::class, 'never dispatched on the delivery note');
 });
 
 it('rolls the whole posting back when any part of it fails', function (): void {

@@ -81,7 +81,7 @@ it('sends a rework rejection back to the floor instead of leaving it completable
     expect($this->jobCard->refresh()->status)->toBe(JobCard::IN_PRODUCTION);
 
     expect(fn () => $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED))
-        ->toThrow(TransitionDenied::class, 'Job card is in production, so it cannot be changed to completed.');
+        ->toThrow(TransitionDenied::class, 'Job card is in production, so it cannot be completed.');
 });
 
 it('ignores another job\'s inspection and non-final stages', function (): void {

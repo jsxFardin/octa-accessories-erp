@@ -218,8 +218,8 @@ function save() {
                         </div>
 
                         <p class="mt-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-ink-600">
-                            Display only. Quantities keep six decimals and money four in the database
-                            regardless of what is shown here — rounding for the eye never reaches the ledger.
+                            Display only. Quantities are always stored to six decimals and money to four, whatever is shown here.
+                            Rounding on screen never changes a stored figure.
                         </p>
                     </Card>
                 </div>

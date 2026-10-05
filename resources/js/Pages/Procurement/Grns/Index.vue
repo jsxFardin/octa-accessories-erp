@@ -35,7 +35,7 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','pending_qc','accepted','partially_accepted','rejected','posted','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search receipt, bill or delivery note number…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','pending_qc','accepted','partially_accepted','rejected','posted','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search goods receipt, bill or delivery note number…" />
 
             <DataTable
                 :columns="columns"

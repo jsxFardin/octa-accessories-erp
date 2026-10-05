@@ -198,16 +198,16 @@ const columns = [
                         -->
                         <dd v-else-if="['delivered', 'returned'].includes(challan.status)" class="text-amber-700">
                             <span class="font-medium">Not recorded.</span>
-                            This delivery predates the D4 check at the point of delivery, so it left
-                            the factory without a destination on the paperwork. The record is kept as
-                            it happened; no challan can reach this state without an address today.
+                            This delivery was made before a delivery address became compulsory, so it left
+                            the factory without one on the paperwork. The record is kept as it happened;
+                            a delivery note cannot be issued without an address today.
                         </dd>
                         <dd v-else-if="challan.status === 'in_transit'" class="text-rose-600">
-                            None set. This challan cannot be marked delivered until the order names a
-                            delivery address (D4).
+                            None set. This delivery note cannot be marked delivered until the order names a
+                            delivery address.
                         </dd>
                         <dd v-else class="text-rose-600">
-                            None set. This challan cannot be issued until the order names a delivery address (D4).
+                            None set. This delivery note cannot be issued until the order names a delivery address.
                         </dd>
                         <dd v-if="challan.consignee?.route_zone" class="text-xs text-ink-500">
                             Route {{ challan.consignee.route_zone }} · {{ challan.consignee.transit_days }} day transit
@@ -254,8 +254,8 @@ const columns = [
             <Card v-if="challan.packing_list?.cert_claim_scheme" title="Certification">
                 <p class="text-sm text-ink-700">
                     Ships under <b>{{ challan.packing_list.cert_claim_scheme }}</b> at
-                    {{ challan.packing_list.cert_claim_pct }}% — a certificate must be valid on the
-                    challan date, and issuing writes the CoC output side.
+                    {{ challan.packing_list.cert_claim_pct }}%. A certificate must be valid on the
+                    delivery note date, and issuing records the certified output in the chain of custody.
                 </p>
             </Card>
 
@@ -264,11 +264,11 @@ const columns = [
             </Card>
         </div>
 
-        <Modal v-model:open="issueOpen" title="Issue this delivery note" subtitle="This is the stock movement." width="max-w-lg">
+        <Modal v-model:open="issueOpen" title="Issue this delivery note" subtitle="This is when the goods leave stock." width="max-w-lg">
             <p class="text-sm text-ink-700">
-                Issuing posts one <code>dispatch</code> ledger movement per line, moves the order's
-                delivered quantity, and — for certified goods — writes the chain-of-custody output.
-                It is undone only by a documented return.
+                Issuing takes the goods on each line out of stock, adds them to the order's
+                delivered quantity and, for certified goods, records the chain-of-custody output.
+                It can only be undone by recording a return.
             </p>
             <FormField
                 v-if="lines.some(overBand)"

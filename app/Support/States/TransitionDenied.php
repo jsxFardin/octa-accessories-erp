@@ -20,9 +20,7 @@ class TransitionDenied extends RuntimeException
      */
     public static function notAllowed(string $document, string $from, string $to): self
     {
-        $name = ucfirst(strtolower(Plain::status(Str::snake($document))));
-
-        return new self("{$name} is ".Plain::status($from).', so it cannot be changed to '.Plain::status($to).'.');
+        return new self(Plain::refusedChange(Plain::record(Str::snake($document)), $from, $to));
     }
 
     public static function notPermitted(string $permission): self

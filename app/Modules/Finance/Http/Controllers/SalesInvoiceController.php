@@ -69,7 +69,7 @@ class SalesInvoiceController extends Controller
         $challan = DeliveryChallan::query()->findOrFail($data['delivery_challan_id']);
 
         if (! in_array($challan->status, ['issued', 'in_transit', 'delivered'], true)) {
-            return back()->with('error', 'Only dispatched goods are billable — this challan is '.Plain::status($challan->status).'.');
+            return back()->with('error', 'Only dispatched goods are billable — this delivery note is '.Plain::status($challan->status).'.');
         }
 
         $duplicate = SalesInvoice::query()
@@ -78,13 +78,13 @@ class SalesInvoiceController extends Controller
             ->exists();
 
         if ($duplicate) {
-            return back()->with('error', 'An invoice already exists for this challan.');
+            return back()->with('error', 'An invoice already exists for this delivery note.');
         }
 
         $order = DB::table('sales_orders')->where('id', $challan->sales_order_id)->first();
 
         if ($order === null) {
-            return back()->with('error', 'This challan is not tied to a sales order; only order deliveries are invoiceable.');
+            return back()->with('error', 'This delivery note is not tied to a sales order; only order deliveries are invoiceable.');
         }
 
         // The order's terms, then the customer's, and only then a default — an order created
@@ -149,7 +149,7 @@ class SalesInvoiceController extends Controller
 
         return redirect()
             ->route('invoices.show', $invoice)
-            ->with('success', 'Invoice drafted from the challan. Issue it to start the receivable.');
+            ->with('success', 'Invoice drafted from the delivery note. Issue it to start the receivable.');
     }
 
     public function show(SalesInvoice $invoice): Response

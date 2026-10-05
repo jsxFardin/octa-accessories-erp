@@ -132,6 +132,7 @@ class DocumentRegistry
             ],
 
             'delivery-challans' => [
+                // The printed paper keeps its trade name: "challan" is the word on the customer's gate copy.
                 'label' => 'Delivery challan',
                 'segment' => 'delivery-challans',
                 'table' => 'delivery_challans',
@@ -140,7 +141,7 @@ class DocumentRegistry
                 'orientation' => 'portrait',
                 // The challan travels with the goods. Issuing it is what releases them.
                 'withheld' => ['draft'],
-                'withheld_reason' => 'This challan has not been issued yet, so it cannot travel with a consignment.',
+                'withheld_reason' => 'This delivery note has not been issued yet, so it cannot travel with a consignment.',
                 'load' => self::deliveryChallan(...),
             ],
 

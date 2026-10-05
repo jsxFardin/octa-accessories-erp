@@ -270,7 +270,7 @@ class GrnController extends Controller
         return redirect()
             ->route('grns.show', $grn)
             ->with('success', $post
-                ? "GRN {$grn->number} posted. Lots created and stock ledger written."
+                ? "Goods receipt {$grn->number} posted. Its lots are now in stock."
                 : "Goods receipt {$grn->number} saved as a draft. Nothing is in stock until it is posted.");
     }
 
@@ -342,7 +342,7 @@ class GrnController extends Controller
         return redirect()
             ->route('grns.show', $grn)
             ->with('success', $post
-                ? "GRN {$grn->number} posted. Lots created and stock ledger written."
+                ? "Goods receipt {$grn->number} posted. Its lots are now in stock."
                 : "Goods receipt {$grn->number} saved. It is still a draft.");
     }
 
@@ -637,7 +637,7 @@ class GrnController extends Controller
             $this->postReceipt($locked, (int) $request->user()->id);
         });
 
-        return back()->with('success', "GRN {$grn->number} posted. Lots created and stock ledger written.");
+        return back()->with('success', "Goods receipt {$grn->number} posted. Its lots are now in stock.");
     }
 
     /** Discards a draft. A posted receipt is corrected with a stock adjustment, never deleted. */

@@ -46,13 +46,13 @@ class DispatchService
         $lines = $this->lines($challan);
 
         if ($lines->isEmpty()) {
-            throw TransitionDenied::guard('D3', 'A challan with no lines cannot be issued.');
+            throw TransitionDenied::guard('D3', 'A delivery note with no lines cannot be issued.');
         }
 
         $packingStatus = DB::table('packing_lists')->where('id', $challan->packing_list_id)->value('status');
 
         if ($packingStatus !== 'packed') {
-            throw TransitionDenied::guard('D3', "The packing list must be packed before its challan is issued (it is {$packingStatus}).");
+            throw TransitionDenied::guard('D3', "The packing list must be packed before its delivery note is issued (it is {$packingStatus}).");
         }
 
         DB::table('sales_order_lines')
@@ -92,7 +92,7 @@ class DispatchService
 
             foreach ($rows as $row) {
                 if ((int) $row->product_id !== (int) $lot->product_id) {
-                    $blocked[] = "Lot {$lot->lot_no} does not hold the product on challan line {$row->line_no}.";
+                    $blocked[] = "Lot {$lot->lot_no} does not hold the product on delivery note line {$row->line_no}.";
                 }
             }
         }
@@ -106,12 +106,12 @@ class DispatchService
                 ->sum('cc.qty');
 
             if ((float) $rows->sum('qty') > $packed + 0.000001) {
-                $blocked[] = "Challan carries more of order line #{$lineId} than the packing list packed.";
+                $blocked[] = "Delivery note carries more of order line #{$lineId} than the packing list packed.";
             }
         }
 
         if ($blocked !== []) {
-            throw TransitionDenied::guard('D3', "This challan cannot be issued.\n• ".implode("\n• ", $blocked));
+            throw TransitionDenied::guard('D3', "This delivery note cannot be issued.\n• ".implode("\n• ", $blocked));
         }
 
         $this->guardConsignee($challan);
@@ -182,7 +182,7 @@ class DispatchService
         $customer = DB::table('customers')->where('id', $challan->customer_id)->first(['id', 'name']);
 
         if ($customer === null) {
-            $blocked[] = 'This challan names no customer, so there is nobody to deliver it to.';
+            $blocked[] = 'This delivery note names no customer, so there is nobody to deliver it to.';
         }
 
         $order = $challan->sales_order_id === null
@@ -191,7 +191,7 @@ class DispatchService
 
         if ($order !== null && (int) $order->customer_id !== (int) $challan->customer_id) {
             $blocked[] = sprintf(
-                'The challan is addressed to a different customer from %s, the order it fulfils. A delivery note cannot re-address someone else\'s goods.',
+                'The delivery note is addressed to a different customer from %s, the order it fulfils. A delivery note cannot re-address someone else\'s goods.',
                 $order->number ?? "order #{$order->id}",
             );
         }
@@ -201,7 +201,7 @@ class DispatchService
             ->value('customer_id');
 
         if ($packingCustomer !== null && (int) $packingCustomer !== (int) $challan->customer_id) {
-            $blocked[] = 'The challan is addressed to a different customer from the packing list it carries.';
+            $blocked[] = 'The delivery note is addressed to a different customer from the packing list it carries.';
         }
 
         $address = DB::table('customer_addresses')
@@ -212,7 +212,7 @@ class DispatchService
             $orderName = $order !== null && $order->number !== null ? $order->number : 'the sales order';
 
             $blocked[] = sprintf(
-                'This challan has no delivery address, so the driver has nowhere to take it. Set one on %s, or add a delivery address for %s.',
+                'This delivery note has no delivery address, so the driver has nowhere to take it. Set one on %s, or add a delivery address for %s.',
                 $orderName,
                 $customer === null ? 'the customer' : $customer->name,
             );
@@ -227,7 +227,7 @@ class DispatchService
         if ($blocked !== []) {
             throw TransitionDenied::guard(
                 'D4',
-                "This challan cannot be marked {$action}.\n• ".implode("\n• ", $blocked),
+                "This delivery note cannot be marked {$action}.\n• ".implode("\n• ", $blocked),
             );
         }
     }
@@ -313,7 +313,7 @@ class DispatchService
         if ($certificate === null) {
             throw TransitionDenied::guard(
                 'BR-43',
-                "This shipment claims {$scheme}, but no active {$scheme} certificate is valid on the challan date. Ship without the claim or renew the certificate.",
+                "This shipment claims {$scheme}, but no active {$scheme} certificate is valid on the delivery note date. Ship without the claim or renew the certificate.",
             );
         }
 
@@ -374,7 +374,7 @@ class DispatchService
 
         foreach ($entries as $entry) {
             $model = \App\Modules\Inventory\Models\StockLedgerEntry::query()->findOrFail($entry->id);
-            $this->posting->reverse($model, "Challan {$challan->number} returned");
+            $this->posting->reverse($model, "Delivery note {$challan->number} returned");
         }
 
         foreach ($this->lines($challan) as $line) {
@@ -439,7 +439,7 @@ class DispatchService
             'currency_id' => $invoice->currency_id,
             'amount' => round($amount, 4),
             'status' => 'draft',
-            'remarks' => "Auto-drafted: challan {$challan->number} returned.",
+            'remarks' => "Auto-drafted: delivery note {$challan->number} returned.",
         ]);
     }
 

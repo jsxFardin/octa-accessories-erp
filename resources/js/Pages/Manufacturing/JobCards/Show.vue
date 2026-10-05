@@ -1358,16 +1358,17 @@ const bomColumns = [
         <Modal
             v-model:open="cancelOpen"
             title="Cancel a job card with production against it"
-            subtitle="Something has already been booked on this card, so cancelling it needs a reason."
+            subtitle="Production has been booked on this card, so cancelling it needs a reason. No second approval is asked for: your permission to cancel job cards is enough, and the reason is kept on the card's history."
         >
             <div class="space-y-3">
                 <p class="text-sm text-ink-700">
-                    Cancelling releases this card's stock reservations and returns issued material.
-                    Booked production and its waste stay on the record — they happened.
+                    Cancelling frees the stock reserved for this card. Material already issued to it is
+                    not returned automatically: return it to the store with a material return.
+                    Booked production and its waste stay on the record. This cannot be undone.
                 </p>
 
                 <FormField
-                    label="Supervisor reason"
+                    label="Reason for cancelling"
                     rule="J6"
                     required
                     :error="cancelForm.errors.reason"

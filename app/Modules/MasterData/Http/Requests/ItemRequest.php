@@ -46,8 +46,8 @@ class ItemRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'order_multiple.gt' => 'The order multiple must be greater than zero — BR-25 rounds purchase quantities up to it.',
-            'shelf_life_days.required_if' => 'An item that expires needs a shelf life, otherwise BR-39 cannot compute an expiry date.',
+            'order_multiple.gt' => 'The order multiple must be greater than zero. Purchase quantities are rounded up to it.',
+            'shelf_life_days.required_if' => 'A material that expires needs a shelf life, or its expiry date cannot be worked out.',
         ];
     }
 

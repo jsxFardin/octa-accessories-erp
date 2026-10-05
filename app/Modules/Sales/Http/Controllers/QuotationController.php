@@ -372,7 +372,7 @@ class QuotationController extends Controller
     public function edit(Quotation $quotation): Response
     {
         if ($quotation->status !== 'draft') {
-            abort(403, 'A sent quotation is immutable (Q1). Create a revision instead.');
+            abort(403, 'A sent quotation cannot be changed (Q1). Create a revision instead.');
         }
 
         $quotation->load('lines');
@@ -387,7 +387,7 @@ class QuotationController extends Controller
     public function update(Request $request, Quotation $quotation): RedirectResponse
     {
         if ($quotation->status !== 'draft') {
-            return back()->with('error', 'A sent quotation is immutable (Q1). Create a revision instead.');
+            return back()->with('error', 'A sent quotation cannot be changed (Q1). Create a revision instead.');
         }
 
         $data = $this->validated($request);

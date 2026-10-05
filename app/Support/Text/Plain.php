@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Support\Text;
 
-use Illuminate\Support\Facades\DB;
-
 /**
  * Turning the system's own identifiers into words a person reads.
  *
@@ -67,25 +65,92 @@ final class Plain
         return self::upperFirst(trim($text));
     }
 
+    /** What a record is called in a sentence, where the key alone would not say it. */
+    private const SUBJECTS = [
+        'grn' => 'goods receipt', 'delivery_challan' => 'delivery note', 'bom' => 'bill of materials',
+        'coc' => 'chain-of-custody record', 'mrp' => 'material plan', 'pod' => 'proof of delivery',
+        'stock_lot' => 'lot', 'stock_issue' => 'material issue', 'item' => 'material', 'uom' => 'unit',
+        'fg_receipt' => 'finished goods receipt', 'sales_invoice' => 'invoice', 'product_spec' => 'product specification',
+        'reference_data' => 'list', 'waste' => 'waste record', 'downtime' => 'downtime record',
+        'tax' => 'tax rate', 'ncr' => 'NCR', 'rfq' => 'RFQ', 'qc_inspection' => 'QC inspection',
+    ];
+
+    /** Plurals that are not the singular plus "s". */
+    private const PLURALS = [
+        'bill of materials' => 'bills of materials', 'proof of delivery' => 'proofs of delivery',
+        'letter of credit' => 'letters of credit', 'physical count' => 'physical counts',
+    ];
+
     /**
-     * What a permission lets someone do, in words: "job_card.close" → "close a job card".
+     * How each kind of permission reads after "permission to …". `{a}` is the record with its
+     * article ("a job card", "an invoice"), `{s}` its plural, `{the}` the bare name.
+     */
+    private const ACTIONS = [
+        'view_any' => 'see the list of {s}', 'view' => 'open {a}', 'view_own' => 'see your own {s}',
+        'create' => 'create {a}', 'update' => 'edit {a}', 'delete' => 'delete {a}',
+        'export' => 'export {s}', 'import' => 'import {s}',
+        'waive_material' => 'release {a} without all its material', 'make_current' => 'make {a} the current one',
+        'lock_period' => 'close a chain-of-custody period', 'override_margin' => 'approve {a} below the minimum margin',
+        'override_tolerance' => 'approve {a} outside its tolerance', 'release_credit_hold' => 'release {a} from credit hold',
+        'short_close' => 'close {a} short', 'print_barcode' => 'print labels for {a}', 'approve_variance' => 'approve a variance on {a}',
+        'assign_role' => 'give {a} a role', 'dashboard' => 'see the dashboard', 'concession' => 'accept {a} on concession',
+        'log' => 'book output on {a}', 'run' => 'run the {the}', 'cost' => 'see the cost of {a}', 'progress' => 'move {a} forward',
+    ];
+
+    /** What a kind of record is called: "delivery_challan" → "delivery note", "job_card" → "job card". */
+    public static function record(string $key): string
+    {
+        return self::SUBJECTS[$key] ?? self::status($key);
+    }
+
+    /**
+     * What a permission lets someone do, in words: "job_card.close" → "close a job card",
+     * "sales_invoice.view_any" → "see the list of invoices".
      *
-     * Read from the permission's own label where there is one, so the wording matches the
-     * roles screen an administrator would go to next.
+     * Built from the key, not from the stored label: the labels read "Close Job Card", which
+     * lower-cased into "close job card" — no article, and "list job card" for a list.
      */
     public static function permission(string $permission): string
     {
-        static $labels = [];
-
-        $labels[$permission] ??= (string) (DB::table('permissions')->where('name', $permission)->value('label') ?? '');
-
-        if ($labels[$permission] !== '') {
-            return lcfirst(self::status(str_replace(' ', '_', $labels[$permission])));
-        }
-
         [$subject, $action] = array_pad(explode('.', $permission, 2), 2, 'use');
 
-        return self::status($action).' '.self::status($subject);
+        $name = self::record($subject);
+        $plural = self::PLURALS[$name] ?? (preg_match('/(s|x|ch|sh)$/', $name) ? $name.'es' : (preg_match('/[^aeiou]y$/', $name) ? substr($name, 0, -1).'ies' : $name.'s'));
+        // "an invoice", "an NCR", "an RFQ" — by sound, so a spelled-out letter counts.
+        $article = preg_match('/^(?!us|uni)([aeiou]|(?:[FHLMNRSX])[A-Z]*\b)/', $name) ? 'an' : 'a';
+
+        $template = self::ACTIONS[$action] ?? self::status($action).' {a}';
+
+        return strtr($template, ['{a}' => "{$article} {$name}", '{s}' => $plural, '{the}' => $name]);
+    }
+
+    /** What happens to a record when it reaches a status, as it reads after "cannot be …". */
+    private const VERBS = [
+        'draft' => 'returned to draft', 'submitted' => 'submitted', 'pending_approval' => 'submitted for approval',
+        'approved' => 'approved', 'rejected' => 'rejected', 'cancelled' => 'cancelled', 'closed' => 'closed',
+        'issued' => 'issued', 'posted' => 'posted', 'sent' => 'marked as sent', 'accepted' => 'accepted',
+        'revised' => 'revised', 'confirmed' => 'confirmed', 'planned' => 'planned', 'released' => 'released',
+        'in_production' => 'put into production', 'on_hold' => 'put on hold', 'completed' => 'completed',
+        'qc_pending' => 'sent to QC', 'in_transit' => 'marked as in transit', 'delivered' => 'marked as delivered',
+        'returned' => 'returned', 'received' => 'received', 'paid' => 'marked as paid', 'partially_paid' => 'marked as partly paid',
+        'refunded' => 'refunded', 'applied' => 'applied', 'reconciled' => 'reconciled', 'counting' => 'put back to counting',
+        'packed' => 'confirmed as packed', 'dispatched' => 'dispatched', 'verified' => 'verified', 'superseded' => 'superseded',
+        'active' => 'activated', 'current' => 'made current', 'investigating' => 'put under investigation',
+        'won' => 'marked as won', 'lost' => 'marked as lost', 'quoted' => 'marked as quoted', 'skipped' => 'skipped',
+        'material_pending' => 'held for material', 'credit_hold' => 'put on credit hold', 'open' => 'reopened',
+    ];
+
+    /**
+     * Why a status change is refused, as a sentence: "Sales return is posted, so it cannot be
+     * cancelled." A status with no verb of its own falls back to "cannot be moved to Verified".
+     */
+    public static function refusedChange(string $record, string $from, string $to): string
+    {
+        $tail = isset(self::VERBS[$to])
+            ? 'cannot be '.self::VERBS[$to]
+            : 'cannot be moved to '.self::statusLabel($to);
+
+        return self::upperFirst($record).' is '.self::status($from).", so it {$tail}.";
     }
 
     private static function upperFirst(string $text): string

@@ -81,7 +81,7 @@ class CustomerAddressController extends Controller
             if (in_array($e->getCode(), ['23000', '23503'], true) && str_contains($e->getMessage(), 'foreign key')) {
                 return back()->with(
                     'error',
-                    'This address is already named on a packing list or delivery challan and cannot be deleted.',
+                    'This address is already named on a packing list or delivery note and cannot be deleted.',
                 );
             }
 

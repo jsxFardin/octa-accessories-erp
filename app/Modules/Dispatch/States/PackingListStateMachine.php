@@ -177,7 +177,7 @@ class PackingListStateMachine extends StateMachine
             ->exists();
 
         if ($liveChallan) {
-            throw TransitionDenied::guard('D3', 'A delivery challan exists against this packing list. Cancel it first.');
+            throw TransitionDenied::guard('D3', 'A delivery note exists against this packing list. Cancel it first.');
         }
     }
 

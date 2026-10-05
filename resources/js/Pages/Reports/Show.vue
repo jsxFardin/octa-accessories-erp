@@ -149,7 +149,7 @@ function rowHref(row) {
                         :label="reconciliation.mismatched.length ? 'Mismatch' : 'Reconciled'"
                     />
                     <span class="font-medium">
-                        {{ reconciliation.checked }} lot balance(s) checked against the live ledger
+                        {{ reconciliation.checked }} lot balance(s) checked against the stock movements recorded
                     </span>
                 </div>
             </div>
@@ -159,7 +159,7 @@ function rowHref(row) {
                 class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-ink-600"
             >
                 <p class="mb-1 font-medium text-ink-700">
-                    Ledger movements
+                    Stock movements
                     <span v-if="extras.movement_period" class="font-normal text-ink-400">
                         {{ extras.movement_period.from }} → {{ extras.movement_period.to }}
                     </span>
@@ -202,7 +202,7 @@ function rowHref(row) {
                 >
                     These rows span more than one currency. The totals above are converted to
                     <span class="font-medium">{{ baseCurrency() }}</span> at the rate recorded on each
-                    document (BR-22). Before conversion:
+                    document. Before conversion:
                     <span v-for="(group, index) in currencyBreakdown" :key="group.code">
                         <span v-if="index">; </span>
                         <span class="font-medium">{{ group.code }}</span>

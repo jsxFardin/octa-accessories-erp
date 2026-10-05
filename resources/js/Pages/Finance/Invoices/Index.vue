@@ -43,8 +43,8 @@ const columns = [
             -->
             <div class="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 <span class="font-medium">Invoices are raised from a delivery note.</span>
-                Challan-based invoicing isn't available yet — this screen shows the receivables
-                ledger only.
+                Open an issued delivery note and choose Create invoice. This screen lists the
+                invoices and what is still owed on them.
             </div>
 
             <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','issued','partially_paid','paid','credited','overdue','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search invoice or Mushak number…" />

@@ -7,8 +7,8 @@ What the screens said and what they say now. Covers findings M-03 to M-07, L-06,
 | Where | Before | Now |
 |---|---|---|
 | Every banner and every message under a field | Carried the rule number: `J3: output 5200 exceeds…`, `… (P1-1 · QC1)`, `BR-5: a web width is needed…` | The sentence without the number: “Output 5200 exceeds…”. The number stays in the rule tooltip, the logs and the floor API. |
-| A status change that is not allowed | `SalesReturn cannot move from [posted] to [cancelled].` | “Sales return is posted, so it cannot be changed to cancelled.” |
-| A missing permission | `You do not have the [job_card.close] permission.` | “You do not have permission to close job card. Ask an administrator to give your role that permission.” |
+| A status change that is not allowed | `SalesReturn cannot move from [posted] to [cancelled].` | “Sales return is posted, so it cannot be cancelled.” Each status has its own verb (“marked as sent”, “put on hold”); one without a verb reads “cannot be moved to Verified”. |
+| A missing permission | `You do not have the [job_card.close] permission.` | “You do not have permission to close a job card. Ask an administrator to give your role that permission.” Lists read “see the list of invoices”. |
 | 37 server messages that named a status | `moved to pending_approval`, `is in_transit`, `status [qc_pending]` | “is now pending approval”, “is in transit”, “QC pending” |
 | Status badges, filters and menus | `Qc Pending`, `Po`, `Tt`, `Da`, `Dp` | `QC Pending`, `PO`, `TT`, `DA`, `DP` |
 | Rule tooltips (the small “i” markers) | 31 markers opened on “Enforced by an internal rule.” | Each has a sentence. A test fails if a screen refers to a rule that has none. |
@@ -27,12 +27,12 @@ What the screens said and what they say now. Covers findings M-03 to M-07, L-06,
 | Job card: release | subtitle="J1: approved artwork, active BOM, tools available, material in stock or waived." | subtitle="Needs approved artwork, an active bill of materials, tools available, and material in stock or waived." |
 | Job card: complete | subtitle="I7: nothing was issued against part of this job's BOM." | subtitle="Nothing was issued for part of this job's bill of materials." |
 | Job card: reopen | subtitle="P0-3: back to completed, so finished goods can be received from it." | subtitle="Puts the card back to completed, so finished goods can be received from it." |
-| Job card: cancel | subtitle="J6: something has already been booked, so the cancellation is signed for." | subtitle="Something has already been booked on this card, so cancelling it needs a reason." |
+| Job card: cancel | subtitle="J6: something has already been booked, so the cancellation is signed for." | subtitle="Production has been booked on this card, so cancelling it needs a reason. No second approval is asked for: your permission to cancel job cards is enough, and the reason is kept on the card's history." |
 | Job card: manual booking | The same J3 and J5 limits apply, and this booking is marked as keyed at a desk. | The same input and over-run limits apply, and this booking is marked as entered at a desk. |
 | Customer | title: 'Commercial guard rails' | title: 'Commercial limits' |
 | Customer | hint: 'What this customer is quoted and invoiced in (BR-22).' | hint: 'The currency this customer is quoted and invoiced in.' |
 | Customer | title="Commercial guard rails" | title="Commercial limits" |
-| Goods receipt | `Each line becomes a barcoded lot with a grn_receipt ledger row · valued in ${baseCurrency()}` | `Each line became a barcoded lot in stock, valued in ${baseCurrency()}` |
+| Goods receipt | `Each line becomes a barcoded lot with a grn_receipt ledger row · valued in ${baseCurrency()}` | Draft: “None yet. Posting this receipt will turn each line into a lot in stock.” Posted: “Each line became a lot in stock, valued in BDT. Print lot labels to put a barcode on each.” |
 | Artworks list | Gate 1 — production may only run against an approved version | Production can only run against an approved version |
 | Artworks list | Production cannot be released without an approved artwork version — this is Gate 1. | Production cannot be released without an approved artwork version. |
 | Artwork | subtitle="At most one version may be approved at a time — the database enforces it, not the process" | subtitle="Only one version can be approved at a time. Approving another replaces it." |
@@ -73,8 +73,8 @@ What the screens said and what they say now. Covers findings M-03 to M-07, L-06,
 | Finance › Invoices › Index | Invoices are raised from a delivery challan. | Invoices are raised from a delivery note. |
 | Finance › Invoices › Index | Invoices are raised from a delivery challan — the quantities have to be the ones that left the gate. | Invoices are raised from a delivery note, so the quantities are the ones that left the gate. |
 | Procurement › Grns › Form | label="Supplier challan" | label="Supplier delivery note (challan)" |
-| Procurement › Grns › Form | label="Supplier invoice" | label="Supplier bill number" |
-| Procurement › Grns › Index | placeholder="Search GRN, invoice or challan number…" | placeholder="Search receipt, bill or delivery note number…" |
+| Procurement › Grns › Form | label="Supplier invoice" | label="Supplier bill (invoice) number" |
+| Procurement › Grns › Index | placeholder="Search GRN, invoice or challan number…" | placeholder="Search goods receipt, bill or delivery note number…" |
 | Procurement › Grns › Index | >New GRN< | >New goods receipt< |
 | Procurement › Grns › Index | 'New GRN' | 'New goods receipt' |
 | Sales › SalesOrders › Show | challan.number ?? '(draft challan)' | challan.number ?? '(draft delivery note)' |
@@ -88,7 +88,7 @@ What the screens said and what they say now. Covers findings M-03 to M-07, L-06,
 | Procurement › Bills › Show | >GRN qty< | >Received qty< |
 | Procurement › PurchaseOrders › Show | label: 'GRN' | label: 'Goods receipt' |
 | Trade › Shipments › Show | label: 'GRN' | label: 'Goods receipt' |
-| Trade › Shipments › Form | label: 'Supplier invoice no' | label: 'Supplier bill number' |
+| Trade › Shipments › Form | label: 'Supplier invoice no' | label: 'Supplier bill (invoice) number' |
 | MasterData › Items › Index | label="Items" | label="Materials" |
 | MasterData › Items › Index | title="No items yet" | title="No materials yet" |
 | MasterData › Items › Index | Items are what stock is held in and what a bill of materials consumes — yarn, ink, ribbon, cartons. | Materials are what the store holds and what a bill of materials uses: yarn, ink, ribbon, cartons. |
@@ -139,6 +139,13 @@ What the screens said and what they say now. Covers findings M-03 to M-07, L-06,
 | Artwork: each version | artwork/12/Xy7…q.pdf + sha256 9f2c… printed in full | NFJ-ART-01-v3.pdf, with storage path and fingerprint under “File details” |
 | Artwork: versions card | Numbered contiguously from 1, never renumbered | Numbered from 1 in the order they were uploaded |
 
+## Follow-up after review (6 Oct 2026)
+
+- 23 server sentences and 20 multi-line screen sentences that the first sweep missed were rewritten (“challan” and “GRN” on their own, “ledger”, “snapshotted”, rule codes in running text).
+- The customer return form's line heading is “Product”, not “Material”: its lines are invoiced products.
+- The job card cancel dialog no longer says issued material is returned. Cancelling only frees reserved stock.
+- Two guard tests now fail the build if banned wording comes back: `tests/Js/bannedWording.test.js` for screens and `tests/Unit/Text/BannedWordingTest.php` for server messages.
+
 ## Terms now used
 
 | Use | Not |
@@ -153,6 +160,7 @@ What the screens said and what they say now. Covers findings M-03 to M-07, L-06,
 
 ## Left as they are, on purpose
 
+- The printed delivery note is still titled “Delivery challan”: that is the word on the customer's gate copy.
 - “Supplier delivery note (challan)” on the goods receipt form: it is the supplier's own document, and that is the word printed on it.
 - `FIFO` inside the lot picker on the material issue form, where it labels the suggested lot; the surrounding text now says “oldest first”.
 - English refusal sentences in the floor API. The terminal does not show them; it shows its own Bangla and English sentence for each refusal.

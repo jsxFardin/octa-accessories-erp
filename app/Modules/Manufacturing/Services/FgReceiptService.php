@@ -385,7 +385,7 @@ class FgReceiptService
 
             if (! ($user?->hasPermission('job_card.waive_material') ?? false)) {
                 throw ValidationException::withMessages([
-                    'material_waiver_reason' => 'Receiving finished goods beyond what the issued material covers needs the [job_card.waive_material] permission. Ask a planner to record the waiver.',
+                    'material_waiver_reason' => 'Receiving finished goods beyond what the issued material covers needs permission to '.Plain::permission('job_card.waive_material').'. Ask a planner to record the waiver.',
                 ]);
             }
 
@@ -460,7 +460,7 @@ class FgReceiptService
 
             if (! ($user?->hasPermission('job_card.waive_material') ?? false)) {
                 throw ValidationException::withMessages([
-                    'material_waiver_reason' => 'Receiving finished goods with no material value needs the [job_card.waive_material] permission. Ask a planner to record the waiver.',
+                    'material_waiver_reason' => 'Receiving finished goods with no material value needs permission to '.Plain::permission('job_card.waive_material').'. Ask a planner to record the waiver.',
                 ]);
             }
 
