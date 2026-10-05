@@ -158,8 +158,10 @@ onUnmounted(() => {
             <span v-else-if="form?.isDirty" class="text-xs text-amber-700">Unsaved changes</span>
             <span v-else-if="summary" class="text-xs text-ink-500">{{ summary }}</span>
 
-            <div class="ml-auto flex items-center gap-2">
+            <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
                 <Button v-if="cancelHref" :href="cancelHref">Cancel</Button>
+                <!-- A second way to save, beside the main one: "Save draft" next to "Post". -->
+                <slot name="secondary" />
                 <Button
                     variant="primary"
                     :loading="form?.processing"

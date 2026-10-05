@@ -289,6 +289,14 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:grn.create')->name('grns.store');
     Route::get('grns/{grn}', [GrnController::class, 'show'])
         ->middleware('can:grn.view')->name('grns.show');
+    Route::get('grns/{grn}/edit', [GrnController::class, 'edit'])
+        ->middleware('can:grn.update')->name('grns.edit');
+    Route::put('grns/{grn}', [GrnController::class, 'update'])
+        ->middleware('can:grn.update')->name('grns.update');
+    Route::post('grns/{grn}/post', [GrnController::class, 'post'])
+        ->middleware('can:grn.post')->name('grns.post');
+    Route::delete('grns/{grn}', [GrnController::class, 'destroy'])
+        ->middleware('can:grn.delete')->name('grns.destroy');
     Route::post('grns/{grn}/post', [GrnController::class, 'post'])
         ->middleware('can:grn.post')->name('grns.post');
 

@@ -65,21 +65,7 @@ class GrnController extends Controller
 
     public function create(Request $request): Response
     {
-        // The order's own currency travels with it: a USD order priced its lines in dollars and
-        // the receiving form rendered them against the factory's currency, so the storekeeper
-        // was asked to confirm a rate in a unit the order never used (BR-50).
-        // BR-54 — the picker and the `?po=` parameter must offer the same set, and that set is
-        // what this viewer may read. A receiver who holds no purchase-order permission (a QC
-        // inspector does not) receives against no order rather than being handed every open
-        // order's number, supplier, currency and rates through a screen they can reach.
-        $mayReadOrders = $request->user()?->hasPermission('purchase_order.view_any')
-            || $request->user()?->hasPermission('purchase_order.view');
-
-        $orders = ! $mayReadOrders ? collect() : DB::table('purchase_orders as po')
-            ->leftJoin('currencies as cur', 'cur.id', '=', 'po.currency_id')
-            ->whereIn('po.status', ['approved', 'sent', 'partially_received'])
-            ->orderByDesc('po.id')
-            ->get(['po.id', 'po.number', 'po.supplier_id', 'cur.code as currency', 'po.exchange_rate']);
+        $orders = $this->openOrders($request);
 
         $requested = $this->contextualId($request, 'po', ['purchase_order.view_any', 'purchase_order.view']);
 
@@ -116,6 +102,48 @@ class GrnController extends Controller
             });
 
         return Inertia::render('Procurement/Grns/Form', [
+            ...$this->formOptions($orders),
+            // `?po=` carries the order the storekeeper is receiving against, so the supplier
+            // and the order are already chosen when the goods are on the bench.
+            'preselectPoId' => $preselect,
+            // …and the lines, so they are checked rather than transcribed.
+            'poLines' => $poLines->values(),
+        ]);
+    }
+
+    /**
+     * The purchase orders a receipt may be raised against, as this viewer may see them.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    private function openOrders(Request $request): \Illuminate\Support\Collection
+    {
+        // The order's own currency travels with it: a USD order priced its lines in dollars and
+        // the receiving form rendered them against the factory's currency, so the storekeeper
+        // was asked to confirm a rate in a unit the order never used (BR-50).
+        // BR-54 — the picker and the `?po=` parameter must offer the same set, and that set is
+        // what this viewer may read. A receiver who holds no purchase-order permission (a QC
+        // inspector does not) receives against no order rather than being handed every open
+        // order's number, supplier, currency and rates through a screen they can reach.
+        $mayReadOrders = $request->user()?->hasPermission('purchase_order.view_any')
+            || $request->user()?->hasPermission('purchase_order.view');
+
+        $orders = ! $mayReadOrders ? collect() : DB::table('purchase_orders as po')
+            ->leftJoin('currencies as cur', 'cur.id', '=', 'po.currency_id')
+            ->whereIn('po.status', ['approved', 'sent', 'partially_received'])
+            ->orderByDesc('po.id')
+            ->get(['po.id', 'po.number', 'po.supplier_id', 'cur.code as currency', 'po.exchange_rate']);
+
+        return $orders;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, object>  $orders
+     * @return array<string, mixed>
+     */
+    private function formOptions(\Illuminate\Support\Collection $orders): array
+    {
+        return [
             'suppliers' => DB::table('suppliers')->where('is_active', true)->orderBy('name')
                 ->get(['id', 'code', 'name']),
             'warehouses' => DB::table('warehouses')->where('is_active', true)->orderBy('code')
@@ -124,13 +152,8 @@ class GrnController extends Controller
                 ->get(['id', 'code', 'name', 'base_uom_id', 'std_rate', 'is_shade_critical', 'has_expiry', 'shelf_life_days']),
             'uoms' => DB::table('uoms')->orderBy('code')->get(['id', 'code', 'name']),
             'purchaseOrders' => $orders,
-            // `?po=` carries the order the storekeeper is receiving against, so the supplier
-            // and the order are already chosen when the goods are on the bench.
-            'preselectPoId' => $preselect,
-            // …and the lines, so they are checked rather than transcribed.
-            'poLines' => $poLines->values(),
             'schemes' => ['GRS', 'FSC', 'OEKO_TEX', 'SCOPE'],
-        ]);
+        ];
     }
 
     /**
@@ -213,7 +236,118 @@ class GrnController extends Controller
         ]);
     }
 
+    /**
+     * Saves a goods receipt and, unless told otherwise, posts it.
+     *
+     * `post` is false when the storekeeper chooses "Save draft": the receipt and its lines are
+     * written and nothing else. A draft adds no stock. Posting is a separate, confirmed step
+     * (`post()` below) and the only one that creates lots, writes the ledger and moves the
+     * average. `post` defaults to true so a caller that does not know about drafts gets what
+     * it always got.
+     */
     public function store(Request $request): RedirectResponse
+    {
+        $data = $this->validated($request);
+        $post = $request->boolean('post', true);
+
+        $grn = DB::transaction(function () use ($data, $request, $post): Grn {
+            $grn = Grn::query()->create([
+                'number' => $this->numbers->next('grn'),
+                ...$this->header($data),
+                'status' => 'draft',
+                'created_by' => $request->user()->id,
+            ]);
+
+            $this->writeLines($grn, $data);
+
+            if ($post) {
+                $this->postReceipt($grn, (int) $request->user()->id);
+            }
+
+            return $grn;
+        });
+
+        return redirect()
+            ->route('grns.show', $grn)
+            ->with('success', $post
+                ? "GRN {$grn->number} posted. Lots created and stock ledger written."
+                : "Goods receipt {$grn->number} saved as a draft. Nothing is in stock until it is posted.");
+    }
+
+    public function edit(Request $request, Grn $grn): Response|RedirectResponse
+    {
+        if ($grn->status !== 'draft') {
+            return redirect()->route('grns.show', $grn)
+                ->with('error', 'A posted goods receipt cannot be edited. Correct stock with a stock adjustment.');
+        }
+
+        $orders = $this->openOrders($request);
+
+        // The draft's own order stays choosable even if it has since been closed to receiving.
+        if ($grn->po_id !== null && ! $orders->contains(fn ($order): bool => (int) $order->id === (int) $grn->po_id)) {
+            $own = DB::table('purchase_orders as po')
+                ->leftJoin('currencies as cur', 'cur.id', '=', 'po.currency_id')
+                ->where('po.id', $grn->po_id)
+                ->first(['po.id', 'po.number', 'po.supplier_id', 'cur.code as currency', 'po.exchange_rate']);
+
+            if ($own !== null) {
+                $orders = $orders->push($own);
+            }
+        }
+
+        return Inertia::render('Procurement/Grns/Form', [
+            ...$this->formOptions($orders),
+            'preselectPoId' => null,
+            'poLines' => [],
+            'grn' => [
+                ...$grn->only(['id', 'number', 'supplier_id', 'po_id', 'warehouse_id', 'invoice_no', 'challan_no',
+                    'freight_amount', 'duty_amount', 'clearing_amount']),
+                'received_on' => (string) $grn->received_on,
+                'lines' => DB::table('grn_lines')->where('grn_id', $grn->id)->orderBy('line_no')
+                    ->get(['po_line_id', 'item_id', 'uom_id', 'received_qty as qty', 'rate', 'shade_code',
+                        'supplier_batch_no', 'roll_length_m', 'expiry_date', 'cert_scheme', 'cert_claim_pct',
+                        'cert_document_no']),
+            ],
+        ]);
+    }
+
+    public function update(Request $request, Grn $grn): RedirectResponse
+    {
+        if ($grn->status !== 'draft') {
+            return back()->with('error', 'A posted goods receipt cannot be edited.');
+        }
+
+        $data = $this->validated($request);
+        $post = $request->boolean('post', false);
+
+        DB::transaction(function () use ($grn, $data, $request, $post): void {
+            /** @var Grn $locked */
+            $locked = Grn::query()->lockForUpdate()->findOrFail($grn->getKey());
+
+            if ($locked->status !== 'draft') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'lines' => 'This goods receipt has already been posted.',
+                ]);
+            }
+
+            $locked->update($this->header($data));
+            DB::table('grn_lines')->where('grn_id', $locked->id)->delete();
+            $this->writeLines($locked, $data);
+
+            if ($post) {
+                $this->postReceipt($locked, (int) $request->user()->id);
+            }
+        });
+
+        return redirect()
+            ->route('grns.show', $grn)
+            ->with('success', $post
+                ? "GRN {$grn->number} posted. Lots created and stock ledger written."
+                : "Goods receipt {$grn->number} saved. It is still a draft.");
+    }
+
+    /** @return array<string, mixed> */
+    private function validated(Request $request): array
     {
         $data = $request->validate([
             'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
@@ -227,6 +361,7 @@ class GrnController extends Controller
             'freight_amount' => ['numeric', 'min:0'],
             'duty_amount' => ['numeric', 'min:0'],
             'clearing_amount' => ['numeric', 'min:0'],
+            'post' => ['nullable', 'boolean'],
             'lines' => ['required', 'array', 'min:1'],
             // Which purchase-order line this receipt answers. The column has been on
             // `grn_lines` all along and nothing ever wrote it, so a GRN knew its order and not
@@ -251,147 +386,201 @@ class GrnController extends Controller
         // provenance the form filled in, not something the storekeeper typed.
         $data['lines'] = $this->scopePoLines($data['po_id'] ?? null, $data['lines']);
 
-        $grn = DB::transaction(function () use ($data, $request): Grn {
-            $grn = Grn::query()->create([
-                'number' => $this->numbers->next('grn'),
-                'supplier_id' => $data['supplier_id'],
-                'po_id' => $data['po_id'] ?? null,
-                'warehouse_id' => $data['warehouse_id'],
-                'received_on' => $data['received_on'],
-                'invoice_no' => $data['invoice_no'] ?? null,
-                'challan_no' => $data['challan_no'] ?? null,
-                'freight_amount' => $data['freight_amount'],
-                'duty_amount' => $data['duty_amount'],
-                'clearing_amount' => $data['clearing_amount'],
-                'status' => 'draft',
-                'created_by' => $request->user()->id,
+        return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function header(array $data): array
+    {
+        return [
+            'supplier_id' => $data['supplier_id'],
+            'po_id' => $data['po_id'] ?? null,
+            'warehouse_id' => $data['warehouse_id'],
+            'received_on' => $data['received_on'],
+            'invoice_no' => $data['invoice_no'] ?? null,
+            'challan_no' => $data['challan_no'] ?? null,
+            'freight_amount' => $data['freight_amount'] ?? 0,
+            'duty_amount' => $data['duty_amount'] ?? 0,
+            'clearing_amount' => $data['clearing_amount'] ?? 0,
+        ];
+    }
+
+    /**
+     * The landed cost of each line, per unit, before conversion to the base currency.
+     *
+     * BR-36 — apportioned by line value, not by quantity: a kilo of imported ink and a kilo of
+     * local carton board do not carry the same share of the duty bill. One function, used both
+     * when the lines are written and when they are posted, so the two cannot disagree.
+     *
+     * @param  list<array{qty: float, rate: float}>  $lines
+     * @return list<float>
+     */
+    private function landedUnitCosts(array $lines, float $freight, float $duty, float $clearing): array
+    {
+        $landed = $this->valuator->apportionLandedCost(
+            array_map(fn (array $line): array => ['line_value' => $line['qty'] * $line['rate']], $lines),
+            $freight,
+            $duty,
+            $clearing,
+        );
+
+        return array_map(
+            fn (array $line, int $index): float => $line['rate'] + ($line['qty'] > 0 ? $landed[$index] / $line['qty'] : 0),
+            $lines,
+            array_keys($lines),
+        );
+    }
+
+    /**
+     * The receipt's lines, as typed. No lot, no ledger, no stock.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function writeLines(Grn $grn, array $data): void
+    {
+        $lines = array_values($data['lines']);
+
+        $unitCosts = $this->landedUnitCosts(
+            array_map(fn (array $line): array => ['qty' => (float) $line['qty'], 'rate' => (float) $line['rate']], $lines),
+            (float) ($data['freight_amount'] ?? 0),
+            (float) ($data['duty_amount'] ?? 0),
+            (float) ($data['clearing_amount'] ?? 0),
+        );
+
+        foreach ($lines as $index => $line) {
+            $qty = (float) $line['qty'];
+
+            DB::table('grn_lines')->insert([
+                'grn_id' => $grn->id,
+                'line_no' => $index + 1,
+                'po_line_id' => $line['po_line_id'] ?? null,
+                'item_id' => $line['item_id'],
+                'uom_id' => $line['uom_id'],
+                'received_qty' => $qty,
+                'accepted_qty' => $qty,
+                'rejected_qty' => 0,
+                'rate' => $line['rate'],
+                'landed_rate' => round($unitCosts[$index], 4),
+                'shade_code' => $line['shade_code'] ?? null,
+                'supplier_batch_no' => $line['supplier_batch_no'] ?? null,
+                'expiry_date' => $line['expiry_date'] ?? null,
+                'roll_length_m' => $line['roll_length_m'] ?? null,
+                'cert_scheme' => $line['cert_scheme'] ?? null,
+                'cert_claim_pct' => $line['cert_claim_pct'] ?? 0,
+                'cert_document_no' => $line['cert_document_no'] ?? null,
             ]);
+        }
+    }
 
-            // BR-36 — apportion by line value, not by quantity: a kilo of imported ink and a
-            // kilo of local carton board do not carry the same share of the duty bill.
-            $lineValues = array_map(
-                fn (array $line): array => ['line_value' => (float) $line['qty'] * (float) $line['rate']],
-                $data['lines'],
+    /**
+     * Posts a draft receipt: one lot per line, the stock ledger, the weighted average, the
+     * chain-of-custody input, and the order's received quantities.
+     *
+     * This is the posting that `store()` used to do inline, moved here unchanged so that it
+     * can also run later, against a draft. Every figure is worked out the way it was: the
+     * landed cost is apportioned from the same quantities and rates, at full precision, and
+     * converted at the rate the purchase order snapshotted.
+     */
+    private function postReceipt(Grn $grn, int $userId): void
+    {
+        $lines = DB::table('grn_lines')->where('grn_id', $grn->id)->orderBy('line_no')->get();
+
+        $unitCosts = $this->landedUnitCosts(
+            $lines->map(fn (object $line): array => ['qty' => (float) $line->received_qty, 'rate' => (float) $line->rate])->all(),
+            (float) $grn->freight_amount,
+            (float) $grn->duty_amount,
+            (float) $grn->clearing_amount,
+        );
+
+        // BR-59 — the stock ledger is kept in the factory's own currency, and every rate on
+        // this receipt is in the purchase order's. Received against a USD order at the
+        // seeded rate of 122.5, a lot was being valued at a hundred-and-twenty-second of
+        // what the material cost, and every figure downstream of it — the weighted average,
+        // the material cost of a job, the margin on the order it was made for — carried the
+        // same error in the same direction. Converted once, here, at the rate the order
+        // itself snapshotted (BR-22).
+        $orderRate = $grn->po_id === null ? 1.0 : (float) (DB::table('purchase_orders')
+            ->where('id', $grn->po_id)->value('exchange_rate') ?? 1);
+        $orderRate = $orderRate > 0 ? $orderRate : 1.0;
+
+        $receivedOn = (string) \Illuminate\Support\Carbon::parse($grn->received_on)->toDateString();
+
+        foreach ($lines as $index => $line) {
+            $qty = (float) $line->received_qty;
+            // What the lot is worth in the books, as opposed to what the supplier charged.
+            $baseUnitCost = round($unitCosts[$index] * $orderRate, 4);
+
+            $item = Item::query()->find($line->item_id);
+
+            // The lot inherits the claim from the GRN line (I5). This copy is the link an
+            // auditor follows from a shipment back to a supplier certificate.
+            $this->posting->receive(
+                [
+                    'lot_no' => $this->numbers->nextLotNumber(),
+                    'item_id' => $line->item_id,
+                    'kind' => 'raw_material',
+                    'warehouse_id' => $grn->warehouse_id,
+                    'uom_id' => $line->uom_id,
+                    'grn_line_id' => $line->id,
+                    'supplier_batch_no' => $line->supplier_batch_no,
+                    'shade_code' => $line->shade_code,
+                    'roll_length_m' => $line->roll_length_m,
+                    'received_on' => $receivedOn,
+                    // BR-39 — an item with a shelf life gets its expiry computed here
+                    // rather than relying on the store keeper to work it out.
+                    'expiry_date' => $line->expiry_date
+                        ?? ($item !== null && $item->has_expiry && $item->shelf_life_days !== null
+                            ? now()->addDays($item->shelf_life_days)->toDateString()
+                            : null),
+                    'cert_scheme' => $line->cert_scheme,
+                    'cert_claim_pct' => $line->cert_claim_pct ?? 0,
+                    'cert_document_no' => $line->cert_document_no,
+                    'status' => 'available',
+                ],
+                $qty,
+                $baseUnitCost,
+                $grn,
             );
 
-            $landed = $this->valuator->apportionLandedCost(
-                $lineValues,
-                (float) $data['freight_amount'],
-                (float) $data['duty_amount'],
-                (float) $data['clearing_amount'],
-            );
+            // BR-42 — the certified input side of the reconciliation, written at the only
+            // point a certified claim legitimately enters the system.
+            if (! empty($line->cert_scheme) && (float) ($line->cert_claim_pct ?? 0) > 0) {
+                // C3 — a closed period does not take new transactions. Without this a
+                // receipt back-dated into a certified month would reopen it in fact while
+                // it stayed closed on the report an auditor was shown.
+                app(CocPeriodGuard::class)->assertOpenNow((string) $line->cert_scheme);
 
-            // BR-59 — the stock ledger is kept in the factory's own currency, and every rate on
-            // this receipt is in the purchase order's. Received against a USD order at the
-            // seeded rate of 122.5, a lot was being valued at a hundred-and-twenty-second of
-            // what the material cost, and every figure downstream of it — the weighted average,
-            // the material cost of a job, the margin on the order it was made for — carried the
-            // same error in the same direction. Converted once, here, at the rate the order
-            // itself snapshotted (BR-22).
-            $orderRate = ($data['po_id'] ?? null) === null ? 1.0 : (float) (DB::table('purchase_orders')
-                ->where('id', $data['po_id'])->value('exchange_rate') ?? 1);
-            $orderRate = $orderRate > 0 ? $orderRate : 1.0;
-
-            foreach ($data['lines'] as $index => $line) {
-                $qty = (float) $line['qty'];
-                $landedUnitCost = (float) $line['rate'] + ($qty > 0 ? $landed[$index] / $qty : 0);
-                // What the lot is worth in the books, as opposed to what the supplier charged.
-                $baseUnitCost = round($landedUnitCost * $orderRate, 4);
-
-                $grnLineId = DB::table('grn_lines')->insertGetId([
-                    'grn_id' => $grn->id,
-                    'line_no' => $index + 1,
-                    'po_line_id' => $line['po_line_id'] ?? null,
-                    'item_id' => $line['item_id'],
-                    'uom_id' => $line['uom_id'],
-                    'received_qty' => $qty,
-                    'accepted_qty' => $qty,
-                    'rejected_qty' => 0,
-                    'rate' => $line['rate'],
-                    'landed_rate' => round($landedUnitCost, 4),
-                    'shade_code' => $line['shade_code'] ?? null,
-                    'supplier_batch_no' => $line['supplier_batch_no'] ?? null,
-                    'expiry_date' => $line['expiry_date'] ?? null,
-                    'cert_scheme' => $line['cert_scheme'] ?? null,
-                    'cert_claim_pct' => $line['cert_claim_pct'] ?? 0,
-                    'cert_document_no' => $line['cert_document_no'] ?? null,
+                DB::table('coc_transactions')->insert([
+                    'scheme' => $line->cert_scheme,
+                    'direction' => 'input',
+                    'grn_line_id' => $line->id,
+                    'item_id' => $line->item_id,
+                    'uom_id' => $line->uom_id,
+                    'qty' => round($qty * (float) $line->cert_claim_pct / 100, 6),
+                    'claim_pct' => $line->cert_claim_pct,
+                    'document_no' => $line->cert_document_no,
+                    'period_year' => (int) date('Y', (int) strtotime($receivedOn)),
+                    'period_month' => (int) date('n', (int) strtotime($receivedOn)),
+                    'created_by' => $userId,
+                    'created_at' => now(),
                 ]);
-
-                $item = Item::query()->find($line['item_id']);
-
-                // The lot inherits the claim from the GRN line (I5). This copy is the link an
-                // auditor follows from a shipment back to a supplier certificate.
-                $this->posting->receive(
-                    [
-                        'lot_no' => $this->numbers->nextLotNumber(),
-                        'item_id' => $line['item_id'],
-                        'kind' => 'raw_material',
-                        'warehouse_id' => $data['warehouse_id'],
-                        'uom_id' => $line['uom_id'],
-                        'grn_line_id' => $grnLineId,
-                        'supplier_batch_no' => $line['supplier_batch_no'] ?? null,
-                        'shade_code' => $line['shade_code'] ?? null,
-                        'roll_length_m' => $line['roll_length_m'] ?? null,
-                        'received_on' => $data['received_on'],
-                        // BR-39 — an item with a shelf life gets its expiry computed here
-                        // rather than relying on the store keeper to work it out.
-                        'expiry_date' => $line['expiry_date']
-                            ?? ($item !== null && $item->has_expiry && $item->shelf_life_days !== null
-                                ? now()->addDays($item->shelf_life_days)->toDateString()
-                                : null),
-                        'cert_scheme' => $line['cert_scheme'] ?? null,
-                        'cert_claim_pct' => $line['cert_claim_pct'] ?? 0,
-                        'cert_document_no' => $line['cert_document_no'] ?? null,
-                        'status' => 'available',
-                    ],
-                    $qty,
-                    $baseUnitCost,
-                    $grn,
-                );
-
-                // BR-42 — the certified input side of the reconciliation, written at the only
-                // point a certified claim legitimately enters the system.
-                if (! empty($line['cert_scheme']) && (float) ($line['cert_claim_pct'] ?? 0) > 0) {
-                    // C3 — a closed period does not take new transactions. Without this a
-                    // receipt back-dated into a certified month would reopen it in fact while
-                    // it stayed closed on the report an auditor was shown.
-                    app(CocPeriodGuard::class)->assertOpenNow((string) $line['cert_scheme']);
-
-                    DB::table('coc_transactions')->insert([
-                        'scheme' => $line['cert_scheme'],
-                        'direction' => 'input',
-                        'grn_line_id' => $grnLineId,
-                        'item_id' => $line['item_id'],
-                        'uom_id' => $line['uom_id'],
-                        'qty' => round($qty * (float) $line['cert_claim_pct'] / 100, 6),
-                        'claim_pct' => $line['cert_claim_pct'],
-                        'document_no' => $line['cert_document_no'] ?? null,
-                        'period_year' => (int) date('Y', strtotime($data['received_on'])),
-                        'period_month' => (int) date('n', strtotime($data['received_on'])),
-                        'created_by' => $request->user()->id,
-                        'created_at' => now(),
-                    ]);
-                }
             }
+        }
 
-            $grn->update(['status' => 'posted']);
+        $grn->update(['status' => 'posted']);
 
-            // What the order has now had against it. Recomputed from the receipts rather than
-            // incremented, so it is the same answer however many times it is asked and a
-            // corrected GRN cannot leave the figure drifting.
-            //
-            // Without this `purchase_order_lines.received_qty` never moved, so every line
-            // looked fully outstanding for ever: the second receipt against an order offered
-            // the whole quantity again, and "partially received" was a status nothing could
-            // reach.
-            $this->rollUpReceipts($data['po_id'] ?? null);
-
-            return $grn;
-        });
-
-        return redirect()
-            ->route('grns.show', $grn)
-            ->with('success', "GRN {$grn->number} posted. Lots created and stock ledger written.");
+        // What the order has now had against it. Recomputed from the receipts rather than
+        // incremented, so it is the same answer however many times it is asked and a
+        // corrected GRN cannot leave the figure drifting.
+        //
+        // Without this `purchase_order_lines.received_qty` never moved, so every line
+        // looked fully outstanding for ever: the second receipt against an order offered
+        // the whole quantity again, and "partially received" was a status nothing could
+        // reach.
+        $this->rollUpReceipts($grn->po_id === null ? null : (int) $grn->po_id);
     }
 
     public function show(Grn $grn): Response
@@ -429,14 +618,40 @@ class GrnController extends Controller
         ]);
     }
 
-    public function post(Grn $grn): RedirectResponse
+    /** Posts a draft. The only step that puts the goods into stock. */
+    public function post(Request $request, Grn $grn): RedirectResponse
     {
         if ($grn->status !== 'draft') {
-            return back()->with('error', 'This GRN is already posted.');
+            return back()->with('error', 'This goods receipt is already posted.');
         }
 
-        $grn->update(['status' => 'posted']);
+        DB::transaction(function () use ($grn, $request): void {
+            /** @var Grn $locked */
+            $locked = Grn::query()->lockForUpdate()->findOrFail($grn->getKey());
 
-        return back()->with('success', "GRN {$grn->number} posted.");
+            // Pressed twice, or from two screens: the second is a replay, not a second receipt.
+            if ($locked->status !== 'draft') {
+                return;
+            }
+
+            $this->postReceipt($locked, (int) $request->user()->id);
+        });
+
+        return back()->with('success', "GRN {$grn->number} posted. Lots created and stock ledger written.");
+    }
+
+    /** Discards a draft. A posted receipt is corrected with a stock adjustment, never deleted. */
+    public function destroy(Grn $grn): RedirectResponse
+    {
+        if ($grn->status !== 'draft') {
+            return back()->with('error', 'Only a draft goods receipt can be discarded.');
+        }
+
+        DB::transaction(function () use ($grn): void {
+            DB::table('grn_lines')->where('grn_id', $grn->id)->delete();
+            $grn->delete();
+        });
+
+        return redirect()->route('grns.index')->with('success', "Draft goods receipt {$grn->number} discarded.");
     }
 }

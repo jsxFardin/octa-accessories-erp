@@ -13,7 +13,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { money, qty, todayIso } from '@/plugins/formatting';
+import { isoDate, money, qty, todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     suppliers: { type: Array, default: () => [] },
@@ -21,6 +21,8 @@ const props = defineProps({
     items: { type: Array, default: () => [] },
     uoms: { type: Array, default: () => [] },
     purchaseOrders: { type: Array, default: () => [] },
+    /** A draft receipt being corrected; null for a new one. */
+    grn: { type: Object, default: null },
     /** The purchase order this receipt was started from, resolved server-side. */
     preselectPoId: { type: Number, default: null },
     /** That order's lines, with what is still outstanding on each — resolved server-side. */
@@ -70,17 +72,30 @@ function lineFromOrder(poLine) {
     };
 }
 
+const isEdit = computed(() => Boolean(props.grn));
+
 const form = useForm({
-    supplier_id: fromOrder?.supplier_id ?? '',
-    po_id: fromOrder?.id ?? '',
-    warehouse_id: '',
-    received_on: todayIso(),
-    invoice_no: '',
-    challan_no: '',
-    freight_amount: 0,
-    duty_amount: 0,
-    clearing_amount: 0,
-    lines: props.poLines.length ? props.poLines.map(lineFromOrder) : [blankLine()],
+    supplier_id: props.grn?.supplier_id ?? fromOrder?.supplier_id ?? '',
+    po_id: props.grn?.po_id ?? fromOrder?.id ?? '',
+    warehouse_id: props.grn?.warehouse_id ?? '',
+    received_on: isoDate(props.grn?.received_on) || todayIso(),
+    invoice_no: props.grn?.invoice_no ?? '',
+    challan_no: props.grn?.challan_no ?? '',
+    freight_amount: props.grn?.freight_amount ?? 0,
+    duty_amount: props.grn?.duty_amount ?? 0,
+    clearing_amount: props.grn?.clearing_amount ?? 0,
+    lines: props.grn?.lines?.length
+        ? props.grn.lines.map((line) => ({
+            ...blankLine(),
+            ...Object.fromEntries(Object.entries(line).map(([key, value]) => [key, value ?? ''])),
+            // Stored as fixed-point text ("250.000000"); shown as the number that was typed.
+            qty: Number(line.qty),
+            rate: Number(line.rate),
+            roll_length_m: line.roll_length_m === null ? '' : Number(line.roll_length_m),
+            cert_claim_pct: Number(line.cert_claim_pct) || '',
+            expiry_date: isoDate(line.expiry_date),
+        }))
+        : props.poLines.length ? props.poLines.map(lineFromOrder) : [blankLine()],
 });
 
 /**
@@ -105,7 +120,7 @@ const orderCurrency = computed(() => {
  * warehouse, the challan number, anything already typed — is kept.
  */
 watch(() => form.po_id, (id) => {
-    if (!id || Number(id) === props.preselectPoId) return;
+    if (!id || Number(id) === props.preselectPoId || isEdit.value) return;
 
     router.get('/grns/create', { po: id }, {
         only: ['poLines', 'preselectPoId'],
@@ -178,9 +193,20 @@ function landedRate(line, index) {
 
 const { confirm } = useConfirm();
 
+function send(post) {
+    form.transform((data) => ({ ...data, post }));
+
+    isEdit.value ? form.put(`/grns/${props.grn.id}`) : form.post('/grns');
+}
+
+/** Writes the receipt and nothing else. No stock moves until it is posted. */
+function saveDraft() {
+    if (!form.processing) send(false);
+}
+
 /**
- * Receiving posts stock in the same step: lots are created, the ledger is written and the
- * average rate moves. There is no draft and no reversal, so the figures are read back first.
+ * Posting creates the lots, writes the ledger and moves the average, and cannot be taken back,
+ * so the figures are read back first.
  */
 async function submit() {
     if (form.processing) return;
@@ -192,20 +218,20 @@ async function submit() {
     // Nothing to read back yet: let the server say what is missing rather than asking the user
     // to confirm an empty receipt.
     if (filled === 0 || !warehouse) {
-        form.post('/grns');
+        send(true);
 
         return;
     }
 
     const agreed = await confirm({
         title: 'Receive and post these goods?',
-        message: `${filled} ${filled === 1 ? 'line' : 'lines'}, ${money(goodsValue.value + landed.value, orderCurrency.value)} including landed cost, into ${into}.\n\nStock is added straight away and cannot be taken back from this screen — a mistake is corrected with a stock adjustment.`,
+        message: `${filled} ${filled === 1 ? 'line' : 'lines'}, ${money(goodsValue.value + landed.value, orderCurrency.value)} including landed cost, into ${into}.\n\nStock is added straight away and cannot be taken back from this screen — a mistake is corrected with a stock adjustment. If you are not sure of the figures yet, save a draft instead.`,
         confirmLabel: 'Receive and post',
         cancelLabel: 'Check again',
         tone: 'danger',
     });
 
-    if (agreed) form.post('/grns');
+    if (agreed) send(true);
 }
 
 const columns = [
@@ -220,10 +246,12 @@ const columns = [
 
 <template>
     <AppLayout>
-        <Head title="New goods receipt" />
+        <Head :title="isEdit ? `Edit ${grn.number}` : 'New goods receipt'" />
 
-        <template #title>New goods receipt</template>
-        <template #subtitle>Certification enters the system here — nothing downstream may invent a claim</template>
+        <template #title>{{ isEdit ? `Edit draft ${grn.number}` : 'New goods receipt' }}</template>
+        <template #subtitle>
+            Check what arrived against the order. Save a draft if you are not finished; posting puts the goods into stock.
+        </template>
 
         <FormLayout @submit="submit">
 
@@ -395,10 +423,10 @@ const columns = [
                     <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
 
                     <div class="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-                        <span class="font-medium">On posting:</span> each line becomes a barcoded lot with a
-                        <code class="font-mono">grn_receipt</code> ledger row, the item's weighted average moves
-                       , and any certification claim is written to the chain-of-custody ledger as certified
-                        input. This is the only legitimate origin of a claim.
+                        <span class="font-medium">When this is posted:</span> each line becomes a lot in the
+                        warehouse, the material's average cost is updated, and any certification claim
+                        is recorded as certified input — the only place a claim can enter the system.
+                        A draft does none of this.
                     </div>
                 </div>
             </Card>
@@ -441,10 +469,16 @@ const columns = [
             <template #footer>
                 <FormFooter
                     :form="form"
-                    cancel-href="/grns"
+                    :cancel-href="isEdit ? `/grns/${grn.id}` : '/grns'"
                     label="Receive and post"
                     @save="submit"
-                />
+                >
+                    <template #secondary>
+                        <Button :loading="form.processing" :disabled="form.processing" @click="saveDraft">
+                            {{ isEdit ? 'Save draft' : 'Save as draft' }}
+                        </Button>
+                    </template>
+                </FormFooter>
             </template>
         </FormLayout>
     </AppLayout>

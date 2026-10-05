@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -8,6 +8,7 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import { baseCurrency, date, money, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useGuardedAction } from '@/composables/useGuardedAction';
 
 const props = defineProps({
     grn: { type: Object, required: true },
@@ -15,6 +16,28 @@ const props = defineProps({
     lines: { type: Array, default: () => [] },
     lots: { type: Array, default: () => [] },
 });
+
+const { busy, run } = useGuardedAction();
+
+function post() {
+    run('post', {
+        title: `Post ${props.grn.number} to stock?`,
+        message: `${props.lines.length} ${props.lines.length === 1 ? 'line' : 'lines'}. Each becomes a lot in the warehouse and the material's average cost is updated. This cannot be undone from here — a mistake is corrected with a stock adjustment.`,
+        confirmLabel: 'Post to stock',
+        cancelLabel: 'Not yet',
+        tone: 'danger',
+    }, (done) => router.post(`/grns/${props.grn.id}/post`, {}, { preserveScroll: true, ...done }));
+}
+
+function discard() {
+    run('discard', {
+        title: `Discard draft ${props.grn.number}?`,
+        message: 'The draft and its lines are deleted. Nothing was in stock, so nothing else changes.',
+        confirmLabel: 'Discard draft',
+        cancelLabel: 'Keep it',
+        tone: 'danger',
+    }, (done) => router.delete(`/grns/${props.grn.id}`, done));
+}
 
 /**
  * BR-55/BR-59 — two units live on this page and only one of them is the factory's.
@@ -47,8 +70,31 @@ const orderCurrency = computed(() => props.purchaseOrder?.currency ?? baseCurren
             >
                 PO {{ purchaseOrder.number }}
             </Button>
+            <!-- A draft: nothing is in stock yet. Correct it, post it, or throw it away. -->
+            <template v-if="grn.status === 'draft'">
+                <Button v-if="can('grn.update')" :href="`/grns/${grn.id}/edit`" :disabled="busy !== null">Edit</Button>
+                <Button
+                    v-if="can('grn.post')"
+                    variant="primary"
+                    :loading="busy === 'post'"
+                    :disabled="busy !== null"
+                    @click="post"
+                >
+                    Post to stock
+                </Button>
+                <Button
+                    v-if="can('grn.delete')"
+                    variant="danger"
+                    :loading="busy === 'discard'"
+                    :disabled="busy !== null"
+                    @click="discard"
+                >
+                    Discard draft
+                </Button>
+            </template>
+            <!-- A bill is for goods that were received; a draft has received nothing. -->
             <Button
-                v-if="can('supplier_bill.create')"
+                v-else-if="can('supplier_bill.create')"
                 variant="primary"
                 :href="`/supplier-bills/create?grn_id=${grn.id}`"
             >
