@@ -95,7 +95,7 @@ const BY_DOCUMENT = {
     },
     physical_count: {
         counting: { verb: 'Start counting', title: (name) => `Start counting ${name}?`, label: 'Start counting', message: 'Every available lot in this warehouse is frozen from now until the count is posted or cancelled. Nothing can be issued, transferred or adjusted from it in the meantime.', tone: 'danger', cancelLabel: 'Not yet' },
-        reconciled: { verb: 'Reconcile', message: 'The counted quantities are compared with system stock and the differences are shown. After this the counted quantities can no longer be changed.' },
+        reconciled: { verb: 'Reconcile', message: 'The counted quantities are compared with system stock and the differences are shown. Nothing is posted yet — if a figure turns out to be wrong, Recount takes you back to correct it.' },
         posted: { verb: 'Post', label: 'Post variances', message: 'Stock is changed to the counted quantities and the lots are released. This cannot be undone.', tone: 'danger' },
         cancelled: { ...CANCEL, message: 'The count is abandoned: the lots are released and no stock changes.' },
     },

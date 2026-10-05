@@ -52,8 +52,19 @@ const columns = computed(() => {
 
 const confirmTransition = useTransitionConfirm('physical_count');
 
+/** Going back to counting from reconciled is a recount, not a start: nothing new is frozen. */
+const RECOUNT = {
+    title: `Recount ${props.count.number ?? 'this count'}?`,
+    message: 'The count goes back to counting so quantities can be corrected. The lots stay frozen and the system quantities taken when counting began are kept. Reconcile again when the figures are right.',
+    confirmLabel: 'Recount',
+    cancelLabel: 'Back',
+    tone: 'default',
+};
+
 async function transition(to) {
-    if (!(await confirmTransition(to, props.count.number))) return;
+    const recount = to === 'counting' && props.count.status === 'reconciled';
+
+    if (!(await confirmTransition(to, props.count.number, recount ? RECOUNT : {}))) return;
 
     router.post(`/physical-counts/${props.count.id}/transition`, { to }, { preserveScroll: true });
 }
@@ -88,10 +99,10 @@ async function transition(to) {
             <Button
                 v-if="availableTransitions.includes('counting')"
                 size="sm"
-                variant="primary"
+                :variant="count.status === 'reconciled' ? 'secondary' : 'primary'"
                 @click="transition('counting')"
             >
-                Start counting
+                {{ count.status === 'reconciled' ? 'Recount' : 'Start counting' }}
             </Button>
             <Button
                 v-if="availableTransitions.includes('reconciled')"
@@ -115,7 +126,7 @@ async function transition(to) {
                 variant="danger"
                 @click="transition('cancelled')"
             >
-                Cancel
+                Cancel count
             </Button>
         </template>
 

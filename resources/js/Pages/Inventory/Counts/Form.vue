@@ -56,6 +56,29 @@ function isChanged(line) {
 }
 
 const countedLines = computed(() => (form.lines ?? []).filter(isCounted).length);
+
+/**
+ * Finding one lot among three hundred. The lines were a single unordered stack with nothing to
+ * search by; a counter walking the racks needs to jump to the lot in their hand, and near the
+ * end needs to see only what is left.
+ */
+const search = ref('');
+const uncountedOnly = ref(false);
+
+const visibleLines = computed(() => {
+    const term = search.value.trim().toLowerCase();
+
+    return (form.lines ?? [])
+        .filter((line) => !uncountedOnly.value || !isCounted(line))
+        .filter((line) => term === '' || [line.lot_no, line.item_code, line.bin_code]
+            .some((value) => String(value ?? '').toLowerCase().includes(term)))
+        // Bin, then lot: the order the racks are walked in.
+        .slice()
+        .sort((a, b) => String(a.bin_code ?? '').localeCompare(String(b.bin_code ?? ''))
+            || String(a.lot_no ?? '').localeCompare(String(b.lot_no ?? '')));
+});
+
+const progressPct = computed(() => (totalLines.value ? Math.round((countedLines.value / totalLines.value) * 100) : 0));
 const totalLines = computed(() => form.lines?.length ?? 0);
 
 /** The ids sent on the last save, in order — server errors come back keyed by that position. */
@@ -127,9 +150,35 @@ function submit() {
                 :subtitle="`${countedLines} of ${totalLines} counted. You can save part-way and carry on later — system quantities stay hidden until reconciliation.`"
             >
                 <p v-if="form.errors.lines" role="alert" class="mb-3 text-xs text-rose-700">{{ form.errors.lines }}</p>
+
+                <div class="sticky top-14 z-10 -mx-4 mb-3 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <FormField label="Find a lot" class="min-w-0 flex-1 basis-56">
+                            <TextInput v-model="search" placeholder="Lot number, material code or bin — type or scan" />
+                        </FormField>
+                        <label class="flex min-h-9 items-center gap-2 pt-5 text-sm text-ink-800">
+                            <input v-model="uncountedOnly" type="checkbox" class="form-checkbox">
+                            Only lots not counted yet
+                        </label>
+                    </div>
+                    <div
+                        class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"
+                        role="progressbar"
+                        :aria-valuenow="countedLines"
+                        aria-valuemin="0"
+                        :aria-valuemax="totalLines"
+                        :aria-label="`${countedLines} of ${totalLines} lots counted`"
+                    >
+                        <div class="h-full rounded-full bg-brand-600 transition-all" :style="{ width: `${progressPct}%` }" />
+                    </div>
+                </div>
+
+                <p v-if="visibleLines.length === 0" class="py-6 text-center text-sm text-ink-600">
+                    {{ uncountedOnly && !search ? 'Every lot has been counted.' : 'No lot matches.' }}
+                </p>
                 <div class="space-y-3">
                     <div
-                        v-for="line in form.lines"
+                        v-for="line in visibleLines"
                         :key="line.id"
                         class="grid gap-3 rounded border border-slate-200 p-3 sm:grid-cols-12"
                     >

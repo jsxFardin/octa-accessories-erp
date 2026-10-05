@@ -37,7 +37,10 @@ class PhysicalCountStateMachine extends StateMachine
         return [
             PhysicalCount::OPEN => [PhysicalCount::COUNTING, PhysicalCount::CANCELLED],
             PhysicalCount::COUNTING => [PhysicalCount::RECONCILED, PhysicalCount::CANCELLED],
-            PhysicalCount::RECONCILED => [PhysicalCount::POSTED],
+            // Back to counting as well as on to posting. Reconciling is the first moment the
+            // differences are seen, and so the first moment a mis-keyed line is noticed; with no
+            // way back the only thing left to do with it was post a variance known to be wrong.
+            PhysicalCount::RECONCILED => [PhysicalCount::POSTED, PhysicalCount::COUNTING],
             PhysicalCount::POSTED => [],
             PhysicalCount::CANCELLED => [],
         ];
@@ -73,7 +76,9 @@ class PhysicalCountStateMachine extends StateMachine
         $document->exists = true;
 
         match ($to) {
-            PhysicalCount::COUNTING => $this->guardStartCounting($locked),
+            // A recount returns to counting with its lines and its frozen lots as they are:
+            // only the first start has anything to check or set up.
+            PhysicalCount::COUNTING => $from === PhysicalCount::OPEN ? $this->guardStartCounting($locked) : null,
             PhysicalCount::RECONCILED => $this->guardReconciled($locked),
             PhysicalCount::POSTED => $this->guardPosted($locked),
             default => null,
@@ -87,7 +92,9 @@ class PhysicalCountStateMachine extends StateMachine
     protected function effect(Model $document, string $from, string $to, array $context): void
     {
         match ($to) {
-            PhysicalCount::COUNTING => $this->onCounting($document),
+            // Not on a recount: the system quantities were snapshotted when counting began, and
+            // taking them again now would move the figure every variance is measured from.
+            PhysicalCount::COUNTING => $from === PhysicalCount::OPEN ? $this->onCounting($document) : null,
             PhysicalCount::POSTED => $this->onPosted($document),
             PhysicalCount::CANCELLED => $this->onCancelled($document, $from),
             default => null,

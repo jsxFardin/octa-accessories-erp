@@ -297,6 +297,36 @@ it('reconciles when every line is counted and exposes generated variance', funct
             ->where('lines.0.variance_qty', 2));
 });
 
+/*
+ * UX audit H-26. Reconciling is when the differences are first seen, and there was no way back
+ * from it: a mis-keyed line could only be posted as a wrong variance.
+ */
+it('goes back from reconciled to counting, keeping the snapshot and the freeze', function (): void {
+    $lot = p28Lot();
+    $count = p28Reconcile($this, p28EnterCounts($this, p28StartCounting($this, p28Open($this, $lot)), [$lot->id => 3]));
+
+    $line = PhysicalCountLine::query()->where('physical_count_id', $count->id)->where('lot_id', $lot->id)->firstOrFail();
+    $systemQty = (float) $line->system_qty;
+    $lines = PhysicalCountLine::query()->where('physical_count_id', $count->id)->count();
+
+    $this->actingAs($this->keeper)
+        ->post("/physical-counts/{$count->id}/transition", ['to' => 'counting'])
+        ->assertSessionHas('success');
+
+    expect($count->refresh()->status)->toBe(PhysicalCount::COUNTING)
+        // Nothing re-snapshotted, no second set of lines, and the lot is still frozen.
+        ->and((float) $line->refresh()->system_qty)->toBe($systemQty)
+        ->and((float) $line->counted_qty)->toBe(3.0)
+        ->and(PhysicalCountLine::query()->where('physical_count_id', $count->id)->count())->toBe($lines)
+        ->and($lot->refresh()->status)->toBe('blocked');
+
+    // And the corrected figure can be keyed and reconciled again.
+    $count = p28Reconcile($this, p28EnterCounts($this, $count, [$lot->id => 4]));
+
+    expect($count->status)->toBe(PhysicalCount::RECONCILED)
+        ->and((float) $line->refresh()->counted_qty)->toBe(4.0);
+});
+
 it('posts positive count_variance, keeps unit cost and avg_rate unchanged, and unfreezes lots', function (): void {
     $lot = p28Cost(p28Lot(), 12.5);
     $before = (float) $lot->balance_qty;
