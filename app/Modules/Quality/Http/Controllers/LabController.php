@@ -124,7 +124,7 @@ class LabController extends Controller
             $requirement = $requirements->get($test->id);
 
             $thresholds[$test->id] = [
-                'pass_value' => $requirement?->pass_value ?? $test->default_pass_value,
+                'pass_value' => $requirement->pass_value ?? $test->default_pass_value,
                 'from_customer' => $requirement !== null && $requirement->pass_value !== null,
                 'is_mandatory' => (bool) ($requirement->is_mandatory ?? false),
             ];
