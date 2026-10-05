@@ -20,7 +20,7 @@ const loading = ref(true);
 const error = ref(null);
 /** When the queue on screen was last fetched from the server, if it did not come from one. */
 const cachedAt = ref(null);
-const { pending, online } = useOfflineQueue();
+const { pending, rejected, online, flush } = useOfflineQueue();
 
 const cachedTime = computed(() => (cachedAt.value
     ? new Date(cachedAt.value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -82,16 +82,52 @@ async function load() {
     loading.value = false;
 }
 
+const ending = ref(false);
+/** Why the shift could not be ended, when it could not. */
+const endBlocked = ref(null);
+
 /**
  * End of shift. Without this the next operator at a shared kiosk inherits the previous one's
  * session and books their output under someone else's name.
+ *
+ * Nothing local is cleared until the server has confirmed the sign-out, and the shift cannot
+ * be ended at all while records are waiting to be sent: signing out revokes the token those
+ * records are posted with, so ending a shift during an outage used to discard them.
  */
-function endShift() {
-    localStorage.removeItem('octa.device_session');
-    // The cached pages and work queue are this operator's too. Left behind, they would be
-    // handed to the next badge at this kiosk the moment the link dropped.
-    clearFloorCache();
-    router.post('/floor/session/end');
+async function endShift() {
+    if (ending.value) return;
+
+    ending.value = true;
+    endBlocked.value = null;
+
+    // One more attempt before deciding — the link may have come back a moment ago.
+    await flush();
+
+    if (pending.value > 0) {
+        endBlocked.value = `${pending.value}টি রেকর্ড এখনো পাঠানো হয়নি — এখন শিফট শেষ করা যাবে না। সংযোগ ফিরলে আবার চেষ্টা করুন। · ${pending.value} record(s) not sent yet — the shift cannot be ended. Try again when the connection is back.`;
+        ending.value = false;
+
+        return;
+    }
+
+    if (!navigator.onLine) {
+        endBlocked.value = 'সংযোগ নেই — সংযোগ ফিরলে শিফট শেষ করুন। · No connection — end the shift when the connection is back.';
+        ending.value = false;
+
+        return;
+    }
+
+    router.post('/floor/session/end', {}, {
+        onSuccess: () => {
+            localStorage.removeItem('octa.device_session');
+            // The cached pages and work queue are this operator's too. Left behind, they would
+            // be handed to the next badge at this kiosk the moment the link dropped.
+            clearFloorCache();
+        },
+        onFinish: () => {
+            ending.value = false;
+        },
+    });
 }
 
 onMounted(load);
@@ -115,15 +151,22 @@ onMounted(load);
                 </span>
 
                 <button
-                    class="rounded-full bg-white/10 px-5 py-2 text-lg font-bold hover:bg-white/20"
+                    class="rounded-full bg-white/10 px-5 py-2 text-lg font-bold hover:bg-white/20 disabled:opacity-60"
+                    :disabled="ending"
                     @click="endShift"
                 >
-                    শিফট শেষ · END SHIFT
+                    {{ ending ? '…' : 'শিফট শেষ · END SHIFT' }}
                 </button>
             </div>
         </template>
 
         <p v-if="error" class="mb-4 rounded-xl bg-rose-600 px-5 py-4 text-xl font-semibold">{{ error }}</p>
+
+        <p v-if="rejected" class="mb-4 rounded-xl bg-amber-500 px-5 py-4 text-lg font-semibold text-slate-900">
+            {{ rejected }}টি রেকর্ড পাঠানো যায়নি — সুপারভাইজারকে জানান · {{ rejected }} record(s) not sent — call your supervisor
+        </p>
+
+        <p v-if="endBlocked" role="alert" class="mb-4 rounded-xl bg-amber-500 px-5 py-4 text-xl font-semibold text-slate-900">{{ endBlocked }}</p>
 
         <!--
             Answered from the device's own cache because the link was down. Said plainly: the
