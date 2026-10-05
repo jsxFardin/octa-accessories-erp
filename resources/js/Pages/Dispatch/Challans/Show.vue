@@ -11,6 +11,7 @@ import Modal from '@/Components/Ui/Modal.vue';
 import { date, pcs, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useGuardedAction } from '@/composables/useGuardedAction';
 
 const props = defineProps({
     challan: { type: Object, required: true },
@@ -22,8 +23,6 @@ const issueOpen = ref(false);
 const returnOpen = ref(false);
 
 const issueForm = useForm({ to: 'issued', override_reason: '' });
-const transitForm = useForm({ to: 'in_transit', courier_name: '', tracking_no: '' });
-const deliverForm = useForm({ to: 'delivered', pod_ref: '' });
 const returnForm = useForm({ to: 'returned', return_reason: '' });
 
 function post(form, close) {
@@ -31,6 +30,48 @@ function post(form, close) {
         preserveScroll: true,
         onSuccess: () => close?.(),
     });
+}
+
+const { busy, run } = useGuardedAction();
+
+const name = props.challan.number ?? 'this delivery note';
+
+/** The one-click header actions: each is confirmed, and none can be fired twice. */
+const CONFIRM = {
+    in_transit: {
+        title: `Mark ${name} as in transit?`,
+        message: 'The goods are recorded as having left the factory.',
+        confirmLabel: 'Mark in transit',
+    },
+    delivered: {
+        title: `Mark ${name} as delivered?`,
+        message: 'The delivery is recorded as received by the customer and the order line is updated. This cannot be undone — goods that come back afterwards are a customer return.',
+        confirmLabel: 'Mark delivered',
+        tone: 'danger',
+    },
+    cancelled: {
+        title: `Cancel ${name}?`,
+        message: 'The delivery note is withdrawn and nothing can be delivered against it. This cannot be undone.',
+        confirmLabel: 'Cancel delivery note',
+        cancelLabel: 'Keep it',
+        tone: 'danger',
+    },
+};
+
+function move(to) {
+    run(to, CONFIRM[to], (done) => router.post(
+        `/delivery-challans/${props.challan.id}/transition`,
+        { to },
+        { preserveScroll: true, ...done },
+    ));
+}
+
+function createInvoice() {
+    run('invoice', {
+        title: `Create an invoice from ${name}?`,
+        message: 'A draft invoice is raised for the quantities on this delivery note.',
+        confirmLabel: 'Create invoice',
+    }, (done) => router.post('/invoices', { delivery_challan_id: props.challan.id }, done));
 }
 
 function overBand(row) {
@@ -74,18 +115,20 @@ const columns = [
                 Verbs, not statuses. Beside a badge reading "Issued", a button reading
                 "Delivered" is indistinguishable from a second status label.
             -->
-            <Button v-if="availableTransitions.includes('in_transit')" size="sm" @click="post(transitForm)">Mark in transit</Button>
-            <Button v-if="availableTransitions.includes('delivered')" size="sm" variant="primary" @click="post(deliverForm)">Mark delivered</Button>
+            <Button v-if="availableTransitions.includes('in_transit')" size="sm" :loading="busy === 'in_transit'" :disabled="busy !== null" @click="move('in_transit')">Mark in transit</Button>
+            <Button v-if="availableTransitions.includes('delivered')" size="sm" variant="primary" :loading="busy === 'delivered'" :disabled="busy !== null" @click="move('delivered')">Mark delivered</Button>
             <Button
                 v-if="['issued', 'in_transit', 'delivered'].includes(challan.status) && can('sales_invoice.create')"
                 size="sm"
-                @click="router.post('/invoices', { delivery_challan_id: challan.id })"
+                :loading="busy === 'invoice'"
+                :disabled="busy !== null"
+                @click="createInvoice"
             >
                 Create invoice
             </Button>
             <!-- Destructive last, after everything that moves the delivery forward. -->
             <Button v-if="availableTransitions.includes('returned')" size="sm" variant="danger" @click="returnOpen = true">Return</Button>
-            <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="post(useForm({ to: 'cancelled' }))">Cancel</Button>
+            <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" :loading="busy === 'cancelled'" :disabled="busy !== null" @click="move('cancelled')">Cancel delivery note</Button>
             <DocumentActions document="delivery-challans" :id="challan.id" :status="challan.status" />
         </template>
 

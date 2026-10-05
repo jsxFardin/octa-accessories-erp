@@ -1,6 +1,7 @@
 <script setup>
 import Button from '@/Components/Ui/Button.vue';
 import Icon from '@/Components/Ui/Icon.vue';
+import { useConfirm } from '@/composables/useConfirm';
 
 /**
  * The bar that appears once rows are selected.
@@ -9,14 +10,43 @@ import Icon from '@/Components/Ui/Icon.vue';
  * you are choosing what to act on — the point of a bulk action is that you are still looking at
  * the rows.
  */
-defineProps({
+const props = defineProps({
     count: { type: Number, required: true },
-    /** `[{ label, tone, onSelect }]` */
+    /**
+     * `[{ label, tone, onSelect, confirm? }]`
+     *
+     * `confirm` is `{ title?, message?, confirmLabel?, tone? }`, or a function of the count
+     * returning one. Every action is confirmed whether or not it supplies wording: a bulk
+     * action changes many documents in one click, and it used to fire straight from the button.
+     */
     actions: { type: Array, default: () => [] },
     busy: { type: Boolean, default: false },
+    /** What is selected, singular — "purchase order". */
+    noun: { type: String, default: 'record' },
 });
 
 const emit = defineEmits(['clear']);
+
+const { confirm } = useConfirm();
+
+async function select(action) {
+    if (props.busy) return;
+
+    const count = props.count;
+    const what = `${count} ${props.noun}${count === 1 ? '' : 's'}`;
+    const copy = typeof action.confirm === 'function' ? action.confirm(count) : (action.confirm ?? {});
+    const verb = action.label.replace(/ selected$/i, '');
+
+    const agreed = await confirm({
+        title: copy.title ?? `${verb} ${what}?`,
+        message: copy.message ?? 'Each one is checked on its own; any that cannot be changed are left as they are and named afterwards.',
+        confirmLabel: copy.confirmLabel ?? verb,
+        cancelLabel: 'Back',
+        tone: copy.tone ?? 'default',
+    });
+
+    if (agreed) action.onSelect();
+}
 </script>
 
 <template>
@@ -46,7 +76,8 @@ const emit = defineEmits(['clear']);
                         size="sm"
                         :variant="action.tone ?? 'secondary'"
                         :loading="busy"
-                        @click="action.onSelect"
+                        :disabled="busy"
+                        @click="select(action)"
                     >
                         <Icon v-if="action.icon" :name="action.icon" size="size-3.5" />
                         {{ action.label }}

@@ -13,6 +13,7 @@ import { baseCurrency, date, inBaseCurrency, money, pcs, pct, qty, ratePerM, tit
 import { can } from '@/plugins/permissions';
 import { conversionAction } from '@/plugins/documentActions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useGuardedAction } from '@/composables/useGuardedAction';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 import RuleHint from '@/Components/Ui/RuleHint.vue';
 import ActivityTrail from '@/Components/Ui/ActivityTrail.vue';
@@ -33,8 +34,11 @@ const props = defineProps({
 
 const rejectOpen = ref(false);
 
+const { busy: duplicating, run: guarded } = useGuardedAction();
+
+/** Not confirmed — a copy is a harmless draft — but locked, so a double-click makes one copy, not two. */
 function duplicate() {
-    router.post(`/quotations/${props.quotation.id}/duplicate`);
+    guarded('duplicate', null, (done) => router.post(`/quotations/${props.quotation.id}/duplicate`, {}, done));
 }
 const convertOpen = ref(false);
 

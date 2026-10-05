@@ -11,6 +11,7 @@ import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, pcs, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useGuardedAction } from '@/composables/useGuardedAction';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
@@ -163,6 +164,38 @@ function nextEmptyCarton(afterId = null) {
     const empties = emptyCartons.value.filter((carton) => carton.id !== afterId);
 
     return empties[0]?.id ?? null;
+}
+
+const { busy: removing, run: guarded } = useGuardedAction();
+
+/**
+ * Removing packed goods is asked about; removing an empty carton is not, because there is
+ * nothing in it to lose. Either way the button cannot be fired twice.
+ */
+function removeCarton(carton) {
+    const packed = carton.contents.reduce((sum, content) => sum + Number(content.qty), 0);
+
+    guarded(`carton-${carton.id}`, carton.contents.length ? {
+        title: `Remove carton ${carton.carton_no}?`,
+        message: `It holds ${pcs(packed)} pcs. They go back to being unpacked and will need packing again.`,
+        confirmLabel: 'Remove carton',
+        tone: 'danger',
+    } : null, (done) => router.delete(
+        `/packing-lists/${props.packingList.id}/cartons/${carton.id}`,
+        { preserveScroll: true, ...done },
+    ));
+}
+
+function removeContent(carton, content) {
+    guarded(`content-${content.id}`, {
+        title: `Take ${pcs(content.qty)} pcs out of carton ${carton.carton_no}?`,
+        message: `${content.product_code}, lot ${content.lot_no}. The quantity goes back to being unpacked.`,
+        confirmLabel: 'Take out',
+        tone: 'danger',
+    }, (done) => router.delete(
+        `/packing-lists/${props.packingList.id}/cartons/${carton.id}/contents/${content.id}`,
+        { preserveScroll: true, ...done },
+    ));
 }
 
 /**
@@ -390,7 +423,8 @@ function createChallan() {
                                 v-if="isDraft && can('packing_list.update')" size="xs"
                                 class="ml-auto text-ink-400 hover:text-rose-600"
                                 :aria-label="`Remove carton ${carton.carton_no}`"
-                                @click="router.delete(`/packing-lists/${packingList.id}/cartons/${carton.id}`, { preserveScroll: true })"
+                                :disabled="removing !== null"
+                                @click="removeCarton(carton)"
                             >×</Button>
                         </div>
 
@@ -401,7 +435,9 @@ function createChallan() {
                                 <span class="tnum">{{ pcs(content.qty) }}</span>
                                 <Button
                                     v-if="isDraft && can('packing_list.update')" size="xs"
-                                    @click="router.delete(`/packing-lists/${packingList.id}/cartons/${carton.id}/contents/${content.id}`, { preserveScroll: true })"
+                                    :aria-label="`Take ${content.product_code} out of carton ${carton.carton_no}`"
+                                    :disabled="removing !== null"
+                                    @click="removeContent(carton, content)"
                                 >×</Button>
                             </li>
                             <li v-if="!carton.contents.length" class="text-xs text-ink-400">Empty carton.</li>

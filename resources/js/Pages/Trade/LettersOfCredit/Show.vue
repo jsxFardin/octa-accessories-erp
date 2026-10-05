@@ -12,6 +12,7 @@ import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, money, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useGuardedAction } from '@/composables/useGuardedAction';
 
 const props = defineProps({
     letter: { type: Object, required: true },
@@ -68,6 +69,19 @@ const amendForm = useForm({
 });
 const attachForm = useForm({ po_id: '', covered_amount: '' });
 
+const { busy, run } = useGuardedAction();
+
+const creditName = props.letter.number ?? 'this letter of credit';
+
+/** What each one-click status change does, said before it happens. */
+const CONFIRM = {
+    applied: { title: `Mark ${creditName} as applied for?`, message: 'The application is recorded as lodged with the bank. The terms can then only be changed by an amendment.', confirmLabel: 'Mark applied' },
+    shipped: { title: `Mark ${creditName} as shipped?`, message: 'The goods under this credit are recorded as shipped.', confirmLabel: 'Mark shipped' },
+    retired: { title: `Retire ${creditName}?`, message: 'The bank documents are recorded as paid and retired. This cannot be undone.', confirmLabel: 'Retire', tone: 'danger' },
+    closed: { title: `Close ${creditName}?`, message: 'No more orders or amendments can be recorded against it. This cannot be undone.', confirmLabel: 'Close credit', tone: 'danger' },
+    cancelled: { title: `Cancel ${creditName}?`, message: 'The credit is withdrawn and covers no orders. This cannot be undone.', confirmLabel: 'Cancel credit', cancelLabel: 'Keep it', tone: 'danger' },
+};
+
 function move(status) {
     if (status === 'opened') {
         opening.value = true;
@@ -75,7 +89,11 @@ function move(status) {
         return;
     }
 
-    router.post(`/letters-of-credit/${props.letter.id}/transition`, { status }, { preserveScroll: true });
+    run(status, CONFIRM[status] ?? { title: `${LABEL[status] ?? titleCase(status)}?` }, (done) => router.post(
+        `/letters-of-credit/${props.letter.id}/transition`,
+        { status },
+        { preserveScroll: true, ...done },
+    ));
 }
 
 function confirmOpen() {
@@ -105,8 +123,13 @@ function attach() {
     });
 }
 
-function detach(poId) {
-    router.delete(`/letters-of-credit/${props.letter.id}/orders/${poId}`, { preserveScroll: true });
+function detach(order) {
+    run(`detach-${order.id}`, {
+        title: `Remove ${order.number ?? 'this order'} from the credit?`,
+        message: 'The order is no longer covered by this letter of credit. It can be added again.',
+        confirmLabel: 'Remove order',
+        tone: 'danger',
+    }, (done) => router.delete(`/letters-of-credit/${props.letter.id}/orders/${order.id}`, { preserveScroll: true, ...done }));
 }
 
 const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Number(po.covered_amount ?? 0), 0));
@@ -133,6 +156,8 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
                 :key="status"
                 size="sm"
                 :variant="index === 0 ? 'primary' : 'secondary'"
+                :loading="busy === status"
+                :disabled="busy !== null"
                 @click="move(status)"
             >
                 {{ LABEL[status] ?? titleCase(status) }}
@@ -145,6 +170,8 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
                 :key="status"
                 size="sm"
                 variant="danger"
+                :loading="busy === status"
+                :disabled="busy !== null"
                 @click="move(status)"
             >
                 {{ LABEL[status] ?? titleCase(status) }}
@@ -226,8 +253,10 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
                     <template #cell:actions="{ row }">
                         <button
                             v-if="can('letter_of_credit.update')"
-                            class="text-xs text-rose-600 hover:underline"
-                            @click.stop="detach(row.id)"
+                            type="button"
+                            class="rounded px-1.5 py-1 text-xs text-rose-700 hover:underline disabled:opacity-50"
+                            :disabled="busy !== null"
+                            @click.stop="detach(row)"
                         >
                             Remove
                         </button>

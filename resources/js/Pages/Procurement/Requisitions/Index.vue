@@ -32,7 +32,8 @@ const bulkBusy = ref(false);
  * as it would be on its own screen, and the response names it.
  */
 const bulkActions = computed(() =>
-    [{ label: 'Approve selected', tone: 'success', icon: 'check', to: 'approved', permission: 'purchase_requisition.approve' }, { label: 'Submit selected', tone: 'primary', icon: 'send', to: 'submitted', permission: 'purchase_requisition.submit' }]
+    [{ label: 'Approve selected', tone: 'success', icon: 'check', to: 'approved', permission: 'purchase_requisition.approve', confirm: { message: 'An approved requisition can be turned into a purchase order or a request for quotation. Any that cannot be approved are left as they are and named afterwards.' } },
+        { label: 'Submit selected', tone: 'primary', icon: 'send', to: 'submitted', permission: 'purchase_requisition.submit', confirm: { message: 'Each requisition goes to an approver and cannot be edited while it waits.', confirmLabel: 'Submit for approval' } }]
         .filter((action) => can(action.permission))
         .map((action) => ({
             ...action,
@@ -100,6 +101,7 @@ const columns = [
         <BulkBar
             :count="selection.length"
             :actions="bulkActions"
+            noun="requisition"
             :busy="bulkBusy"
             @clear="selection = []"
         />

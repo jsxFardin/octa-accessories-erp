@@ -11,6 +11,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import { date, datetime, pcs, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useGuardedAction } from '@/composables/useGuardedAction';
 
 const props = defineProps({
     ncr: { type: Object, required: true },
@@ -64,8 +65,14 @@ function investigate() {
     });
 }
 
+const { busy, run } = useGuardedAction();
+
 function disposition() {
-    dispositionForm.post(`/ncrs/${props.ncr.id}/disposition`, { preserveScroll: true });
+    run('disposition', {
+        title: `Record that the action on ${props.ncr.number} has been taken?`,
+        message: 'The corrective action is recorded as carried out and the report moves on to verification. This cannot be undone.',
+        confirmLabel: 'Record action taken',
+    }, (done) => dispositionForm.post(`/ncrs/${props.ncr.id}/disposition`, { preserveScroll: true, ...done }));
 }
 
 function verify() {
@@ -78,7 +85,12 @@ function verify() {
 }
 
 function closeNcr() {
-    closeForm.post(`/ncrs/${props.ncr.id}/close`, { preserveScroll: true });
+    run('close', {
+        title: `Close ${props.ncr.number}?`,
+        message: 'The non-conformance report is finished. Nothing more can be recorded against it and it cannot be reopened.',
+        confirmLabel: 'Close report',
+        tone: 'danger',
+    }, (done) => closeForm.post(`/ncrs/${props.ncr.id}/close`, { preserveScroll: true, ...done }));
 }
 </script>
 
@@ -108,7 +120,8 @@ function closeNcr() {
                 v-if="availableTransitions.includes('action_taken')"
                 size="sm"
                 variant="primary"
-                :loading="dispositionForm.processing"
+                :loading="busy === 'disposition'"
+                :disabled="busy !== null"
                 @click="disposition"
             >
                 Record action taken
@@ -125,7 +138,8 @@ function closeNcr() {
                 v-if="availableTransitions.includes('closed')"
                 size="sm"
                 variant="success"
-                :loading="closeForm.processing"
+                :loading="busy === 'close'"
+                :disabled="busy !== null"
                 @click="closeNcr"
             >
                 Close

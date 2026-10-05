@@ -13,6 +13,7 @@ import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, money, qty, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useGuardedAction } from '@/composables/useGuardedAction';
 
 const props = defineProps({
     shipment: { type: Object, required: true },
@@ -81,8 +82,25 @@ const unallocated = computed(() => Math.round((allocable.value - Number(props.sh
 
 const receiptLines = computed(() => new Set(props.allocations.map((row) => row.grn_number)).size);
 
+const { busy, run } = useGuardedAction();
+
+const shipmentName = props.shipment.number ?? 'this shipment';
+
+const CONFIRM = {
+    in_transit: { title: `Mark ${shipmentName} as in transit?`, message: 'The goods are recorded as shipped by the supplier.', confirmLabel: 'Mark in transit' },
+    arrived: { title: `Mark ${shipmentName} as arrived?`, message: 'The goods are recorded as having reached the port.', confirmLabel: 'Mark arrived' },
+    cleared: { title: `Mark ${shipmentName} as cleared?`, message: 'Customs clearance is recorded as complete.', confirmLabel: 'Mark cleared' },
+    costed: { title: `Mark ${shipmentName} as costed?`, message: 'Its landed costs are treated as final. Make sure every cost has been entered and allocated first.', confirmLabel: 'Mark costed' },
+    closed: { title: `Close ${shipmentName}?`, message: 'No more costs or goods receipts can be recorded against it. This cannot be undone.', confirmLabel: 'Close shipment', tone: 'danger' },
+    cancelled: { title: `Cancel ${shipmentName}?`, message: 'The shipment is withdrawn. This cannot be undone.', confirmLabel: 'Cancel shipment', cancelLabel: 'Keep it', tone: 'danger' },
+};
+
 function move(status) {
-    router.post(`/import-shipments/${props.shipment.id}/transition`, { status }, { preserveScroll: true });
+    run(status, CONFIRM[status] ?? { title: `${LABEL[status] ?? titleCase(status)}?` }, (done) => router.post(
+        `/import-shipments/${props.shipment.id}/transition`,
+        { status },
+        { preserveScroll: true, ...done },
+    ));
 }
 
 function submitCost() {
@@ -96,7 +114,12 @@ function submitCost() {
 }
 
 function removeCost(id) {
-    router.delete(`/import-shipments/${props.shipment.id}/costs/${id}`, { preserveScroll: true });
+    run(`cost-${id}`, {
+        title: 'Remove this cost?',
+        message: 'It is taken out of the shipment\'s landed cost. Any allocation already made will need to be run again.',
+        confirmLabel: 'Remove cost',
+        tone: 'danger',
+    }, (done) => router.delete(`/import-shipments/${props.shipment.id}/costs/${id}`, { preserveScroll: true, ...done }));
 }
 
 function link() {
@@ -110,7 +133,12 @@ function link() {
 }
 
 function unlink(grnId) {
-    router.delete(`/import-shipments/${props.shipment.id}/receipts/${grnId}`, { preserveScroll: true });
+    run(`receipt-${grnId}`, {
+        title: 'Unlink this goods receipt?',
+        message: 'The goods receipt no longer takes a share of this shipment\'s landed cost. It can be linked again.',
+        confirmLabel: 'Unlink goods receipt',
+        tone: 'danger',
+    }, (done) => router.delete(`/import-shipments/${props.shipment.id}/receipts/${grnId}`, { preserveScroll: true, ...done }));
 }
 
 function allocate() {
@@ -179,6 +207,8 @@ const byLine = computed(() => {
                 :key="status"
                 size="sm"
                 :variant="index === 0 ? 'primary' : 'secondary'"
+                :loading="busy === status"
+                :disabled="busy !== null"
                 @click="move(status)"
             >
                 {{ LABEL[status] ?? titleCase(status) }}
@@ -190,6 +220,8 @@ const byLine = computed(() => {
                 :key="status"
                 size="sm"
                 variant="danger"
+                :loading="busy === status"
+                :disabled="busy !== null"
                 @click="move(status)"
             >
                 {{ LABEL[status] ?? titleCase(status) }}

@@ -11,6 +11,7 @@ import TextInput from '@/Components/Ui/TextInput.vue';
 import { datetime, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useGuardedAction } from '@/composables/useGuardedAction';
 
 const props = defineProps({
     artwork: { type: Object, required: true },
@@ -118,8 +119,14 @@ function upload() {
     });
 }
 
+const { busy, run } = useGuardedAction();
+
 function submitToCustomer(version) {
-    router.post(`/artwork-versions/${version.id}/transition`, { to: 'submitted' }, { preserveScroll: true });
+    run(`submit-${version.id}`, {
+        title: `Mark version ${version.version_no} as submitted to the customer?`,
+        message: 'The version is recorded as sent for approval and can no longer be replaced. Nothing is emailed from here — send the file to the customer yourself.',
+        confirmLabel: 'Mark as submitted',
+    }, (done) => router.post(`/artwork-versions/${version.id}/transition`, { to: 'submitted' }, { preserveScroll: true, ...done }));
 }
 
 function approve() {

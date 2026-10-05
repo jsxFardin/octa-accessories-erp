@@ -33,7 +33,8 @@ const bulkBusy = ref(false);
  * as it would be on its own screen, and the response names it.
  */
 const bulkActions = computed(() =>
-    [{ label: 'Approve selected', tone: 'success', icon: 'check', to: 'approved', permission: 'purchase_order.approve' }, { label: 'Send to suppliers', tone: 'primary', icon: 'send', to: 'sent', permission: 'purchase_order.send' }]
+    [{ label: 'Approve selected', tone: 'success', icon: 'check', to: 'approved', permission: 'purchase_order.approve', confirm: { message: 'Each order is approved under the same value limits as on its own page. Any order you may not approve is left as it is and named afterwards.' } },
+        { label: 'Send to suppliers', tone: 'primary', icon: 'send', to: 'sent', permission: 'purchase_order.send', confirm: (count) => ({ title: `Mark ${count} purchase order${count === 1 ? '' : 's'} as sent?`, message: 'Each order is treated as placed with its supplier and can no longer be edited. Nothing is emailed from here.', confirmLabel: 'Mark as sent' }) }]
         .filter((action) => can(action.permission))
         .map((action) => ({
             ...action,
@@ -102,6 +103,7 @@ const columns = [
         <BulkBar
             :count="selection.length"
             :actions="bulkActions"
+            noun="purchase order"
             :busy="bulkBusy"
             @clear="selection = []"
         />

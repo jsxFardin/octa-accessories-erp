@@ -13,6 +13,7 @@ import Icon from '@/Components/Ui/Icon.vue';
 import { mm, money, pcs, pct, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useGuardedAction } from '@/composables/useGuardedAction';
 import RuleHint from '@/Components/Ui/RuleHint.vue';
 
 const props = defineProps({
@@ -125,12 +126,29 @@ function saveRouting() {
     });
 }
 
+const { busy, run } = useGuardedAction();
+
+/** "v3 " for the dialog title. The setup list passes only an id, so the version is looked up. */
+function versionLabel(record, list) {
+    const version = record.version_no ?? (list ?? []).find((row) => row.id === record.id)?.version_no;
+
+    return version ? `v${version} ` : '';
+}
+
 function makeCurrent(spec) {
-    router.post(`/specs/${spec.id}/make-current`, {}, { preserveScroll: true });
+    run(`spec-${spec.id}`, {
+        title: `Make specification ${versionLabel(spec, props.specs)}the current one?`,
+        message: 'New quotations, orders and job cards will use this version. The version that is current now is kept as history and can no longer be used for new work.',
+        confirmLabel: 'Make current',
+    }, (done) => router.post(`/specs/${spec.id}/make-current`, {}, { preserveScroll: true, ...done }));
 }
 
 function activateBom(bom) {
-    router.post(`/boms/${bom.id}/activate`, {}, { preserveScroll: true });
+    run(`bom-${bom.id}`, {
+        title: `Activate bill of materials ${versionLabel(bom, props.boms).trim()}?`,
+        message: 'Material planning and new job cards will draw from this version. The version that is active now is retired.',
+        confirmLabel: 'Activate',
+    }, (done) => router.post(`/boms/${bom.id}/activate`, {}, { preserveScroll: true, ...done }));
 }
 
 onMounted(() => {
@@ -298,6 +316,7 @@ const bomColumns = [
                                 <Button
                                     v-if="spec.status !== 'current' && can('product_spec.make_current')"
                                     size="sm"
+                                    :disabled="busy !== null"
                                     @click="makeCurrent(spec)"
                                 >
                                     Make current
@@ -354,7 +373,7 @@ const bomColumns = [
                             <Badge :status="bom.status" />
                             <span class="text-xs text-ink-500">per {{ pcs(bom.base_qty) }} pcs</span>
                         </div>
-                        <Button v-if="bom.status !== 'active' && can('bom.activate')" size="sm" @click="activateBom(bom)">
+                        <Button v-if="bom.status !== 'active' && can('bom.activate')" size="sm" :disabled="busy !== null" @click="activateBom(bom)">
                             Activate
                         </Button>
                     </div>
