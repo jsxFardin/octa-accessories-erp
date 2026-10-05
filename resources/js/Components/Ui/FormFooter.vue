@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import Button from '@/Components/Ui/Button.vue';
+import { useConfirm } from '@/composables/useConfirm';
 
 /**
  * The action bar for a form — always docked, never hunted for.
@@ -55,7 +56,18 @@ function onKeydown(event) {
     }
 }
 
+/**
+ * The key the save shortcut is actually on. The hint read "⌘S" for everyone, which on the
+ * Windows desks this runs on names a key the keyboard does not have.
+ */
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
+const shortcutHint = isMac ? '⌘S' : 'Ctrl S';
+
+const { confirm } = useConfirm();
+
 let stopRouterGuard = null;
+/** Set once the user has agreed to leave, so the visit re-issued below is let through. */
+let leaving = false;
 
 onMounted(() => {
     window.addEventListener('beforeunload', onBeforeUnload);
@@ -67,11 +79,36 @@ onMounted(() => {
         // The form's own submit is a visit too; guarding it would ask permission to save.
         if ((event.detail.visit.method ?? 'get').toLowerCase() !== 'get') return;
 
-        // Synchronous by necessity: Inertia decides then and there whether the visit proceeds
-        // and cannot wait on a promise, so this is the one place the native dialog stays.
-        if (!window.confirm('This form has unsaved changes. Leave and discard them?')) {
-            event.preventDefault();
-        }
+        if (leaving) return;
+
+        // Inertia decides here and now whether the visit goes ahead and cannot wait on a
+        // promise. So the visit is stopped, the question is asked in the application's own
+        // dialog, and on "leave" the same visit is issued again with the guard stood down.
+        // This used to be `window.confirm`, the one native dialog left in the application.
+        event.preventDefault();
+
+        const visit = event.detail.visit;
+
+        confirm({
+            title: 'Leave without saving?',
+            message: 'This form has changes that have not been saved. They will be lost.',
+            confirmLabel: 'Leave',
+            cancelLabel: 'Keep editing',
+            tone: 'danger',
+        }).then((leave) => {
+            if (!leave) return;
+
+            leaving = true;
+            router.visit(visit.url, {
+                method: visit.method,
+                data: visit.data,
+                replace: visit.replace,
+                preserveScroll: visit.preserveScroll,
+                preserveState: visit.preserveState,
+                only: visit.only,
+                onFinish: () => { leaving = false; },
+            });
+        });
     });
 });
 
@@ -104,7 +141,7 @@ onUnmounted(() => {
                     @click="save"
                 >
                     {{ label }}
-                    <kbd class="ml-1 rounded border border-white/30 px-1 font-sans text-[10px] opacity-80">⌘S</kbd>
+                    <kbd class="ml-1 rounded border border-white/30 px-1 font-sans text-[10px] opacity-80">{{ shortcutHint }}</kbd>
                 </Button>
             </div>
         </div>
