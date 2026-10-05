@@ -6,6 +6,7 @@ import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
+import LineItemsTable from '@/Components/Ui/LineItemsTable.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { mm, qty, titleCase } from '@/plugins/formatting';
@@ -140,6 +141,16 @@ const weightTotal = computed(() =>
     form.colour_list.reduce((sum, colour) => sum + (Number(colour.weight_pct) || 0), 0),
 );
 
+/** Said in words under the table — an amber total on its own explained nothing. */
+const weightsOff = computed(() => form.colour_list.length > 0 && Math.abs(weightTotal.value - 100) > 0.01);
+
+const colourColumns = [
+    { key: 'name', label: 'Name', required: true },
+    { key: 'pantone', label: 'Pantone' },
+    { key: 'weight_pct', label: 'Weight %', align: 'right', width: '8rem' },
+];
+
+
 function toggleClaim(scheme) {
     form.claims = form.claims.includes(scheme)
         ? form.claims.filter((claim) => claim !== scheme)
@@ -265,35 +276,42 @@ function submit() {
                         subtitle="Weights split the yarn between colours; they should add to 100%"
                         :padded="false"
                     >
-                        <table class="min-w-full text-sm">
-                            <thead class="text-xs text-ink-700">
-                                <tr>
-                                    <th class="px-3 py-1.5 text-left">#</th>
-                                    <th class="px-3 py-1.5 text-left">Name</th>
-                                    <th class="px-3 py-1.5 text-left">Pantone</th>
-                                    <th class="px-3 py-1.5 text-right">Weight %</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100">
-                                <tr v-for="(colour, index) in form.colour_list" :key="index">
-                                    <td class="px-3 py-1.5 tnum text-ink-500">{{ colour.index }}</td>
-                                    <td class="px-3 py-1.5"><TextInput v-model="colour.name" placeholder="Optical white" /></td>
-                                    <td class="px-3 py-1.5"><TextInput v-model="colour.pantone" placeholder="11-0601" /></td>
-                                    <td class="px-3 py-1.5"><TextInput v-model="colour.weight_pct" type="number" step="0.01" numeric /></td>
-                                </tr>
-                            </tbody>
-                            <tfoot>
-                                <tr class="border-t border-slate-200">
-                                    <td colspan="3" class="px-3 py-1.5 text-right text-xs text-ink-500">Total</td>
-                                    <td
-                                        class="px-3 py-1.5 text-right tnum font-medium"
-                                        :class="Math.abs(weightTotal - 100) > 0.01 ? 'text-amber-700' : 'text-ink-900'"
-                                    >
-                                        {{ weightTotal }}%
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        </table>
+                        <div class="p-3">
+                            <LineItemsTable
+                                :columns="colourColumns"
+                                :lines="form.colour_list"
+                                :errors="form.errors"
+                                error-prefix="colour_list"
+                                fixed
+                            >
+                                <template #cell:name="{ line }">
+                                    <TextInput v-model="line.name" placeholder="Optical white" />
+                                </template>
+                                <template #cell:pantone="{ line }">
+                                    <TextInput v-model="line.pantone" placeholder="11-0601" />
+                                </template>
+                                <template #cell:weight_pct="{ line }">
+                                    <TextInput v-model="line.weight_pct" type="number" step="0.01" numeric />
+                                </template>
+
+                                <template #footer>
+                                    <tr>
+                                        <td colspan="3" class="px-1.5 py-1.5 text-right text-xs text-ink-500">Total</td>
+                                        <td
+                                            class="px-1.5 py-1.5 text-right tnum font-medium"
+                                            :class="weightsOff ? 'text-amber-700' : 'text-ink-900'"
+                                        >
+                                            {{ weightTotal }}%
+                                        </td>
+                                        <td />
+                                    </tr>
+                                </template>
+                            </LineItemsTable>
+
+                            <p v-if="weightsOff" class="mt-2 text-xs text-amber-800">
+                                The weights add up to {{ weightTotal }}%. They should total 100%.
+                            </p>
+                        </div>
                     </Card>
 
                     <Card title="Packing and declaration" rule="BR-12">

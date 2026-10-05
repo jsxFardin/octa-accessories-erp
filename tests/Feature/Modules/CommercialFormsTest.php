@@ -458,3 +458,22 @@ it('names the field and the line in a validation message', function (): void {
         ->and($messages['lines.0.qty'][0])->toBe('The line 1 quantity field is required.')
         ->and($messages['lines.1.qty'][0])->toContain('line 2 quantity');
 });
+
+/*
+ * UX audit H-03. A specification's colour rows are posted as `colour_list`, which was not a
+ * collection the validator knew how to name, so a blank colour name came back as
+ * "The colour_list.0.name field is required." in a table that showed no row errors at all.
+ */
+it('names the colour row a specification error belongs to', function (): void {
+    $engineer = User::query()->where('email', 'engineer@octapussolution.com')->firstOrFail();
+    $productId = (int) DB::table('products')->value('id');
+
+    $this->actingAs($engineer)->post("/products/{$productId}/specs", [
+        'colours' => 1,
+        'colour_list' => [['index' => 1, 'name' => '', 'weight_pct' => 100]],
+    ])->assertSessionHasErrors();
+
+    $messages = session('errors')->getBag('default')->getMessages();
+
+    expect($messages['colour_list.0.name'][0])->toBe('The colour 1 name field is required.');
+});

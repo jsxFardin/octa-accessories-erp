@@ -254,7 +254,7 @@ function submit() {
 }
 
 const columns = [
-    { key: 'product_id', label: 'Product', width: '15rem' },
+    { key: 'product_id', label: 'Product', width: '15rem', errorKeys: ['product_id', 'product_spec_id'] },
     { key: 'description', label: 'Description' },
     { key: 'qty', label: 'Quantity', width: '8rem', align: 'right' },
     { key: 'margin_pct', label: 'Margin %', width: '7rem', align: 'right' },

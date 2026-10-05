@@ -10,6 +10,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
+import LineItemsTable from '@/Components/Ui/LineItemsTable.vue';
 import { money, qty } from '@/plugins/formatting';
 
 const ISSUE_JOB_STATUSES = ['released', 'in_production'];
@@ -153,6 +154,29 @@ const missingReason = computed(() =>
 const exceedsReturnable = computed(() =>
     isReturn.value && form.lines.some((line) => Number(line.qty) > Number(line.returnable_qty) + 0.000001),
 );
+
+/**
+ * The columns of the lines table. `errorKeys` puts the server's per-line refusals — a lot on
+ * hold, a quantity above the balance — in the row they are about; this table used to be built
+ * by hand and showed none of them.
+ */
+const lineColumns = computed(() => (isReturn.value
+    ? [
+        { key: 'item', label: 'Material' },
+        { key: 'lot_id', label: 'Lot' },
+        { key: 'issued', label: 'Issued', align: 'right', errorKeys: [] },
+        { key: 'returned', label: 'Already returned', align: 'right', errorKeys: [] },
+        { key: 'available', label: 'Returnable qty', align: 'right', errorKeys: [] },
+        { key: 'qty', label: 'Return qty', align: 'right', width: '9rem', required: true },
+        { key: 'value', label: 'Value', align: 'right', errorKeys: [] },
+    ]
+    : [
+        { key: 'item', label: 'Material' },
+        { key: 'lot_id', label: 'Lot' },
+        { key: 'available', label: 'Quantity', align: 'right', errorKeys: ['qty'] },
+        { key: 'value', label: 'Value', align: 'right', errorKeys: [] },
+        { key: 'fifo_override_reason', label: 'Reason for skipping an older lot', width: '18rem' },
+    ]));
 
 const totalValue = computed(() =>
     form.lines.reduce((sum, line) => sum + (Number(line.qty) || 0) * (Number(line.unit_cost) || 0), 0),
@@ -451,83 +475,66 @@ function submit() {
                 </div>
             </Card>
 
-            <Card title="Lines to post" :padded="false">
-                <table class="min-w-full text-sm">
-                    <thead class="bg-slate-50 text-xs text-ink-700">
-                        <tr>
-                            <th class="px-3 py-2 text-left">Item</th>
-                            <th class="px-3 py-2 text-left">Lot</th>
-                            <th v-if="isReturn" class="px-3 py-2 text-right">Issued</th>
-                            <th v-if="isReturn" class="px-3 py-2 text-right">Already returned</th>
-                            <th class="px-3 py-2 text-right">{{ isReturn ? 'Returnable qty' : 'Quantity' }}</th>
-                            <th v-if="isReturn" class="px-3 py-2 text-right">Return qty</th>
-                            <th class="px-3 py-2 text-right">Value</th>
-                            <th v-if="!isReturn" class="px-3 py-2 text-left">FIFO override reason</th>
-                            <th class="w-10 px-3 py-2" />
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        <tr v-if="form.lines.length === 0">
-                            <td :colspan="isReturn ? 8 : 6" class="px-3 py-8 text-center text-sm text-ink-500">
-                                {{ isReturn ? 'Nothing added yet — pick a returnable lot above.' : 'Nothing added yet — ask for material above.' }}
-                            </td>
-                        </tr>
+            <Card title="Lines to post">
+                <LineItemsTable
+                    :columns="lineColumns"
+                    :lines="form.lines"
+                    :errors="form.errors"
+                    hide-add
+                    :empty="isReturn ? 'Nothing added yet' : 'Nothing added yet'"
+                    :empty-hint="isReturn ? 'Pick a returnable lot above.' : 'Ask for material above.'"
+                    @remove="removeLine"
+                >
+                    <template #cell:item="{ line }">
+                        <span class="font-medium text-ink-800">{{ line.item_code }}</span>
+                    </template>
+                    <template #cell:lot_id="{ line }">
+                        <span class="font-mono text-xs">{{ line.lot_no }}</span>
+                        <span v-if="line.shade_code" class="ml-1 text-xs text-ink-500">{{ line.shade_code }}</span>
+                    </template>
+                    <template #cell:issued="{ line }">
+                        <span class="block text-right tnum text-ink-500">{{ qty(line.issued_qty) }}</span>
+                    </template>
+                    <template #cell:returned="{ line }">
+                        <span class="block text-right tnum text-ink-500">{{ qty(line.returned_qty) }}</span>
+                    </template>
+                    <template #cell:available="{ line }">
+                        <span class="block text-right tnum" :class="isReturn && 'text-ink-500'">
+                            {{ qty(isReturn ? line.returnable_qty : line.qty) }}
+                        </span>
+                    </template>
+                    <template #cell:qty="{ line }">
+                        <TextInput
+                            v-model="line.qty"
+                            type="number"
+                            step="0.000001"
+                            numeric
+                            :error="Number(line.qty) > Number(line.returnable_qty) + 0.000001 ? 'exceeds returnable' : null"
+                        />
+                    </template>
+                    <template #cell:value="{ line }">
+                        <span class="block text-right tnum">{{ money(line.qty * line.unit_cost) }}</span>
+                    </template>
+                    <template #cell:fifo_override_reason="{ line }">
+                        <TextInput
+                            v-if="line.breaks_fifo"
+                            v-model="line.fifo_override_reason"
+                            placeholder="Why this lot before an older one?"
+                            :error="!line.fifo_override_reason ? 'required' : null"
+                        />
+                        <span v-else class="text-xs text-ink-500">not needed</span>
+                    </template>
 
-                        <tr v-for="(line, index) in form.lines" :key="`${line.lot_id}-${index}`">
-                            <td class="px-3 py-2 font-medium text-ink-800">{{ line.item_code }}</td>
-                            <td class="px-3 py-2">
-                                <span class="font-mono text-xs">{{ line.lot_no }}</span>
-                                <span v-if="line.shade_code" class="ml-1 text-xs text-ink-500">{{ line.shade_code }}</span>
-                            </td>
-                            <td v-if="isReturn" class="px-3 py-2 text-right tnum text-ink-500">{{ qty(line.issued_qty) }}</td>
-                            <td v-if="isReturn" class="px-3 py-2 text-right tnum text-ink-500">{{ qty(line.returned_qty) }}</td>
-                            <td v-if="!isReturn" class="px-3 py-2 text-right tnum">{{ qty(line.qty) }}</td>
-                            <td v-else class="px-3 py-2 text-right tnum text-ink-500">{{ qty(line.returnable_qty) }}</td>
-                            <td v-if="isReturn" class="px-3 py-2 text-right">
-                                <TextInput
-                                    v-model="line.qty"
-                                    type="number"
-                                    step="0.000001"
-                                    numeric
-                                    :error="Number(line.qty) > Number(line.returnable_qty) + 0.000001 ? 'exceeds returnable' : null"
-                                />
-                            </td>
-                            <td class="px-3 py-2 text-right tnum">{{ money(line.qty * line.unit_cost) }}</td>
-                            <td v-if="!isReturn" class="px-3 py-2">
-                                <TextInput
-                                    v-if="line.breaks_fifo"
-                                    v-model="line.fifo_override_reason"
-                                    placeholder="Why this lot before an older one?"
-                                    :error="!line.fifo_override_reason ? 'required' : null"
-                                />
-                                <span v-else class="text-xs text-ink-400">not needed</span>
-                            </td>
-                            <td class="px-3 py-2 text-right">
-                                <!-- `type="button"`: without it this posts the issue instead of
-                                     dropping the line, and a posted issue moves stock. -->
-                                <button
-                                    type="button"
-                                    class="rounded p-1 text-ink-400 transition hover:bg-rose-50 hover:text-rose-600"
-                                    aria-label="Remove line"
-                                    @click="removeLine(index)"
-                                >
-                                    <svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
-                                        <path d="M6 6l8 8M14 6l-8 8" stroke-linecap="round" />
-                                    </svg>
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                    <tfoot v-if="form.lines.length" class="border-t-2 border-slate-200 bg-slate-50">
+                    <template v-if="form.lines.length" #footer>
                         <tr>
-                            <td :colspan="isReturn ? 5 : 3" class="px-3 py-2 text-right text-xs text-ink-700">
+                            <td :colspan="isReturn ? 7 : 4" class="px-1.5 py-2 text-right text-xs text-ink-700">
                                 {{ isReturn ? 'Return value' : 'Issue value' }}
                             </td>
-                            <td class="px-3 py-2 text-right text-sm font-semibold tnum text-ink-900">{{ money(totalValue) }}</td>
-                            <td :colspan="isReturn ? 2 : 2" />
+                            <td class="px-1.5 py-2 text-right text-sm font-semibold tnum text-ink-900">{{ money(totalValue) }}</td>
+                            <td :colspan="isReturn ? 1 : 2" />
                         </tr>
-                    </tfoot>
-                </table>
+                    </template>
+                </LineItemsTable>
 
                 <p v-if="missingReason" class="border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                     A line breaks FIFO without a reason. Record why — the override is logged against the issue.
@@ -573,6 +580,11 @@ function submit() {
                 <FormFooter
                     :form="form"
                     :disabled="form.lines.length === 0 || missingReason || exceedsReturnable"
+                    :disabled-reason="form.lines.length === 0
+                        ? (isReturn ? 'Add at least one lot to return.' : 'Add at least one lot to issue.')
+                        : missingReason
+                            ? 'Give a reason on each line that skips an older lot.'
+                            : exceedsReturnable ? 'A return quantity is more than is left to return.' : null"
                     cancel-href="/material-issues"
                     :label="isReturn ? 'Post return' : 'Post issue'"
                     @save="submit"

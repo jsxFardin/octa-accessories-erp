@@ -76,13 +76,13 @@ function submit() {
 }
 
 const columns = [
-    { key: 'operation', label: 'Operation', width: '16rem' },
+    { key: 'operation', label: 'Operation', width: '16rem', errorKeys: ['code', 'name'] },
     { key: 'machine_group_id', label: 'Machine group', width: '11rem' },
     { key: 'std_rate_per_hour', label: 'Rate / hour', width: '8rem', align: 'right' },
-    { key: 'setup', label: 'Make-ready', width: '11rem' },
+    { key: 'setup', label: 'Make-ready', width: '11rem', errorKeys: ['setup_minutes', 'setup_qty'] },
     { key: 'wastage_pct', label: 'Wastage %', width: '7rem', align: 'right' },
     { key: 'manning_level', label: 'Manning', width: '7rem', align: 'right' },
-    { key: 'flags', label: 'Flags', width: '13rem' },
+    { key: 'flags', label: 'Flags', width: '13rem', errorKeys: ['requires_qc', 'allow_parallel', 'consumes_web'] },
 ];
 </script>
 
@@ -137,6 +137,7 @@ const columns = [
                         :columns="columns"
                         :lines="form.operations"
                         :errors="form.errors"
+                        error-prefix="operations"
                         add-label="Add operation"
                         empty="A routing needs at least one operation."
                         @add="addOperation"

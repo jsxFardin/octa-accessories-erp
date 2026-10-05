@@ -16,8 +16,14 @@ import Icon from '@/Components/Ui/Icon.vue';
  *
  * The parent owns the array; this renders it and reports intent.
  */
-defineProps({
-    /** `[{ key, label, width?, align? }]` — the header row. */
+const props = defineProps({
+    /**
+     * `[{ key, label, width?, align?, required?, errorKeys? }]` — the header row.
+     *
+     * `errorKeys` names the server fields whose errors belong in this column, when they are not
+     * simply the column's own key: a "Lot" column that holds an expiry date and a roll length
+     * lists `['expiry_date', 'roll_length_m']`.
+     */
     columns: { type: Array, required: true },
     lines: { type: Array, required: true },
     addLabel: { type: String, default: 'Add line' },
@@ -27,6 +33,12 @@ defineProps({
     /** A document with produced quantity cannot lose its lines (S1). */
     canRemove: { type: Function, default: () => true },
     errors: { type: Object, default: () => ({}) },
+    /** The request key the rows are posted under — `lines`, `operations`, `colour_list`. */
+    errorPrefix: { type: String, default: 'lines' },
+    /** Rows are decided elsewhere (a colour count, an invoice): no add link, no remove button. */
+    fixed: { type: Boolean, default: false },
+    /** Rows arrive some other way (picked from a suggestion) but can still be removed. */
+    hideAdd: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['add', 'remove']);
@@ -36,10 +48,35 @@ const emit = defineEmits(['add', 'remove']);
  * that message is also read on its own, in a toast or a log. Inside the table the row number is
  * already in the first column, so the prefix is dropped here rather than sent twice.
  */
-function cellError(index, key, errors) {
-    const message = errors[`lines.${index}.${key}`];
+function trimmed(message) {
+    return message?.replace(/\b(line|operation|item|count|allocation|carton|row|colour) \d+:? /i, '');
+}
 
-    return message?.replace(/\b(line|operation|item|count|allocation|carton|row) \d+ /i, '');
+function keysOf(column) {
+    return column.errorKeys ?? [column.key];
+}
+
+/**
+ * Every error the server returned for a row lands in a cell.
+ *
+ * Errors used to be looked up by column key alone, so a field living inside a combined column
+ * (the expiry date inside "Lot", the unit inside "Quantity") had nowhere to appear: the save
+ * was refused and the row looked fine. A column now claims the fields it holds, and whatever
+ * no column claims is shown under the first one rather than dropped.
+ */
+function cellErrors(index, column, columnIndex) {
+    const prefix = `${props.errorPrefix}.${index}.`;
+    const messages = keysOf(column).map((key) => props.errors[prefix + key]);
+
+    if (columnIndex === 0) {
+        const claimed = new Set(props.columns.flatMap(keysOf));
+
+        for (const [key, message] of Object.entries(props.errors)) {
+            if (key.startsWith(prefix) && !claimed.has(key.slice(prefix.length))) messages.push(message);
+        }
+    }
+
+    return [...new Set(messages.filter(Boolean).map(trimmed))];
 }
 
 /**
@@ -73,6 +110,9 @@ function applyCellLabel(el, binding) {
 
 <template>
     <div>
+        <!-- An error about the rows as a whole: none given, too few, a total that does not add up. -->
+        <p v-if="errors[errorPrefix]" role="alert" class="mb-2 text-xs text-rose-700">{{ errors[errorPrefix] }}</p>
+
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead>
@@ -87,7 +127,7 @@ function applyCellLabel(el, binding) {
                             :class="column.align === 'right' ? 'text-right' : 'text-left'"
                             :style="column.width ? { width: column.width } : undefined"
                         >
-                            {{ column.label }}
+                            {{ column.label }}<span v-if="column.required" class="text-rose-600" aria-hidden="true">&nbsp;*</span>
                         </th>
                         <th class="w-8 pb-2" />
                     </tr>
@@ -107,28 +147,33 @@ function applyCellLabel(el, binding) {
                         <td class="py-1.5 text-xs tnum text-ink-400">{{ index + 1 }}</td>
 
                         <td
-                            v-for="column in columns"
+                            v-for="(column, columnIndex) in columns"
                             :key="column.key"
                             v-cell-label="{ label: column.label, index }"
                             class="px-1.5 py-1.5"
                         >
                             <slot :name="`cell:${column.key}`" :line="line" :index="index" />
 
-                            <p v-if="cellError(index, column.key, errors)" class="mt-1 text-[11px] text-rose-600">
-                                {{ cellError(index, column.key, errors) }}
+                            <p
+                                v-for="message in cellErrors(index, column, columnIndex)"
+                                :key="message"
+                                role="alert"
+                                class="mt-1 text-xs text-rose-700"
+                            >
+                                {{ message }}
                             </p>
                         </td>
 
                         <td class="py-1.5 text-right">
                             <button
-                                v-if="canRemove(line, index)"
+                                v-if="!fixed && canRemove(line, index)"
                                 type="button"
-                                class="rounded p-1 text-ink-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                class="rounded p-1 text-ink-500 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none pointer-coarse:opacity-100"
                                 :aria-label="`Remove line ${index + 1}`"
                                 title="Remove line"
                                 @click="emit('remove', index)"
                             >
-                                <Icon name="remove" size="size-3.5" />
+                                <Icon name="remove" size="size-4" />
                             </button>
                         </td>
                     </tr>
@@ -141,8 +186,9 @@ function applyCellLabel(el, binding) {
         </div>
 
         <!-- A text link, not a button: adding a line is routine, not the page's main act. -->
-        <div class="mt-3 flex items-center gap-4 text-sm">
+        <div v-if="(!fixed && !hideAdd) || $slots.actions" class="mt-3 flex items-center gap-4 text-sm">
             <button
+                v-if="!fixed && !hideAdd"
                 type="button"
                 class="inline-flex items-center gap-1 text-brand-700 transition hover:underline focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                 @click="emit('add')"

@@ -136,10 +136,10 @@ function submit() {
 }
 
 const columns = [
-    { key: 'product_id', label: 'Product', width: '15rem' },
+    { key: 'product_id', label: 'Product', width: '15rem', errorKeys: ['product_id', 'product_spec_id'] },
     { key: 'ordered_qty', label: 'Ordered', width: '8rem', align: 'right' },
     { key: 'rate_per_m', label: 'Rate /M', width: '8rem', align: 'right' },
-    { key: 'tolerance', label: 'Tolerance −/+ %', width: '10rem' },
+    { key: 'tolerance', label: 'Tolerance −/+ %', width: '10rem', errorKeys: ['under_tolerance_pct', 'over_tolerance_pct'] },
     { key: 'band', label: 'Acceptable band', width: '10rem', align: 'right' },
     { key: 'promised_date', label: 'Promised', width: '9rem' },
     { key: 'line_total', label: 'Value', width: '9rem', align: 'right' },

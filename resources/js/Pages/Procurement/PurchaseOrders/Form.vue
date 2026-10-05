@@ -180,7 +180,7 @@ function submit() {
 
 const columns = [
     { key: 'item_id', label: 'Item', width: '16rem' },
-    { key: 'qty', label: 'Quantity', width: '12rem', align: 'right' },
+    { key: 'qty', label: 'Quantity', width: '12rem', align: 'right', errorKeys: ['qty', 'uom_id'] },
     { key: 'rate', label: 'Rate', width: '8rem', align: 'right' },
     { key: 'amount', label: 'Amount', width: '8rem', align: 'right' },
     { key: 'expected_date', label: 'Expected', width: '9rem' },

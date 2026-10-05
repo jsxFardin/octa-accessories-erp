@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import Button from '@/Components/Ui/Button.vue';
 import { useConfirm } from '@/composables/useConfirm';
@@ -35,6 +35,15 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['save']);
+
+/**
+ * Everything the server refused, said once, next to the button that was pressed.
+ *
+ * Field errors appear beside their fields, but the field may be three screens up, inside a
+ * collapsed card, or — on a hand-built table — have no cell of its own at all. The footer is
+ * where the user is looking when a save comes back refused, so the full list is repeated here.
+ */
+const errorMessages = computed(() => [...new Set(Object.values(props.form?.errors ?? {}).flat().filter(Boolean))]);
 
 function save() {
     if (!props.disabled && !props.form?.processing) emit('save');
@@ -123,6 +132,19 @@ onUnmounted(() => {
     <!-- `mt-auto` inside the form column's flex layout: docked to the foot of the window on a
          short form, and still sticky while a long one scrolls past. -->
     <div class="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-slate-200 bg-white/95 px-4 pt-2.5 pb-2.5 backdrop-blur print:hidden">
+        <div
+            v-if="errorMessages.length"
+            role="alert"
+            class="mb-2 max-h-32 overflow-y-auto rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800"
+        >
+            <p class="font-medium">
+                {{ errorMessages.length === 1 ? 'Not saved — one thing to fix:' : `Not saved — ${errorMessages.length} things to fix:` }}
+            </p>
+            <ul class="mt-1 list-disc space-y-0.5 pl-4">
+                <li v-for="message in errorMessages" :key="message">{{ message }}</li>
+            </ul>
+        </div>
+
         <div class="flex flex-wrap items-center gap-3">
             <!-- The blocking reason outranks both: it is the thing standing between the user
                  and the button they are trying to press. -->

@@ -74,6 +74,7 @@ final class DocumentValidator extends Validator
         'allocations' => 'allocation',
         'cartons' => 'carton',
         'rows' => 'row',
+        'colour_list' => 'colour',
     ];
 
     public function getDisplayableAttribute($attribute)

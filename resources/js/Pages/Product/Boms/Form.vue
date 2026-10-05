@@ -2,11 +2,11 @@
 import { computed } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
+import LineItemsTable from '@/Components/Ui/LineItemsTable.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { qty } from '@/plugins/formatting';
@@ -53,6 +53,16 @@ function onItemChange(line) {
         line.uom_id = item.base_uom_id;
     }
 }
+
+const lineColumns = [
+    { key: 'item_id', label: 'Material', required: true },
+    { key: 'uom_id', label: 'Unit', width: '8rem', required: true },
+    { key: 'qty_per_base', label: 'Qty per base unit', width: '10rem', align: 'right', required: true },
+    { key: 'wastage_pct', label: 'Wastage %', width: '8rem', align: 'right' },
+    { key: 'colour_index', label: 'Colour', width: '10rem' },
+    { key: 'is_optional', label: 'Optional', width: '6rem' },
+    { key: 'scaled', label: 'For 30,000', width: '9rem', align: 'right', errorKeys: [] },
+];
 
 function addLine() {
     form.lines = [...form.lines, blankLine()];
@@ -139,80 +149,62 @@ function submit() {
                 subtitle="What one job draws from the store; the right-hand figure is a 30,000-piece dry run"
                 :padded="false"
             >
-                <table class="min-w-full text-sm">
-                    <thead class="text-xs text-ink-700">
-                        <tr>
-                            <th class="px-3 py-1.5 text-left">Item</th>
-                            <th class="px-3 py-1.5 text-left" style="width: 8rem">UoM</th>
-                            <th class="px-3 py-1.5 text-right" style="width: 10rem">Qty / base</th>
-                            <th class="px-3 py-1.5 text-right" style="width: 8rem">Wastage %</th>
-                            <th class="px-3 py-1.5 text-left" style="width: 10rem">Colour</th>
-                            <th class="px-3 py-1.5 text-center" style="width: 6rem">Optional</th>
-                            <th class="px-3 py-1.5 text-right" style="width: 9rem">For 30,000</th>
-                            <th class="px-3 py-1.5" style="width: 3rem" />
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        <tr v-for="(line, index) in form.lines" :key="index">
-                            <td class="px-3 py-1.5">
-                                <SelectInput
-                                    v-model="line.item_id"
-                                    placeholder="— item —"
-                                    :options="items"
-                                    value-key="id"
-                                    label-key="code"
-                                    hint-key="name"
-                                    @update:model-value="onItemChange(line)"
-                                />
-                            </td>
-                            <td class="px-3 py-1.5">
-                                <SelectInput
-                                    v-model="line.uom_id"
-                                    placeholder="—"
-                                    :options="uoms"
-                                    value-key="id"
-                                    label-key="code"
-                                />
-                            </td>
-                            <td class="px-3 py-1.5">
-                                <TextInput v-model="line.qty_per_base" type="number" step="0.000001" numeric />
-                            </td>
-                            <td class="px-3 py-1.5">
-                                <TextInput v-model="line.wastage_pct" type="number" step="0.01" numeric />
-                            </td>
-                            <td class="px-3 py-1.5">
-                                <SelectInput
-                                    v-model="line.colour_index"
-                                    placeholder="— all —"
-                                    :options="colourOptions"
-                                />
-                            </td>
-                            <td class="px-3 py-1.5 text-center">
-                                <input v-model="line.is_optional" type="checkbox" class="form-checkbox" />
-                            </td>
-                            <td class="px-3 py-1.5 text-right tnum text-ink-600">{{ qty(scaled(line)) }}</td>
-                            <td class="px-3 py-1.5 text-right">
-                                <button
-                                    v-if="form.lines.length > 1"
-                                    type="button"
-                                    class="text-ink-400 hover:text-rose-600"
-                                    :aria-label="`Remove line ${index + 1}`"
-                                    @click="removeLine(index)"
-                                >
-                                    ×
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div class="border-t border-slate-200 px-3 py-2">
-                    <Button size="sm" @click="addLine">+ Add line</Button>
+                <div class="p-3">
+                    <LineItemsTable
+                        :columns="lineColumns"
+                        :lines="form.lines"
+                        :errors="form.errors"
+                        :can-remove="() => form.lines.length > 1"
+                        @add="addLine"
+                        @remove="removeLine"
+                    >
+                        <template #cell:item_id="{ line }">
+                            <SelectInput
+                                v-model="line.item_id"
+                                placeholder="— material —"
+                                :options="items"
+                                value-key="id"
+                                label-key="code"
+                                hint-key="name"
+                                @update:model-value="onItemChange(line)"
+                            />
+                        </template>
+                        <template #cell:uom_id="{ line }">
+                            <SelectInput
+                                v-model="line.uom_id"
+                                placeholder="—"
+                                :options="uoms"
+                                value-key="id"
+                                label-key="code"
+                                hint-key="name"
+                            />
+                        </template>
+                        <template #cell:qty_per_base="{ line }">
+                            <TextInput v-model="line.qty_per_base" type="number" step="0.000001" numeric />
+                        </template>
+                        <template #cell:wastage_pct="{ line }">
+                            <TextInput v-model="line.wastage_pct" type="number" step="0.01" numeric />
+                        </template>
+                        <template #cell:colour_index="{ line }">
+                            <SelectInput
+                                v-model="line.colour_index"
+                                placeholder="— all —"
+                                :options="colourOptions"
+                            />
+                        </template>
+                        <template #cell:is_optional="{ line, index }">
+                            <input
+                                v-model="line.is_optional"
+                                type="checkbox"
+                                class="form-checkbox mt-2"
+                                :aria-label="`Optional, line ${index + 1}`"
+                            />
+                        </template>
+                        <template #cell:scaled="{ line }">
+                            <span class="block pt-1.5 text-right tnum text-ink-600">{{ qty(scaled(line)) }}</span>
+                        </template>
+                    </LineItemsTable>
                 </div>
-
-                <p v-if="form.errors.lines" class="border-t border-slate-200 px-3 py-2 text-xs text-rose-600">
-                    {{ form.errors.lines }}
-                </p>
             </Card>
 
             <p class="text-xs text-ink-500">

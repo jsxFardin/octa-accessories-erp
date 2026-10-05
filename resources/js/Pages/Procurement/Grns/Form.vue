@@ -152,11 +152,11 @@ function submit() {
 
 const columns = [
     { key: 'item_id', label: 'Item', width: '16rem' },
-    { key: 'qty', label: 'Quantity', width: '11rem', align: 'right' },
+    { key: 'qty', label: 'Quantity', width: '11rem', align: 'right', errorKeys: ['qty', 'uom_id'] },
     { key: 'rate', label: 'Rate', width: '8rem', align: 'right' },
     { key: 'landed_rate', label: 'Landed rate', width: '8rem', align: 'right' },
-    { key: 'lot', label: 'Lot identity', width: '14rem' },
-    { key: 'cert', label: 'Certification claim', width: '16rem' },
+    { key: 'lot', label: 'Lot identity', width: '14rem', errorKeys: ['supplier_batch_no', 'shade_code', 'expiry_date', 'roll_length_m'] },
+    { key: 'cert', label: 'Certification claim', width: '16rem', errorKeys: ['cert_scheme', 'cert_claim_pct', 'cert_document_no'] },
 ];
 </script>
 
