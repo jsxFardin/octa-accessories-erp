@@ -124,3 +124,54 @@ it('sends the setup list to the product page', function (): void {
             ->where('setup.4.key', 'price')
             ->has('routings'));
 });
+
+/*
+ * UX audit H-13. Tools were a read-only list: a plate, screen or die could not be registered,
+ * corrected or retired from the application, though releasing a job checks them.
+ */
+it('registers, edits and retires a tool', function (): void {
+    $this->actingAs(App\Models\User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+
+    $this->post('/tools', [
+        'code' => 'TOOL-T-01', 'kind' => 'cutting_die', 'location' => 'Die rack B',
+        'life_impressions' => 80000, 'cost' => 9600, 'status' => 'available',
+    ])->assertSessionHasNoErrors()->assertSessionHas('success');
+
+    $tool = App\Modules\Product\Models\Tool::query()->where('code', 'TOOL-T-01')->firstOrFail();
+    expect($tool->used_impressions)->toBe(0)->and($tool->status)->toBe('available');
+
+    // A second tool cannot take the same code, and a kind the table does not know is refused.
+    $this->post('/tools', ['code' => 'TOOL-T-01', 'kind' => 'screen', 'status' => 'available'])->assertSessionHasErrors('code');
+    $this->post('/tools', ['code' => 'TOOL-T-02', 'kind' => 'die', 'status' => 'available'])->assertSessionHasErrors('kind');
+    // "On a machine" and "Retired" are not set by typing them into the form.
+    $this->post('/tools', ['code' => 'TOOL-T-02', 'kind' => 'screen', 'status' => 'scrapped'])->assertSessionHasErrors('status');
+
+    // Its life cannot be set below what it has already run.
+    $tool->update(['used_impressions' => 5000]);
+    $this->put("/tools/{$tool->id}", ['code' => 'TOOL-T-01', 'kind' => 'cutting_die', 'life_impressions' => 4000, 'status' => 'available'])
+        ->assertSessionHasErrors('life_impressions');
+
+    $this->put("/tools/{$tool->id}", ['code' => 'TOOL-T-01', 'kind' => 'cutting_die', 'life_impressions' => 90000, 'status' => 'worn', 'location' => 'Die rack C'])
+        ->assertSessionHasNoErrors();
+    expect($tool->refresh()->status)->toBe('worn')->and($tool->location)->toBe('Die rack C')->and($tool->used_impressions)->toBe(5000);
+
+    // A tool on a machine is neither re-statused nor retired from the desk.
+    $tool->update(['status' => 'in_use']);
+    $this->put("/tools/{$tool->id}", ['code' => 'TOOL-T-01', 'kind' => 'cutting_die', 'status' => 'available'])->assertSessionHasNoErrors();
+    expect($tool->refresh()->status)->toBe('in_use');
+    $this->post("/tools/{$tool->id}/retire")->assertSessionHas('error');
+
+    $tool->update(['status' => 'available']);
+    $this->post("/tools/{$tool->id}/retire")->assertSessionHas('success');
+    expect($tool->refresh()->status)->toBe('scrapped');
+
+    // Retired is final.
+    $this->put("/tools/{$tool->id}", ['code' => 'TOOL-T-01', 'kind' => 'cutting_die', 'status' => 'available'])->assertSessionHas('error');
+    expect($tool->refresh()->status)->toBe('scrapped');
+});
+
+it('keeps people without the permission from registering a tool', function (): void {
+    $this->actingAs(App\Models\User::query()->where('email', 'sales@octapussolution.com')->firstOrFail());
+
+    $this->post('/tools', ['code' => 'TOOL-T-09', 'kind' => 'screen', 'status' => 'available'])->assertForbidden();
+});

@@ -205,6 +205,12 @@ Route::middleware('auth')->group(function (): void {
         ->middlewareFor('destroy', 'can:routing.delete');
     Route::get('tools', [ToolController::class, 'index'])
         ->middleware('can:tool.view_any')->name('tools.index');
+    Route::post('tools', [ToolController::class, 'store'])
+        ->middleware('can:tool.create')->name('tools.store');
+    Route::put('tools/{tool}', [ToolController::class, 'update'])
+        ->middleware('can:tool.update')->name('tools.update');
+    Route::post('tools/{tool}/retire', [ToolController::class, 'retire'])
+        ->middleware('can:tool.update')->name('tools.retire');
 
     // ---- Commercial ----------------------------------------------------------------
     Route::resource('inquiries', InquiryController::class)->except(['destroy'])
