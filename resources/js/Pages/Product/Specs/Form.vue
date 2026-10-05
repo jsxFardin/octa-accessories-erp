@@ -151,6 +151,19 @@ const colourColumns = [
 ];
 
 
+/** What the server would refuse, said before the button is pressed. */
+const blockedBy = computed(() => {
+    if (!form.label_width_mm || !form.label_height_mm) return 'Enter the label width and height.';
+
+    const unnamed = form.colour_list.filter((colour) => !String(colour.name ?? '').trim()).map((colour) => colour.index);
+
+    if (unnamed.length) {
+        return unnamed.length === 1 ? `Name colour ${unnamed[0]}.` : `Name colours ${unnamed.join(', ')}.`;
+    }
+
+    return null;
+});
+
 function toggleClaim(scheme) {
     form.claims = form.claims.includes(scheme)
         ? form.claims.filter((claim) => claim !== scheme)
@@ -273,7 +286,7 @@ function submit() {
                     <Card
                         title="Colours"
                         rule="BR-9"
-                        subtitle="Weights split the yarn between colours; they should add to 100%"
+                        subtitle="Every colour needs a name. Weights split the yarn between colours and should add to 100%."
                         :padded="false"
                     >
                         <div class="p-3">
@@ -437,6 +450,8 @@ function submit() {
             <FormFooter
                 :form="form"
                 :label="form.make_current ? 'Create and make current' : 'Create draft spec'"
+                :disabled="blockedBy !== null"
+                :disabled-reason="blockedBy"
                 :cancel-href="`/products/${product.id}`"
                 @save="submit"
             />

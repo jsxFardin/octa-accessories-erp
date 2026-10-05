@@ -256,6 +256,10 @@ class ProductSpecController extends Controller
             'web_width_mm.required' => 'BR-5: a web width is needed — yarn, ink and the ends are all computed from it.',
             'web_width_mm.required_without' => 'BR-5: enter a web width, or type the ends if this product does not run on a web.',
             'fabric_gsm.required' => 'BR-9: a fabric GSM is needed — the yarn weight of a woven label is computed from it.',
+            // Shown in the colour's own row. The stock sentence named the field by its key.
+            'colour_list.*.name.required' => 'Name this colour.',
+            'colour_list.*.name.max' => 'A colour name can be at most 60 characters.',
+            'colour_list.*.weight_pct.max' => 'A weight cannot be more than 100%.',
         ]);
 
         // BR-5 — a spec whose geometry yields no ends is invalid, and the message says which
