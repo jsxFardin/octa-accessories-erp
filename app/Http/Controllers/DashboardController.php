@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Product\Models\ArtworkVersion;
+use App\Support\Platform\SetupChecklist;
 use App\Support\Platform\WorkQueue;
 use App\Support\Scoping\FactoryUnitFilter;
 use Illuminate\Http\Request;
@@ -25,6 +26,7 @@ class DashboardController extends Controller
     public function __construct(
         private readonly WorkQueue $queue,
         private readonly FactoryUnitFilter $units,
+        private readonly SetupChecklist $setup,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -33,6 +35,8 @@ class DashboardController extends Controller
             // What is stuck on this user, before what is happening in the factory: nobody's
             // first question of the day is "how are we doing overall".
             'queue' => $this->queue->for($request->user()),
+            // What a new installation still has to do, for whoever may do it; null once done.
+            'setup' => $this->setup->for($request->user()),
             'tiles' => $this->tiles(),
             'orderBook' => $this->orderBook(),
             'jobCardsByStatus' => $this->jobCardsByStatus(),

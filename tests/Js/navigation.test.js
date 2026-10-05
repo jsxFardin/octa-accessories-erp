@@ -163,3 +163,26 @@ describe('list URLs', () => {
         }
     });
 });
+
+// UX audit M-02: `report.view` alone put Receivables and Payables in a store keeper's menu.
+describe('report links', () => {
+    function reportLabels(...granted) {
+        const section = visibleSections(navigation, only(...granted)).find((s) => s.label === 'Reports');
+
+        return (section?.items ?? []).map((item) => item.label);
+    }
+
+    it('show a report only to someone who can also see what it is about', () => {
+        const labels = reportLabels('report.view', 'stock_lot.view_any', 'purchase_order.view_any');
+
+        expect(labels).toEqual(['All reports', 'Stock', 'Purchases']);
+    });
+
+    it('keep All reports for anyone who may read reports', () => {
+        expect(reportLabels('report.view')).toEqual(['All reports']);
+    });
+
+    it('show nothing without the report permission, whatever else is held', () => {
+        expect(reportLabels('stock_lot.view_any', 'sales_invoice.view_any')).toEqual([]);
+    });
+});

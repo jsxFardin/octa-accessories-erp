@@ -133,16 +133,21 @@ export const navigation = [
     },
     {
         label: 'Reports',
+        /*
+         * Each report also `requires` sight of the documents it is about. `report.view` alone
+         * put Receivables and Payables in a store keeper's menu. "All reports" lists every one
+         * of them for anybody who needs a report outside their own area.
+         */
         items: [
             { label: 'All reports', href: '/reports', icon: 'reports', permissions: ['report.view_any', 'report.view'] },
-            { label: 'Fulfilment', href: '/reports/fulfilment', icon: 'reports', permissions: ['report.view'] },
-            { label: 'Production', href: '/reports/production', icon: 'reports', permissions: ['report.view'] },
-            { label: 'Stock', href: '/reports/stock', icon: 'reports', permissions: ['report.view'] },
-            { label: 'Dispatch register', href: '/reports/dispatch', icon: 'reports', aliases: ['dispatch'], permissions: ['report.view'] },
-            { label: 'Receivables', href: '/reports/receivables', icon: 'reports', permissions: ['report.view'] },
-            { label: 'Payables', href: '/reports/payables', icon: 'reports', permissions: ['report.view'] },
-            { label: 'Purchases', href: '/reports/purchases', icon: 'reports', permissions: ['report.view'] },
-            { label: 'NCR / CAPA', href: '/reports/ncr-capa', icon: 'reports', permissions: ['report.view'] },
+            { label: 'Fulfilment', href: '/reports/fulfilment', icon: 'reports', permissions: ['report.view'], requires: ['sales_order.view_any'] },
+            { label: 'Production', href: '/reports/production', icon: 'reports', permissions: ['report.view'], requires: ['job_card.view_any'] },
+            { label: 'Stock', href: '/reports/stock', icon: 'reports', permissions: ['report.view'], requires: ['stock_lot.view_any'] },
+            { label: 'Dispatch register', href: '/reports/dispatch', icon: 'reports', aliases: ['dispatch'], permissions: ['report.view'], requires: ['delivery_challan.view_any'] },
+            { label: 'Receivables', href: '/reports/receivables', icon: 'reports', permissions: ['report.view'], requires: ['sales_invoice.view_any'] },
+            { label: 'Payables', href: '/reports/payables', icon: 'reports', permissions: ['report.view'], requires: ['supplier_bill.view_any'] },
+            { label: 'Purchases', href: '/reports/purchases', icon: 'reports', permissions: ['report.view'], requires: ['purchase_order.view_any'] },
+            { label: 'NCR / CAPA', href: '/reports/ncr-capa', icon: 'reports', permissions: ['report.view'], requires: ['ncr.view_any'] },
         ],
     },
 ];
@@ -197,6 +202,8 @@ export function visibleSections(sections, canAny) {
             ...section,
             items: section.items
                 .filter((item) => canAny(...item.permissions))
+                // `permissions` is any-of; `requires` is all-of, on top of it.
+                .filter((item) => (item.requires ?? []).every((permission) => canAny(permission)))
                 .map((item) => {
                     // A leaf has no children to narrow and must pass through untouched.
                     if (!item.children) {

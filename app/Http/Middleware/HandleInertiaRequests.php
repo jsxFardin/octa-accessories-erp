@@ -9,6 +9,7 @@ use App\Support\Print\DocumentRegistry;
 use App\Support\Settings\Organisation;
 use App\Support\Settings\Settings;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -18,6 +19,28 @@ class HandleInertiaRequests extends Middleware
     public function version(Request $request): ?string
     {
         return parent::version($request);
+    }
+
+    /**
+     * Whether this user still signs in with the seeded password.
+     *
+     * A bcrypt check costs tens of milliseconds, far too much to pay on every request, so the
+     * answer is kept in the session against the password hash it was worked out for: changing
+     * the password changes the hash and the question is asked again, once.
+     */
+    private function usingSeedPassword(Request $request, User $user): bool
+    {
+        if (! $request->hasSession()) {
+            return false;
+        }
+
+        $key = 'seed_password.'.sha1((string) $user->password);
+
+        if (! $request->session()->has($key)) {
+            $request->session()->put($key, Hash::check('password', (string) $user->password));
+        }
+
+        return (bool) $request->session()->get($key);
     }
 
     /**
@@ -44,6 +67,10 @@ class HandleInertiaRequests extends Middleware
                     'locale' => $user->locale,
                     'roles' => $user->roleNames(),
                     'factory_unit_id' => $user->factoryUnitId(),
+                    // Every seeded account starts on one shared password. The shell says so on
+                    // every page until it is changed — it used to be mentioned only on the
+                    // profile screen, which nobody opens unprompted.
+                    'using_seed_password' => $this->usingSeedPassword($request, $user),
                 ],
                 'permissions' => $user?->permissionNames() ?? [],
             ],

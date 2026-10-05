@@ -61,6 +61,23 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         /*
+         * A save from someone whose session has run out is answered 419, not with a redirect.
+         *
+         * An expired session usually fails authentication before it ever reaches the CSRF
+         * check, and the stock answer to that is a redirect to the sign-in page — which
+         * Inertia follows, replacing the form and everything typed into it. Answering 419
+         * instead lets the shell keep the page and ask the user to sign in again in another
+         * tab (`SessionExpired.vue`). A page *load* by a signed-out user still redirects.
+         */
+        $exceptions->render(function (Illuminate\Auth\AuthenticationException $exception, Request $request) {
+            if ($request->hasHeader('X-Inertia') && ! $request->isMethod('GET') && ! $request->is('api/*')) {
+                return response('Your session has expired.', 419);
+            }
+
+            return null;
+        });
+
+        /*
          * A bare "403 This action is unauthorized" on a blank page is a dead end: no
          * navigation, no sign-out, nothing to click. These render through Inertia with the
          * app chrome and a link to somewhere the user is actually allowed to be.
@@ -71,6 +88,19 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             if (! in_array($response->getStatusCode(), [403, 404, 419, 429, 500, 503], true)) {
+                return $response;
+            }
+
+            /*
+             * A save that arrives after the session has expired is left as a bare 419.
+             *
+             * Rendering the error page for it replaced the form the user was filling in, and
+             * everything typed into it. Left alone, the response reaches the client as an HTTP
+             * exception, which the shell answers with a dialog over the untouched page: sign
+             * in again in another tab, then press Save. A page *load* that hits 419 still gets
+             * the error page — there is nothing on screen to protect.
+             */
+            if ($response->getStatusCode() === 419 && $request->hasHeader('X-Inertia') && ! $request->isMethod('GET')) {
                 return $response;
             }
 
