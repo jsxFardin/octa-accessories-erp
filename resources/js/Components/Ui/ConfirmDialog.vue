@@ -86,7 +86,7 @@ onUnmounted(() => {
                                 class="flex size-9 shrink-0 items-center justify-center rounded-full"
                                 :class="state.tone === 'danger' ? 'bg-rose-50 text-rose-600' : 'bg-brand-50 text-brand-600'"
                             >
-                                <Icon :name="state.tone === 'danger' ? 'remove' : 'check'" />
+                                <Icon :name="state.tone === 'danger' ? 'warning' : 'check'" />
                             </span>
 
                             <div class="min-w-0 flex-1">

@@ -16,7 +16,7 @@ const props = defineProps({
     availableTransitions: { type: Array, default: () => [] },
 });
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('test_report');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.report.number))) return;

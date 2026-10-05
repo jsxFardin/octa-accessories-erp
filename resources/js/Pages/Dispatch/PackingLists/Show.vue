@@ -239,7 +239,7 @@ const lotOptions = computed(() => props.availableLots.map((lot) => ({
     hint: `${qty(lot.balance_qty)} on hand${lot.cert_scheme ? ` · ${lot.cert_scheme}` : ''}`,
 })));
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('packing_list');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.packingList.number))) return;

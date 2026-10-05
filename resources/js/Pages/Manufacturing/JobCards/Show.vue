@@ -444,7 +444,7 @@ const overrunBreached = computed(
     () => Number(props.jobCard.produced_qty) > Number(props.jobCard.overrun_ceiling),
 );
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('job_card');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.jobCard.number))) return;

@@ -32,7 +32,7 @@ const creditForm = useForm({
     amount: null,
 });
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('sales_invoice');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.invoice.number))) return;

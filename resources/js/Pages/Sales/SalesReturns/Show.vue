@@ -20,7 +20,7 @@ const props = defineProps({
     availableTransitions: { type: Array, default: () => [] },
 });
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('sales_return');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.salesReturn.number ?? 'this return'))) return;

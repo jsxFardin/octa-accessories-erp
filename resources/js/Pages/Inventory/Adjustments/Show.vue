@@ -20,7 +20,7 @@ const props = defineProps({
 
 const readOnly = ['posted', 'cancelled'].includes(props.adjustment.status);
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('stock_adjustment');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.adjustment.number))) return;

@@ -18,7 +18,7 @@ const props = defineProps({
     availableTransitions: { type: Array, default: () => [] },
 });
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('supplier_bill');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.bill.number))) return;

@@ -34,7 +34,7 @@ const canReceive = computed(
 
 const grnHref = computed(() => `/grns/create?po=${props.purchaseOrder.id}`);
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('purchase_order');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.purchaseOrder.number))) return;

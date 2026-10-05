@@ -42,7 +42,7 @@ const quoteForm = useForm({
 
 const override = reactive({ quotation_id: null, reason: '' });
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('rfq');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.rfq.number))) return;

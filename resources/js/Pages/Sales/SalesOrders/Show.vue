@@ -107,7 +107,7 @@ function jobCardHref(line = null) {
     return line ? `${base}&sales_order_line=${line.id}` : base;
 }
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('sales_order');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.order.number))) return;

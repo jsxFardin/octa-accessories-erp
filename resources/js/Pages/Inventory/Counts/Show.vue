@@ -50,7 +50,7 @@ const columns = computed(() => {
     return base;
 });
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('physical_count');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.count.number))) return;

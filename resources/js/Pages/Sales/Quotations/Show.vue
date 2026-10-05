@@ -44,7 +44,7 @@ const convertAction = computed(() => conversionAction(props.quotation, props.con
 const rejectForm = useForm({ to: 'rejected', reject_reason: '' });
 const convertForm = useForm({ customer_po_no: '', delivery_date: '' });
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('quotation');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.quotation.number))) return;

@@ -35,7 +35,7 @@ const quoteHref = computed(() => `/quotations/create?inquiry=${props.inquiry.id}
 const lostOpen = ref(false);
 const lostForm = useForm({ status: 'lost', lost_reason: '' });
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('inquiry');
 
 async function transition(status) {
     if (!(await confirmTransition(status, props.inquiry.number))) return;

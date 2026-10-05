@@ -18,7 +18,7 @@ const props = defineProps({
 
 const readOnly = ['in_transit', 'received', 'cancelled'].includes(props.transfer.status);
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('stock_transfer');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.transfer.number))) return;

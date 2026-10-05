@@ -30,7 +30,7 @@ const props = defineProps({
     availableTransitions: { type: Array, default: () => [] },
 });
 
-const confirmTransition = useTransitionConfirm();
+const confirmTransition = useTransitionConfirm('credit_note');
 
 async function transition(to) {
     if (!(await confirmTransition(to, props.creditNote.number))) return;
