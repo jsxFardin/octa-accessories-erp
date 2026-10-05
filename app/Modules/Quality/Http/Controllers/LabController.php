@@ -88,11 +88,66 @@ class LabController extends Controller
             'lots' => $lots,
             'labTests' => $labTests,
             'products' => $products,
+            // What each test must reach for this customer and product. The form showed the
+            // house default whoever the customer was, while the report was judged against the
+            // customer's own figure — so the threshold on screen was not the one applied.
+            'thresholds' => $this->thresholdsFor(
+                $labTests,
+                $request->integer('customer_id') ?: null,
+                $request->integer('product_id') ?: null,
+            ),
         ]);
+    }
+
+    /**
+     * The pass value each test is judged against, and whether the customer insists on the test.
+     *
+     * The same resolution as {@see self::applicableThreshold()}, for every test at once: a
+     * requirement for this product beats one for the customer as a whole, which beats the default.
+     *
+     * @param  \Illuminate\Support\Collection<int, \stdClass>  $labTests
+     * @return array<int, array{pass_value: string|null, from_customer: bool, is_mandatory: bool}>
+     */
+    private function thresholdsFor(\Illuminate\Support\Collection $labTests, ?int $customerId, ?int $productId): array
+    {
+        $requirements = $customerId === null ? collect() : DB::table('customer_test_requirements')
+            ->where('customer_id', $customerId)
+            ->where(fn ($q) => $q->whereNull('product_id')->orWhere('product_id', $productId))
+            ->orderByRaw('product_id IS NULL ASC')
+            ->get(['lab_test_id', 'pass_value', 'is_mandatory'])
+            ->groupBy('lab_test_id')
+            ->map->first();
+
+        $thresholds = [];
+
+        foreach ($labTests as $test) {
+            $requirement = $requirements->get($test->id);
+
+            $thresholds[$test->id] = [
+                'pass_value' => $requirement?->pass_value ?? $test->default_pass_value,
+                'from_customer' => $requirement !== null && $requirement->pass_value !== null,
+                'is_mandatory' => (bool) ($requirement->is_mandatory ?? false),
+            ];
+        }
+
+        return $thresholds;
     }
 
     public function store(Request $request): RedirectResponse
     {
+        /*
+         * Only the tests that were run. The form lists the whole catalogue, and every row used
+         * to be required — a technician who ran three of nine pressed Save and was refused for
+         * the six they had not done, under keys no row displayed. A blank row is now simply a
+         * test that was not run. Keys are kept, so an error still points at its own row.
+         */
+        $request->merge(['results' => array_filter(
+            (array) $request->input('results', []),
+            fn ($row): bool => is_array($row) && trim((string) ($row['result_value'] ?? '')) !== '',
+        )]);
+
+        $scales = DB::table('lab_tests')->pluck('scale', 'id');
+
         $data = $request->validate([
             'lot_id' => ['nullable', 'integer', 'exists:stock_lots,id'],
             'product_id' => ['nullable', 'integer', 'exists:products,id'],
@@ -101,7 +156,36 @@ class LabController extends Controller
             'remarks' => ['nullable', 'string', 'max:500'],
             'results' => ['required', 'array', 'min:1'],
             'results.*.lab_test_id' => ['required', 'integer', 'exists:lab_tests,id'],
-            'results.*.result_value' => ['required', 'string', 'max:40'],
+            'results.*.result_value' => [
+                'required', 'string', 'max:40',
+                // A grade typed as "four" was read as 0 and failed the lot without a word.
+                function (string $attribute, mixed $value, \Closure $fail) use ($request, $scales): void {
+                    $index = explode('.', $attribute)[1] ?? null;
+                    $scale = $scales[$request->input("results.{$index}.lab_test_id")] ?? null;
+                    $text = strtolower(trim((string) $value));
+
+                    if ($scale === 'pass_fail') {
+                        if (! in_array($text, ['pass', 'fail'], true)) {
+                            $fail('Enter pass or fail.');
+                        }
+
+                        return;
+                    }
+
+                    if (! is_numeric($text)) {
+                        $fail('Enter a number.');
+                    } elseif ($scale === 'grey_1_5' && ((float) $text < 1 || (float) $text > 5)) {
+                        $fail('A grey-scale grade is between 1 and 5.');
+                    } elseif ($scale === 'percent' && ((float) $text < 0 || (float) $text > 100)) {
+                        $fail('A percentage is between 0 and 100.');
+                    } elseif ((float) $text < 0) {
+                        $fail('Enter a number that is not negative.');
+                    }
+                },
+            ],
+        ], [
+            'results.required' => 'Enter the result of at least one test.',
+            'results.min' => 'Enter the result of at least one test.',
         ]);
 
         $report = DB::transaction(function () use ($data, $request): TestReport {

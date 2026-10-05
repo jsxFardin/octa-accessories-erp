@@ -179,3 +179,67 @@ it('passes a grey-scale result at or above its grade', function (): void {
 
     expect($report->lines()->where('lab_test_id', $grey->id)->value('result'))->toBe('pass');
 });
+
+/*
+ * UX audit H-38. Every catalogue test was required, so a technician who ran three of nine was
+ * refused for the other six under keys no row displayed; and the form showed the house pass
+ * value whoever the customer was.
+ */
+it('saves a report holding only the tests that were run', function (): void {
+    $run = $this->labTests->take(2);
+
+    $results = $this->labTests->values()->map(fn ($test, int $index): array => [
+        'lab_test_id' => $test->id,
+        'result_value' => $index < 2 ? ($test->scale === 'pass_fail' ? 'pass' : '4') : '',
+    ])->all();
+
+    $this->actingAs($this->labTech)->post('/lab/reports', ['tested_on' => now()->toDateString(), 'results' => $results])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect();
+
+    $report = TestReport::query()->latest('id')->firstOrFail();
+
+    expect(DB::table('test_report_lines')->where('test_report_id', $report->id)->pluck('lab_test_id')->sort()->values()->all())
+        ->toBe($run->pluck('id')->sort()->values()->all());
+});
+
+it('refuses a report with no results, and a result that does not fit its scale, on its own row', function (): void {
+    $blank = $this->labTests->map(fn ($test): array => ['lab_test_id' => $test->id, 'result_value' => ''])->all();
+
+    $this->actingAs($this->labTech)->post('/lab/reports', ['tested_on' => now()->toDateString(), 'results' => $blank])
+        ->assertSessionHasErrors(['results' => 'Enter the result of at least one test.']);
+
+    $grey = $this->labTests->values()->search(fn ($test): bool => $test->scale === 'grey_1_5');
+    $rows = $blank;
+    $rows[$grey]['result_value'] = 'four';
+
+    // The error carries the row's own position in the list, so the form can show it there.
+    $this->post('/lab/reports', ['tested_on' => now()->toDateString(), 'results' => $rows])
+        ->assertSessionHasErrors(["results.{$grey}.result_value" => 'Enter a number.']);
+
+    $rows[$grey]['result_value'] = '7';
+    $this->post('/lab/reports', ['tested_on' => now()->toDateString(), 'results' => $rows])
+        ->assertSessionHasErrors(["results.{$grey}.result_value" => 'A grey-scale grade is between 1 and 5.']);
+});
+
+it('shows the form the pass value the chosen customer asks for', function (): void {
+    $test = $this->labTests->firstWhere('scale', 'grey_1_5');
+    $customerId = (int) DB::table('customers')->value('id');
+
+    DB::table('customer_test_requirements')->where('customer_id', $customerId)->where('lab_test_id', $test->id)->delete();
+    DB::table('customer_test_requirements')->insert([
+        'customer_id' => $customerId, 'lab_test_id' => $test->id, 'pass_value' => '4.5', 'is_mandatory' => true,
+    ]);
+
+    $this->actingAs($this->labTech)->get('/lab/reports/create')
+        ->assertInertia(fn ($page) => $page
+            ->where("thresholds.{$test->id}.pass_value", $test->default_pass_value)
+            ->where("thresholds.{$test->id}.from_customer", false)
+            ->where("thresholds.{$test->id}.is_mandatory", false));
+
+    $this->get("/lab/reports/create?customer_id={$customerId}")
+        ->assertInertia(fn ($page) => $page
+            ->where("thresholds.{$test->id}.pass_value", '4.5')
+            ->where("thresholds.{$test->id}.from_customer", true)
+            ->where("thresholds.{$test->id}.is_mandatory", true));
+});
