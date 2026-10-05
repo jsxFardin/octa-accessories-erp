@@ -29,6 +29,8 @@ const settings = {
      * `money(x)` is never ambiguous.
      */
     baseCurrency: 'BDT',
+    /** First column of every calendar: 'saturday', 'sunday' or 'monday'. */
+    weekStart: 'saturday',
 };
 
 export function configureFormatting(values = {}) {
@@ -37,6 +39,7 @@ export function configureFormatting(values = {}) {
     if (values.date_format) settings.dateFormat = values.date_format;
     if (values.time_format) settings.timeFormat = values.time_format;
     if (values.base_currency) settings.baseCurrency = values.base_currency;
+    if (values.week_start) settings.weekStart = values.week_start;
 }
 
 export function formattingSettings() {
@@ -79,6 +82,85 @@ export function isoDate(value) {
     const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
 
     return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
+}
+
+const MONTH_NAMES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+/** A real calendar day as `YYYY-MM-DD`, or '' — 31/02 and month 13 are not dates. */
+function isoFromParts(year, month, day) {
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return '';
+    if (month < 1 || month > 12 || day < 1) return '';
+
+    const date = new Date(year, month - 1, day);
+
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+        ? isoFromLocal(date)
+        : '';
+}
+
+/** Two-digit years: 00–69 are this century, 70–99 the last, the usual spreadsheet convention. */
+function fullYear(text) {
+    const year = Number(text);
+
+    if (text.length !== 2) return year;
+
+    return year < 70 ? 2000 + year : 1900 + year;
+}
+
+/**
+ * A date as a person types it, turned into `YYYY-MM-DD`.
+ *
+ * The day always comes first. This is Bangladesh: `05/10/2026` is the fifth of October, and a
+ * parser that guessed the American order for some values would be wrong silently, which is the
+ * worst way to be wrong about a delivery date.
+ *
+ * Accepted:
+ *   - `20/10/2026`, `20-10-2026`, `20.10.2026`, `20 10 2026`
+ *   - the same with a two-digit year, and with single-digit day or month (`5/3/26`)
+ *   - `20 Oct 2026`, `20 October 2026`, `20-Oct-26`, `20Oct2026`
+ *   - ISO `2026-10-20`, and a Laravel datetime that starts with it
+ *
+ * Returns '' for anything else, including a date that does not exist.
+ */
+export function parseTypedDate(value) {
+    if (value === null || value === undefined) return '';
+
+    const text = String(value).trim().toLowerCase();
+
+    if (text === '') return '';
+
+    const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[t ].*)?$/);
+
+    if (iso) return isoFromParts(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+
+    const numeric = text.match(/^(\d{1,2})\s*[/.\- ]\s*(\d{1,2})\s*[/.\- ]\s*(\d{2}|\d{4})$/);
+
+    if (numeric) return isoFromParts(fullYear(numeric[3]), Number(numeric[2]), Number(numeric[1]));
+
+    const named = text.match(/^(\d{1,2})\s*[/.\- ]?\s*([a-z]{3,9})\.?,?\s*[/.\- ]?\s*(\d{2}|\d{4})$/);
+
+    if (named) {
+        const month = MONTH_NAMES.indexOf(named[2].slice(0, 3));
+        // "sept" is how en-GB abbreviates it, and how this application prints it.
+        const known = month !== -1 && ('september'.startsWith(named[2]) || MONTH_NAME_FULL[month].startsWith(named[2]));
+
+        return known ? isoFromParts(fullYear(named[3]), month + 1, Number(named[1])) : '';
+    }
+
+    return '';
+}
+
+const MONTH_NAME_FULL = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+/** `20/10/2026` — the form a date takes while it is being typed. */
+export function typedDate(value) {
+    const iso = isoDate(value);
+
+    if (!iso) return '';
+
+    const [year, month, day] = iso.split('-');
+
+    return `${day}/${month}/${year}`;
 }
 
 /** Today's calendar date in the browser, never UTC. */

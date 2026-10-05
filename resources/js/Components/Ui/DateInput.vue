@@ -1,14 +1,18 @@
 <script setup>
-import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { date as formatDate, isoDate, todayIso } from '@/plugins/formatting';
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue';
+import { date as formatDate, formattingSettings, isoDate, parseTypedDate, todayIso, typedDate } from '@/plugins/formatting';
 
 /**
  * A date field with its own calendar.
  *
  * The native picker differs per browser, cannot be styled, and on Bengali locales renders a
  * different first-day-of-week than the factory's own calendars. This one is ours: ISO strings
- * in and out (`YYYY-MM-DD`), Monday-first, and typing still works because the trigger is a
- * real text input.
+ * in and out (`YYYY-MM-DD`), the week starting on the day the organisation has chosen, and
+ * typing still works because the trigger is a real text input.
+ *
+ * Typing is day-first — `20/10/2026`, `20-10-26`, `20 Oct 2026` — because that is how a date
+ * is written here. The field used to accept ISO only and emptied itself on anything else, with
+ * no message. Now something it cannot read leaves the previous value in place and says so.
  *
  * Laravel's `date` cast used to arrive as `2026-08-20T00:00:00.000000Z`. Values are normalised
  * to a calendar day, and the closed field shows the organisation date format (`d M Y` by
@@ -19,7 +23,7 @@ const model = defineModel({ type: [String, null], default: '' });
 const props = defineProps({
     error: { type: String, default: null },
     disabled: { type: Boolean, default: false },
-    placeholder: { type: String, default: 'YYYY-MM-DD' },
+    placeholder: { type: String, default: 'DD/MM/YYYY' },
     /** ISO strings. Out-of-range days are rendered but not selectable. */
     min: { type: String, default: null },
     max: { type: String, default: null },
@@ -28,10 +32,13 @@ const props = defineProps({
 
 // Adopt the FormField's generated id/description so the label and error are associated.
 const inheritedError = inject('fieldError', null);
-const invalid = computed(() => Boolean(props.error ?? inheritedError?.value));
+/** What was typed could not be used. Shown under the field until it is corrected. */
+const typingError = ref(null);
+const invalid = computed(() => Boolean(props.error ?? inheritedError?.value ?? typingError.value));
 const fieldId = inject('fieldId', null);
 const describedBy = inject('fieldDescribedBy', null);
 
+const typingErrorId = useId();
 const focused = ref(false);
 const draft = ref('');
 
@@ -54,7 +61,13 @@ const displayValue = computed(() => {
     return isoValue.value ? formatDate(isoValue.value) : '';
 });
 
-const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+/**
+ * The first column follows the organisation's "Week starts on" setting. The grid was fixed
+ * Monday-first, so the setting changed nothing and the picker disagreed with the wall calendar.
+ */
+const WEEK_START = { sunday: 0, monday: 1, saturday: 6 }[formattingSettings().weekStart] ?? 6;
+const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const WEEKDAYS = Array.from({ length: 7 }, (_, index) => DAY_NAMES[(WEEK_START + index) % 7]);
 const MONTHS = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
@@ -83,10 +96,10 @@ function startOfMonth(date) {
 
 const selected = computed(() => parse(isoValue.value));
 
-/** Six weeks, Monday first — a fixed grid so the popover never changes height. */
+/** Six weeks from the organisation's first weekday — a fixed grid so the popover never changes height. */
 const days = computed(() => {
     const first = cursor.value;
-    const offset = (first.getDay() + 6) % 7;
+    const offset = (first.getDay() - WEEK_START + 7) % 7;
     const start = new Date(first.getFullYear(), first.getMonth(), 1 - offset);
 
     return Array.from({ length: 42 }, (_, index) => {
@@ -131,7 +144,8 @@ function pick(day) {
     if (day.disabled) return;
 
     isoValue.value = day.iso;
-    draft.value = day.iso;
+    draft.value = typedDate(day.iso);
+    typingError.value = null;
     open.value = false;
 }
 
@@ -142,28 +156,66 @@ function shiftMonth(delta) {
 function clear() {
     isoValue.value = '';
     draft.value = '';
+    typingError.value = null;
     open.value = false;
 }
 
 function onFocus() {
     focused.value = true;
-    draft.value = isoValue.value;
+    // Shown the way it is typed, so editing one digit does not mean retyping the date.
+    draft.value = typedDate(isoValue.value);
     show();
+}
+
+/** Why a readable date still cannot be used here, or null. */
+function outOfRange(iso) {
+    if (props.min && iso < isoDate(props.min)) return `Must be ${formatDate(props.min)} or later.`;
+    if (props.max && iso > isoDate(props.max)) return `Must be ${formatDate(props.max)} or earlier.`;
+
+    return null;
 }
 
 function onInput(event) {
     draft.value = event.target.value;
-    const parsed = isoDate(event.target.value);
+    typingError.value = null;
 
-    if (parsed) isoValue.value = parsed;
+    const parsed = parseTypedDate(event.target.value);
+
+    // Applied as soon as it reads as a date, so the calendar follows the typing.
+    if (parsed && !outOfRange(parsed)) isoValue.value = parsed;
 }
 
 function onBlur() {
     focused.value = false;
-    const parsed = isoDate(draft.value);
+
+    const typed = draft.value.trim();
+
+    if (typed === '') {
+        if (props.clearable) isoValue.value = '';
+        typingError.value = null;
+
+        return;
+    }
+
+    const parsed = parseTypedDate(typed);
+
+    // Unreadable or out of range: the value the field held before is kept, not wiped.
+    if (!parsed) {
+        typingError.value = `"${typed}" is not a date. Type it as day/month/year — 20/10/2026.`;
+
+        return;
+    }
+
+    const range = outOfRange(parsed);
+
+    if (range) {
+        typingError.value = range;
+
+        return;
+    }
 
     isoValue.value = parsed;
-    draft.value = parsed;
+    typingError.value = null;
 }
 
 function onKeydown(event) {
@@ -185,7 +237,12 @@ watch(() => isoValue.value, (value) => {
     const parsed = parse(value);
 
     if (parsed) cursor.value = startOfMonth(parsed);
-    if (!focused.value) draft.value = value;
+    if (!focused.value) {
+        draft.value = typedDate(value);
+        // The value was set from outside — a pick, a reset, a prefill. The old complaint no
+        // longer describes what the field holds.
+        typingError.value = null;
+    }
 });
 
 onMounted(() => {
@@ -222,7 +279,7 @@ onUnmounted(() => {
                 :placeholder="placeholder"
                 :disabled="disabled"
                 :aria-invalid="invalid || undefined"
-                :aria-describedby="describedBy?.value ?? undefined"
+                :aria-describedby="typingError ? typingErrorId : (describedBy?.value ?? undefined)"
                 @focus="onFocus"
                 @input="onInput"
                 @blur="onBlur"
@@ -241,6 +298,8 @@ onUnmounted(() => {
                 </svg>
             </button>
         </div>
+
+        <p v-if="typingError" :id="typingErrorId" role="alert" class="mt-1 text-xs text-rose-700">{{ typingError }}</p>
 
         <Teleport to="body">
             <div
@@ -293,11 +352,13 @@ onUnmounted(() => {
                                 : day.iso === today
                                     ? 'bg-brand-50 font-medium text-brand-800'
                                     : day.outside
-                                        ? 'text-ink-300 hover:bg-slate-50'
+                                        ? 'text-ink-400 hover:bg-slate-50'
                                         : 'text-ink-800 hover:bg-slate-100',
                             day.disabled && 'cursor-not-allowed opacity-30 hover:bg-transparent',
                         ]"
                         :disabled="day.disabled"
+                        :aria-label="formatDate(day.iso)"
+                        :aria-current="day.iso === today ? 'date' : undefined"
                         @click="pick(day)"
                     >
                         {{ day.date.getDate() }}

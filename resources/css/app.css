@@ -37,6 +37,8 @@
     --color-brand-900: oklch(0.331 0.083 250);
 
     /* Ink: the text ramp. Body copy is --color-ink-700, never lighter. */
+    /* 300 is for decoration only — a chevron, a divider glyph. Never text that has to be read. */
+    --color-ink-300: oklch(0.760 0.015 258);
     --color-ink-400: oklch(0.640 0.019 258);
     --color-ink-500: oklch(0.551 0.021 258);
     --color-ink-600: oklch(0.461 0.023 257);
