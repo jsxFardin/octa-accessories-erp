@@ -64,10 +64,12 @@ onUnmounted(() => stopListening.forEach((stop) => stop()));
 
 <template>
     <div class="floor-scope min-h-screen">
-        <header class="flex items-center justify-between border-b border-white/10 px-6 py-4">
-            <div>
+        <!-- Wraps: with a waiting count and Send now in it, the action strip is wider than a
+             phone, and a header that cannot wrap pushed the whole terminal sideways. -->
+        <header class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-white/10 px-4 py-4 sm:px-6">
+            <div class="min-w-0">
                 <h1 class="text-2xl font-bold"><slot name="title" /></h1>
-                <p class="text-sm text-slate-400"><slot name="subtitle" /></p>
+                <p class="text-sm text-slate-300"><slot name="subtitle" /></p>
             </div>
             <slot name="actions" />
         </header>

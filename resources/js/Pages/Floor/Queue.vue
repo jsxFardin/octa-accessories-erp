@@ -82,6 +82,16 @@ async function load() {
     loading.value = false;
 }
 
+const sendingNow = ref(false);
+
+async function sendNow() {
+    if (sendingNow.value) return;
+
+    sendingNow.value = true;
+    await flush();
+    sendingNow.value = false;
+}
+
 const ending = ref(false);
 /** Why the shift could not be ended, when it could not. */
 const endBlocked = ref(null);
@@ -141,14 +151,24 @@ onMounted(load);
         <template #subtitle>{{ operator }}<span v-if="machineCode"> · {{ machineCode }}</span></template>
 
         <template #actions>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <!-- A loom does not stop when the wifi does: queued writes replay when the link returns -->
                 <span
                     class="rounded-full px-4 py-2 text-lg font-bold"
                     :class="online ? 'bg-emerald-600' : 'bg-amber-500 text-slate-900'"
                 >
-                    {{ online ? 'ONLINE' : `OFFLINE · ${pending} queued` }}
+                    {{ online ? 'ONLINE' : 'OFFLINE' }}
                 </span>
+
+                <!-- Shown whenever anything is waiting, whatever the browser thinks of the link. -->
+                <button
+                    v-if="pending > 0"
+                    class="min-h-11 rounded-full bg-amber-500 px-5 py-2 text-lg font-bold text-slate-900 disabled:opacity-60"
+                    :disabled="sendingNow"
+                    @click="sendNow"
+                >
+                    {{ pending }}টি অপেক্ষায় · {{ pending }} WAITING — {{ sendingNow ? '…' : 'এখন পাঠান · SEND NOW' }}
+                </button>
 
                 <button
                     class="rounded-full bg-white/10 px-5 py-2 text-lg font-bold hover:bg-white/20 disabled:opacity-60"

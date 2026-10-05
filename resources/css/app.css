@@ -234,6 +234,11 @@
     @apply min-h-24 cursor-pointer rounded-2xl text-2xl font-bold tracking-wide uppercase;
 }
 
+/* A button that is off while a record is being sent has to look off, on every floor button. */
+.floor-scope .floor-btn:disabled {
+    @apply cursor-not-allowed opacity-30;
+}
+
 /*
  * Print. Until the PDF documents exist (Phase 3), people print the screen — and a printed
  * screen with a navigation sidebar down the left and a sticky header across the top wastes

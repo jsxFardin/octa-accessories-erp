@@ -166,7 +166,7 @@ class FloorTerminalController extends Controller
 
     public function operation(JobCardOperation $operation): Response
     {
-        $operation->load(['jobCard.product', 'jobCard.artworkVersion.artwork', 'machine']);
+        $operation->load(['jobCard.product', 'jobCard.artworkVersion.artwork', 'machine', 'routingOperation']);
 
         return Inertia::render('Floor/Operation', [
             'operation' => [
@@ -175,6 +175,9 @@ class FloorTerminalController extends Controller
                     'good_qty', 'waste_qty', 'status', 'started_at',
                 ]),
                 'machine' => $operation->machine?->only(['id', 'code', 'name']),
+                // Metres or pieces. The terminal printed bare numbers, and a weaver books
+                // metres into the same boxes a packer books pieces into.
+                'unit' => $operation->unit(),
                 'remaining_allowance' => $operation->remainingOutputAllowance(),
                 'job_card' => [
                     'id' => $operation->jobCard?->id,

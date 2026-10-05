@@ -34,3 +34,20 @@ describe('splitExpired', () => {
         expect(expired).toHaveLength(0);
     });
 });
+
+describe('queuedOutputFor', () => {
+    // UX audit H-32: a booking that was only queued did not show in the tiles.
+    it('adds up what is waiting on this device for one operation', async () => {
+        const { queuedOutputFor } = await import('../../resources/js/Composables/useOfflineQueue.js');
+
+        const queue = [
+            { url: '/api/v1/operations/7/log', payload: { good_qty: 500, waste_qty: 12, input_qty: 520 } },
+            { url: '/api/v1/operations/7/log', payload: { good_qty: 250, waste_qty: 0 } },
+            { url: '/api/v1/operations/7/downtime', payload: { minutes: 15 } },
+            { url: '/api/v1/operations/8/log', payload: { good_qty: 999 } },
+        ];
+
+        expect(queuedOutputFor(7, queue)).toEqual({ good: 750, waste: 12, input: 520, count: 2 });
+        expect(queuedOutputFor(9, queue)).toEqual({ good: 0, waste: 0, input: 0, count: 0 });
+    });
+});

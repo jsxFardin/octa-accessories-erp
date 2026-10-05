@@ -130,3 +130,19 @@ it('holds an operation whose predecessor still needs a QC verdict', function ():
     $this->postJson("/api/v1/operations/{$second->id}/start", [], ($this->headers)('qc1-cleared'))
         ->assertOk();
 });
+
+/*
+ * UX audit H-35. The terminal printed bare quantities, so metres and pieces were booked into
+ * identical boxes. The operation screen is now told the unit and prints it beside every figure.
+ */
+it('tells the operation screen which unit its quantities are in', function (): void {
+    $operation = $this->jobCard->operations()->orderBy('sequence_no')->firstOrFail();
+    $supervisor = User::query()->where('email', 'supervisor@octapussolution.com')->firstOrFail();
+
+    $this->actingAs($supervisor)->get("/floor/operations/{$operation->id}")
+        ->assertOk()
+        ->assertInertia(fn (Inertia\Testing\AssertableInertia $page) => $page
+            ->component('Floor/Operation')
+            ->where('operation.unit', $operation->unit())
+            ->where('operation.unit', fn ($unit) => in_array($unit, ['m', 'pcs'], true)));
+});

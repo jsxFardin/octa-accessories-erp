@@ -63,14 +63,57 @@ function session() {
     return JSON.parse(localStorage.getItem('octa.device_session') ?? 'null');
 }
 
-function idempotencyKey() {
+/**
+ * A key that identifies one intended write.
+ *
+ * It is made when the operator opens the form, not when they press the button, and handed to
+ * `send`. Every press of SAVE on that form then carries the same key, so a double tap, or a
+ * retry after a timeout, is recognised by the server as the same booking rather than a second
+ * shift's output.
+ */
+export function idempotencyKey() {
     return crypto.randomUUID();
+}
+
+/** How often unsent records are tried again while any are waiting. */
+const RETRY_MS = 30 * 1000;
+
+/**
+ * Good, waste and input still waiting on this device for one operation.
+ *
+ * The tiles on the operation screen come from the server, so a booking that has only been
+ * queued did not show in them — the operator saw "Logged", saw no change, and booked it again.
+ */
+export function queuedOutputFor(operationId, queue = readQueue()) {
+    const totals = { good: 0, waste: 0, input: 0, count: 0 };
+    const url = `/api/v1/operations/${operationId}/log`;
+
+    for (const entry of queue) {
+        if (entry.url !== url) continue;
+
+        totals.good += Number(entry.payload?.good_qty) || 0;
+        totals.waste += Number(entry.payload?.waste_qty) || 0;
+        totals.input += Number(entry.payload?.input_qty) || 0;
+        totals.count += 1;
+    }
+
+    return totals;
 }
 
 export function useOfflineQueue() {
     const pending = ref(readQueue().length);
     const rejected = ref(readRejected().length);
     const online = ref(navigator.onLine);
+    /** Bumped whenever the queue changes, so screens that read it can recompute. */
+    const revision = ref(0);
+    let flushing = false;
+    let retryTimer = null;
+
+    function sync(queue = readQueue()) {
+        pending.value = queue.length;
+        rejected.value = readRejected().length;
+        revision.value += 1;
+    }
 
     async function post(entry) {
         const auth = session();
@@ -88,54 +131,83 @@ export function useOfflineQueue() {
     }
 
     async function flush() {
+        // One drain at a time: the timer, the `online` event and "Send now" can all ask at once,
+        // and two drains over the same queue would post every entry twice.
+        if (flushing) return;
+
         const queue = readQueue();
 
         if (queue.length === 0) {
+            sync(queue);
+
             return;
         }
 
-        // Oldest first: the server orders by occurred_at, and so does the drain.
-        queue.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+        flushing = true;
 
-        const remaining = [];
-        const { fresh, expired } = splitExpired(queue);
+        try {
+            // Oldest first: the server orders by occurred_at, and so does the drain.
+            queue.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 
-        for (const entry of expired) {
-            reject(entry, 0, '', 'expired');
-        }
+            const remaining = [];
+            const { fresh, expired } = splitExpired(queue);
 
-        for (const entry of fresh) {
-            try {
-                const response = await post(entry);
-
-                // Only a transport failure earns a retry. A server that answered — with
-                // anything — has seen this write, and repeating it will not change its mind.
-                if (!response.ok) {
-                    reject(entry, response.status, await response.text().catch(() => ''));
-                }
-            } catch {
-                remaining.push(entry);
+            for (const entry of expired) {
+                reject(entry, 0, '', 'expired');
             }
-        }
 
-        writeQueue(remaining);
-        pending.value = remaining.length;
-        rejected.value = readRejected().length;
+            for (const entry of fresh) {
+                try {
+                    const response = await post(entry);
+
+                    // Only a transport failure earns a retry. A server that answered — with
+                    // anything — has seen this write, and repeating it will not change its mind.
+                    if (!response.ok) {
+                        reject(entry, response.status, await response.text().catch(() => ''));
+                    }
+                } catch {
+                    remaining.push(entry);
+                }
+            }
+
+            // Anything queued while this drain was running is kept, not overwritten.
+            const drained = new Set(queue.map((entry) => entry.key));
+            const added = readQueue().filter((entry) => !drained.has(entry.key));
+
+            writeQueue([...remaining, ...added]);
+        } finally {
+            flushing = false;
+            sync();
+        }
     }
 
-    async function send(url, payload) {
+    function enqueue(entry) {
+        const queue = readQueue();
+
+        // The same key twice is the same booking pressed twice: keep one.
+        if (!queue.some((queued) => queued.key === entry.key)) queue.push(entry);
+
+        writeQueue(queue);
+        sync(queue);
+    }
+
+    /**
+     * @param {string} url
+     * @param {object} payload
+     * @param {string|null} key  from `idempotencyKey()`, made when the form was opened
+     * @returns {Promise<object>} `{ queued: true }` when it is saved on this device only,
+     *   `{ error: true, … }` when the server refused it, otherwise the server's answer.
+     */
+    async function send(url, payload, key = null) {
         const entry = {
             url,
             payload,
-            key: idempotencyKey(),
+            key: key ?? idempotencyKey(),
             occurredAt: new Date().toISOString(),
         };
 
         if (!navigator.onLine) {
-            const queue = readQueue();
-            queue.push(entry);
-            writeQueue(queue);
-            pending.value = queue.length;
+            enqueue(entry);
 
             return { queued: true };
         }
@@ -150,7 +222,7 @@ export function useOfflineQueue() {
 
                 if (response.status >= 500) {
                     reject(entry, response.status, JSON.stringify(body));
-                    rejected.value = readRejected().length;
+                    sync();
                 }
 
                 return {
@@ -162,10 +234,9 @@ export function useOfflineQueue() {
 
             return await response.json();
         } catch {
-            const queue = readQueue();
-            queue.push(entry);
-            writeQueue(queue);
-            pending.value = queue.length;
+            // The browser said it was online and the request still did not get through —
+            // wifi up, server unreachable. Saved here and tried again on the timer.
+            enqueue(entry);
 
             return { queued: true };
         }
@@ -184,12 +255,19 @@ export function useOfflineQueue() {
         window.addEventListener('online', onOnline);
         window.addEventListener('offline', onOffline);
         flush();
+
+        // `online` only fires when the browser's own idea of the network changes. A server that
+        // is down behind working wifi never fires it, so waiting records are retried on a timer.
+        retryTimer = setInterval(() => {
+            if (pending.value > 0) flush();
+        }, RETRY_MS);
     });
 
     onUnmounted(() => {
         window.removeEventListener('online', onOnline);
         window.removeEventListener('offline', onOffline);
+        clearInterval(retryTimer);
     });
 
-    return { send, flush, pending, rejected, online };
+    return { send, flush, pending, rejected, online, revision };
 }
