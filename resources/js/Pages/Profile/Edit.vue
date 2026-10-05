@@ -4,17 +4,22 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
-import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { datetime } from '@/plugins/formatting';
 
-const props = defineProps({ profile: { type: Object, required: true } });
+/*
+ * There is no language choice here. The desk is in English only — it has no translations — so
+ * a selector offering বাংলা changed nothing, and it sat inside this form, where saving it
+ * also demanded a new password. The shop-floor terminal shows Bangla and English together and
+ * needs no setting. If the desk is translated later, the choice belongs in its own card,
+ * saved through `PUT /profile/locale`, which already exists and asks for no password.
+ */
+defineProps({ profile: { type: Object, required: true } });
 
 const form = useForm({
     current_password: '',
     password: '',
     password_confirmation: '',
-    locale: props.profile.locale,
 });
 
 function submit() {
@@ -61,18 +66,7 @@ function submit() {
                         <TextInput v-model="form.password_confirmation" type="password" autocomplete="new-password" />
                     </FormField>
 
-                    <FormField label="Language" hint="The shop floor runs in Bangla by default." :error="form.errors.locale">
-                        <SelectInput
-                            v-model="form.locale"
-                            :placeholder="null"
-                            :options="[
-                                { value: 'en', label: 'English' },
-                                { value: 'bn', label: 'বাংলা' },
-                            ]"
-                        />
-                    </FormField>
-
-                    <Button type="submit" variant="primary" :loading="form.processing">Save</Button>
+                    <Button type="submit" variant="primary" :loading="form.processing">Change password</Button>
                 </form>
             </Card>
 

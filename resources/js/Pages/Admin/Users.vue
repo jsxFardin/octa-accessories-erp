@@ -115,7 +115,6 @@ const columns = [
     { key: 'permission_count', label: 'Permissions', align: 'right' },
     { key: 'factory_unit', label: 'Unit' },
     { key: 'card_no', label: 'Badge' },
-    { key: 'locale', label: 'Locale' },
     { key: 'last_login_at', label: 'Last sign-in' },
     { key: 'actions', label: '', align: 'right', width: '3rem' },
 ];
@@ -214,14 +213,6 @@ const columns = [
                             :options="roles"
                             value-key="id"
                             label-key="label"
-                        />
-                    </FormField>
-
-                    <FormField label="Language" hint="The shop floor runs in Bangla by default." :error="form.errors.locale">
-                        <SelectInput
-                            v-model="form.locale"
-                            :placeholder="null"
-                            :options="[{ value: 'en', label: 'English' }, { value: 'bn', label: 'বাংলা' }]"
                         />
                     </FormField>
 
