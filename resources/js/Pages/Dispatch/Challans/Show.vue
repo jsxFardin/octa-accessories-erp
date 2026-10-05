@@ -8,8 +8,10 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
-import { date, pcs, titleCase } from '@/plugins/formatting';
+import TextInput from '@/Components/Ui/TextInput.vue';
+import { date, pcs } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
+import { carriedByOthers, deliveryModeLabel } from '@/plugins/deliveryModes';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useGuardedAction } from '@/composables/useGuardedAction';
 
@@ -58,7 +60,25 @@ const CONFIRM = {
     },
 };
 
+/*
+ * A note that a courier or forwarder carries is handed over with a name and, usually, a
+ * tracking number. The server has always accepted both with this step; the screen never asked.
+ */
+const carried = carriedByOthers(props.challan.mode);
+const handoverOpen = ref(false);
+const handoverForm = useForm({
+    to: 'in_transit',
+    courier_name: props.challan.courier_name ?? '',
+    tracking_no: props.challan.tracking_no ?? '',
+});
+
 function move(to) {
+    if (to === 'in_transit' && carried) {
+        handoverOpen.value = true;
+
+        return;
+    }
+
     run(to, CONFIRM[to], (done) => router.post(
         `/delivery-challans/${props.challan.id}/transition`,
         { to },
@@ -105,7 +125,9 @@ const columns = [
             <Link v-if="challan.packing_list" :href="`/packing-lists/${challan.packing_list.id}`" class="doc-link">
                 {{ challan.packing_list.number }}
             </Link>
-            · {{ date(challan.challan_date) }} · {{ titleCase(challan.mode) }}
+            · {{ date(challan.challan_date) }} · {{ deliveryModeLabel(challan.mode) }}
+            <template v-if="challan.courier_name"> · {{ challan.courier_name }}</template>
+            <template v-if="challan.tracking_no"> · tracking {{ challan.tracking_no }}</template>
         </template>
 
         <template #actions>
@@ -290,6 +312,35 @@ const columns = [
                 >
                     Confirm return
                 </Button>
+            </template>
+        </Modal>
+
+        <Modal
+            v-model:open="handoverOpen"
+            :title="`Hand ${name} over?`"
+            subtitle="The goods are recorded as having left the factory."
+            width="max-w-md"
+            :dirty="handoverForm.isDirty"
+        >
+            <div class="flex flex-col gap-3">
+                <FormField
+                    :label="challan.mode === 'courier' ? 'Courier company' : 'Forwarder'"
+                    :error="handoverForm.errors.courier_name"
+                >
+                    <TextInput v-model="handoverForm.courier_name" maxlength="80" />
+                </FormField>
+                <FormField label="Tracking number" :error="handoverForm.errors.tracking_no" hint="Leave blank if there is none.">
+                    <TextInput v-model="handoverForm.tracking_no" maxlength="80" />
+                </FormField>
+            </div>
+            <template #footer>
+                <Button @click="handoverOpen = false">Cancel</Button>
+                <Button
+                    variant="primary"
+                    :loading="handoverForm.processing"
+                    :disabled="handoverForm.processing"
+                    @click="post(handoverForm, () => { handoverOpen = false; })"
+                >Mark in transit</Button>
             </template>
         </Modal>
     </AppLayout>

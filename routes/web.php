@@ -515,13 +515,15 @@ Route::middleware('auth')->group(function (): void {
     Route::post('trips', [TripController::class, 'store'])
         ->middleware('can:trip.create')->name('trips.store');
     Route::get('trips/{trip}', [TripController::class, 'show'])
-        ->middleware('can:trip.view')->name('trips.show');
+        ->middleware('can:trip.view,trip')->name('trips.show');
     Route::post('trips/{trip}/start', [TripController::class, 'start'])
         ->middleware('can:trip.start')->name('trips.start');
+    Route::post('trips/{trip}/stops/order', [TripController::class, 'reorder'])
+        ->middleware('can:trip.create')->name('trips.stops.order');
     Route::post('trips/{trip}/complete', [TripController::class, 'complete'])
         ->middleware('can:trip.complete')->name('trips.complete');
     Route::post('trips/{trip}/stops/{stop}/deliver', [TripController::class, 'deliver'])
-        ->middleware('can:trip_stop.update')->name('trips.stops.deliver');
+        ->middleware(['can:trip_stop.update', 'can:trip.view,trip'])->name('trips.stops.deliver');
 
     /*
      * ---- Trade finance & import ------------------------------------------------------

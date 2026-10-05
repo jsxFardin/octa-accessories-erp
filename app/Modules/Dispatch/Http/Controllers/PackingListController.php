@@ -166,19 +166,38 @@ class PackingListController extends Controller
         $data = $request->validate([
             'gross_weight_kg' => ['nullable', 'numeric', 'min:0'],
             'net_weight_kg' => ['nullable', 'numeric', 'min:0'],
+            // Fifty-three identical cartons is the ordinary case. The screen used to send one
+            // request per carton — fifty-three round trips, fifty-three toasts, and a silent
+            // stop half-way if any one of them failed. One request makes all of them or none.
+            'count' => ['nullable', 'integer', 'min:1', 'max:200'],
+        ], [
+            'count.max' => 'Add at most 200 cartons at a time.',
         ]);
 
-        $next = (int) Carton::query()->where('packing_list_id', $packingList->id)->max(DB::raw('CAST(carton_no AS UNSIGNED)')) + 1;
+        $count = (int) ($data['count'] ?? 1);
 
-        Carton::query()->create([
-            'packing_list_id' => $packingList->id,
-            'carton_no' => (string) $next,
-            'barcode' => "CTN-{$packingList->id}-{$next}",
-            'gross_weight_kg' => $data['gross_weight_kg'] ?? null,
-            'net_weight_kg' => $data['net_weight_kg'] ?? null,
-        ]);
+        [$first, $last] = DB::transaction(function () use ($packingList, $data, $count): array {
+            // Locked, so two packers adding cartons to the same list cannot be given the same numbers.
+            PackingList::query()->whereKey($packingList->id)->lockForUpdate()->first();
 
-        return back()->with('success', "Carton {$next} added.");
+            $first = (int) Carton::query()->where('packing_list_id', $packingList->id)->max(DB::raw('CAST(carton_no AS UNSIGNED)')) + 1;
+
+            for ($number = $first; $number < $first + $count; $number++) {
+                Carton::query()->create([
+                    'packing_list_id' => $packingList->id,
+                    'carton_no' => (string) $number,
+                    'barcode' => "CTN-{$packingList->id}-{$number}",
+                    'gross_weight_kg' => $data['gross_weight_kg'] ?? null,
+                    'net_weight_kg' => $data['net_weight_kg'] ?? null,
+                ]);
+            }
+
+            return [$first, $first + $count - 1];
+        });
+
+        return back()->with('success', $count === 1
+            ? "Carton {$first} added."
+            : "{$count} cartons added (numbers {$first} to {$last}).");
     }
 
     public function destroyCarton(PackingList $packingList, Carton $carton): RedirectResponse

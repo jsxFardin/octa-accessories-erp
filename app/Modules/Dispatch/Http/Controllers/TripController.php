@@ -15,6 +15,7 @@ use App\Support\States\StateMachine;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -74,18 +75,47 @@ class TripController extends Controller
         $drivers = DB::table('drivers')->where('is_active', true)->orderBy('name')
             ->select(['id', 'name', 'licence_no'])->get();
 
-        $challans = DB::table('delivery_challans as dc')
-            ->leftJoin('customers as c', 'c.id', '=', 'dc.customer_id')
+        /*
+         * What a dispatcher routes by: where it is going, in which zone, and how much there is
+         * to carry. The picker used to be a row of chips reading "DC-0042 — Customer", which is
+         * enough to recognise a note and not enough to build a route from.
+         *
+         * Only notes going out on the factory's own vehicles are offered — a courier's parcel
+         * and a customer's own pickup are not stops on our truck.
+         */
+        $waiting = DB::table('delivery_challans as dc')
             ->where('dc.status', 'issued')
-            ->whereNotExists(fn ($q) => $q->select(DB::raw(1))->from('trip_stops')->whereColumn('delivery_challan_id', 'dc.id'))
+            ->whereNotExists(fn ($q) => $q->select(DB::raw(1))->from('trip_stops')->whereColumn('delivery_challan_id', 'dc.id'));
+
+        $otherModes = (clone $waiting)->where('dc.mode', '!=', 'own_fleet')->count();
+
+        $challans = $waiting
+            ->where('dc.mode', 'own_fleet')
+            ->leftJoin('customers as c', 'c.id', '=', 'dc.customer_id')
+            ->leftJoin('customer_addresses as a', 'a.id', '=', 'dc.delivery_address_id')
+            ->orderBy('a.route_zone')
             ->orderBy('dc.id')
-            ->select(['dc.id', 'dc.number', 'c.name as customer', 'dc.mode'])
-            ->get();
+            ->select([
+                'dc.id', 'dc.number', 'dc.challan_date', 'dc.total_cartons', 'dc.total_qty',
+                'c.name as customer', 'a.label as address_label', 'a.line1', 'a.line2', 'a.city', 'a.route_zone',
+            ])
+            ->get()
+            ->map(fn (object $row): array => [
+                'id' => $row->id,
+                'number' => $row->number,
+                'challan_date' => $row->challan_date,
+                'customer' => $row->customer,
+                'address' => collect([$row->address_label, $row->line1, $row->line2, $row->city])->filter()->join(', ') ?: null,
+                'route_zone' => $row->route_zone,
+                'cartons' => (int) $row->total_cartons,
+                'qty' => (float) $row->total_qty,
+            ]);
 
         return Inertia::render('Dispatch/Trips/Form', [
             'vehicles' => $vehicles,
             'drivers' => $drivers,
             'challans' => $challans,
+            'otherModes' => $otherModes,
         ]);
     }
 
@@ -99,8 +129,27 @@ class TripController extends Controller
             'start_odometer' => ['nullable', 'numeric', 'min:0'],
             'remarks' => ['nullable', 'string', 'max:255'],
             'stops' => ['required', 'array', 'min:1'],
-            'stops.*.delivery_challan_id' => ['required', 'integer', 'exists:delivery_challans,id'],
+            // `distinct`: the same note twice is the same goods delivered twice.
+            'stops.*.delivery_challan_id' => ['required', 'integer', 'distinct', 'exists:delivery_challans,id'],
+        ], [
+            'stops.required' => 'Add at least one delivery note to the trip.',
+            'stops.*.delivery_challan_id.distinct' => 'A delivery note can only be on the trip once.',
         ]);
+
+        // A note already riding on another trip, or not yet issued, has no goods to put on this one.
+        $ids = array_column($data['stops'], 'delivery_challan_id');
+        $taken = DB::table('trip_stops as ts')
+            ->join('delivery_challans as dc', 'dc.id', '=', 'ts.delivery_challan_id')
+            ->whereIn('ts.delivery_challan_id', $ids)
+            ->pluck('dc.number');
+        $notIssued = DB::table('delivery_challans')->whereIn('id', $ids)->where('status', '!=', 'issued')->pluck('number');
+
+        if ($taken->isNotEmpty() || $notIssued->isNotEmpty()) {
+            throw ValidationException::withMessages(['stops' => trim(
+                ($taken->isNotEmpty() ? 'Already on another trip: '.$taken->join(', ').'. ' : '')
+                .($notIssued->isNotEmpty() ? 'Not issued, so there is nothing to deliver yet: '.$notIssued->map(fn ($n) => $n ?? 'a draft')->join(', ').'.' : ''),
+            )]);
+        }
 
         $trip = DB::transaction(function () use ($data): Trip {
             /** @var Trip $trip */
@@ -126,6 +175,9 @@ class TripController extends Controller
                     'sequence_no' => $index + 1,
                     'delivery_challan_id' => $challan->id,
                     'customer_id' => $challan->customer_id,
+                    // Where the stop is. The column was never filled, so the driver's screen
+                    // had a customer's name and no address to drive to.
+                    'address_id' => $challan->delivery_address_id,
                     'status' => 'pending',
                 ])->save();
             }
@@ -145,13 +197,32 @@ class TripController extends Controller
         $challanIds = $trip->stops->pluck('delivery_challan_id')->filter()->all();
         $challans = DB::table('delivery_challans')
             ->whereIn('id', $challanIds)
-            ->get(['id', 'number', 'customer_id', 'status'])
+            ->get(['id', 'number', 'customer_id', 'delivery_address_id', 'status', 'total_cartons', 'total_qty'])
             ->keyBy('id');
 
         $customerIds = $trip->stops->pluck('customer_id')->filter()->all();
         $customers = DB::table('customers')
             ->whereIn('id', $customerIds)
-            ->get(['id', 'code', 'name'])
+            ->get(['id', 'code', 'name', 'phone'])
+            ->keyBy('id');
+
+        // Who to ring at the gate: the customer's primary contact, else the first one with a number.
+        $contacts = DB::table('customer_contacts')
+            ->whereIn('customer_id', $customerIds)
+            ->whereNotNull('phone')
+            ->orderByDesc('is_primary')
+            ->orderBy('id')
+            ->get(['customer_id', 'name', 'phone'])
+            ->unique('customer_id')
+            ->keyBy('customer_id');
+
+        // The stop's own address, or — for trips planned before stops recorded one — the note's.
+        $addressIds = $trip->stops->pluck('address_id')
+            ->merge($challans->pluck('delivery_address_id'))
+            ->filter()->unique()->all();
+        $addresses = DB::table('customer_addresses')
+            ->whereIn('id', $addressIds)
+            ->get(['id', 'label', 'line1', 'line2', 'city', 'route_zone'])
             ->keyBy('id');
 
         return Inertia::render('Dispatch/Trips/Show', [
@@ -161,9 +232,11 @@ class TripController extends Controller
                 'vehicle' => $trip->vehicle?->registration_no,
                 'driver' => $trip->driver?->name,
             ],
-            'stops' => $trip->stops->map(function (TripStop $stop) use ($challans, $customers): array {
+            'stops' => $trip->stops->sortBy('sequence_no')->values()->map(function (TripStop $stop) use ($challans, $customers, $contacts, $addresses): array {
                 $challan = $stop->delivery_challan_id ? $challans->get($stop->delivery_challan_id) : null;
                 $customer = $stop->customer_id ? $customers->get($stop->customer_id) : null;
+                $contact = $stop->customer_id ? $contacts->get($stop->customer_id) : null;
+                $address = $addresses->get($stop->address_id ?? $challan?->delivery_address_id);
 
                 return [
                     ...$stop->only(['id', 'sequence_no', 'status', 'arrived_at', 'departed_at',
@@ -171,9 +244,56 @@ class TripController extends Controller
                     'challan_number' => $challan->number ?? null,
                     'challan_id' => $stop->delivery_challan_id,
                     'customer' => $customer->name ?? null,
+                    'address' => $address === null ? null : collect([$address->label, $address->line1, $address->line2, $address->city])->filter()->join(', '),
+                    'route_zone' => $address->route_zone ?? null,
+                    'contact_name' => $contact->name ?? null,
+                    'phone' => $contact->phone ?? $customer->phone ?? null,
+                    'cartons' => (int) ($challan->total_cartons ?? 0),
+                    'qty' => (float) ($challan->total_qty ?? 0),
                 ];
             })->all(),
         ]);
+    }
+
+    /**
+     * Put a planned trip's stops in a new order.
+     *
+     * The order was fixed by the order the notes were clicked in, and there is no edit screen
+     * for a trip — so a route planned in the wrong order stayed wrong. Only while the trip is
+     * still planned: once the vehicle has left, the order is history.
+     */
+    public function reorder(Request $request, Trip $trip): RedirectResponse
+    {
+        if ($trip->status !== 'planned') {
+            return back()->with('error', 'The order of stops can only be changed before the trip starts.');
+        }
+
+        $request->validate([
+            'stops' => ['required', 'array', 'min:1'],
+            'stops.*' => ['required', 'integer', 'distinct'],
+        ]);
+
+        $existing = $trip->stops()->pluck('id')->map(fn ($id): int => (int) $id)->sort()->values()->all();
+        /** @var list<int> $asked */
+        $asked = array_map(intval(...), array_values($request->array('stops')));
+        $sorted = $asked;
+        sort($sorted);
+
+        if ($sorted !== $existing) {
+            return back()->with('error', 'The stops on this trip have changed. Reload the page and try again.');
+        }
+
+        DB::transaction(function () use ($asked, $trip): void {
+            // (trip, sequence) is unique, so two stops cannot hold the same place even for a
+            // moment: everything is moved out of the way first, then set down in its new place.
+            TripStop::query()->where('trip_id', $trip->id)->update(['sequence_no' => DB::raw('sequence_no + 10000')]);
+
+            foreach ($asked as $index => $stopId) {
+                TripStop::query()->whereKey($stopId)->update(['sequence_no' => $index + 1]);
+            }
+        });
+
+        return back()->with('success', 'Stop order saved.');
     }
 
     /** DF-4 AC4 — start the trip; challans go in_transit. */
@@ -183,10 +303,18 @@ class TripController extends Controller
             return back()->with('error', 'Only a planned trip can be started.');
         }
 
-        DB::transaction(function () use ($trip): void {
+        // Read off the dashboard as the vehicle leaves — the only moment the figure is known.
+        // The column existed and the completion dialog asks for the end reading, but nothing
+        // ever asked for the start, so distance per trip could not be worked out.
+        $data = $request->validate([
+            'start_odometer' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        DB::transaction(function () use ($trip, $data): void {
             $trip->forceFill([
                 'status' => 'in_transit',
                 'started_at' => now(),
+                'start_odometer' => $data['start_odometer'] ?? $trip->start_odometer,
             ])->save();
 
             foreach ($trip->stops()->get() as $stop) {
@@ -290,8 +418,10 @@ class TripController extends Controller
         }
 
         $data = $request->validate([
-            'end_odometer' => ['nullable', 'numeric', 'min:0'],
+            'end_odometer' => ['nullable', 'numeric', 'min:0', ...($trip->start_odometer !== null ? ['gte:'.(float) $trip->start_odometer] : [])],
             'fuel_cost' => ['nullable', 'numeric', 'min:0'],
+        ], [
+            'end_odometer.gte' => 'The end reading cannot be less than the start reading ('.(float) $trip->start_odometer.' km).',
         ]);
 
         $trip->forceFill([

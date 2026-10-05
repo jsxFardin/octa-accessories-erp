@@ -74,7 +74,15 @@ class DeliveryChallanController extends Controller
         $data = $request->validate([
             'packing_list_id' => ['required', 'integer', 'exists:packing_lists,id'],
             'mode' => ['required', Rule::in(['own_fleet', 'courier', 'customer_pickup', 'freight_forwarder'])],
+            // Who carries it, when it is not the factory's own vehicle. Optional here because
+            // the booking is often made after the note is drafted; the note's own page takes it later.
+            'courier_name' => ['nullable', 'string', 'max:80'],
+            'tracking_no' => ['nullable', 'string', 'max:80'],
+        ], [
+            'mode.required' => 'Choose how these goods will be delivered.',
         ]);
+
+        $carried = in_array($data['mode'], ['courier', 'freight_forwarder'], true);
 
         $packingList = PackingList::query()->findOrFail($data['packing_list_id']);
 
@@ -114,7 +122,7 @@ class DeliveryChallanController extends Controller
 
         $addressId ??= CustomerAddress::defaultDeliveryFor((int) $packingList->customer_id)?->id;
 
-        $challan = DB::transaction(function () use ($packingList, $data, $request, $addressId): DeliveryChallan {
+        $challan = DB::transaction(function () use ($packingList, $data, $request, $addressId, $carried): DeliveryChallan {
             $challan = DeliveryChallan::query()->create([
                 'packing_list_id' => $packingList->id,
                 'sales_order_id' => $packingList->sales_order_id,
@@ -122,6 +130,8 @@ class DeliveryChallanController extends Controller
                 'delivery_address_id' => $addressId,
                 'challan_date' => now()->toDateString(),
                 'mode' => $data['mode'],
+                'courier_name' => $carried ? ($data['courier_name'] ?? null) : null,
+                'tracking_no' => $carried ? ($data['tracking_no'] ?? null) : null,
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
             ]);

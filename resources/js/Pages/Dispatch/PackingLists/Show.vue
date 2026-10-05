@@ -4,12 +4,14 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import Modal from '@/Components/Ui/Modal.vue';
 import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { date, pcs, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
+import { carriedByOthers, DELIVERY_MODES } from '@/plugins/deliveryModes';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useGuardedAction } from '@/composables/useGuardedAction';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -203,19 +205,13 @@ function removeContent(carton, content) {
  * all the same. Adding them one at a time was 53 round trips.
  */
 function addCarton() {
-    const count = Math.max(1, Math.min(200, Number(cartonForm.count) || 1));
-    let remaining = count;
-
-    const post = () => cartonForm.post(`/packing-lists/${props.packingList.id}/cartons`, {
-        preserveScroll: true,
-        onSuccess: () => {
-            remaining -= 1;
-            if (remaining > 0) post();
-            else cartonForm.reset();
-        },
-    });
-
-    post();
+    // One request, however many cartons: the server numbers them together and answers once.
+    cartonForm
+        .transform((data) => ({ ...data, count: Math.max(1, Number(data.count) || 1) }))
+        .post(`/packing-lists/${props.packingList.id}/cartons`, {
+            preserveScroll: true,
+            onSuccess: () => cartonForm.reset(),
+        });
 }
 
 /**
@@ -280,7 +276,20 @@ async function transition(to) {
     router.post(`/packing-lists/${props.packingList.id}/transition`, { to }, { preserveScroll: true });
 }
 
-const challanForm = useForm({ packing_list_id: props.packingList.id, mode: 'own_fleet' });
+/*
+ * How the goods leave is asked, not assumed. Every delivery note used to be created as "own
+ * fleet" without a word, so a courier parcel and a customer's own pickup were both recorded as
+ * riding on the factory's truck — and then sat in the trip planner waiting for a trip.
+ */
+const challanForm = useForm({ packing_list_id: props.packingList.id, mode: null, courier_name: '', tracking_no: '' });
+const challanOpen = ref(false);
+const carried = computed(() => carriedByOthers(challanForm.mode));
+
+function openChallan() {
+    challanForm.reset();
+    challanForm.clearErrors();
+    challanOpen.value = true;
+}
 
 function createChallan() {
     challanForm.post('/delivery-challans');
@@ -309,9 +318,9 @@ function createChallan() {
             </Button>
             <Button
                 v-if="packingList.status === 'packed' && liveChallans.length === 0 && can('delivery_challan.create')"
-                size="sm" variant="primary" :loading="challanForm.processing" :disabled="challanForm.processing" @click="createChallan"
+                size="sm" variant="primary" @click="openChallan"
             >
-                Create challan
+                Create delivery note
             </Button>
             <DocumentActions document="packing-lists" :id="packingList.id" :status="packingList.status" />
         </template>
@@ -452,7 +461,7 @@ function createChallan() {
 
                 <form
                     v-if="isDraft && can('packing_list.update')"
-                    class="flex items-end gap-2 border-t border-slate-200 px-4 py-3"
+                    class="flex flex-wrap items-end gap-2 border-t border-slate-200 px-4 py-3"
                     @submit.prevent="addCarton"
                 >
                     <FormField label="Gross kg" class="w-28">
@@ -461,10 +470,10 @@ function createChallan() {
                     <FormField label="Net kg" class="w-28">
                         <TextInput v-model="cartonForm.net_weight_kg" type="number" min="0" step="any" numeric placeholder="0.00" />
                     </FormField>
-                    <FormField label="How many" class="w-24" hint="Same weights">
+                    <FormField label="How many" class="w-24" hint="Same weights" :error="cartonForm.errors.count">
                         <TextInput v-model="cartonForm.count" type="number" min="1" max="200" numeric placeholder="1" />
                     </FormField>
-                    <Button type="submit" size="sm" :loading="cartonForm.processing">
+                    <Button type="submit" size="sm" :loading="cartonForm.processing" :disabled="cartonForm.processing" data-add-cartons>
                         Add {{ Number(cartonForm.count) > 1 ? `${cartonForm.count} cartons` : 'carton' }}
                     </Button>
                 </form>
@@ -483,5 +492,62 @@ function createChallan() {
                 </ul>
             </Card>
         </div>
+
+        <Modal
+            v-model:open="challanOpen"
+            title="Create a delivery note"
+            subtitle="How will these goods be delivered?"
+            width="max-w-lg"
+            :dirty="challanForm.isDirty"
+        >
+            <div class="flex flex-col gap-3">
+                <div class="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Delivery mode">
+                    <button
+                        v-for="option in DELIVERY_MODES"
+                        :key="option.value"
+                        type="button"
+                        role="radio"
+                        :aria-checked="challanForm.mode === option.value"
+                        :data-mode="option.value"
+                        class="min-h-11 rounded-md border px-3 py-2 text-left transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                        :class="challanForm.mode === option.value ? 'border-brand-600 bg-brand-50' : 'border-slate-300 bg-white hover:bg-slate-50'"
+                        @click="challanForm.mode = option.value"
+                    >
+                        <span class="block text-sm font-medium" :class="challanForm.mode === option.value ? 'text-brand-700' : 'text-ink-900'">{{ option.label }}</span>
+                        <span class="block text-xs text-ink-600">{{ option.hint }}</span>
+                    </button>
+                </div>
+                <p v-if="challanForm.errors.mode" class="text-sm text-rose-700" role="alert">{{ challanForm.errors.mode }}</p>
+
+                <div v-if="carried" class="grid gap-3 sm:grid-cols-2">
+                    <FormField
+                        :label="challanForm.mode === 'courier' ? 'Courier company' : 'Forwarder'"
+                        :error="challanForm.errors.courier_name"
+                        hint="Can be added later on the delivery note."
+                    >
+                        <TextInput v-model="challanForm.courier_name" placeholder="Name" />
+                    </FormField>
+                    <FormField label="Tracking number" :error="challanForm.errors.tracking_no" hint="If you have it yet.">
+                        <TextInput v-model="challanForm.tracking_no" />
+                    </FormField>
+                </div>
+
+                <p class="text-xs text-ink-600">
+                    The delivery note is created as a draft. Stock leaves the store when the note is issued, not now.
+                </p>
+                <p v-if="!challanForm.mode" id="challan-blocked" class="text-xs text-ink-600">Choose how the goods will be delivered.</p>
+            </div>
+            <template #footer>
+                <Button @click="challanOpen = false">Cancel</Button>
+                <Button
+                    variant="primary"
+                    :loading="challanForm.processing"
+                    :disabled="challanForm.processing || !challanForm.mode"
+                    :aria-describedby="!challanForm.mode ? 'challan-blocked' : null"
+                    data-create-note
+                    @click="createChallan"
+                >Create delivery note</Button>
+            </template>
+        </Modal>
     </AppLayout>
 </template>

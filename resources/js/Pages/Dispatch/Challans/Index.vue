@@ -7,6 +7,7 @@ import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
+import { DELIVERY_MODES, deliveryModeLabel } from '@/plugins/deliveryModes';
 import { can } from '@/plugins/permissions';
 import { consigneeSummary } from '@/plugins/documentActions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -36,7 +37,7 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','issued','in_transit','delivered','returned'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'mode', label: 'Mode', options: ['own_fleet','courier','freight_forwarder','customer_pickup'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search challan number…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','issued','in_transit','delivered','returned'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'mode', label: 'Mode', options: DELIVERY_MODES.map((mode) => ({ value: mode.value, label: mode.label })) }]" placeholder="Search challan number…" />
 
             <DataTable
                 :columns="columns"
@@ -57,7 +58,7 @@ const columns = [
                     <span v-else class="text-ink-400">—</span>
                 </template>
                 <template #cell:challan_date="{ row, value }">{{ date(value) }}</template>
-                <template #cell:mode="{ row, value }">{{ titleCase(value) }}</template>
+                <template #cell:mode="{ value }">{{ deliveryModeLabel(value) }}</template>
                 <template #cell:status="{ row, value }"><Badge :status="value" /></template>
                 <template #empty>
                     <EmptyState
