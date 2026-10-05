@@ -74,9 +74,9 @@ class PurchaseRequisitionController extends Controller
             return null;
         }
 
-        $run = DB::table('mrp_runs')->find($runId);
+        $runAt = DB::table('mrp_runs')->where('id', $runId)->value('run_at');
 
-        if ($run === null) {
+        if ($runAt === null) {
             return null;
         }
 
@@ -101,7 +101,7 @@ class PurchaseRequisitionController extends Controller
         }
 
         return [
-            'remarks' => 'Shortages from the material plan run on '.date('j M Y', strtotime((string) $run->run_at)).'.',
+            'remarks' => 'Shortages from the material plan run on '.date('j M Y', (int) strtotime((string) $runAt)).'.',
             'lines' => $lines,
         ];
     }
