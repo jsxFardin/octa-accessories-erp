@@ -115,27 +115,34 @@ const loadByMachine = computed(() => {
 
         <div class="space-y-4">
             <!-- Tiles -->
-            <div class="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+            <!--
+                Four across until the screen is genuinely wide. Eight across at 1280 px left each
+                tile about 120 px: the labels were cut to "Job cards o…" and "Job cards n…",
+                which are two different tiles, and the stock value ran out of its box.
+            -->
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-4 2xl:grid-cols-8">
                 <Link
                     v-for="tile in tiles"
                     :key="tile.label"
                     :href="tile.href"
-                    :title="tile.hint ?? null"
                     class="group rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-px hover:border-brand-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                 >
-                    <p class="flex items-center justify-between gap-1 text-[11px] text-ink-500">
-                        <span class="truncate">{{ tile.label }}</span>
+                    <p class="flex items-start justify-between gap-1 text-xs leading-snug text-ink-600">
+                        <span class="min-w-0">{{ tile.label }}</span>
                         <!-- The chevron is the promise: this number opens the filtered list behind it. -->
-                        <Icon name="right" size="size-3" class="shrink-0 text-ink-300 transition group-hover:translate-x-0.5 group-hover:text-brand-500" />
+                        <Icon name="right" size="size-3" class="mt-0.5 shrink-0 text-ink-400 transition group-hover:translate-x-0.5 group-hover:text-brand-500" />
                     </p>
-                    <p class="mt-1 text-xl font-semibold tnum" :class="TONES[tile.tone]">{{ tile.value }}</p>
+                    <p class="mt-1 text-xl font-semibold break-words tnum" :class="TONES[tile.tone]">{{ tile.value }}</p>
+                    <!-- The explanation used to live in a hover-only title attribute. -->
+                    <p v-if="tile.hint" class="mt-1 text-xs leading-snug text-ink-500">{{ tile.hint }}</p>
                 </Link>
             </div>
 
-            <div class="grid gap-4 xl:grid-cols-3">
+            <!-- Side by side only from 1536 px: at 1280 the order book lost its last two columns. -->
+            <div class="grid gap-4 2xl:grid-cols-3">
                 <!-- Order book -->
                 <Card
-                    class="xl:col-span-2"
+                    class="2xl:col-span-2"
                     title="Order book"
                     subtitle="Open lines with delivery progress"
                                         :padded="false"
