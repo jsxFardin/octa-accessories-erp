@@ -21,7 +21,7 @@ final class LotLabels
 {
     /**
      * @param  list<int>  $lotIds
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, covariant array<string, mixed>>
      */
     public function for(array $lotIds): Collection
     {
