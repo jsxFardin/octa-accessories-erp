@@ -138,8 +138,8 @@ Severity: **Critical** = a core task cannot be completed, or data is lost. **Hig
 | H-38 | Quality | Lab form requires a value for every catalogue test and shows no row errors; thresholds stay at the house default after a customer is chosen | `Pages/Quality/Lab/Form.vue:26-34,86-99`; `app/Modules/Quality/Http/Controllers/LabController.php:102-104` | A technician who ran 3 of 9 tests presses Save and nothing visible happens | High | M | Send only filled rows, show errors, load the applicable threshold | C | Open |
 | H-39 | Language | The desk has no translation layer, yet Profile and Users offer "English / বাংলা" | `Pages/Profile/Edit.vue:64-72`; `Pages/Admin/Users.vue:219-224` | Choosing বাংলা changes nothing | High | L | Remove the selector from desk screens until translations exist, or add a translation layer starting with the kit strings | C | Decided (bfab0be): desk stays English; selector removed. No translation layer planned |
 | H-40 | Language | Changing language sits in the change-password form; the dedicated route is never called | `Pages/Profile/Edit.vue:13-21`; `routes/web.php:93` | Language cannot be changed without changing the password | High | S | Give language its own card posting to `/profile/locale` | C | Done (bfab0be): selector removed per decision 2 |
-| H-41 | Reports | Reports have no export and no print | `Pages/Reports/Show.vue:130-197`; `routes/web.php:105-110` | Ageing and stock reports are retyped or screenshotted | High | M | Reuse `ExportDialog`; add Print | C | Open |
-| H-42 | Import | Choosing a file imports it at once: no preview, no confirmation | `Ui/ImportDialog.vue:54-67,122` | A wrong spreadsheet updates up to 1,000 master records with no undo | High | M | Validate first, show "N created, M updated, K skipped", then an explicit Import button | C | Open |
+| H-41 | Reports | Reports have no export and no print | `Pages/Reports/Show.vue:130-197`; `routes/web.php:105-110` | Ageing and stock reports are retyped or screenshotted | High | M | Reuse `ExportDialog`; add Print | C | Done (4ccedb1). No PDF: Print opens a page laid out for paper |
+| H-42 | Import | Choosing a file imports it at once: no preview, no confirmation | `Ui/ImportDialog.vue:54-67,122` | A wrong spreadsheet updates up to 1,000 master records with no undo | High | M | Validate first, show "N created, M updated, K skipped", then an explicit Import button | C | Done (2481ebb) |
 | H-43 | First run | No password reset and no guidance on the login page | `routes/web.php:80-81`; `Pages/Auth/Login.vue:35-67` | A locked-out user has no path | High | M | "Forgot password? Ask your administrator" with a contact, or a reset flow | B | Done (e03be6c): ask-administrator help per decision 10 |
 | H-44 | First run | A new installation shows a dashboard of zero tiles with no setup path; "Needs you" is hidden when empty; the shared seed password is flagged only on Profile | `Pages/Dashboard.vue:84,118-133`; `Pages/Setup/Index.vue:85-111` | A new admin does not know where to start | High | M | A first-run checklist card driven by record counts; a banner while the seed password is in use | C | Done (45c742a) |
 | H-45 | Feedback | Error toasts disappear after 10 seconds, and several errors collapse to "and N more fields to fix" | `resources/js/composables/useToasts.js:27`; `resources/js/app.js:30-32` | For forms without inline errors (see H-03) the only explanation is gone | High | S | Keep errors until dismissed; list every message | C | Done (c4211a8) |
@@ -194,7 +194,7 @@ Severity: **Critical** = a core task cannot be completed, or data is lost. **Hig
 | M-37 | Tables | On a phone, lists scroll sideways inside a height-capped box with no sticky first column and no cue | `Ui/DataTable.vue:173,269` | The document number scrolls out of view | Medium | M | Sticky first column; drop the height cap below `md` | B | Open |
 | M-38 | Tables | Hand-rolled line tables without a scroll wrapper are clipped by the card on narrow screens | `Pages/Product/Boms/Form.vue:142-153`; `Pages/Product/Specs/Form.vue:268`; `Pages/Inventory/Issues/Form.vue:392,454`; `Pages/Procurement/Bills/Form.vue:96-136` | Right-hand columns, including the remove button, are unreachable below about 1000 px | Medium | S | Wrap in `overflow-x-auto` | C | Open |
 | M-39 | Tables | List gaps: job cards and quotations have no text search beyond the number; customer returns has no row link, empty state or export; price lists have no filters; machines, routings and artwork have no export | `Pages/Manufacturing/JobCards/Index.vue`; `Pages/Sales/SalesReturns/Index.vue:40-50`; `Pages/Sales/PriceLists/Index.vue:39-63` | Slower lookup | Medium | M | Bring each up to the Inquiries list pattern | B, C | Open |
-| M-40 | Tables | Export dialog shows raw query keys ("customer: 12", "sort: -total"); a failed column fetch shows an empty list | `Ui/ExportDialog.vue:36-57,103-105` | Users cannot confirm what they are exporting | Medium | S | Pass the filter chips' labels | C | Open |
+| M-40 | Tables | Export dialog shows raw query keys ("customer: 12", "sort: -total"); a failed column fetch shows an empty list | `Ui/ExportDialog.vue:36-57,103-105` | Users cannot confirm what they are exporting | Medium | S | Pass the filter chips' labels | C | Done (359b1fd) |
 | M-41 | Admin | Audit log filters by event only, shows "Model #id" and key names without values | `Pages/Admin/AuditLog.vue:30-50` | "Who changed this credit limit last week" cannot be answered | Medium | M | User, record and date filters; old → new values; link to the record | C | Open |
 | M-42 | Detail pages | Customer and supplier detail pages omit contact details, tax numbers and terms; related orders are not links; lot page prints a PHP class name as the source and offers no actions | `Pages/MasterData/Customers/Show.vue:154-208`; `Pages/MasterData/Suppliers/Show.vue:59-90`; `Pages/Inventory/Lots/Show.vue:91-149` | Users open Edit to read a phone number | Medium | M | A Details card; row links; readable source with a link | C | Open |
 | M-43 | Feedback | Toasts sit bottom-right over the docked Save bar and are wider than a 360 px screen | `Ui/Toasts.vue:44`; `Ui/FormFooter.vue:88,96` | An error toast can cover Save and Cancel (not reproduced) | Medium | S | Move to top-right under the header | C | Open |
@@ -342,15 +342,20 @@ All fifteen were completed in Phase 1 (branch `ux/phase-1`).
 
 ### Phase 2 — Core flow redesigns
 
-- **Quotation:** draft with unpriced lines, product on inquiry lines, calmer pricing (H-08, H-09, H-10, H-11).
-- **Next-step handoffs** across all journeys (M-23, M-24, M-25).
-- **Store:** partial counts and recount (C-06 follow-through, H-26, M-18), lot search (H-24), label print and scan (H-25), issue across stores (H-23).
-- **Money:** multi-invoice receipts and payments, void, detail pages (H-27); editable bills (H-21).
-- **Floor terminal:** rejected-records screen, queue visibility, running marker, end-of-shift safety (C-08, H-33, M-33, M-34).
-- **Dispatch:** trip planning and driver screen (M-29), delivery mode (H-37), cartons in one request (M-28).
-- **Planning board:** clickable cells and date navigation (M-27); job card page weight and order (M-31).
-- **First run:** setup checklist, seed-password banner, password help (H-43, H-44); role-aware dashboard (M-02).
-- Reports export and print (H-41); import preview (H-42); session-expiry recovery (H-05).
+**Status: complete on branch `ux/phase-2`** (stacked on `ux/phase-1`). Every item below is Done unless marked; each row in §3 carries its commit.
+
+- **First run:** setup checklist, seed-password banner (H-44); role-aware dashboard and navigation (M-02); session-expiry recovery that keeps the form (H-05) — Done.
+- **Quotation:** draft with unpriced lines, product on inquiry lines, calmer pricing (H-08, H-09, H-10, H-11); M-10, M-11, M-15, M-24, M-26, L-12 — Done. M-10 and M-11 are done on the quotation and sales order forms; the price list form still has them.
+- **Next-step handoffs** across all journeys (M-23, M-25) — Done.
+- **Store:** recount from Reconciled (H-26), count search and progress (M-18), lot search (H-24), labels and scanning (H-25), issue across stores (H-23), adjustments (M-17), goods receipt as draft then post (H-18, H-19) — Done. Scanning is on transfers and adjustments; the material issue form does not have it yet.
+- **Money:** multi-document receipts and payments, reversal, detail pages (H-27); editable draft bills with materials (H-21) — Done.
+- **Floor terminal:** "Not sent" list (H-33), one Bangla and English dictionary with coded refusals (H-34), queue cards, running label and remembered machine (M-34) — Done. Tested with a simulated outage; not yet on a real tablet with the network off.
+- **Dispatch:** delivery mode and start odometer (H-37), cartons in one request (M-28), trip planner and driver view (M-29) — Done.
+- **Planning and job card:** board cells, date navigation and counts (M-27); unready lines and search on the job card form (M-16); operations first, tabs and deferred history on the job card (M-31) — Done.
+- **Product setup:** spec colours (H-12), tools (H-13), artwork upload and withdrawal (H-14), routing columns and reorder (H-15), price list reactivation (H-16), product customer and brand (M-20), draft BOM editing (M-21) — Done.
+- **Data out and in:** report download and print (H-41), import check before import (H-42), export dialog wording (M-40) — Done.
+- **Found while working and fixed:** H-50 (missing number sequences), H-51 (floor headings unreadable), H-52 (a driver could not open their own trip).
+- **Left out of all three phase briefs, still open:** H-20 (RFQ winner refused silently), H-38 (lab form). Picked up at the start of Phase 3.
 
 ### Phase 3 — System level
 
