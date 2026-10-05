@@ -1,10 +1,10 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
-import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
+import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
@@ -28,33 +28,50 @@ const form = useForm({
 });
 
 /**
- * Choosing an invoice reloads the page for its lines rather than guessing them client-side:
- * the returnable balance is `invoiced − already returned`, and that is a server figure the
- * state machine re-derives under a lock before it will accept anything.
+ * Choosing an invoice asks the server for its lines rather than guessing them client-side:
+ * the returnable balance is `invoiced − already returned`, and that is a server figure
+ * re-derived under a lock before anything is accepted.
+ *
+ * State is preserved across that visit. Rebuilding the page threw away the reason and date
+ * already typed, which is the wrong reward for filling the form in from the top.
  */
 function chooseInvoice(id) {
     if (!id) return;
-    router.get(`/sales-returns/invoice/${id}`, {}, { preserveState: false });
+    router.get(`/sales-returns/invoice/${id}`, {}, { preserveState: true, preserveScroll: true, replace: true });
 }
 
 watch(() => form.sales_invoice_id, (id) => {
     if (id && id !== props.invoice?.id) chooseInvoice(id);
 });
 
+// Arriving with `?invoice=` picks the invoice but nothing has asked for its lines yet.
+onMounted(() => {
+    if (form.sales_invoice_id && form.sales_invoice_id !== props.invoice?.id) chooseInvoice(form.sales_invoice_id);
+});
+
+function toRow(line) {
+    return {
+        sales_invoice_line_id: line.id,
+        line_no: line.line_no,
+        description: line.description,
+        product_code: line.product_code,
+        invoiced: Number(line.qty),
+        already: Number(line.returned_qty),
+        returnable: Number(line.returnable),
+        rate_per_m: Number(line.rate_per_m),
+        lots: line.lots ?? [],
+        lot_id: line.lots?.length === 1 ? line.lots[0].id : '',
+        qty: '',
+    };
+}
+
 /** One row per invoice line, with a quantity the person filling it in types. */
-const rows = ref(props.lines.map((line) => ({
-    sales_invoice_line_id: line.id,
-    line_no: line.line_no,
-    description: line.description,
-    product_code: line.product_code,
-    invoiced: Number(line.qty),
-    already: Number(line.returned_qty),
-    returnable: Number(line.returnable),
-    rate_per_m: Number(line.rate_per_m),
-    lots: line.lots ?? [],
-    lot_id: line.lots?.length === 1 ? line.lots[0].id : '',
-    qty: '',
-})));
+const rows = ref(props.lines.map(toRow));
+
+// The lines arrive after the page has mounted, so they are followed rather than read once.
+watch(() => props.lines, (lines) => {
+    rows.value = lines.map(toRow);
+});
 
 const chosen = computed(() => rows.value.filter((r) => Number(r.qty) > 0));
 
@@ -65,14 +82,30 @@ const creditValue = computed(
 const overReturned = computed(() => rows.value.filter((r) => Number(r.qty) > r.returnable));
 
 function submit() {
-    form.lines = chosen.value.map((r) => ({
-        sales_invoice_line_id: r.sales_invoice_line_id,
-        lot_id: r.lot_id || null,
-        qty: Number(r.qty),
-    }));
-
-    form.post('/sales-returns');
+    form
+        .transform((data) => ({
+            ...data,
+            lines: chosen.value.map((r) => ({
+                sales_invoice_line_id: r.sales_invoice_line_id,
+                lot_id: r.lot_id || null,
+                qty: Number(r.qty),
+            })),
+        }))
+        .post('/sales-returns');
 }
+
+/** What stands between the user and the save button, in words. */
+const blockedBy = computed(() => {
+    if (!form.sales_invoice_id) return 'Pick the invoice these goods were billed on.';
+    if (!form.warehouse_id) return 'Choose the warehouse the goods are going back into.';
+    if (!chosen.value.length) return 'Enter the quantity that came back on at least one line.';
+    if (overReturned.value.length) {
+        return `Line ${overReturned.value.map((r) => r.line_no).join(', ')} asks for more than is left to return.`;
+    }
+    if (!form.reason.trim()) return 'Give the reason for the return.';
+
+    return null;
+});
 
 const selectedInvoice = computed(
     () => props.invoice ?? props.invoices.find((i) => i.id === form.sales_invoice_id) ?? null,
@@ -191,7 +224,7 @@ const selectedInvoice = computed(
                 </p>
             </Card>
 
-            <template #aside>
+            <template #rail>
                 <Card title="Return">
                     <dl class="space-y-2 text-sm">
                         <div class="flex justify-between">
@@ -211,15 +244,15 @@ const selectedInvoice = computed(
             </template>
 
             <template #footer>
-                <Button href="/sales-returns">Cancel</Button>
-                <Button
-                    type="submit"
-                    variant="primary"
-                    :loading="form.processing"
-                    :disabled="!chosen.length || overReturned.length > 0 || !form.reason"
-                >
-                    Save draft
-                </Button>
+                <FormFooter
+                    :form="form"
+                    cancel-href="/sales-returns"
+                    label="Save draft"
+                    :summary="`${chosen.length} ${chosen.length === 1 ? 'line' : 'lines'}`"
+                    :disabled="blockedBy !== null"
+                    :disabled-reason="blockedBy"
+                    @save="submit"
+                />
             </template>
         </FormLayout>
     </AppLayout>

@@ -55,40 +55,54 @@ class SalesReturnController extends Controller
         ]);
     }
 
-    /**
-     * Only invoices that billed something can be returned against, and `paid` is deliberately
-     * among them — that is the case the whole feature exists for.
-     */
     public function create(Request $request): Response
     {
-        $invoices = DB::table('sales_invoices as si')
-            ->join('customers as c', 'c.id', '=', 'si.customer_id')
-            ->leftJoin('currencies as cur', 'cur.id', '=', 'si.currency_id')
-            ->whereIn('si.status', SalesReturnStateMachine::RETURNABLE_INVOICE_STATUSES)
-            ->whereNotNull('si.number')
-            ->orderByDesc('si.id')
-            ->limit(200)
-            ->get([
-                'si.id', 'si.number', 'si.status', 'si.invoice_date', 'si.total',
-                'si.customer_id', 'si.delivery_challan_id',
-                'c.name as customer_name', 'cur.code as currency',
-            ]);
-
         return Inertia::render('Sales/SalesReturns/Form', [
-            'invoices' => $invoices,
-            'warehouses' => DB::table('warehouses')->where('is_active', true)
-                ->orderBy('code')->get(['id', 'code', 'name', 'kind']),
+            ...$this->formOptions(),
             'preselectInvoiceId' => $request->integer('invoice') ?: null,
         ]);
     }
 
-    /** The returnable balance per line of one invoice, for the form to draw against. */
+    /**
+     * The returnable balance per line of one invoice, for the form to draw against.
+     *
+     * The option lists travel with it. This answer replaces the page's props, so leaving them
+     * out emptied the warehouse picker the moment an invoice was chosen and the return could
+     * no longer be saved.
+     */
     public function lines(SalesInvoice $invoice): Response
     {
         return Inertia::render('Sales/SalesReturns/Form', [
+            ...$this->formOptions(),
             'invoice' => $invoice->only(['id', 'number', 'status', 'customer_id', 'delivery_challan_id']),
             'lines' => $this->returnableLines($invoice),
         ]);
+    }
+
+    /**
+     * Only invoices that billed something can be returned against, and `paid` is deliberately
+     * among them — that is the case the whole feature exists for.
+     *
+     * @return array<string, mixed>
+     */
+    private function formOptions(): array
+    {
+        return [
+            'invoices' => DB::table('sales_invoices as si')
+                ->join('customers as c', 'c.id', '=', 'si.customer_id')
+                ->leftJoin('currencies as cur', 'cur.id', '=', 'si.currency_id')
+                ->whereIn('si.status', SalesReturnStateMachine::RETURNABLE_INVOICE_STATUSES)
+                ->whereNotNull('si.number')
+                ->orderByDesc('si.id')
+                ->limit(200)
+                ->get([
+                    'si.id', 'si.number', 'si.status', 'si.invoice_date', 'si.total',
+                    'si.customer_id', 'si.delivery_challan_id',
+                    'c.name as customer_name', 'cur.code as currency',
+                ]),
+            'warehouses' => DB::table('warehouses')->where('is_active', true)
+                ->orderBy('code')->get(['id', 'code', 'name', 'kind']),
+        ];
     }
 
     public function store(Request $request): RedirectResponse
