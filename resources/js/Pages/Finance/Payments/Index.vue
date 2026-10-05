@@ -47,8 +47,9 @@ const form = useForm({
     payment_date: todayIso(),
     method: 'bank_transfer',
     reference_no: '',
+    // No exchange rate is sent. The server books the payment at the reference rate for the
+    // bill's currency and date; a hard-coded 1 here was refused for every foreign-currency bill.
     currency_id: null,
-    exchange_rate: 1,
     amount: null,
     remarks: '',
     allocations: [{ supplier_bill_id: null, amount: null }],
@@ -102,6 +103,14 @@ function pickBill(allocation) {
     }
 }
 
+/**
+ * Refusals that belong to no field on this dialog — a missing reference rate, a bill that
+ * changed hands. Without this they came back from the server and were shown nowhere.
+ */
+const otherErrors = computed(() => ['exchange_rate', 'supplier_id', 'currency_id', 'allocations.0.supplier_bill_id', 'allocations.0.amount']
+    .map((key) => form.errors[key])
+    .filter(Boolean));
+
 function submit() {
     form.post('/payments', {
         preserveScroll: true,
@@ -148,6 +157,9 @@ function submit() {
 
         <Modal v-model:open="createOpen" title="Record a payment" subtitle="Allocation cannot exceed the payment or a bill's outstanding balance" width="max-w-xl">
             <div class="flex flex-col gap-3">
+                <div v-if="otherErrors.length" role="alert" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                    <p v-for="message in otherErrors" :key="message">{{ message }}</p>
+                </div>
                 <FormField
                     label="Supplier bill"
                     :error="form.errors.allocations"

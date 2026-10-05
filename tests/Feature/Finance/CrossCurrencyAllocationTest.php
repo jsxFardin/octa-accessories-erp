@@ -99,3 +99,40 @@ it('refuses a payment raised in a currency the supplier bill is not in', functio
 
     expect((float) DB::table('supplier_bills')->where('id', $billId)->value('paid_amount'))->toBe(0.0);
 });
+
+/*
+ * UX audit C-05. The payment dialog used to post `exchange_rate: 1` with no field to change it,
+ * which the resolver rightly refuses for a foreign bill. The dialog now sends no rate at all;
+ * these two tests pin both halves — parity is still refused, and silence books the reference.
+ */
+it('pays a foreign-currency bill at the reference rate when the form sends no rate', function (): void {
+    $supplier = DB::table('suppliers')->where('is_active', true)->firstOrFail();
+
+    $billId = DB::table('supplier_bills')->insertGetId([
+        'number' => 'SB-QA-C05', 'supplier_id' => $supplier->id, 'bill_no' => 'QA-C05',
+        'bill_date' => now()->toDateString(), 'currency_id' => $this->usd->id,
+        'exchange_rate' => $this->rate, 'subtotal' => 500, 'tax_amount' => 0, 'total' => 500,
+        'paid_amount' => 0, 'status' => 'approved',
+    ]);
+
+    $payload = [
+        'supplier_id' => $supplier->id,
+        'payment_date' => now()->toDateString(),
+        'method' => 'bank_transfer',
+        'currency_id' => $this->usd->id,
+        'amount' => 500,
+        'allocations' => [['supplier_bill_id' => $billId, 'amount' => 500]],
+    ];
+
+    // What the dialog used to send.
+    $this->actingAs($this->accounts)->post('/payments', [...$payload, 'exchange_rate' => 1])
+        ->assertSessionHasErrors('exchange_rate');
+
+    // What it sends now.
+    $this->actingAs($this->accounts)->post('/payments', $payload)->assertSessionHasNoErrors();
+
+    $payment = DB::table('payments')->where('supplier_id', $supplier->id)->orderByDesc('id')->first();
+
+    expect((float) $payment->exchange_rate)->toBe(round($this->rate, 8))
+        ->and((float) DB::table('supplier_bills')->where('id', $billId)->value('paid_amount'))->toBe(500.0);
+});
