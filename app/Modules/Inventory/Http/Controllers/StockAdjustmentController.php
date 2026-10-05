@@ -60,12 +60,15 @@ class StockAdjustmentController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $warehouses = $this->warehouses();
+        $firstId = $warehouses->first()?->id;
+
         return Inertia::render('Inventory/Adjustments/Form', [
             'adjustment' => null,
-            'warehouses' => $this->warehouses(),
-            'lots' => $this->candidateLots(),
+            'warehouses' => $warehouses,
+            ...$this->pickerProps($request, $firstId === null ? null : (int) $firstId, []),
             'band' => $this->settings->decimal('adjustment_approval_band_manager', 25000),
         ]);
     }
@@ -147,7 +150,7 @@ class StockAdjustmentController extends Controller
         ]);
     }
 
-    public function edit(StockAdjustment $adjustment): Response|RedirectResponse
+    public function edit(Request $request, StockAdjustment $adjustment): Response|RedirectResponse
     {
         if ($adjustment->status !== StockAdjustment::DRAFT) {
             return redirect()
@@ -171,7 +174,7 @@ class StockAdjustmentController extends Controller
                 ])->all(),
             ],
             'warehouses' => $this->warehouses(),
-            'lots' => $this->candidateLots((int) $adjustment->warehouse_id),
+            ...$this->pickerProps($request, (int) $adjustment->warehouse_id, $adjustment->lines->pluck('lot_id')->all()),
             'band' => $this->settings->decimal('adjustment_approval_band_manager', 25000),
         ]);
     }
@@ -310,27 +313,86 @@ class StockAdjustmentController extends Controller
         return DB::table('warehouses')->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']);
     }
 
-    /** @return list<array<string, mixed>> */
-    private function candidateLots(?int $warehouseId = null): array
+    /**
+     * @param  list<int|string>  $onDocument  lots already on the document being edited
+     * @return array{lots: list<array<string, mixed>>, lotsMeta: array<string, int>}
+     */
+    private function pickerProps(Request $request, ?int $defaultWarehouseId, array $onDocument): array
     {
-        return StockLot::query()
-            ->with(['item:id,code,name', 'product:id,code,name'])
+        $warehouseId = $request->integer('warehouse') ?: $defaultWarehouseId;
+
+        $picker = $this->candidateLots(
+            $warehouseId === null ? null : (int) $warehouseId,
+            trim((string) $request->query('lot_search', '')),
+            array_map('intval', [...$onDocument, ...(array) $request->query('keep', [])]),
+        );
+
+        return ['lots' => $picker['lots'], 'lotsMeta' => $picker['meta']];
+    }
+
+    /**
+     * The lots the picker offers: those of one warehouse, narrowed by what was typed.
+     *
+     * The form used to be handed the first 400 lots of every warehouse, in lot-number order,
+     * and searched them in the browser — so in a store with more lots than that, a lot simply
+     * was not in the list and no search could find it. The picker now asks for one warehouse
+     * at a time and sends its search term here. Lots already on the document are always
+     * included, whatever the search, so their rows keep their figures.
+     *
+     * @param  list<int>  $include  lots to return even when they do not match
+     * @return array{lots: list<array<string, mixed>>, meta: array{shown: int, total: int, limit: int}}
+     */
+    private function candidateLots(?int $warehouseId, string $search = '', array $include = []): array
+    {
+        $limit = 200;
+
+        $base = fn () => StockLot::query()
             ->whereIn('status', ['available', 'blocked'])
-            ->when($warehouseId !== null, fn ($query) => $query->where('warehouse_id', $warehouseId))
-            ->where('balance_qty', '>=', 0)
+            ->where('warehouse_id', $warehouseId)
+            ->where('balance_qty', '>=', 0);
+
+        $matching = fn () => $base()->when($search !== '', function ($query) use ($search): void {
+            $query->where(function ($inner) use ($search): void {
+                $inner->where('lot_no', 'like', "%{$search}%")
+                    ->orWhereHas('item', fn ($item) => $item->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"))
+                    ->orWhereHas('product', fn ($product) => $product->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"));
+            });
+        });
+
+        if ($warehouseId === null) {
+            return ['lots' => [], 'meta' => ['shown' => 0, 'total' => 0, 'limit' => $limit]];
+        }
+
+        $total = $matching()->count();
+
+        $lots = $matching()
+            ->with(['item:id,code,name', 'product:id,code,name'])
             ->orderBy('lot_no')
-            ->limit(400)
-            ->get()
-            ->map(fn (StockLot $lot): array => [
-                'id' => $lot->id,
-                'lot_no' => $lot->lot_no,
-                'warehouse_id' => $lot->warehouse_id,
-                'status' => $lot->status,
-                'balance_qty' => $lot->balance_qty,
-                'unit_cost' => $lot->unit_cost,
-                'item' => $lot->item?->only(['id', 'code', 'name']),
-                'product' => $lot->product?->only(['id', 'code', 'name']),
-            ])
-            ->all();
+            ->limit($limit)
+            ->get();
+
+        if ($include !== []) {
+            $lots = $lots->concat(
+                StockLot::query()->with(['item:id,code,name', 'product:id,code,name'])
+                    ->whereIn('id', $include)->whereNotIn('id', $lots->pluck('id'))->get(),
+            );
+        }
+
+        return [
+            'lots' => $lots
+                ->map(fn (StockLot $lot): array => [
+                    'id' => $lot->id,
+                    'lot_no' => $lot->lot_no,
+                    'warehouse_id' => $lot->warehouse_id,
+                    'status' => $lot->status,
+                    'balance_qty' => $lot->balance_qty,
+                    'unit_cost' => $lot->unit_cost,
+                    'item' => $lot->item?->only(['id', 'code', 'name']),
+                    'product' => $lot->product?->only(['id', 'code', 'name']),
+                ])
+                ->values()
+                ->all(),
+            'meta' => ['shown' => min($total, $limit), 'total' => $total, 'limit' => $limit],
+        ];
     }
 }

@@ -70,12 +70,22 @@ class StockTransferController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $warehouses = $this->selectableWarehouses();
+        // The form opens on the first warehouse; `?warehouse=` follows the picker after that.
+        $warehouseId = $request->integer('warehouse') ?: ($warehouses->first()?->id);
+        $picker = $this->candidateLots(
+            $warehouseId === null ? null : (int) $warehouseId,
+            trim((string) $request->query('lot_search', '')),
+            array_map('intval', (array) $request->query('keep', [])),
+        );
+
         return Inertia::render('Inventory/Transfers/Form', [
             'transfer' => null,
-            'warehouses' => $this->selectableWarehouses(),
-            'lots' => $this->candidateLots(),
+            'warehouses' => $warehouses,
+            'lots' => $picker['lots'],
+            'lotsMeta' => $picker['meta'],
         ]);
     }
 
@@ -173,7 +183,7 @@ class StockTransferController extends Controller
         ]);
     }
 
-    public function edit(StockTransfer $transfer): Response|RedirectResponse
+    public function edit(Request $request, StockTransfer $transfer): Response|RedirectResponse
     {
         if ($transfer->status !== StockTransfer::DRAFT) {
             return redirect()
@@ -197,7 +207,7 @@ class StockTransferController extends Controller
                 ])->all(),
             ],
             'warehouses' => $this->selectableWarehouses(),
-            'lots' => $this->candidateLots((int) $transfer->from_warehouse_id),
+            ...$this->pickerProps($request, (int) $transfer->from_warehouse_id, $transfer->lines->pluck('lot_id')->all()),
         ]);
     }
 
@@ -364,33 +374,90 @@ class StockTransferController extends Controller
             ->get(['id', 'code', 'name', 'kind']);
     }
 
-    /** @return list<array<string, mixed>> */
-    private function candidateLots(?int $warehouseId = null): array
+    /**
+     * The lots the picker offers: those of one warehouse, narrowed by what was typed.
+     *
+     * The form used to be handed the first 400 lots of every warehouse, in lot-number order,
+     * and searched them in the browser — so in a store with more lots than that, a lot simply
+     * was not in the list and no search could find it. The picker now asks for one warehouse
+     * at a time and sends its search term here. Lots already on the document are always
+     * included, whatever the search, so their rows keep their figures.
+     *
+     * @param  list<int>  $include  lots to return even when they do not match
+     * @return array{lots: list<array<string, mixed>>, meta: array{shown: int, total: int, limit: int}}
+     */
+    private function candidateLots(?int $warehouseId, string $search = '', array $include = []): array
     {
-        return StockLot::query()
-            ->with(['item:id,code,name', 'product:id,code,name'])
-            ->where('status', 'available')
-            ->when($warehouseId !== null, fn ($query) => $query->where('warehouse_id', $warehouseId))
-            ->where('balance_qty', '>', 0)
-            ->orderBy('lot_no')
-            ->limit(400)
-            ->get()
-            ->map(function (StockLot $lot): array {
-                $claimed = $this->reservations->claimedByOthers((int) $lot->id);
+        $limit = 200;
 
-                return [
-                    'id' => $lot->id,
-                    'lot_no' => $lot->lot_no,
-                    'warehouse_id' => $lot->warehouse_id,
-                    'status' => $lot->status,
-                    'balance_qty' => $lot->balance_qty,
-                    'free_qty' => max(0, (float) $lot->balance_qty - $claimed),
-                    'unit_cost' => $lot->unit_cost,
-                    'item' => $lot->item?->only(['id', 'code', 'name']),
-                    'product' => $lot->product?->only(['id', 'code', 'name']),
-                ];
-            })
-            ->all();
+        $base = fn () => StockLot::query()
+            ->where('status', 'available')
+            ->where('warehouse_id', $warehouseId)
+            ->where('balance_qty', '>', 0);
+
+        $matching = fn () => $base()->when($search !== '', function ($query) use ($search): void {
+            $query->where(function ($inner) use ($search): void {
+                $inner->where('lot_no', 'like', "%{$search}%")
+                    ->orWhereHas('item', fn ($item) => $item->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"))
+                    ->orWhereHas('product', fn ($product) => $product->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"));
+            });
+        });
+
+        if ($warehouseId === null) {
+            return ['lots' => [], 'meta' => ['shown' => 0, 'total' => 0, 'limit' => $limit]];
+        }
+
+        $total = $matching()->count();
+
+        $lots = $matching()
+            ->with(['item:id,code,name', 'product:id,code,name'])
+            ->orderBy('lot_no')
+            ->limit($limit)
+            ->get();
+
+        if ($include !== []) {
+            $lots = $lots->concat(
+                StockLot::query()->with(['item:id,code,name', 'product:id,code,name'])
+                    ->whereIn('id', $include)->whereNotIn('id', $lots->pluck('id'))->get(),
+            );
+        }
+
+        return [
+            'lots' => $lots
+                ->map(function (StockLot $lot): array {
+                    $claimed = $this->reservations->claimedByOthers((int) $lot->id);
+
+                    return [
+                        'id' => $lot->id,
+                        'lot_no' => $lot->lot_no,
+                        'warehouse_id' => $lot->warehouse_id,
+                        'status' => $lot->status,
+                        'balance_qty' => $lot->balance_qty,
+                        'free_qty' => max(0, (float) $lot->balance_qty - $claimed),
+                        'unit_cost' => $lot->unit_cost,
+                        'item' => $lot->item?->only(['id', 'code', 'name']),
+                        'product' => $lot->product?->only(['id', 'code', 'name']),
+                    ];
+                })
+                ->values()
+                ->all(),
+            'meta' => ['shown' => min($total, $limit), 'total' => $total, 'limit' => $limit],
+        ];
+    }
+
+    /**
+     * @param  list<int|string>  $onDocument  lots already on the document being edited
+     * @return array{lots: list<array<string, mixed>>, lotsMeta: array<string, int>}
+     */
+    private function pickerProps(Request $request, int $defaultWarehouseId, array $onDocument): array
+    {
+        $picker = $this->candidateLots(
+            $request->integer('warehouse') ?: $defaultWarehouseId,
+            trim((string) $request->query('lot_search', '')),
+            array_map('intval', [...$onDocument, ...(array) $request->query('keep', [])]),
+        );
+
+        return ['lots' => $picker['lots'], 'lotsMeta' => $picker['meta']];
     }
 
     private function assertSelectableWarehouse(int $warehouseId, string $field): void

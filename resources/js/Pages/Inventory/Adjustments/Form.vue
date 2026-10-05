@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
+import { useLotPicker } from '@/composables/useLotPicker';
 import { useConfirmedReset } from '@/composables/useConfirmedReset';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
@@ -16,6 +17,8 @@ const props = defineProps({
     adjustment: { type: Object, default: null },
     warehouses: { type: Array, default: () => [] },
     lots: { type: Array, default: () => [] },
+    /** `{ shown, total, limit }` for the lot list above. */
+    lotsMeta: { type: Object, default: null },
     band: { type: [Number, String], default: 25000 },
 });
 
@@ -81,14 +84,17 @@ watch(pickLotId, (id) => {
     pickLotId.value = '';
 });
 
-function lotOf(line) {
-    return props.lots.find((lot) => Number(lot.id) === Number(line.lot_id)) ?? null;
-}
+const { lotOf, known: knownLots, search: lotSearch, loading: lotsLoading, partial: lotsPartial } = useLotPicker({
+    lots: () => props.lots,
+    meta: () => props.lotsMeta,
+    warehouse: () => form.warehouse_id,
+    keep: () => form.lines.map((line) => Number(line.lot_id)),
+});
 
 function addLine(lotId) {
     if (form.lines.some((line) => Number(line.lot_id) === Number(lotId))) return;
 
-    const lot = props.lots.find((row) => Number(row.id) === Number(lotId));
+    const lot = knownLots.get(Number(lotId));
     if (!lot) return;
 
     form.lines = [...form.lines, { lot_id: lot.id, qty_delta: '', direction: 'out', amount: '', remarks: '' }];
@@ -183,6 +189,24 @@ function submit() {
                             hint-key="hint"
                         />
                     </FormField>
+
+                    <!--
+                        The list above holds this warehouse's lots, up to a limit. When there are
+                        more, this asks the server for the ones that match — a lot past the
+                        limit used to be simply missing, with nothing to say so.
+                    -->
+                    <div v-if="lotsPartial || lotSearch" class="mt-2 flex flex-wrap items-end gap-3">
+                        <FormField label="Find a lot not in the list" class="min-w-0 flex-1 basis-64">
+                            <TextInput v-model="lotSearch" placeholder="Part of a lot number, material code or name" />
+                        </FormField>
+                        <p class="pb-2 text-xs text-ink-600" role="status">
+                            <template v-if="lotsLoading">Searching…</template>
+                            <template v-else-if="lotsPartial">
+                                Showing {{ lotsPartial.shown }} of {{ lotsPartial.total }} lots in this warehouse.
+                            </template>
+                            <template v-else>{{ lotsMeta?.total ?? 0 }} found.</template>
+                        </p>
+                    </div>
                 </div>
 
                 <div class="overflow-x-auto">
