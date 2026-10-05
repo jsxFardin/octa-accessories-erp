@@ -77,7 +77,7 @@ class SupplierBillController extends Controller
             ->select(['id', 'number', 'po_id', 'supplier_id'])
             ->get();
 
-        $currencies = DB::table('currencies')->orderBy('code')->select(['id', 'code', 'name'])->get();
+        $currencies = $this->rates->currencyOptions();
 
         $prefill = null;
 

@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
+import { useBookedRate } from '@/composables/useBookedRate';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -59,6 +60,9 @@ const form = useForm({
         ? props.order.lines.map((line) => ({ ...line, promised_date: isoDate(line.promised_date) }))
         : [blankLine()],
 });
+
+/** The rate follows the currency: filled from the rate on file, and no field at all for base. */
+const { isBase: baseCurrencyDocument, rateHint } = useBookedRate(form, () => props.currencies, { existing: Boolean(props.order) });
 
 const availableProducts = computed(() =>
     form.customer_id
@@ -205,7 +209,7 @@ const columns = [
                         />
                     </FormField>
 
-                    <FormField label="Exchange rate" :error="form.errors.exchange_rate" required>
+                    <FormField v-if="!baseCurrencyDocument" label="Exchange rate" :hint="rateHint" :error="form.errors.exchange_rate" required>
                         <TextInput v-model="form.exchange_rate" type="number" step="0.000001" numeric />
                     </FormField>
 

@@ -665,7 +665,7 @@ class SalesOrderController extends Controller
             'priorities' => Vocabulary::options('order_priority'),
             'customers' => Customer::query()->active()->orderBy('name')
                 ->get(['id', 'code', 'name', 'credit_limit', 'min_order_value']),
-            'currencies' => Currency::query()->orderBy('code')->get(['id', 'code', 'name', 'is_base']),
+            'currencies' => $this->rates->currencyOptions(),
             'products' => Product::query()->active()->with('currentSpec:id,product_id,version_no')
                 ->orderBy('code')->get(['id', 'code', 'name', 'customer_id', 'product_type']),
             'defaults' => [

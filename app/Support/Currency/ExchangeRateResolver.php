@@ -86,6 +86,31 @@ class ExchangeRateResolver
     }
 
     /** How far a booked rate may sit from the reference before it has to be wrong. */
+    /**
+     * The currency list for a document form, each with today's reference rate.
+     *
+     * Forms used to receive the currencies alone and default the rate field to 1, so every
+     * foreign-currency document showed wrong figures while it was typed and was refused once on
+     * save. With the rate travelling beside the currency, the form can fill it the moment a
+     * currency is chosen and hide the field altogether for the base currency.
+     *
+     * @return list<array{id: int, code: string, name: string, is_base: bool, reference_rate: float|null}>
+     */
+    public function currencyOptions(?string $onDate = null): array
+    {
+        $baseId = $this->baseCurrencyId();
+
+        return DB::table('currencies')->orderBy('code')->get(['id', 'code', 'name'])
+            ->map(fn (object $currency): array => [
+                'id' => (int) $currency->id,
+                'code' => (string) $currency->code,
+                'name' => (string) $currency->name,
+                'is_base' => (int) $currency->id === $baseId,
+                'reference_rate' => $this->reference((int) $currency->id, $onDate),
+            ])
+            ->all();
+    }
+
     public function tolerancePct(): float
     {
         return $this->settings->decimal('exchange_rate_tolerance_pct', 5.0);

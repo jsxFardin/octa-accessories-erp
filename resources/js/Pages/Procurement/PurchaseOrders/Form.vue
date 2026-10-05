@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
+import { useBookedRate } from '@/composables/useBookedRate';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -70,6 +71,9 @@ const form = useForm({
         ? props.order.lines.map((line) => ({ ...line, cert_claim: line.cert_claim ?? '' }))
         : [blankLine()],
 });
+
+/** The rate follows the currency: filled from the rate on file, and no field at all for base. */
+const { isBase: baseCurrencyDocument, rateHint } = useBookedRate(form, () => props.currencies, { existing: Boolean(props.order) });
 
 const supplier = computed(
     () => props.suppliers.find((row) => row.id === Number(form.supplier_id)) ?? null,
@@ -236,7 +240,7 @@ const columns = [
                         <SelectInput v-model="form.currency_id" :placeholder="null" :options="currencies" value-key="id" label-key="code" />
                     </FormField>
 
-                    <FormField label="Exchange rate" :error="form.errors.exchange_rate" required>
+                    <FormField v-if="!baseCurrencyDocument" label="Exchange rate" :hint="rateHint" :error="form.errors.exchange_rate" required>
                         <TextInput v-model="form.exchange_rate" type="number" step="0.000001" numeric />
                     </FormField>
 

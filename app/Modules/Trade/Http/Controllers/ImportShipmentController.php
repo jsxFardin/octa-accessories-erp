@@ -148,7 +148,7 @@ class ImportShipmentController extends Controller
                 ->get(['id', 'number', 'received_on', 'status']),
             'costTypes' => ImportCost::TYPES,
             'allocableTypes' => ImportCost::ALLOCABLE_TYPES,
-            'currencies' => DB::table('currencies')->orderBy('code')->get(['id', 'code', 'name']),
+            'currencies' => $this->rates->currencyOptions(),
             'vendors' => DB::table('suppliers')->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'statuses' => ImportShipment::STATUSES,
         ]);
@@ -360,7 +360,7 @@ class ImportShipmentController extends Controller
                 ->whereIn('status', ['applied', 'opened', 'shipped'])
                 ->orderByDesc('id')
                 ->get(['id', 'number', 'lc_no', 'supplier_id', 'currency_id', 'amount']),
-            'currencies' => DB::table('currencies')->orderBy('code')->get(['id', 'code', 'name']),
+            'currencies' => $this->rates->currencyOptions(),
             'modes' => ImportShipment::MODES,
         ];
     }

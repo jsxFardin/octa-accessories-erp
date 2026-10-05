@@ -596,7 +596,7 @@ class QuotationController extends Controller
         return [
             'customers' => Customer::query()->active()->orderBy('name')
                 ->get(['id', 'code', 'name', 'min_order_value', 'currency_id', 'payment_term_id']),
-            'currencies' => Currency::query()->orderBy('code')->get(['id', 'code', 'name', 'is_base']),
+            'currencies' => $this->rates->currencyOptions(),
             'products' => Product::query()->active()->with('currentSpec:id,product_id,version_no')
                 ->orderBy('code')->get(['id', 'code', 'name', 'customer_id', 'product_type']),
             'defaultMarginPct' => $this->settings->decimal('default_margin_pct', 20),

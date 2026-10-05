@@ -342,7 +342,7 @@ class PurchaseOrderController extends Controller
             'suppliers' => Supplier::query()->where('is_active', true)->orderBy('name')
                 ->get(['id', 'code', 'name', 'is_approved', 'lead_time_days', 'currency_id', 'payment_term_id']),
             'units' => FactoryUnit::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
-            'currencies' => Currency::query()->orderBy('code')->get(['id', 'code', 'name', 'is_base']),
+            'currencies' => $this->rates->currencyOptions(),
             'paymentTerms' => PaymentTerm::query()->orderBy('net_days')->get(['id', 'code', 'name']),
             'items' => Item::query()->where('is_active', true)->orderBy('code')
                 ->get(['id', 'code', 'name', 'base_uom_id', 'std_rate', 'min_order_qty', 'order_multiple']),

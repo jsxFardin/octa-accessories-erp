@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
+import { useBookedRate } from '@/composables/useBookedRate';
 import Card from '@/Components/Ui/Card.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
@@ -32,6 +33,9 @@ const form = useForm({
     exchange_rate: 1,
     lines: props.prefill?.lines ?? [emptyLine()],
 });
+
+/** The rate follows the currency: filled from the rate on file, and no field at all for base. */
+const { isBase: baseCurrencyDocument, rateHint } = useBookedRate(form, () => props.currencies, { existing: false });
 
 const supplierOptions = computed(() => props.suppliers.map((s) => ({ value: s.id, label: `${s.code} — ${s.name}` })));
 const poOptions = computed(() => props.purchaseOrders.filter((po) => !form.supplier_id || po.supplier_id === form.supplier_id).map((po) => ({ value: po.id, label: po.number })));
@@ -87,8 +91,8 @@ function submit() {
                     <FormField label="Currency" :error="form.errors.currency_id" required>
                         <SelectInput v-model="form.currency_id" :options="currencyOptions" placeholder="Choose…" />
                     </FormField>
-                    <FormField label="Exchange rate" :error="form.errors.exchange_rate">
-                        <TextInput v-model="form.exchange_rate" type="number" min="0" step="any" />
+                    <FormField v-if="!baseCurrencyDocument" label="Exchange rate" :hint="rateHint" :error="form.errors.exchange_rate">
+                        <TextInput v-model="form.exchange_rate" type="number" min="0" step="any" numeric />
                     </FormField>
                 </div>
 

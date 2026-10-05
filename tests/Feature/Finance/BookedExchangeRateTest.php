@@ -89,3 +89,26 @@ it('books the reference rate on a purchase order raised in a foreign currency', 
     // Refused, not merely flagged: nothing was written.
     expect(DB::table('purchase_orders')->count())->toBe($before);
 });
+
+/*
+ * UX audit H-07. Document forms defaulted the rate to 1 because the currency list they were
+ * given carried no rate. The list now does, so the form can fill the rate when a currency is
+ * chosen and drop the field for the base currency.
+ */
+it('gives each currency on a document form its reference rate', function (): void {
+    $options = collect(app(ExchangeRateResolver::class)->currencyOptions());
+
+    $usd = $options->firstWhere('code', 'USD');
+    $base = $options->firstWhere('is_base', true);
+
+    expect($usd['reference_rate'])->toBe($this->reference)
+        ->and($usd['is_base'])->toBeFalse()
+        ->and($base['reference_rate'])->toBe(1.0);
+
+    $sales = User::query()->where('email', 'sales@octapussolution.com')->firstOrFail();
+
+    $this->actingAs($sales)->get('/quotations/create')
+        ->assertOk()
+        ->assertInertia(fn (Inertia\Testing\AssertableInertia $page) => $page
+            ->where('currencies', fn ($currencies) => collect($currencies)->firstWhere('code', 'USD')['reference_rate'] == $this->reference));
+});

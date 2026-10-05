@@ -78,6 +78,8 @@ const sections = computed(() => [
         <ResourceForm
             :sections="sections"
             :initial="shipment ?? { exchange_rate: 1, mode: 'sea', goods_value: 0 }"
+            :rate-currencies="currencies"
+            :existing="isEdit"
             :action="isEdit ? `/import-shipments/${shipment.id}` : '/import-shipments'"
             :method="isEdit ? 'put' : 'post'"
             :submit-label="isEdit ? 'Save changes' : 'Create shipment'"

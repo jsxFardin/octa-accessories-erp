@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { useBookedRate } from '@/composables/useBookedRate';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import ContextNotice from '@/Components/Ui/ContextNotice.vue';
@@ -86,6 +87,9 @@ const form = useForm({
             ? prefill.lines.map(lineFromInquiry)
             : [blankLine()],
 });
+
+/** The rate follows the currency: filled from the rate on file, and no field at all for base. */
+const { isBase: baseCurrencyDocument, rateHint } = useBookedRate(form, () => props.currencies, { existing: Boolean(props.quotation) });
 
 /** Lines the inquiry described in words rather than naming a product — still to resolve. */
 const unresolvedFromInquiry = computed(
@@ -334,9 +338,10 @@ const columns = [
                     </FormField>
 
                     <FormField
+                        v-if="!baseCurrencyDocument"
                         label="Exchange rate"
                         rule="BR-22"
-                        hint="Snapshotted on send; a reprint never re-reads it."
+                        :hint="rateHint ?? 'Fixed when the quotation is sent.'"
                         :error="form.errors.exchange_rate"
                         required
                     >

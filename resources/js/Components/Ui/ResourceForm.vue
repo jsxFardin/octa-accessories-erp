@@ -1,5 +1,6 @@
 <script setup>
 import { useForm } from '@inertiajs/vue3';
+import { useBookedRate } from '@/composables/useBookedRate';
 import Card from '@/Components/Ui/Card.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
 import FormField from '@/Components/Ui/FormField.vue';
@@ -24,9 +25,30 @@ const props = defineProps({
     method: { type: String, default: 'post' },
     submitLabel: { type: String, default: 'Save' },
     cancelHref: { type: String, default: null },
+    /**
+     * Pass the currency list (`[{ id, is_base, reference_rate }]`) on a form that has
+     * `currency_id` and `exchange_rate` fields: the rate is then filled from the rate on file
+     * when the currency changes, and the rate field is hidden for the base currency.
+     */
+    rateCurrencies: { type: Array, default: null },
+    /** The record already exists, so the rate it was booked at is kept when the form opens. */
+    existing: { type: Boolean, default: false },
 });
 
 const form = useForm(resolveDefaults(props.sections, props.initial));
+
+const bookedRate = props.rateCurrencies
+    ? useBookedRate(form, () => props.rateCurrencies, { existing: props.existing })
+    : null;
+
+/** The rate field has nothing to ask while the document is in the base currency. */
+function visible(field) {
+    return !(bookedRate && field.key === 'exchange_rate' && bookedRate.isBase.value);
+}
+
+function hintOf(field) {
+    return (bookedRate && field.key === 'exchange_rate' ? bookedRate.rateHint.value : null) ?? field.hint;
+}
 
 function submit() {
     form[props.method](props.action, { preserveScroll: true });
@@ -53,11 +75,11 @@ function submit() {
             >
                 <div class="grid gap-x-4 gap-y-3 sm:grid-cols-2">
                     <FormField
-                        v-for="field in section.fields"
+                        v-for="field in section.fields.filter(visible)"
                         :key="field.key"
                         :label="field.label"
                         :rule="field.rule"
-                        :hint="field.hint"
+                        :hint="hintOf(field)"
                         :required="field.required"
                         :error="form.errors[field.key]"
                         :class="field.span === 'full' ? 'sm:col-span-2' : ''"

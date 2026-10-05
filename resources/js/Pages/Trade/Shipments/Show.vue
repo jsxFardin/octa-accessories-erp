@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
+import { useBookedRate } from '@/composables/useBookedRate';
 import DateInput from '@/Components/Ui/DateInput.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -71,6 +72,9 @@ const costForm = useForm({
     amount: '',
     is_allocable: true,
 });
+
+/** A cost's rate follows its currency, exactly as a document's does. */
+const { isBase: costInBase, rateHint: costRateHint } = useBookedRate(costForm, () => props.currencies);
 
 const linkForm = useForm({ grn_id: '' });
 const allocateForm = useForm({ basis: 'value' });
@@ -426,7 +430,7 @@ const byLine = computed(() => {
                         :options="currencies.map((c) => ({ value: c.id, label: c.code }))"
                     />
                 </FormField>
-                <FormField label="Exchange rate" :error="costForm.errors.exchange_rate">
+                <FormField v-if="!costInBase" label="Exchange rate" :hint="costRateHint" :error="costForm.errors.exchange_rate">
                     <TextInput v-model="costForm.exchange_rate" type="number" step="0.00000001" numeric />
                 </FormField>
                 <FormField label="Amount" required :error="costForm.errors.amount">
