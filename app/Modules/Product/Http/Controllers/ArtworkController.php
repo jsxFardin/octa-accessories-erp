@@ -106,6 +106,7 @@ class ArtworkController extends Controller
                 // offers a button that throws.
                 'available_transitions' => $this->states->available($version),
                 'referenced_by_production' => $version->isReferencedByProduction(),
+                'can_withdraw' => $version->canBeWithdrawn(),
             ]),
             'nextVersionNo' => $artwork->nextVersionNo(),
             'designers' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),

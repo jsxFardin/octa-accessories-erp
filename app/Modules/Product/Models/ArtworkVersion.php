@@ -128,4 +128,21 @@ class ArtworkVersion extends Model
             ->where('artwork_version_id', $this->getKey())
             ->exists();
     }
+
+    /**
+     * Whether this version can be taken back as if it had never been uploaded.
+     *
+     * Only a draft that has never been sent to the customer, that nothing refers to, and that
+     * is the newest of its artwork — so the numbering stays contiguous and no version anyone
+     * outside this screen has seen can disappear.
+     */
+    public function canBeWithdrawn(): bool
+    {
+        return $this->status === self::DRAFT
+            && $this->submitted_at === null
+            && ! $this->isReferencedByProduction()
+            && ! \Illuminate\Support\Facades\DB::table('sales_order_lines')->where('artwork_version_id', $this->id)->exists()
+            && ! \Illuminate\Support\Facades\DB::table('sample_request_lines')->where('artwork_version_id', $this->id)->exists()
+            && (int) $this->version_no === (int) self::query()->where('artwork_id', $this->artwork_id)->max('version_no');
+    }
 }

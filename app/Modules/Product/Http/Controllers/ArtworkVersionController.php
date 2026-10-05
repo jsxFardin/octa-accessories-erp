@@ -58,6 +58,11 @@ class ArtworkVersionController extends Controller
         $request->validate([
             'file' => ['required', 'file', 'max:51200', 'mimes:ai,eps,pdf,cdr,psd,png,jpg,jpeg,svg'],
             'notes' => ['nullable', 'string', 'max:500'],
+        ], [
+            'file.required' => 'Choose the artwork file to upload.',
+            'file.max' => 'This file is larger than 50 MB. Export a smaller copy and upload that.',
+            'file.mimes' => 'This kind of file cannot be uploaded. Use AI, EPS, PDF, CDR, PSD, PNG, JPG or SVG.',
+            'file.uploaded' => 'The upload did not finish. Check the connection and try again; files over 50 MB are refused.',
         ]);
 
         $version = DB::transaction(function () use ($request, $artwork): ArtworkVersion {
@@ -76,6 +81,33 @@ class ArtworkVersionController extends Controller
         });
 
         return back()->with('success', "Version {$version->version_no} uploaded.");
+    }
+
+    /**
+     * Take back a draft that was uploaded by mistake.
+     *
+     * A wrong file used to stay on the artwork for good: a draft could be submitted or left,
+     * never removed, so the trail carried versions nobody meant to make. Allowed only where
+     * nothing is lost by it — see {@see ArtworkVersion::canBeWithdrawn()}.
+     */
+    public function destroy(ArtworkVersion $version): RedirectResponse
+    {
+        if (! $version->canBeWithdrawn()) {
+            return back()->with('error', $version->status === ArtworkVersion::DRAFT
+                ? "Version {$version->version_no} cannot be withdrawn: it has been sent to the customer, is in use, or is not the newest version."
+                : "Version {$version->version_no} is no longer a draft, so it cannot be withdrawn.");
+        }
+
+        $path = $version->file_path;
+        $number = $version->version_no;
+
+        $version->delete();
+
+        if ($path !== null) {
+            Storage::disk('local')->delete($path);
+        }
+
+        return back()->with('success', "Version {$number} withdrawn. The next upload will be version {$number}.");
     }
 
     /**

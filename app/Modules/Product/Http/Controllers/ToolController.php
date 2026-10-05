@@ -130,7 +130,7 @@ class ToolController extends Controller
             'made_on' => ['nullable', 'date'],
             'cost' => ['nullable', 'numeric', 'min:0'],
             // Not below what it has already run: a life shorter than its use is a typo.
-            'life_impressions' => ['nullable', 'integer', 'min:'.max(1, (int) ($tool?->used_impressions ?? 0))],
+            'life_impressions' => ['nullable', 'integer', 'min:'.max(1, $tool === null ? 0 : $tool->used_impressions)],
             'status' => ['required', Rule::in(self::SETTABLE)],
         ], [
             'code.unique' => 'Another tool already has this code.',

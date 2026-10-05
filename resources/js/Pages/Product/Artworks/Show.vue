@@ -112,10 +112,53 @@ function saveArtwork() {
     });
 }
 
+/*
+ * The limits the server enforces, said before the upload rather than after it. A 60 MB file
+ * used to be sent in full, with no sign of progress, and then refused in a toast.
+ */
+const MAX_UPLOAD_MB = 50;
+const UPLOAD_FORMATS = ['ai', 'eps', 'pdf', 'cdr', 'psd', 'png', 'jpg', 'jpeg', 'svg'];
+
+const fileInput = ref(null);
+
+/** Why the chosen file cannot be sent, known without sending it. */
+const fileProblem = computed(() => {
+    const file = uploadForm.file;
+
+    if (!file) return null;
+
+    const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+
+    if (!UPLOAD_FORMATS.includes(extension)) {
+        return `".${extension || 'no extension'}" files cannot be uploaded. Use AI, EPS, PDF, CDR, PSD, PNG, JPG or SVG.`;
+    }
+
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+        return `This file is ${megabytes(file.size)} MB. The limit is ${MAX_UPLOAD_MB} MB; export a smaller copy and upload that.`;
+    }
+
+    return null;
+});
+
+function megabytes(bytes) {
+    return (bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0);
+}
+
+function chooseFile(event) {
+    uploadForm.clearErrors();
+    uploadForm.file = event.target.files[0] ?? null;
+}
+
 function upload() {
+    if (!uploadForm.file || fileProblem.value) return;
+
     uploadForm.post(`/artworks/${props.artwork.id}/versions`, {
         forceFormData: true,
-        onSuccess: () => uploadForm.reset(),
+        preserveScroll: true,
+        onSuccess: () => {
+            uploadForm.reset();
+            if (fileInput.value) fileInput.value.value = '';
+        },
     });
 }
 
@@ -127,6 +170,15 @@ function submitToCustomer(version) {
         message: 'The version is recorded as sent for approval and can no longer be replaced. Nothing is emailed from here — send the file to the customer yourself.',
         confirmLabel: 'Mark as submitted',
     }, (done) => router.post(`/artwork-versions/${version.id}/transition`, { to: 'submitted' }, { preserveScroll: true, ...done }));
+}
+
+function withdraw(version) {
+    run(`withdraw-${version.id}`, {
+        title: `Withdraw version ${version.version_no}?`,
+        message: 'The file is removed as if it had never been uploaded, and the next upload takes its number. This cannot be undone.',
+        confirmLabel: 'Withdraw version',
+        tone: 'danger',
+    }, (done) => router.delete(`/artwork-versions/${version.id}`, { preserveScroll: true, ...done }));
 }
 
 function approve() {
@@ -210,19 +262,57 @@ function openReject(version) {
 
             <!-- Version rail -->
             <Card class="lg:col-span-2" title="Versions" subtitle="Numbered contiguously from 1, never renumbered" :padded="false">
-                <template #actions>
-                    <form v-if="can('artwork.create')" class="flex items-center gap-2" @submit.prevent="upload">
-                        <input
-                            type="file"
-                            class="text-xs file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs"
-                            accept=".ai,.eps,.pdf,.cdr,.psd,.png,.jpg,.jpeg,.svg"
-                            @input="uploadForm.file = $event.target.files[0]"
+                <!--
+                    The upload sits in the card, not squeezed into its title bar, because it now
+                    says what may be uploaded, how far it has got, and why it was refused.
+                -->
+                <form
+                    v-if="can('artwork.create')"
+                    class="border-b border-slate-200 px-3 py-3"
+                    data-upload
+                    @submit.prevent="upload"
+                >
+                    <div class="flex flex-wrap items-end gap-3">
+                        <FormField
+                            :label="`Upload version ${nextVersionNo}`"
+                            :hint="`AI, EPS, PDF, CDR, PSD, PNG, JPG or SVG, up to ${MAX_UPLOAD_MB} MB.`"
+                            :error="uploadForm.errors.file ?? fileProblem"
+                            class="min-w-0 flex-1"
                         >
-                        <Button type="submit" size="sm" variant="primary" :loading="uploadForm.processing" :disabled="!uploadForm.file">
-                            Upload v{{ nextVersionNo }}
+                            <input
+                                ref="fileInput"
+                                type="file"
+                                class="block w-full text-sm file:mr-3 file:min-h-9 file:cursor-pointer file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink-700 hover:file:bg-slate-200"
+                                accept=".ai,.eps,.pdf,.cdr,.psd,.png,.jpg,.jpeg,.svg"
+                                :disabled="uploadForm.processing"
+                                :aria-invalid="uploadForm.errors.file || fileProblem ? 'true' : 'false'"
+                                @change="chooseFile"
+                            >
+                        </FormField>
+                        <Button
+                            type="submit"
+                            size="md"
+                            variant="primary"
+                            :loading="uploadForm.processing"
+                            :disabled="!uploadForm.file || fileProblem !== null || uploadForm.processing"
+                        >
+                            Upload
                         </Button>
-                    </form>
-                </template>
+                    </div>
+
+                    <!-- A large file takes a while on a factory line; say how far it has got. -->
+                    <div v-if="uploadForm.processing" class="mt-3" role="status" aria-live="polite">
+                        <div class="h-2 overflow-hidden rounded-full bg-slate-100">
+                            <div class="h-full rounded-full bg-brand-600 transition-[width]" :style="{ width: `${uploadForm.progress?.percentage ?? 0}%` }" />
+                        </div>
+                        <p class="mt-1 text-xs text-ink-600">
+                            <template v-if="(uploadForm.progress?.percentage ?? 0) < 100">
+                                Uploading {{ uploadForm.file?.name }}: {{ uploadForm.progress?.percentage ?? 0 }}%
+                            </template>
+                            <template v-else>Uploaded. Checking the file…</template>
+                        </p>
+                    </div>
+                </form>
 
                 <ul class="divide-y divide-slate-100">
                     <li v-for="version in versions" :key="version.id" class="p-3">
@@ -316,12 +406,24 @@ function openReject(version) {
                                 >
                                     Reject
                                 </Button>
+                                <!-- Only a draft nobody outside this screen has seen. -->
+                                <Button
+                                    v-if="version.can_withdraw && can('artwork.create')"
+                                    size="sm"
+                                    variant="ghost"
+                                    :loading="busy === `withdraw-${version.id}`"
+                                    :disabled="busy !== null"
+                                    data-withdraw
+                                    @click="withdraw(version)"
+                                >
+                                    Withdraw
+                                </Button>
                             </div>
                         </div>
                     </li>
 
                     <li v-if="versions.length === 0" class="p-6 text-center text-sm text-ink-500">
-                        No versions yet. Upload version 1 to begin.
+                        No versions yet. Upload version 1 above to begin.
                     </li>
                 </ul>
             </Card>

@@ -179,6 +179,8 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:artwork.update')->name('artworks.update');
     Route::post('artworks/{artwork}/versions', [ArtworkVersionController::class, 'store'])
         ->middleware('can:artwork.create')->name('artworks.versions.store');
+    Route::delete('artwork-versions/{version}', [ArtworkVersionController::class, 'destroy'])
+        ->middleware('can:artwork.create')->name('artwork-versions.destroy');
     // The artwork file itself. It lives on the private disk — it is a customer's intellectual
     // property — so it is streamed through the same permission as the screen that shows it.
     Route::get('artwork-versions/{version}/file', [ArtworkVersionController::class, 'file'])
