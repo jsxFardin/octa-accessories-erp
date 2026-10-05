@@ -270,8 +270,8 @@ class PhysicalCountController extends Controller
 
         $lines = $count->lines->map(fn (PhysicalCountLine $line): array => [
             'lot_no' => $line->lot?->lot_no,
-            'item_code' => $line->lot?->item?->code ?? $line->lot?->product?->code,
-            'holds' => $line->lot?->product_id !== null && $line->lot?->item_id === null ? 'product' : 'material',
+            'item_code' => $this->heldCode($line->lot),
+            'holds' => $this->holds($line->lot),
             'bin_code' => $binCodes[$line->lot_id] ?? null,
             'remarks' => $line->remarks,
         ])->all();
@@ -313,8 +313,8 @@ class PhysicalCountController extends Controller
                 'id' => $line->id,
                 'lot_id' => $line->lot_id,
                 'lot_no' => $lot?->lot_no,
-                'item_code' => $lot?->item?->code ?? $lot?->product?->code,
-                'holds' => $lot?->product_id !== null && $lot?->item_id === null ? 'product' : 'material',
+                'item_code' => $this->heldCode($lot),
+                'holds' => $this->holds($lot),
                 'bin_code' => $binCodes[$line->lot_id] ?? null,
                 'counted_qty' => $line->counted_qty,
                 'counted_by' => $line->counter?->name,
@@ -353,8 +353,8 @@ class PhysicalCountController extends Controller
             'id' => $line->id,
             'lot_id' => $line->lot_id,
             'lot_no' => $line->lot?->lot_no,
-            'item_code' => $line->lot?->item?->code ?? $line->lot?->product?->code,
-            'holds' => $line->lot?->product_id !== null && $line->lot?->item_id === null ? 'product' : 'material',
+            'item_code' => $this->heldCode($line->lot),
+            'holds' => $this->holds($line->lot),
             'bin_code' => $binCodes[$line->lot_id] ?? null,
             'counted_qty' => $line->counted_qty,
             'remarks' => $line->remarks,
@@ -396,5 +396,21 @@ class PhysicalCountController extends Controller
         }
 
         return $byLot;
+    }
+
+    /** The code of whatever the lot holds: its material, or — for finished goods — its product. */
+    private function heldCode(?\App\Modules\Inventory\Models\StockLot $lot): ?string
+    {
+        if ($lot === null) {
+            return null;
+        }
+
+        return $lot->item !== null ? $lot->item->code : $lot->product?->code;
+    }
+
+    /** `material` or `product` — a count sheet lists both. */
+    private function holds(?\App\Modules\Inventory\Models\StockLot $lot): string
+    {
+        return $lot !== null && $lot->item_id === null && $lot->product_id !== null ? 'product' : 'material';
     }
 }
