@@ -102,7 +102,7 @@ const needsThree = computed(() => {
                 <DataTable
                     :columns="[
                         { key: 'line_no', label: '#' },
-                        { key: 'item_code', label: 'Item' },
+                        { key: 'item_code', label: 'Material' },
                         { key: 'qty', label: 'Qty', align: 'right' },
                     ]"
                     :rows="lines"

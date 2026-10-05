@@ -32,7 +32,7 @@ const columns = [
         <Head title="Supplier bills" />
 
         <template #title>Supplier bills</template>
-        <template #subtitle>Three-way matched against PO and GRN before approval</template>
+        <template #subtitle>Checked against the purchase order and the goods receipt before approval</template>
 
         <template #actions>
             <Button v-if="can('supplier_bill.create')" size="sm" variant="primary" :href="'/supplier-bills/create'">
@@ -60,7 +60,7 @@ const columns = [
                     <EmptyState
                         icon="bill"
                         title="No supplier bills"
-                        description="Enter supplier invoices here. Approval runs a three-way match against PO and GRN."
+                        description="Enter supplier bills here. Before approval each bill is checked against its purchase order and goods receipt."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
                     />
                 </template>

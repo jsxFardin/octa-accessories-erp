@@ -128,9 +128,9 @@ const lineColumns = [
     { key: 'delivered_qty', label: 'Delivered', align: 'right' },
     { key: 'remaining_qty', label: 'Remaining', align: 'right' },
     { key: 'band', label: 'Acceptable band', align: 'right' },
-    { key: 'rate_per_m', label: 'Rate /M', align: 'right' },
+    { key: 'rate_per_m', label: 'Rate per 1,000 pcs', align: 'right' },
     { key: 'line_total', label: 'Value', align: 'right' },
-    { key: 'gate', label: 'Gate 1' },
+    { key: 'gate', label: 'Artwork approved' },
     { key: 'promised_date', label: 'Promised' },
     { key: 'make', label: '', width: '5.5rem', align: 'right' },
 ];
@@ -256,7 +256,7 @@ const lineColumns = [
                 </dl>
                 <ul v-if="challans.length" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">
                     <li v-for="challan in challans" :key="challan.id" class="flex items-center justify-between py-1.5">
-                        <Link :href="`/delivery-challans/${challan.id}`" class="doc-link-quiet">{{ challan.number ?? '(draft challan)' }}</Link>
+                        <Link :href="`/delivery-challans/${challan.id}`" class="doc-link-quiet">{{ challan.number ?? '(draft delivery note)' }}</Link>
                         <span class="tnum">{{ pcs(challan.total_qty) }}</span>
                         <span class="text-xs text-ink-500">{{ date(challan.challan_date) }}</span>
                         <Badge :status="challan.status" />

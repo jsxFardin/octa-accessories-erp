@@ -410,12 +410,25 @@ export function documentNumber(number, revisionNo = 0) {
     return revisionNo > 0 ? `${number}/R${revisionNo}` : number;
 }
 
+/**
+ * Words that are not words. Title-casing a key letter by letter gave "Qc Pending", "Po", and
+ * for the kinds of import payment "Tt", "Da" and "Dp".
+ */
+const ACRONYMS = {
+    qc: 'QC', po: 'PO', lc: 'LC', grn: 'GRN', ncr: 'NCR', rfq: 'RFQ', bom: 'BOM', fg: 'FG',
+    capa: 'CAPA', mrp: 'MRP', coc: 'CoC', pod: 'POD', aql: 'AQL', uom: 'UoM', cad: 'CAD',
+    tt: 'TT', da: 'DA', dp: 'DP', grs: 'GRS', fsc: 'FSC', pdf: 'PDF', id: 'ID',
+};
+
+/** A stored key as a label: "qc_pending" → "QC Pending", "back_to_back" → "Back To Back". */
 export function titleCase(value) {
     if (!value) return '';
 
     return String(value)
         .replace(/_/g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+        .split(' ')
+        .map((word) => ACRONYMS[word.toLowerCase()] ?? word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
 }
 
 export default {

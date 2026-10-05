@@ -62,7 +62,7 @@ const byProduct = computed(() => {
                 <DataTable
                     :columns="[
                         { key: 'min_qty', label: 'From quantity', align: 'right' },
-                        { key: 'rate_per_m', label: 'Rate / 1,000', align: 'right' },
+                        { key: 'rate_per_m', label: 'Rate per 1,000 pcs', align: 'right' },
                         { key: 'description', label: 'Note' },
                     ]"
                     :rows="group.breaks"

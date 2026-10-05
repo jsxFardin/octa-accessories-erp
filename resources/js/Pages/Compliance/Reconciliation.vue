@@ -85,7 +85,7 @@ function submitClose() {
                 :columns="columns"
                 :rows="rows"
                 row-key="period"
-                empty="No chain-of-custody transactions recorded yet. Certified input enters the system on a GRN line."
+                empty="No chain-of-custody movements recorded yet. Certified input is recorded when its goods receipt is posted."
             >
                 <template #cell:scheme="{ value }">
                     <span class="font-medium text-ink-900">{{ value.replace('_', ' ') }}</span>
@@ -110,7 +110,7 @@ function submitClose() {
         <Modal
             :open="closing !== null"
             title="Close this period"
-            subtitle="C3 — the transactions in it are locked, and no further certified movement may be booked into it."
+            subtitle="Its movements are locked, and no further certified movement can be booked into it."
             @update:open="closing = null"
         >
             <div v-if="closing" class="space-y-3">

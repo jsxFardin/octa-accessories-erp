@@ -45,7 +45,7 @@ const columns = [
     { key: 'product_code', label: 'Product' },
     { key: 'description', label: 'Description' },
     { key: 'qty', label: 'Delivered qty', align: 'right' },
-    { key: 'rate_per_m', label: 'Rate /M', align: 'right' },
+    { key: 'rate_per_m', label: 'Rate per 1,000 pcs', align: 'right' },
     { key: 'amount', label: 'Amount', align: 'right' },
 ];
 </script>

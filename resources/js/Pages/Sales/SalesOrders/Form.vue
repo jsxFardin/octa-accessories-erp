@@ -173,7 +173,7 @@ watch(() => form.customer_id, (customer) => {
 const columns = [
     { key: 'product_id', label: 'Product', width: '15rem', errorKeys: ['product_id', 'product_spec_id'] },
     { key: 'ordered_qty', label: 'Ordered', width: '8rem', align: 'right' },
-    { key: 'rate_per_m', label: 'Rate /M', width: '8rem', align: 'right' },
+    { key: 'rate_per_m', label: 'Rate per 1,000 pcs', width: '8rem', align: 'right' },
     { key: 'tolerance', label: 'Tolerance −/+ %', width: '10rem', errorKeys: ['under_tolerance_pct', 'over_tolerance_pct'] },
     { key: 'band', label: 'Acceptable band', width: '10rem', align: 'right' },
     { key: 'promised_date', label: 'Promised', width: '9rem' },
@@ -206,7 +206,7 @@ const columns = [
                 </FormField>
             </Card>
 
-            <Card title="Header">
+            <Card title="Order details">
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <FormField label="Customer" :error="form.errors.customer_id" required>
                         <SelectInput

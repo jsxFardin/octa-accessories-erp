@@ -187,7 +187,7 @@ function submit() {
         <template #subtitle>Existing lots only. Positive quantity is an adjustment in; negative is an adjustment out.</template>
 
         <FormLayout @submit="submit">
-            <Card title="Header">
+            <Card title="Adjustment details">
                 <div class="grid gap-3 sm:grid-cols-2">
                     <FormField label="Warehouse" :error="form.errors.warehouse_id" required>
                         <SelectInput

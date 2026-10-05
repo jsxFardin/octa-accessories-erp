@@ -44,7 +44,7 @@ const columns = [
                     <EmptyState
                         icon="money"
                         title="No credit notes"
-                        description="A challan return against an issued invoice drafts one automatically; claims and rate differences are raised by hand from the invoice."
+                        description="Goods returned on an invoiced delivery note draft one automatically; claims and rate differences are raised by hand from the invoice."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
                     />
                 </template>

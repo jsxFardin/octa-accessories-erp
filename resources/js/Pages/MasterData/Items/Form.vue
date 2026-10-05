@@ -22,8 +22,8 @@ const sections = computed(() => [
         title: 'Units and purchasing',
         rule: 'BR-2 · BR-25',
         fields: [
-            { key: 'base_uom_id', label: 'Base UoM', type: 'select', options: props.uoms, valueKey: 'id', labelKey: 'code', required: true },
-            { key: 'purchase_uom_id', label: 'Purchase UoM', type: 'select', options: props.uoms, valueKey: 'id', labelKey: 'code' },
+            { key: 'base_uom_id', label: 'Stock unit', type: 'select', options: props.uoms, valueKey: 'id', labelKey: 'code', required: true },
+            { key: 'purchase_uom_id', label: 'Buying unit', type: 'select', options: props.uoms, valueKey: 'id', labelKey: 'code' },
             { key: 'default_supplier_id', label: 'Default supplier', type: 'select', options: props.suppliers, valueKey: 'id', labelKey: 'name' },
             { key: 'min_order_qty', label: 'Minimum order qty', type: 'number', step: '0.000001', default: 0, rule: 'BR-25' },
             { key: 'order_multiple', label: 'Order multiple', type: 'number', step: '0.000001', default: 1, rule: 'BR-25', hint: 'Purchase quantities round up to this. Must be greater than zero.' },

@@ -674,7 +674,7 @@ const columns = [
                             </div>
                             <!-- The one figure on this panel in the customer's currency. -->
                             <div class="flex justify-between rounded bg-brand-50 px-2 py-1">
-                                <dt class="font-semibold text-brand-900">Quoted rate / M</dt>
+                                <dt class="font-semibold text-brand-900">Quoted rate per 1,000 pcs</dt>
                                 <dd class="tnum font-semibold text-brand-900">
                                     {{ ratePerM(sheet.sheet.rate_per_m_in_currency, currencyCode) }}
                                 </dd>

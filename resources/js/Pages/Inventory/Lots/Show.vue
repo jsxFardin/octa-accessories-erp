@@ -91,7 +91,7 @@ const props = defineProps({
                 </dl>
             </Card>
 
-            <Card title="Genealogy" rule="G6" subtitle="Any carton to its lots to its GRNs">
+            <Card title="Genealogy" rule="G6" subtitle="From a carton to its lots to the goods receipts they came from">
                 <div class="space-y-3 text-sm">
                     <div v-if="genealogy.grn">
                         <p class="text-xs text-ink-500">Received on</p>

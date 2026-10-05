@@ -80,7 +80,7 @@ function submit() {
 }
 
 const columns = [
-    { key: 'item_id', label: 'Item', width: '18rem' },
+    { key: 'item_id', label: 'Material', width: '18rem' },
     { key: 'qty', label: 'Quantity', width: '14rem', align: 'right', errorKeys: ['qty', 'uom_id'] },
     { key: 'rounded', label: 'Orders as', width: '9rem', align: 'right' },
     { key: 'required_by', label: 'Required by', width: '9rem' },
@@ -119,7 +119,7 @@ const columns = [
                 </div>
             </Card>
 
-            <Card title="Items needed" rule="BR-25" :padded="false">
+            <Card title="Materials needed" rule="BR-25" :padded="false">
                 <div class="p-3">
                     <LineItemsTable
                         :columns="columns"
@@ -183,7 +183,7 @@ const columns = [
                 <Card title="Requisition">
                     <dl class="space-y-2.5 text-sm">
                         <div class="flex items-baseline justify-between gap-3">
-                            <dt class="text-xs text-ink-500">Items</dt>
+                            <dt class="text-xs text-ink-500">Materials</dt>
                             <dd class="tnum text-ink-900">{{ form.lines.filter((line) => line.item_id).length }}</dd>
                         </div>
 

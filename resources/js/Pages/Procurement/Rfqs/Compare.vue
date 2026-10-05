@@ -55,7 +55,7 @@ function raisePo() {
                 <table class="min-w-full text-sm">
                     <thead>
                         <tr class="border-b border-slate-200 bg-slate-50">
-                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-500">Item</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-500">Material</th>
                             <th v-for="quote in quotations" :key="quote.id" class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-ink-500">
                                 {{ quote.supplier?.name }}
                                 <Badge v-if="quote.is_selected" class="ml-1" tone="success" label="Winner" />
@@ -73,7 +73,7 @@ function raisePo() {
                                     <p>{{ money(rateFor(quote, line.item_id).rate, quote.currency) }}</p>
                                     <p class="text-xs text-ink-500">
                                         {{ money(rateFor(quote, line.item_id).amount, quote.currency) }}
-                                        <span v-if="rateFor(quote, line.item_id).moq"> · MOQ {{ qty(rateFor(quote, line.item_id).moq) }}</span>
+                                        <span v-if="rateFor(quote, line.item_id).moq"> · minimum order {{ qty(rateFor(quote, line.item_id).moq) }}</span>
                                     </p>
                                 </template>
                                 <span v-else class="text-ink-400">—</span>

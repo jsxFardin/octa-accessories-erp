@@ -112,10 +112,10 @@ const columns = [
 </script>
 
 <template>
-    <AppLayout :crumb="challan.number ?? 'Draft challan'">
-        <Head :title="challan.number ?? 'Delivery challan'" />
+    <AppLayout :crumb="challan.number ?? 'Draft delivery note'">
+        <Head :title="challan.number ?? 'Delivery note'" />
 
-        <template #title>{{ challan.number ?? '(draft challan)' }}</template>
+        <template #title>{{ challan.number ?? '(draft delivery note)' }}</template>
         <template #subtitle>
             <Link v-if="challan.customer" :href="`/customers/${challan.customer.id}`" class="font-medium hover:underline">
                 {{ challan.customer.name }}
@@ -264,7 +264,7 @@ const columns = [
             </Card>
         </div>
 
-        <Modal v-model:open="issueOpen" title="Issue this challan" subtitle="This is the stock movement." width="max-w-lg">
+        <Modal v-model:open="issueOpen" title="Issue this delivery note" subtitle="This is the stock movement." width="max-w-lg">
             <p class="text-sm text-ink-700">
                 Issuing posts one <code>dispatch</code> ledger movement per line, moves the order's
                 delivered quantity, and — for certified goods — writes the chain-of-custody output.
@@ -274,7 +274,7 @@ const columns = [
                 v-if="lines.some(overBand)"
                 label="Override reason"
                 :error="issueForm.errors.override_reason"
-                hint="A line is over its tolerance band. The reason is stored on the challan and read at invoicing."
+                hint="A line is over its tolerance band. The reason is kept on the delivery note and shown when it is invoiced."
                 required
                 class="mt-3"
             >

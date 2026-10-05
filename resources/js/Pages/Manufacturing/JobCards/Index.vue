@@ -83,7 +83,7 @@ const columns = [
                     <EmptyState
                         icon="job-card"
                         title="No job cards yet"
-                        description="A job card binds an approved artwork version and snapshots the consumption plan it will be costed against."
+                        description="A job card ties one production run to an approved artwork version and fixes the material plan it will be costed against."
                         :action-label="can('job_card.create') ? 'New job card' : null"
                         action-href="/job-cards/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"

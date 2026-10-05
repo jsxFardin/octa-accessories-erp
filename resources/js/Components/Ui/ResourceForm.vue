@@ -115,7 +115,7 @@ function submit() {
                     >
                         <!-- A checkbox aligns to the 36px control row so the grid stays level. -->
                         <label v-if="field.type === 'checkbox'" class="flex h-9 items-center gap-2 text-sm text-ink-700">
-                            <input v-model="form[field.key]" type="checkbox" class="form-checkbox">
+                            <input v-model="form[field.key]" type="checkbox" class="form-checkbox" :disabled="field.disabled ?? false">
                             {{ field.checkboxLabel ?? 'Yes' }}
                         </label>
 
@@ -136,11 +136,14 @@ function submit() {
                             v-model="form[field.key]"
                             rows="3"
                             class="form-textarea"
+                            :class="field.disabled && 'cursor-not-allowed opacity-60'"
+                            :disabled="field.disabled ?? false"
                         />
 
                         <DateInput
                             v-else-if="field.type === 'date'"
                             v-model="form[field.key]"
+                            :disabled="field.disabled ?? false"
                             :error="form.errors[field.key]"
                         />
 
@@ -151,6 +154,7 @@ function submit() {
                             :step="field.step"
                             :min="field.min"
                             :numeric="field.type === 'number'"
+                            :disabled="field.disabled ?? false"
                             :error="form.errors[field.key]"
                         />
                     </FormField>

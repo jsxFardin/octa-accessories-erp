@@ -29,7 +29,7 @@ const sections = computed(() => [
                 options: props.letters.map((l) => ({ value: l.id, label: l.lc_no ? `${l.number} · ${l.lc_no}` : l.number })),
                 hint: 'Blank for a TT or DP shipment.',
             },
-            { key: 'invoice_no', label: 'Supplier invoice no' },
+            { key: 'invoice_no', label: 'Supplier bill number' },
             { key: 'invoice_date', label: 'Invoice date', type: 'date' },
             { key: 'transport_doc_no', label: 'BL / AWB number' },
             {

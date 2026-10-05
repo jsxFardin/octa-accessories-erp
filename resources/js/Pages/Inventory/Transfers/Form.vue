@@ -170,7 +170,7 @@ function submit() {
         <template #subtitle>Existing lots only. Dispatch writes stock into transit; this form does not.</template>
 
         <FormLayout @submit="submit">
-            <Card title="Header">
+            <Card title="Transfer details">
                 <div class="grid gap-3 sm:grid-cols-2">
                     <FormField label="From warehouse" :error="form.errors.from_warehouse_id" required>
                         <SelectInput

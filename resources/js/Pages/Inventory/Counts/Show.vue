@@ -25,7 +25,7 @@ const readOnly = computed(() => ['posted', 'cancelled'].includes(props.count.sta
 const columns = computed(() => {
     const base = [
         { key: 'lot_no', label: 'Lot' },
-        { key: 'item_code', label: 'Item' },
+        { key: 'item_code', label: 'Material' },
         { key: 'bin_code', label: 'Bin' },
     ];
 
@@ -161,7 +161,7 @@ async function transition(to) {
             </Card>
 
             <Card title="Lines" :padded="false">
-                <DataTable :columns="columns" :rows="lines" row-key="id" empty="No lines yet — start counting to snapshot lots." dense>
+                <DataTable :columns="columns" :rows="lines" row-key="id" empty="No lines yet. Start counting to list the lots in this warehouse as they stand now." dense>
                     <template #cell:lot_no="{ value }">
                         <span class="font-mono text-xs">{{ value }}</span>
                     </template>

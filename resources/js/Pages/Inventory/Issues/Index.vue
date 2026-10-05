@@ -30,7 +30,7 @@ const columns = [
         <Head title="Material issues" />
 
         <template #title>Material issues</template>
-        <template #subtitle>Shade-first suggestions with a FIFO fallback; overrides are logged</template>
+        <template #subtitle>Suggests lots of the same shade first, then the oldest. Choosing another lot is recorded.</template>
 
         <template #actions>
             <Button v-if="can('stock_issue.create')" variant="primary" href="/material-issues/create">New issue</Button>
@@ -64,7 +64,7 @@ const columns = [
                     <EmptyState
                         icon="issue"
                         title="Nothing issued yet"
-                        description="Material is issued against a job card, shade-first with a FIFO fallback."
+                        description="Material is issued to a job card. Lots of the same shade are suggested first, then the oldest."
                         :action-label="can('stock_issue.create') ? 'New issue' : null"
                         action-href="/material-issues/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"

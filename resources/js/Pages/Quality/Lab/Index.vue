@@ -77,7 +77,7 @@ defineProps({
                 </DataTable>
             </Card>
 
-            <Card title="Test reports" rule="QC3" subtitle="Immutable once issued — reprinting reproduces the original values" :padded="false">
+            <Card title="Test reports" rule="QC3" subtitle="An issued certificate cannot be changed; a reprint shows the original values" :padded="false">
                 <DataTable
                     :columns="[
                         { key: 'number', label: 'Number', sort: true },

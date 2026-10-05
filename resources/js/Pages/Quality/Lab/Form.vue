@@ -39,11 +39,11 @@ const testById = computed(() => Object.fromEntries(props.labTests.map((test) => 
 
 /** The scales the table itself allows, in words, with what to type. */
 const SCALES = {
-    grey_1_5: { label: 'Grey scale', placeholder: '1 to 5', rule: 'or higher' },
-    percent: { label: 'Percentage', placeholder: '0 to 100', rule: 'or lower' },
-    delta_e: { label: 'Colour difference (ΔE)', placeholder: 'e.g. 0.8', rule: 'or lower' },
-    pass_fail: { label: 'Pass or fail', placeholder: '', rule: '' },
-    numeric: { label: 'Number', placeholder: 'value', rule: 'or higher' },
+    grey_1_5: { label: 'Grey scale', placeholder: '1 to 5', limit: 'or higher' },
+    percent: { label: 'Percentage', placeholder: '0 to 100', limit: 'or lower' },
+    delta_e: { label: 'Colour difference (ΔE)', placeholder: 'e.g. 0.8', limit: 'or lower' },
+    pass_fail: { label: 'Pass or fail', placeholder: '', limit: '' },
+    numeric: { label: 'Number', placeholder: 'value', limit: 'or higher' },
 };
 
 const scaleOf = (line) => SCALES[testById.value[line.lab_test_id]?.scale] ?? SCALES.numeric;
@@ -143,7 +143,7 @@ function submit() {
                             <p class="pt-1.5 text-sm tnum" data-threshold>
                                 <template v-if="thresholdOf(line)?.pass_value != null">
                                     <span class="font-medium text-ink-900">{{ isPassFail(line) ? 'Pass' : thresholdOf(line).pass_value }}</span>
-                                    <span class="ml-1 text-ink-700">{{ scaleOf(line).rule }}</span>
+                                    <span class="ml-1 text-ink-700">{{ scaleOf(line).limit }}</span>
                                 </template>
                                 <span v-else class="text-ink-600">No pass value set</span>
                             </p>

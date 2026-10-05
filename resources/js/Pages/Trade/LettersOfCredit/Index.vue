@@ -11,6 +11,9 @@ import { date, money, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
+/** How the stored kinds are said; the key alone gave "Tt", "Da" and "Dp". */
+const KIND_LABELS = { sight: 'LC at sight', usance: 'LC usance', back_to_back: 'Back-to-back LC', tt: 'Bank transfer (TT)', da: 'Documents against acceptance (DA)', dp: 'Documents against payment (DP)' };
+
 const props = defineProps({
     letters: Object,
     filters: Object,
@@ -70,7 +73,7 @@ const columns = [
                 :filters="filters"
                 :fields="[
                     { key: 'status', label: 'Status', options: statuses.map((s) => ({ value: s, label: titleCase(s) })) },
-                    { key: 'kind', label: 'Kind', options: kinds.map((k) => ({ value: k, label: titleCase(k) })) },
+                    { key: 'kind', label: 'Kind', options: kinds.map((k) => ({ value: k, label: KIND_LABELS[k] ?? titleCase(k) })) },
                     { key: 'supplier', label: 'Supplier', options: suppliers.map((s) => ({ value: String(s.id), label: s.name })) },
                 ]"
                 placeholder="Search our number or the bank's…"
@@ -88,7 +91,7 @@ const columns = [
                     <span v-if="value" class="font-mono text-xs">{{ value }}</span>
                     <span v-else class="text-ink-400">not yet opened</span>
                 </template>
-                <template #cell:kind="{ value }">{{ titleCase(value) }}</template>
+                <template #cell:kind="{ value }">{{ KIND_LABELS[value] ?? titleCase(value) }}</template>
                 <template #cell:amount="{ row, value }">{{ money(value, row.currency) }}</template>
                 <template #cell:last_shipment_date="{ value }">{{ value ? date(value) : '—' }}</template>
                 <template #cell:expiry_date="{ row, value }">

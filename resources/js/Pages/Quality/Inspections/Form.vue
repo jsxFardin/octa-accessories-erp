@@ -271,7 +271,7 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
 
             <template #rail>
                 <!-- The plan, resolved live so the inspector knows the numbers before counting. -->
-                <Card title="Sampling plan" rule="BR-30" subtitle="ISO 2859-1, Level II, AQL 2.5">
+                <Card title="Sampling plan" rule="BR-30" subtitle="ISO 2859-1, Level II, acceptable quality limit (AQL) 2.5">
                     <div v-if="plan" class="space-y-3">
                         <dl class="grid grid-cols-3 gap-2 text-center">
                             <div class="rounded-md bg-slate-50 py-2">

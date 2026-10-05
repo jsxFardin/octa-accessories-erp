@@ -362,7 +362,7 @@ function closeNcr() {
             </template>
         </Modal>
 
-        <Modal v-model:open="verifyOpen" title="Effectiveness review" subtitle="QL-7: verification is a separate step from recording the action.">
+        <Modal v-model:open="verifyOpen" title="Effectiveness review" subtitle="Checking that the action worked is a separate step from recording the action.">
             <FormField label="Effectiveness" required :error="verifyForm.errors.effectiveness">
                 <SelectInput
                     v-model="verifyForm.effectiveness"

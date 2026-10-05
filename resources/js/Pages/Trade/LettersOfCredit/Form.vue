@@ -18,17 +18,39 @@ const isEdit = computed(() => Boolean(props.letter));
 /** Past draft the bank owns the terms; the form says so rather than silently discarding them. */
 const locked = computed(() => isEdit.value && props.letter.status !== 'draft');
 
-const sections = computed(() => [
+/** The two things that still save once the bank holds the credit. */
+const STILL_EDITABLE = ['lc_no', 'remarks'];
+
+/** How the stored kinds are said. */
+const KIND_LABELS = {
+    sight: 'LC at sight',
+    usance: 'LC usance (deferred payment)',
+    back_to_back: 'Back-to-back LC',
+    tt: 'Bank transfer (TT)',
+    da: 'Documents against acceptance (DA)',
+    dp: 'Documents against payment (DP)',
+};
+
+const sections = computed(() => layout.value.map((section) => ({
+    ...section,
+    // Every other field used to stay open and typed changes were thrown away without a word.
+    fields: section.fields.map((field) => ({
+        ...field,
+        disabled: locked.value && !STILL_EDITABLE.includes(field.key),
+    })),
+})));
+
+const layout = computed(() => [
     {
         title: 'Credit',
         description: locked.value
-            ? 'This credit has left draft. Commercial terms now move through an amendment, so only the bank reference and remarks save from here.'
+            ? 'The bank now holds this credit, so its terms are locked here and change only through an amendment. The bank LC number and the remarks can still be edited.'
             : 'Our number is allocated on save; the bank’s LC number arrives when the credit is opened.',
         fields: [
             {
                 key: 'kind', label: 'Kind', type: 'select', required: true,
-                options: props.kinds.map((k) => ({ value: k, label: titleCase(k) })),
-                hint: 'TT, DA and DP are here too — not every import goes through a credit.',
+                options: props.kinds.map((k) => ({ value: k, label: KIND_LABELS[k] ?? titleCase(k) })),
+                hint: 'Bank transfer (TT) and documents against acceptance or payment (DA, DP) are here too. Not every import uses a letter of credit.',
             },
             {
                 key: 'supplier_id', label: 'Supplier', type: 'select', required: true,
@@ -49,7 +71,7 @@ const sections = computed(() => [
                 key: 'currency_id', label: 'Currency', type: 'select', required: true,
                 options: props.currencies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` })),
             },
-            { key: 'exchange_rate', label: 'Exchange rate', type: 'number', step: '0.00000001', default: 1, rule: 'BR-22', hint: 'Snapshot at opening; the shipment carries its own.' },
+            { key: 'exchange_rate', label: 'Exchange rate', type: 'number', step: '0.00000001', default: 1, rule: 'BR-22', hint: 'The rate on the day the LC was opened. Each shipment records its own.' },
             { key: 'amount', label: 'Amount', type: 'number', step: '0.0001', required: true },
             { key: 'tolerance_pct', label: 'Tolerance %', type: 'number', step: '0.01', hint: 'The +/- the bank will honour on the invoice value.' },
             { key: 'margin_pct', label: 'Margin %', type: 'number', step: '0.01', hint: 'Cash margin the bank holds.' },

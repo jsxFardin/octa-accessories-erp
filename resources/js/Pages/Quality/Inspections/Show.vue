@@ -27,7 +27,7 @@ defineProps({
         <template #actions><Badge :status="inspection.result" /></template>
 
         <div class="grid gap-4 lg:grid-cols-3">
-            <Card class="lg:col-span-2" title="Sampling plan" rule="BR-30" subtitle="ISO 2859-1, General Inspection Level II, AQL 2.5">
+            <Card class="lg:col-span-2" title="Sampling plan" rule="BR-30" subtitle="ISO 2859-1, General Inspection Level II, acceptable quality limit (AQL) 2.5">
                 <dl class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                     <div><dt class="text-xs text-ink-500">Lot size</dt><dd class="text-lg font-semibold tnum">{{ pcs(inspection.lot_size) }}</dd></div>
                     <div><dt class="text-xs text-ink-500">Sample size</dt><dd class="text-lg font-semibold tnum">{{ pcs(inspection.sample_size) }}</dd></div>
@@ -54,7 +54,7 @@ defineProps({
                     <p v-if="inspection.disposition_ref" class="mt-2 text-sm text-ink-700">{{ inspection.disposition_ref }}</p>
                 </div>
                 <p v-else-if="inspection.result === 'rejected'" class="text-sm text-rose-700">
-                    Rejected with no disposition — the database refuses this row, so it cannot exist.
+                    Rejected, with no decision recorded on what happens to the lot. Tell your administrator: this should not be possible.
                 </p>
                 <p v-else class="text-sm text-ink-500">Accepted; no disposition needed.</p>
 

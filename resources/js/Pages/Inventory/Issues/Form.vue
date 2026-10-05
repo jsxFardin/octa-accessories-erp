@@ -375,7 +375,7 @@ function submit() {
                 <!-- items-start, not items-end: two of these fields carry a hint and two do
                      not, and bottom alignment pushed their labels out of line. -->
                 <div class="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                    <FormField label="Item">
+                    <FormField label="Material">
                         <SelectInput
                             v-model="requestItemId"
                             placeholder="— item —"
@@ -451,7 +451,7 @@ function submit() {
                                     <span v-else class="text-ink-400">—</span>
                                 </td>
                                 <td class="px-3 py-1.5">
-                                    <Badge v-if="pick.breaks_fifo" tone="warning" label="Breaks FIFO" />
+                                    <Badge v-if="pick.breaks_fifo" tone="warning" label="Not the oldest lot" />
                                     <span v-else class="text-xs text-emerald-700">in order</span>
                                 </td>
                             </tr>

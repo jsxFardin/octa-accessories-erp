@@ -129,7 +129,7 @@ const columns = [
     { key: 'description', label: 'Description', required: true },
     { key: 'product_type', label: 'Product type', width: '13rem' },
     { key: 'qty', label: 'Quantity (pcs)', width: '10rem', align: 'right' },
-    { key: 'target_rate_per_m', label: 'Target rate /M', width: '10rem', align: 'right' },
+    { key: 'target_rate_per_m', label: 'Target rate per 1,000 pcs', width: '10rem', align: 'right' },
     { key: 'value', label: 'Indicative value', width: '11rem', align: 'right' },
 ];
 </script>

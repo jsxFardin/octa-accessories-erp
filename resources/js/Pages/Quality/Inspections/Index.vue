@@ -20,7 +20,7 @@ const columns = [
     { key: 'sample_size', label: 'Sample', align: 'right' },
     { key: 'reject_number', label: 'Reject at', align: 'right' },
     { key: 'major_found', label: 'Major', align: 'right' },
-    { key: 'dhu', label: 'DHU', align: 'right' },
+    { key: 'dhu', label: 'Defects per 100 (DHU)', align: 'right' },
     { key: 'result', label: 'Result', sort: true },
     { key: 'disposition', label: 'Disposition' },
 ];
@@ -31,7 +31,7 @@ const columns = [
         <Head title="QC inspections" />
 
         <template #title>QC inspections</template>
-        <template #subtitle>The verdict is computed from the AQL plan, never typed</template>
+        <template #subtitle>Accept or reject is worked out from the sampling plan (AQL), not typed</template>
 
         <template #actions>
             <Button v-if="can('qc_inspection.create')" variant="primary" href="/qc-inspections/create">New inspection</Button>
@@ -55,7 +55,7 @@ const columns = [
                     <EmptyState
                         icon="inspection"
                         title="No inspections yet"
-                        description="The AQL plan decides the sample size and the verdict; no lot leaves QC without a disposition."
+                        description="The sampling plan (AQL, acceptable quality limit) sets the sample size and the result. A rejected lot needs a decision before it leaves QC."
                         :action-label="can('qc_inspection.create') ? 'New inspection' : null"
                         action-href="/qc-inspections/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"

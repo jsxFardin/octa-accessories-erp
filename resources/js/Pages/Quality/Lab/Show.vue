@@ -68,7 +68,7 @@ const columns = [
         </template>
 
         <div class="space-y-4">
-            <Card title="Test results" rule="QL-5 — verdict is computed, not typed" :padded="false">
+            <Card title="Test results" rule="QL-5" :padded="false">
                 <DataTable :columns="columns" :rows="lines" row-key="id" empty="No results." dense>
                     <template #cell:result="{ value }">
                         <Badge :tone="value === 'pass' ? 'success' : value === 'fail' ? 'danger' : 'neutral'" :label="titleCase(value)" />

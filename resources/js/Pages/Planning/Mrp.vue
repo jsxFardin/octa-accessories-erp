@@ -21,7 +21,7 @@ const form = useForm({ horizon_days: 60 });
 const toOrder = computed(() => props.requirements.filter((row) => row.is_shortage && Number(row.suggested_po_qty) > 0));
 
 const columns = [
-    { key: 'item_code', label: 'Item' },
+    { key: 'item_code', label: 'Material' },
     { key: 'gross_req_qty', label: 'Gross', align: 'right' },
     { key: 'on_hand_qty', label: 'On hand', align: 'right' },
     { key: 'reserved_qty', label: 'Reserved', align: 'right' },
@@ -89,7 +89,7 @@ const columns = [
                         Create a requisition for {{ toOrder.length }} {{ toOrder.length === 1 ? 'shortage' : 'shortages' }}
                     </Button>
                 </template>
-                <DataTable :columns="columns" :rows="requirements" row-key="id" empty="Run MRP to see requirements." dense>
+                <DataTable :columns="columns" :rows="requirements" row-key="id" empty="Run the material plan (MRP) to see what is needed." dense>
                     <template #cell:item_code="{ row }">
                         <span class="font-medium">{{ row.item_code }}</span>
                         <span class="text-ink-500"> {{ row.item_name }}</span>

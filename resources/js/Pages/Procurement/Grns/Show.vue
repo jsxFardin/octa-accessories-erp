@@ -125,7 +125,7 @@ const orderCurrency = computed(() => props.purchaseOrder?.currency ?? baseCurren
                 <DataTable
                     :columns="[
                         { key: 'line_no', label: '#', align: 'center' },
-                        { key: 'item_code', label: 'Item' },
+                        { key: 'item_code', label: 'Material' },
                         { key: 'received_qty', label: 'Received', align: 'right' },
                         { key: 'rate', label: 'Rate', align: 'right' },
                         { key: 'landed_rate', label: 'Landed rate', align: 'right' },
@@ -151,7 +151,7 @@ const orderCurrency = computed(() => props.purchaseOrder?.currency ?? baseCurren
                 </DataTable>
             </Card>
 
-            <Card title="Lots created" rule="I1" :subtitle="`Each line becomes a barcoded lot with a grn_receipt ledger row · valued in ${baseCurrency()}`" :padded="false">
+            <Card title="Lots created" rule="I1" :subtitle="`Each line became a barcoded lot in stock, valued in ${baseCurrency()}`" :padded="false">
                 <DataTable
                     :columns="[
                         { key: 'lot_no', label: 'Lot' },

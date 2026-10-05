@@ -37,7 +37,7 @@ const lineColumns = [
     { key: 'invoice_line_no', label: 'Invoice line', align: 'center' },
     { key: 'lot_no', label: 'Lot' },
     { key: 'qty', label: 'Returned', align: 'right' },
-    { key: 'rate_per_m', label: 'Rate / 1,000', align: 'right' },
+    { key: 'rate_per_m', label: 'Rate per 1,000 pcs', align: 'right' },
 ];
 </script>
 

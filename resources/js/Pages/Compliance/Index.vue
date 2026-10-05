@@ -39,7 +39,7 @@ const txColumns = [
         <Head title="Compliance" />
 
         <template #title>Compliance &amp; chain of custody</template>
-        <template #subtitle>Gate 2 — certified output must trace to certified input, unbroken</template>
+        <template #subtitle>Certified output must trace back to certified input, with no gaps</template>
 
         <template #actions>
             <Button variant="primary" href="/compliance/reconciliation">Reconciliation report</Button>
@@ -79,7 +79,7 @@ const txColumns = [
                     </ul>
                 </Card>
 
-                <Card class="lg:col-span-2" title="Recent CoC transactions" rule="C1 · C3" :padded="false">
+                <Card class="lg:col-span-2" title="Recent chain-of-custody movements" rule="C1 · C3" :padded="false">
                     <DataTable :columns="txColumns" :rows="recentTransactions" row-key="id" empty="No transactions yet." dense>
                         <template #cell:scheme="{ value }">{{ value.replace('_', ' ') }}</template>
                         <template #cell:direction="{ value }">

@@ -31,11 +31,11 @@ const columns = [
         <template #subtitle>Where certification enters the system — the only legitimate origin of a claim</template>
 
         <template #actions>
-            <Button v-if="can('grn.create')" variant="primary" href="/grns/create">New GRN</Button>
+            <Button v-if="can('grn.create')" variant="primary" href="/grns/create">New goods receipt</Button>
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','pending_qc','accepted','partially_accepted','rejected','posted','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search GRN, invoice or challan number…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','pending_qc','accepted','partially_accepted','rejected','posted','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search receipt, bill or delivery note number…" />
 
             <DataTable
                 :columns="columns"
@@ -53,7 +53,7 @@ const columns = [
                         icon="goods-receipt"
                         title="Nothing received yet"
                         description="A goods receipt is where lots are born and where a certification claim legitimately enters the system."
-                        :action-label="can('grn.create') ? 'New GRN' : null"
+                        :action-label="can('grn.create') ? 'New goods receipt' : null"
                         action-href="/grns/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
                     />

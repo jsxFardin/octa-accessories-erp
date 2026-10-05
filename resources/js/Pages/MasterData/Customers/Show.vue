@@ -177,7 +177,7 @@ const productHref = computed(() => `/products/create?customer=${props.customer.i
                 </p>
             </div>
 
-            <Card title="Commercial guard rails" rule="BR-21 · BR-44 · BR-46">
+            <Card title="Commercial limits" rule="BR-21 · BR-44 · BR-46">
                 <dl class="space-y-2 text-sm">
                     <div class="flex justify-between"><dt class="text-ink-500">Credit limit</dt><dd class="tnum">{{ money(customer.credit_limit) }}</dd></div>
                     <div class="flex justify-between">

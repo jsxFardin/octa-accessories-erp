@@ -42,7 +42,7 @@ const columns = [
                 "New invoice" button here rather than a form that would invent its own lines.
             -->
             <div class="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                <span class="font-medium">Invoices are raised from a delivery challan.</span>
+                <span class="font-medium">Invoices are raised from a delivery note.</span>
                 Challan-based invoicing isn't available yet — this screen shows the receivables
                 ledger only.
             </div>
@@ -66,7 +66,7 @@ const columns = [
                     <EmptyState
                         icon="invoice"
                         title="No invoices yet"
-                        description="Invoices are raised from a delivery challan — the quantities have to be the ones that left the gate."
+                        description="Invoices are raised from a delivery note, so the quantities are the ones that left the gate."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
                     />
                 </template>

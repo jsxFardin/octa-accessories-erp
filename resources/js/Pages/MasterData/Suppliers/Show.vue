@@ -59,11 +59,11 @@ const orderHref = computed(() => `/purchase-orders/create?supplier=${props.suppl
             <Card title="Supplier items" rule="BR-26" subtitle="Lead time is per supplier-item, not global" :padded="false">
                 <DataTable
                     :columns="[
-                        { key: 'code', label: 'Item' },
+                        { key: 'code', label: 'Material' },
                         { key: 'supplier_code', label: 'Their code' },
                         { key: 'last_rate', label: 'Last rate', align: 'right' },
                         { key: 'lead_time_days', label: 'Lead days', align: 'right' },
-                        { key: 'moq', label: 'MOQ', align: 'right' },
+                        { key: 'moq', label: 'Minimum order', align: 'right' },
                     ]"
                     :rows="items"
                     row-key="id"

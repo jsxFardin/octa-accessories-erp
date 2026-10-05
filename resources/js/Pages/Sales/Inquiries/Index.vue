@@ -36,7 +36,7 @@ const columns = [
         <Head title="Inquiries" />
 
         <template #title>Inquiries</template>
-        <template #subtitle>The front of the funnel — numbered on submit, never on form open</template>
+        <template #subtitle>What customers have asked for. An inquiry gets its number when it is submitted.</template>
 
         <template #actions>
             <ExportDialog v-if="can('inquiry.export')" resource="inquiries" />

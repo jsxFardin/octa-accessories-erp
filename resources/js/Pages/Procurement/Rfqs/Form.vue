@@ -59,7 +59,7 @@ function submit() {
 }
 
 const columns = [
-    { key: 'item_id', label: 'Item', width: '18rem' },
+    { key: 'item_id', label: 'Material', width: '18rem' },
     { key: 'qty', label: 'Quantity', width: '14rem', align: 'right', errorKeys: ['qty', 'uom_id'] },
 ];
 </script>

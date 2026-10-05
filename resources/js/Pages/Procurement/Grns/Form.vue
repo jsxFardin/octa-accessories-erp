@@ -235,7 +235,7 @@ async function submit() {
 }
 
 const columns = [
-    { key: 'item_id', label: 'Item', width: '16rem' },
+    { key: 'item_id', label: 'Material', width: '16rem' },
     { key: 'qty', label: 'Quantity', width: '11rem', align: 'right', errorKeys: ['qty', 'uom_id'] },
     { key: 'rate', label: 'Rate', width: '8rem', align: 'right' },
     { key: 'landed_rate', label: 'Landed rate', width: '8rem', align: 'right' },
@@ -290,11 +290,11 @@ const columns = [
                         <DateInput v-model="form.received_on" />
                     </FormField>
 
-                    <FormField label="Supplier invoice" :error="form.errors.invoice_no">
+                    <FormField label="Supplier bill number" :error="form.errors.invoice_no">
                         <TextInput v-model="form.invoice_no" />
                     </FormField>
 
-                    <FormField label="Supplier challan" :error="form.errors.challan_no">
+                    <FormField label="Supplier delivery note (challan)" :error="form.errors.challan_no">
                         <TextInput v-model="form.challan_no" />
                     </FormField>
                 </div>

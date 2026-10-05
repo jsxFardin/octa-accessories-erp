@@ -79,7 +79,7 @@ const columns = [
         <Head title="Artwork" />
 
         <template #title>Artwork</template>
-        <template #subtitle>Gate 1 — production may only run against an approved version</template>
+        <template #subtitle>Production can only run against an approved version</template>
 
         <template #actions>
             <Button v-if="can('artwork.create')" variant="primary" @click="createOpen = true">New artwork</Button>
@@ -88,7 +88,7 @@ const columns = [
         <Card :padded="false">
             <FilterBar
                 :filters="filters"
-                :fields="[{ key: 'state', label: 'Gate', options: [
+                :fields="[{ key: 'state', label: 'Approval', options: [
                     { value: 'awaiting_approval', label: 'Awaiting customer' },
                     { value: 'unapproved', label: 'No approved version' },
                 ] }]"
@@ -101,7 +101,7 @@ const columns = [
                     <EmptyState
                         icon="artwork"
                         title="No artwork yet"
-                        description="Production cannot be released without an approved artwork version — this is Gate 1."
+                        description="Production cannot be released without an approved artwork version."
                         :action-label="can('artwork.create') ? 'New artwork' : null"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
                         @action="createOpen = true"

@@ -18,8 +18,8 @@ const props = defineProps({
 
 const columns = [
     { key: 'lot_no', label: 'Lot' },
-    { key: 'item_code', label: 'Item' },
-    { key: 'warehouse', label: 'WH' },
+    { key: 'item_code', label: 'Material' },
+    { key: 'warehouse', label: 'Warehouse' },
     { key: 'shade_code', label: 'Shade' },
     { key: 'balance_qty', label: 'Balance', align: 'right' },
     { key: 'value', label: 'Value', align: 'right' },
@@ -54,11 +54,11 @@ const columns = [
                     />
                     <span class="font-medium">
                         {{ reconciliation.checked }} {{ reconciliation.checked === 1 ? 'lot balance' : 'lot balances' }} checked against
-                        the live ledger
+                        the stock movements recorded
                     </span>
                     <span v-if="reconciliation.mismatched.length" class="text-xs">
-                        — {{ reconciliation.mismatched.length }} differ from the ledger. This is a bug in a
-                        posting path, not a rounding artefact.
+                        — {{ reconciliation.mismatched.length }} differ from the stock movements recorded. This is a system fault, not rounding:
+                        tell your administrator.
                     </span>
                 </div>
 
@@ -75,7 +75,7 @@ const columns = [
                     :fields="[
                         { key: 'warehouse', label: 'Warehouse', options: warehouses.map((w) => ({ value: w.id, label: w.code })) },
                         { key: 'scheme', label: 'Scheme', options: ['GRS','FSC','OEKO_TEX','SCOPE'].map((s) => ({ value: s, label: s })) },
-                        { key: 'nettable', label: 'Nettable', options: [{ value: '1', label: 'MRP-visible only' }] },
+                        { key: 'nettable', label: 'Nettable', options: [{ value: '1', label: 'Only stock the material plan can use' }] },
                     ]"
                     placeholder="Search item code, name or lot number…"
                 />

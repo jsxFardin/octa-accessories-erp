@@ -17,7 +17,7 @@ const props = defineProps({ item: Object, stock: Array, lots: Array });
         <Head :title="item.code" />
 
         <template #title>{{ item.code }} · {{ item.name }}</template>
-        <template #subtitle>{{ item.category?.name }} · base UoM {{ item.base_uom?.code }}</template>
+        <template #subtitle>{{ item.category?.name }} · stock unit {{ item.base_uom?.code }}</template>
 
         <template #actions>
             <Button v-if="can('item.update')" size="sm" :href="`/items/${item.id}/edit`">Edit</Button>
@@ -40,7 +40,7 @@ const props = defineProps({ item: Object, stock: Array, lots: Array });
                 </dl>
             </Card>
 
-            <Card class="lg:col-span-2" title="Stock by warehouse" rule="BR-24" subtitle="Non-nettable warehouses hold stock that MRP may not plan against">
+            <Card class="lg:col-span-2" title="Stock by warehouse" rule="BR-24" subtitle="Some warehouses hold stock the material plan does not count, such as quarantine">
                 <ul class="divide-y divide-slate-100 text-sm">
                     <li v-for="row in stock" :key="row.warehouse_code" class="flex items-center justify-between py-2">
                         <span>

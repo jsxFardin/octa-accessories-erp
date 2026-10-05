@@ -4,7 +4,7 @@
  * Source of truth: docs/04-business-rules.md and the module docs.
  */
 export const RULES = {
-    'BR-1': 'Label prices are quoted per 1,000 pieces (/M).',
+    'BR-1': 'Label prices are quoted per 1,000 pieces.',
     'BR-4': 'Labels per metre follow from label height plus the cut gap for the cut type.',
     'BR-8': 'Wastage adds up across every routing operation that consumes the web.',
     'BR-13': 'A plate, screen or die is needed per colour; a tool with enough remaining life is reused at zero cost.',
@@ -40,9 +40,9 @@ export const RULES = {
     'J2': 'Operations run in routing sequence; the next one becomes ready only when its predecessor finishes.',
     'J3': 'Good plus waste quantity cannot exceed the quantity handed to the operation.',
     'J5': 'Produced quantity may not exceed planned x (1 + overrun tolerance) without supervisor approval.',
-    'I1': 'The stock ledger is append-only — corrections are visible reversing entries, never edits or deletes.',
+    'I1': 'Stock movements are never edited or deleted. A correction is a new, visible entry that reverses the wrong one.',
     'I3': 'A lot balance is the sum of its ledger rows; no stored balance is authoritative.',
-    'I5': 'A lot carries the certification claim inherited from its GRN line — the basis of CoC reconciliation.',
+    'I5': 'A lot carries the certification claim of the goods receipt it came from. Chain-of-custody checks rely on it.',
     'QC2': 'A rejected inspection blocks the FG receipt until a documented disposition is recorded.',
     'QC3': 'An issued test report is immutable; a correction is a new report referencing the original.',
     'QL-5': 'Each test verdict is computed against its threshold; any mandatory failure fails the overall result.',
@@ -61,8 +61,40 @@ export const RULES = {
     'AC4': 'Packing list totals — cartons, quantity, weights — are computed from the cartons, never typed.',
     'Gate 1': 'No job card releases to production without an approved artwork version.',
     'Gate 2': 'Output claims GRS/FSC certification only when the consumed lots carry the claim.',
-    '06-rbac §4': 'What you see is scoped to your factory unit, customer or own records by a global query scope.',
-    '06-rbac §5': 'Approvals route by value band; the thresholds live in settings and change without a deploy.',
+    '06-rbac §4': 'You see only the records of your own factory unit, your customers, or yourself, depending on your role.',
+    '06-rbac §5': 'Who must approve depends on the value. The value bands are set under Configuration → Settings.',
+
+    // Codes that screens referred to and this list did not have, so their marker opened on
+    // "Enforced by an internal rule." (UX audit M-04). Kept in step by `tests/Js/rules.test.js`.
+    'BR-2': 'Each kind of material is stocked in one base unit: yarn in kilograms, ribbon in metres, labels in pieces.',
+    'BR-5': 'The number of labels across the web is worked out from the web width, the label width and the gaps.',
+    'BR-6': 'Pitch, labels per metre and ends are worked out from the specification, not typed.',
+    'BR-9': 'Only woven labels use yarn. Yarn weight is worked out from the fabric weight (GSM) and split between colours by their weights.',
+    'BR-10': 'Ink use is worked out from the print coverage and the ink laid per square metre for each colour.',
+    'BR-12': 'Packing materials (bundle bands, polybags, cartons) are worked out from the bundle size and the bundles per carton.',
+    'BR-15': 'For a running programme, the cost of tooling is spread over the annual forecast quantity.',
+    'BR-39': 'Stock is valued at weighted average cost including landed cost, and aged by how long it has been held.',
+    'BR-48': 'Finished goods are costed from the material actually issued to the job.',
+    'BR-49': 'A job card cannot plan more than its order line can still take, including the over-delivery allowance.',
+    'BR-50': "A figure is shown in its own document's currency. Totals across currencies are converted at the rate each document recorded.",
+    'BR-52': 'Finished goods cannot be received at zero cost unless the missing material issue is explained.',
+    'D4': 'The delivery address comes from the order, so a delivery note cannot be pointed at a different customer.',
+    'G4': 'Waste is booked with its cause, not only its quantity.',
+    'I7': 'Every material the bill of materials calls for must have been issued, or the shortfall explained, before the job is completed.',
+    'J6': 'A job card that already has production booked on it can only be cancelled with a recorded reason.',
+    'P0-3': 'Finished goods enter stock through a receipt, and stay in quarantine until final QC accepts them.',
+    'P0-4': 'Each fulfilment figure comes from its own document: ordered from the order, produced from job cards, delivered from delivery notes, invoiced from invoices.',
+    'P1': 'A product belongs to one customer and stays with that customer.',
+    'P1-3': 'A rejected lot raises a non-conformance report (NCR) and is held until a decision on it is recorded.',
+    'PD-3': 'Only one bill of materials per product is active at a time.',
+    'QC1': 'A step that needs a QC check holds the next step until its inspection is accepted.',
+    '06-rbac §6': 'A floor operator signs in with a badge number and a PIN, for one shift.',
+    'BR-4 … BR-13': 'The material plan is worked out from the specification: labels per metre, ends, yarn, ink, packing and tooling.',
+    'BR-14 … BR-22': "A cost sheet adds material, conversion, tooling, overhead and margin in a fixed order, in the factory's own currency.",
+    'PO ↔ GRN ↔ Bill': 'A supplier bill is checked against what was ordered and what was received before it can be approved.',
+    'total = received + credited + outstanding': 'An invoice total always equals what has been received, plus what has been credited, plus what is still outstanding.',
+    'billed = delivered': 'An invoice bills exactly the quantity that was delivered.',
+    'computed, never typed': 'These figures are worked out by the system and cannot be typed.',
 };
 
 /**

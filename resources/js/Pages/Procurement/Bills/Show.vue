@@ -44,7 +44,7 @@ async function transitionWithOverride(to) {
 
 const lineColumns = [
     { key: 'line_no', label: '#', align: 'center', width: '3rem' },
-    { key: 'item_code', label: 'Item' },
+    { key: 'item_code', label: 'Material' },
     { key: 'description', label: 'Description' },
     { key: 'qty', label: 'Qty', align: 'right' },
     { key: 'rate', label: 'Rate', align: 'right' },
@@ -128,7 +128,7 @@ const lineColumns = [
                 <Card title="References">
                     <dl class="grid grid-cols-2 gap-2 text-sm">
                         <div v-if="bill.po_number"><dt class="text-xs text-ink-500">Purchase order</dt><dd><a :href="`/purchase-orders/${bill.po_id}`" class="text-brand-700 hover:underline">{{ bill.po_number }}</a></dd></div>
-                        <div v-if="bill.grn_number"><dt class="text-xs text-ink-500">GRN</dt><dd><a :href="`/grns/${bill.grn_id}`" class="text-brand-700 hover:underline">{{ bill.grn_number }}</a></dd></div>
+                        <div v-if="bill.grn_number"><dt class="text-xs text-ink-500">Goods receipt</dt><dd><a :href="`/grns/${bill.grn_id}`" class="text-brand-700 hover:underline">{{ bill.grn_number }}</a></dd></div>
                         <div v-if="bill.due_date"><dt class="text-xs text-ink-500">Due</dt><dd>{{ date(bill.due_date) }}</dd></div>
                         <div v-if="bill.created_by"><dt class="text-xs text-ink-500">Created by</dt><dd>{{ bill.created_by }}</dd></div>
                     </dl>
@@ -140,9 +140,9 @@ const lineColumns = [
                     <table class="w-full text-sm">
                         <thead class="bg-slate-50 text-left text-xs uppercase text-ink-500">
                             <tr>
-                                <th class="px-3 py-2">Item</th>
+                                <th class="px-3 py-2">Material</th>
                                 <th class="px-3 py-2 text-right">PO qty</th>
-                                <th class="px-3 py-2 text-right">GRN qty</th>
+                                <th class="px-3 py-2 text-right">Received qty</th>
                                 <th class="px-3 py-2 text-right">Bill qty</th>
                                 <th class="px-3 py-2 text-center">Qty OK</th>
                                 <th class="px-3 py-2 text-right">PO rate</th>

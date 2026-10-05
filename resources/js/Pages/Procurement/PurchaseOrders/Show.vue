@@ -177,7 +177,7 @@ function reopen() {
                 <DataTable
                     :columns="[
                         { key: 'line_no', label: '#', align: 'center' },
-                        { key: 'item_code', label: 'Item' },
+                        { key: 'item_code', label: 'Material' },
                         { key: 'qty', label: 'Ordered', align: 'right' },
                         { key: 'received_qty', label: 'Received', align: 'right' },
                         { key: 'rate', label: 'Rate', align: 'right' },
@@ -214,7 +214,7 @@ function reopen() {
 
                 <DataTable
                     :columns="[
-                        { key: 'number', label: 'GRN' },
+                        { key: 'number', label: 'Goods receipt' },
                         { key: 'received_on', label: 'Received' },
                         { key: 'status', label: 'Status' },
                     ]"

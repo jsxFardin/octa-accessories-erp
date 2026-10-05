@@ -42,7 +42,7 @@ const columns = [
         <Head title="Quotations" />
 
         <template #title>Quotations</template>
-        <template #subtitle>A sent quotation is immutable; its cost sheet is snapshotted and locked (Q1)</template>
+        <template #subtitle>Once a quotation is sent, it and its costing can no longer be changed</template>
 
         <template #actions>
             <ExportDialog v-if="can('quotation.export')" resource="quotations" />
@@ -67,7 +67,7 @@ const columns = [
                     <EmptyState
                         icon="quote"
                         title="No quotations yet"
-                        description="A quotation prices an inquiry from a cost sheet, and snapshots that cost when it is sent."
+                        description="A quotation prices an inquiry from a cost sheet, and keeps that costing as it was when the quotation was sent."
                         :action-label="can('quotation.create') ? 'New quotation' : null"
                         action-href="/quotations/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"

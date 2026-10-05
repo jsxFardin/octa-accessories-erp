@@ -30,7 +30,7 @@ const props = defineProps({
 
 const lineColumns = [
     { key: 'line_no', label: '#', align: 'center', width: '3rem' },
-    { key: 'item_code', label: 'Item' },
+    { key: 'item_code', label: 'Material' },
     { key: 'lot_no', label: 'Lot' },
     { key: 'shade_code', label: 'Shade' },
     { key: 'qty', label: 'Quantity', align: 'right' },
@@ -138,7 +138,7 @@ function lineValue(line) {
             <!-- Any FIFO departure is a decision someone made and has to be able to defend. -->
             <Card
                 v-if="lines.some((line) => line.fifo_override_reason)"
-                title="FIFO overrides"
+                title="Lots issued out of oldest-first order"
                 subtitle="A lot taken out of order, and why."
             >
                 <ul class="space-y-1.5 text-sm">

@@ -15,8 +15,8 @@ const props = defineProps({ lots: Object, filters: Object, warehouses: Array });
 
 const columns = [
     { key: 'lot_no', label: 'Lot', sort: true },
-    { key: 'item', label: 'Item' },
-    { key: 'warehouse', label: 'WH' },
+    { key: 'item', label: 'Material' },
+    { key: 'warehouse', label: 'Warehouse' },
     { key: 'shade_code', label: 'Shade' },
     { key: 'balance_qty', label: 'Balance', align: 'right', sort: true },
     { key: 'unit_cost', label: 'Unit cost', align: 'right' },

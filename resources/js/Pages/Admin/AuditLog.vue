@@ -24,13 +24,13 @@ const columns = [
         <Head title="Audit log" />
 
         <template #title>Audit log</template>
-        <template #subtitle>Written by a model observer, not a trigger — a trigger cannot see the authenticated user</template>
+        <template #subtitle>Who changed what, and when. Every change records the person who made it.</template>
 
         <Card :padded="false">
             <FilterBar
                 :filters="filters"
                 :fields="[{ key: 'event', label: 'Event', options: ['created','updated','deleted','restored','status_changed','printed','exported'].map((e) => ({ value: e, label: titleCase(e) })) }]"
-                placeholder="Search model or event…"
+                placeholder="Search by record type or action…"
             />
 
             <DataTable :columns="columns" :rows="entries" row-key="id" empty="Nothing logged yet." dense>

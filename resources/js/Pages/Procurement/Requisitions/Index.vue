@@ -63,7 +63,7 @@ const columns = [
         <Head title="Purchase requisitions" />
 
         <template #title>Purchase requisitions</template>
-        <template #subtitle>Shortages raised by an MRP run arrive here</template>
+        <template #subtitle>Shortages found by the material plan (MRP) arrive here</template>
 
         <template #actions>
             <Button v-if="can('purchase_requisition.create')" variant="primary" href="/purchase-requisitions/create">
@@ -89,7 +89,7 @@ const columns = [
                     <EmptyState
                         icon="requisition"
                         title="No requisitions yet"
-                        description="A requisition is what the factory asks for, before anyone agrees to buy it. MRP shortages land here too."
+                        description="A requisition is what the factory asks for, before anyone agrees to buy it. Shortages found by the material plan arrive here too."
                         :action-label="can('purchase_requisition.create') ? 'New requisition' : null"
                         action-href="/purchase-requisitions/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"

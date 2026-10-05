@@ -45,7 +45,7 @@ const columns = [
     { key: 'code', label: 'Code', sort: true },
     { key: 'name', label: 'Name', sort: true },
     { key: 'category', label: 'Category' },
-    { key: 'base_uom', label: 'UoM' },
+    { key: 'base_uom', label: 'Unit' },
     { key: 'avg_rate', label: 'Avg rate', align: 'right', sort: true },
     { key: 'reorder_level', label: 'Reorder', align: 'right', sort: true },
     { key: 'flags', label: 'Flags' },
@@ -61,7 +61,7 @@ const columns = [
         <template #subtitle>Yarn, ink, packing and other stock you buy — not the labels you sell.</template>
 
         <template #actions>
-            <ImportDialog v-if="can('item.import')" resource="items" label="Items" />
+            <ImportDialog v-if="can('item.import')" resource="items" label="Materials" />
             <ExportDialog v-if="can('item.export')" resource="items" />
             <Button v-if="can('item.create')" variant="primary" href="/items/create">New material</Button>
         </template>
@@ -86,8 +86,8 @@ const columns = [
                 <template #empty>
                     <EmptyState
                         icon="item"
-                        title="No items yet"
-                        description="Items are what stock is held in and what a bill of materials consumes — yarn, ink, ribbon, cartons."
+                        title="No materials yet"
+                        description="Materials are what the store holds and what a bill of materials uses: yarn, ink, ribbon, cartons."
                         :action-label="can('item.create') ? 'New item' : null"
                         action-href="/items/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"

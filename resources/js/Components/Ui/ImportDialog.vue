@@ -302,7 +302,7 @@ async function confirmImport() {
             <div class="rounded-md bg-slate-50 px-3 py-2.5 ring-1 ring-slate-200">
                 <p class="field-label mb-1">General</p>
                 <ul class="list-disc space-y-1 pl-4 text-xs text-ink-700">
-                    <li>The first row is the header. Column order does not matter, and columns nobody asked for are ignored.</li>
+                    <li>The first row is the header. Column order does not matter, and extra columns are ignored.</li>
                     <li>Up to {{ (spec?.maxRows ?? 1000).toLocaleString() }} rows and {{ spec?.maxSize ?? '10MB' }} per file.</li>
                     <li>Formats: {{ (spec?.extensions ?? []).map((e) => `.${e}`).join(', ') }}.</li>
                     <li>Dates as YYYY-MM-DD. Amounts as plain numbers — no currency symbols.</li>

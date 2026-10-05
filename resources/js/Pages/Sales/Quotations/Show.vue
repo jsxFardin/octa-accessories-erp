@@ -73,7 +73,7 @@ async function transition(to) {
 
         <template #actions>
             <Badge :status="quotation.status" />
-            <Button v-if="availableTransitions.includes('sent')" size="sm" variant="primary" @click="transition('sent')">Send</Button>
+            <Button v-if="availableTransitions.includes('sent')" size="sm" variant="primary" @click="transition('sent')">Mark as sent</Button>
             <!--
                 Q5. A quotation that already became an order offers that order; the convert
                 action is not merely hidden here — the POST handler refuses it too. The choice
@@ -98,16 +98,16 @@ async function transition(to) {
                 disabled
                 :title="convertAction.title ?? ''"
             >{{ convertAction.label }}</Button>
-            <Button v-if="availableTransitions.includes('accepted')" size="sm" variant="success" @click="transition('accepted')">Customer accepted</Button>
+            <Button v-if="availableTransitions.includes('accepted')" size="sm" variant="success" @click="transition('accepted')">Record acceptance</Button>
             <Button v-if="availableTransitions.includes('revised')" size="sm" @click="transition('revised')">Revise</Button>
             <Button v-if="can('quotation.update') && quotation.status === 'draft'" size="sm" :href="`/quotations/${quotation.id}/edit`">Edit</Button>
-            <Button v-if="availableTransitions.includes('rejected')" size="sm" variant="danger" @click="rejectOpen = true">Rejected</Button>
+            <Button v-if="availableTransitions.includes('rejected')" size="sm" variant="danger" @click="rejectOpen = true">Record rejection</Button>
             <!--
                 Legal from `draft` and offered nowhere, so a quotation raised in error stayed on
                 the list for good. Distinct from `rejected`, which is the customer's answer and
                 feeds win/loss: this one is "the document should not exist".
             -->
-            <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="transition('cancelled')">Cancel</Button>
+            <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="transition('cancelled')">Cancel quotation</Button>
             <!-- Repeat business is the norm: same labels, new season, different quantity. -->
             <Button v-if="can('quotation.create')" size="sm" @click="duplicate">Duplicate</Button>
             <!--
@@ -246,7 +246,7 @@ async function transition(to) {
                                             <span
                                                 v-if="cl.qty_is_derived"
                                                 class="ml-0.5 cursor-help text-ink-400"
-                                                title="Recovered from amount ÷ rate. This sheet was snapshotted with the quantity in a different unit from the one shown, and a sent quotation is never rewritten."
+                                                title="Recovered from amount ÷ rate. This costing was saved with the quantity in a different unit from the one shown, and a sent quotation is never rewritten."
                                             >*</span>
                                         </td>
                                         <td class="px-3 py-1.5 text-right tnum">
@@ -260,7 +260,7 @@ async function transition(to) {
                                             <span
                                                 v-if="cl.rate_is_derived"
                                                 class="ml-0.5 cursor-help text-ink-400"
-                                                title="Recovered from amount ÷ quantity. This sheet was snapshotted before the blended rate was stored, and a sent quotation is never rewritten."
+                                                title="Recovered from amount ÷ quantity. This costing was saved before the blended rate was stored, and a sent quotation is never rewritten."
                                             >*</span>
                                         </td>
                                     </template>
@@ -302,12 +302,12 @@ async function transition(to) {
                                 <dd class="tnum">{{ pct(line.cost_sheet.margin_pct) }}</dd>
                             </div>
                             <div class="flex justify-between rounded bg-slate-100 px-2 py-1">
-                                <dt class="text-ink-600">Cost rate / M</dt>
+                                <dt class="text-ink-600">Cost per 1,000 pcs</dt>
                                 <dd class="tnum">{{ ratePerM(line.cost_sheet.rate_per_m) }}</dd>
                             </div>
                             <!-- What the customer is actually being charged, in their currency. -->
                             <div class="flex justify-between rounded bg-brand-50 px-2 py-1">
-                                <dt class="font-semibold text-brand-900">Quoted rate / M</dt>
+                                <dt class="font-semibold text-brand-900">Quoted rate per 1,000 pcs</dt>
                                 <dd class="tnum font-semibold text-brand-900">{{ ratePerM(line.rate_per_m, quotation.currency) }}</dd>
                             </div>
                         </dl>

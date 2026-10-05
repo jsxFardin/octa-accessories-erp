@@ -37,13 +37,13 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','issued','in_transit','delivered','returned'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'mode', label: 'Mode', options: DELIVERY_MODES.map((mode) => ({ value: mode.value, label: mode.label })) }]" placeholder="Search challan number…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','issued','in_transit','delivered','returned'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'mode', label: 'Mode', options: DELIVERY_MODES.map((mode) => ({ value: mode.value, label: mode.label })) }]" placeholder="Search delivery note number…" />
 
             <DataTable
                 :columns="columns"
                 :rows="delivery_challans"
                 row-key="id"
-                empty="No challans issued."
+                empty="No delivery notes yet."
             >
                 <template #cell:number="{ row, value }"><Link :href="`/delivery-challans/${row.id}`" class="doc-link-quiet">{{ value ?? "(draft)" }}</Link></template>
                 <template #cell:customer_name="{ row }">
@@ -63,8 +63,8 @@ const columns = [
                 <template #empty>
                     <EmptyState
                         icon="challan"
-                        title="No challans yet"
-                        description="A delivery challan is what physically leaves the gate, and what an invoice is raised from."
+                        title="No delivery notes yet"
+                        description="A delivery note is what goes out of the gate with the goods, and what an invoice is raised from."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
                     />
                 </template>

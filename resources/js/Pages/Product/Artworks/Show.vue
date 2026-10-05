@@ -67,6 +67,11 @@ function fileUrl(version) {
     return `/artwork-versions/${version.id}/file`;
 }
 
+/** The name the file downloads as: the artwork code, the version and the format. */
+function fileName(version) {
+    return `${props.artwork.code}-v${version.version_no}${version.file_format ? `.${version.file_format}` : ''}`;
+}
+
 function downloadUrl(version) {
     return `${fileUrl(version)}?download=1`;
 }
@@ -235,7 +240,7 @@ function openReject(version) {
                 class="lg:col-span-3"
                 title="Approval gate"
                 rule="Gate 1 · A2"
-                subtitle="At most one version may be approved at a time — the database enforces it, not the process"
+                subtitle="Only one version can be approved at a time. Approving another replaces it."
             >
                 <div
                     v-if="approved"
@@ -261,7 +266,7 @@ function openReject(version) {
             </Card>
 
             <!-- Version rail -->
-            <Card class="lg:col-span-2" title="Versions" subtitle="Numbered contiguously from 1, never renumbered" :padded="false">
+            <Card class="lg:col-span-2" title="Versions" subtitle="Numbered from 1 in the order they were uploaded" :padded="false">
                 <!--
                     The upload sits in the card, not squeezed into its title bar, because it now
                     says what may be uploaded, how far it has got, and why it was refused.
@@ -344,14 +349,20 @@ function openReject(version) {
                                     <Badge v-if="version.referenced_by_production" tone="info" label="In production" />
                                 </div>
 
-                                <p class="mt-1 font-mono text-[11px] break-all text-ink-500">
-                                    {{ version.file_path }}
+                                <p class="mt-1 text-xs text-ink-600">
+                                    {{ fileName(version) }}
                                 </p>
 
-                                <!-- A3: the checksum is what proves the approved file is the file that went to plate-making -->
-                                <p v-if="version.checksum_sha256" class="mt-0.5 font-mono text-[10px] break-all text-ink-400">
-                                    sha256 {{ version.checksum_sha256 }}
-                                </p>
+                                <!--
+                                    Where the file is kept and its fingerprint are for whoever has
+                                    to prove the approved file is the one that went to plate-making.
+                                    They used to be printed in full on every version.
+                                -->
+                                <details v-if="version.checksum_sha256" class="mt-0.5 text-xs text-ink-600">
+                                    <summary class="cursor-pointer select-none hover:text-ink-900">File details</summary>
+                                    <p class="mt-1 break-all">Stored as {{ version.file_path }}</p>
+                                    <p class="break-all">Fingerprint (SHA-256): <span class="font-mono">{{ version.checksum_sha256 }}</span></p>
+                                </details>
 
                                 <dl class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-500">
                                     <div v-if="version.submitted_at">
@@ -454,7 +465,7 @@ function openReject(version) {
         <Modal
             v-model:open="approveOpen"
             title="Approve this version"
-            subtitle="Approving supersedes the current approved version in the same transaction."
+            subtitle="Approving this version replaces the one approved now."
         >
             <FormField
                 label="Customer reference"
@@ -489,7 +500,7 @@ function openReject(version) {
         <Modal
             v-model:open="editOpen"
             title="Edit artwork"
-            subtitle="Versions are immutable; only the record that carries them is edited here."
+            subtitle="Uploaded versions cannot be changed. Only the code, title and designer are edited here."
         >
             <form class="space-y-3" @submit.prevent="saveArtwork">
                 <FormField
@@ -541,7 +552,7 @@ function openReject(version) {
                 </div>
 
                 <p v-if="previewed.checksum_sha256" class="font-mono text-[10px] break-all text-ink-400">
-                    sha256 {{ previewed.checksum_sha256 }}
+                    Fingerprint (SHA-256): {{ previewed.checksum_sha256 }}
                 </p>
             </div>
 

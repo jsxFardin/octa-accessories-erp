@@ -560,7 +560,7 @@ const operationColumns = [
 ];
 
 const bomColumns = [
-    { key: 'item', label: 'Item' },
+    { key: 'item', label: 'Material' },
     { key: 'qty_per_base', label: 'Per 1000', align: 'right' },
     { key: 'required', label: 'Required', align: 'right' },
     { key: 'formula_ref', label: 'Rule' },
@@ -707,7 +707,7 @@ const bomColumns = [
                     <table class="min-w-full text-xs">
                         <thead class="text-ink-500">
                             <tr>
-                                <th class="py-1 text-left">Item</th>
+                                <th class="py-1 text-left">Material</th>
                                 <th class="py-1 text-right">Required</th>
                                 <th class="py-1 text-right">Available</th>
                                 <th class="py-1 text-right">On order</th>
@@ -732,7 +732,7 @@ const bomColumns = [
                 <Card
                     title="Consumption plan"
                     rule="BR-4 … BR-13"
-                    subtitle="Snapshotted at planning. A later spec revision does not change what the floor produces to."
+                    subtitle="Fixed when the card was planned. A later change to the specification does not alter what the floor makes."
                 >
                     <dl class="grid grid-cols-2 gap-3 text-sm">
                         <div>
@@ -1207,7 +1207,7 @@ const bomColumns = [
         <Modal
             v-model:open="releaseOpen"
             title="Release this job card"
-            subtitle="J1: approved artwork, active BOM, tools available, material in stock or waived."
+            subtitle="Needs approved artwork, an active bill of materials, tools available, and material in stock or waived."
             width="max-w-xl"
         >
             <div v-if="releaseGate.ready" class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
@@ -1251,7 +1251,7 @@ const bomColumns = [
         <Modal
             v-model:open="completeOpen"
             title="Complete this job card"
-            subtitle="I7: nothing was issued against part of this job's BOM."
+            subtitle="Nothing was issued for part of this job's bill of materials."
         >
             <div class="space-y-3">
                 <p class="text-sm text-ink-700">
@@ -1320,7 +1320,7 @@ const bomColumns = [
         <Modal
             v-model:open="reopenOpen"
             title="Reopen this job card"
-            subtitle="P0-3: back to completed, so finished goods can be received from it."
+            subtitle="Puts the card back to completed, so finished goods can be received from it."
         >
             <div class="space-y-3">
                 <p v-if="fgPosition.remaining_receivable > 0" class="text-sm text-ink-700">
@@ -1358,7 +1358,7 @@ const bomColumns = [
         <Modal
             v-model:open="cancelOpen"
             title="Cancel a job card with production against it"
-            subtitle="J6: something has already been booked, so the cancellation is signed for."
+            subtitle="Something has already been booked on this card, so cancelling it needs a reason."
         >
             <div class="space-y-3">
                 <p class="text-sm text-ink-700">
@@ -1403,7 +1403,7 @@ const bomColumns = [
         <Modal
             v-model:open="bookOpen"
             title="Book output manually"
-            subtitle="For when the terminal could not take it. The same J3 and J5 limits apply, and this booking is marked as keyed at a desk."
+            subtitle="For when the terminal could not take it. The same input and over-run limits apply, and this booking is marked as entered at a desk."
             width="max-w-2xl"
         >
             <div v-if="nothingBookable" class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">

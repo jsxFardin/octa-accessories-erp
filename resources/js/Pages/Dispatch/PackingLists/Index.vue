@@ -49,7 +49,7 @@ const columns = [
                     <EmptyState
                         icon="packing"
                         title="Nothing packed yet"
-                        description="Scan-to-pack builds the carton contents that a challan and an invoice are drawn from."
+                        description="Packing records what is in each carton. The delivery note and the invoice are made from it."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
                     />
                 </template>

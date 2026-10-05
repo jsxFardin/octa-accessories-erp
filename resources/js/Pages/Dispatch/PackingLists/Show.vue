@@ -357,7 +357,7 @@ function createChallan() {
                 </dl>
             </Card>
 
-            <Card title="Cartons" rule="D1" subtitle="Every content row names its lot — traceable back to a GRN in one query" :padded="false">
+            <Card title="Cartons" rule="D1" subtitle="Every carton line names its lot, so it can be traced back to the goods receipt it came from" :padded="false">
                 <!--
                     One bar for the whole list. It keeps the lot and the quantity between adds
                     and steps to the next empty carton on its own, so packing fifty-three
@@ -479,12 +479,12 @@ function createChallan() {
                 </form>
             </Card>
 
-            <Card v-if="challans.length" title="Challans" :padded="false"
+            <Card v-if="challans.length" title="Delivery notes" :padded="false"
                   :subtitle="liveChallans.length === 0 ? 'All cancelled — this list can raise a new one.' : null">
                 <ul class="divide-y divide-slate-100 text-sm">
                     <li v-for="challan in challans" :key="challan.id" class="flex items-center justify-between px-4 py-2">
                         <Link :href="`/delivery-challans/${challan.id}`" class="doc-link-quiet">
-                            {{ challan.number ?? '(draft challan)' }}
+                            {{ challan.number ?? '(draft delivery note)' }}
                         </Link>
                         <span class="text-xs text-ink-500">{{ date(challan.challan_date) }}</span>
                         <Badge :status="challan.status" />

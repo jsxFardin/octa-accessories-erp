@@ -158,9 +158,9 @@ onMounted(() => {
 });
 
 const bomColumns = [
-    { key: 'item', label: 'Item' },
+    { key: 'item', label: 'Material' },
     { key: 'qty_per_base', label: 'Qty / base', align: 'right' },
-    { key: 'uom', label: 'UoM' },
+    { key: 'uom', label: 'Unit' },
     { key: 'wastage_pct', label: 'Wastage %', align: 'right' },
     { key: 'colour_index', label: 'Colour', align: 'center' },
     { key: 'formula_ref', label: 'Rule' },
@@ -284,7 +284,7 @@ const bomColumns = [
 
             <div class="grid gap-4 xl:grid-cols-3">
                 <!-- Spec versions with their derived geometry -->
-                <Card class="xl:col-span-2" title="Specifications" rule="P2 · P3" subtitle="Immutable once referenced; a change is a new version" :padded="false">
+                <Card class="xl:col-span-2" title="Specifications" rule="P2 · P3" subtitle="A specification in use cannot be changed; a change is a new version" :padded="false">
                     <template #actions>
                         <Button v-if="can('product_spec.create')" size="sm" :href="`/products/${product.id}/specs/create`">
                             {{ specs.length ? 'New version' : 'New spec' }}

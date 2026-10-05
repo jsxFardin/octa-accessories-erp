@@ -48,7 +48,7 @@ function reject() {
 
 const columns = [
     { key: 'line_no', label: '#', align: 'center', width: '3rem' },
-    { key: 'item_code', label: 'Item' },
+    { key: 'item_code', label: 'Material' },
     { key: 'qty', label: 'Requested', align: 'right' },
     { key: 'ordered_qty', label: 'Ordered', align: 'right' },
     { key: 'required_by', label: 'Required by' },

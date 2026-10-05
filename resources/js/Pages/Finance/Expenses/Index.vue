@@ -50,9 +50,19 @@ async function move(row, status) {
     });
 }
 
+const ACTION_LABELS = {
+    pending_approval: 'Submit for approval',
+    approved: 'Approve',
+    paid: 'Mark as paid',
+    rejected: 'Reject',
+    cancelled: 'Cancel expense',
+    draft: 'Return to draft',
+};
+
 function rowActions(row) {
     const actions = (NEXT[row.status] ?? []).map((status) => ({
-        label: status === 'pending_approval' ? 'Submit for approval' : titleCase(status),
+        // What pressing it does, not the status it leads to: "Approved" and "Paid" read as labels.
+        label: ACTION_LABELS[status] ?? titleCase(status),
         tone: status === 'cancelled' ? 'danger' : undefined,
         // Approve and pay are separate rights, and neither belongs to the person who raised it.
         hidden: (status === 'approved' && !can('expense.approve')) || (status === 'paid' && !can('expense.pay')),
