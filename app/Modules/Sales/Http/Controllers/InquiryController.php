@@ -78,6 +78,11 @@ class InquiryController extends Controller
             // select showing an id it cannot resolve, and would fail validation on save.
             'preselectCustomerId' => $customers->contains('id', $requested) ? $requested : null,
             'productTypes' => Vocabulary::options('product_type'),
+            // A repeat order names a product that already exists. Offered on each line so the
+            // quotation raised from this inquiry arrives with its product instead of asking
+            // for it again.
+            'products' => \App\Modules\Product\Models\Product::query()->active()->orderBy('code')
+                ->get(['id', 'code', 'name', 'customer_id', 'product_type']),
             'sources' => Vocabulary::options('inquiry_source'),
         ]);
     }
@@ -179,6 +184,11 @@ class InquiryController extends Controller
                 ->leftJoin('currencies as cur', 'cur.id', '=', 'customers.currency_id')
                 ->get(['customers.id', 'customers.code', 'customers.name', 'cur.code as currency']),
             'productTypes' => Vocabulary::options('product_type'),
+            // A repeat order names a product that already exists. Offered on each line so the
+            // quotation raised from this inquiry arrives with its product instead of asking
+            // for it again.
+            'products' => \App\Modules\Product\Models\Product::query()->active()->orderBy('code')
+                ->get(['id', 'code', 'name', 'customer_id', 'product_type']),
             'sources' => Vocabulary::options('inquiry_source'),
         ]);
     }

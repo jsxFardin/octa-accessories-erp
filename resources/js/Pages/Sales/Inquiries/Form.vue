@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -18,6 +18,8 @@ const props = defineProps({
     preselectCustomerId: { type: Number, default: null },
     customers: { type: Array, default: () => [] },
     productTypes: { type: Array, default: () => [] },
+    /** Active products, for a line that asks for something already made before. */
+    products: { type: Array, default: () => [] },
     sources: { type: Array, default: () => [] },
 });
 
@@ -71,14 +73,60 @@ const selectedCustomer = computed(
  */
 const customerCurrency = computed(() => selectedCustomer.value?.currency ?? undefined);
 
+/** Products belong to one customer, so the picker follows the customer chosen above. */
+const availableProducts = computed(() => (form.customer_id
+    ? props.products.filter((product) => product.customer_id === Number(form.customer_id))
+    : props.products));
+
+/**
+ * Choosing an existing product describes the line for you. The line already carried a
+ * `product_id` and the server already accepted one; there was simply no way to set it, so every
+ * quotation raised from an inquiry asked for its products all over again.
+ */
+function onProductChange(line) {
+    const product = props.products.find((row) => row.id === Number(line.product_id));
+
+    if (!product) return;
+
+    if (!String(line.description ?? '').trim()) line.description = product.name;
+    if (!line.product_type) line.product_type = product.product_type ?? '';
+}
+
+/** A change of customer leaves the previous customer's products behind. */
+const droppedProducts = ref(0);
+
+watch(() => form.customer_id, (customer) => {
+    droppedProducts.value = 0;
+
+    if (!customer) return;
+
+    form.lines.forEach((line) => {
+        const product = props.products.find((row) => row.id === Number(line.product_id));
+
+        if (product && product.customer_id !== Number(customer)) {
+            line.product_id = '';
+            droppedProducts.value += 1;
+        }
+    });
+});
+
+/** A row nobody typed into: the blank one a new form starts with, or a stray "Add line". */
+function isBlank(line) {
+    return !line.product_id && !String(line.description ?? '').trim() && !line.qty && !line.target_rate_per_m;
+}
+
 function submit() {
+    // Blank rows are dropped rather than failing the save with "line 3 description is required".
+    form.transform((data) => ({ ...data, lines: data.lines.filter((line) => !isBlank(line)) }));
+
     isEdit.value
         ? form.put(`/inquiries/${props.inquiry.id}`)
         : form.post('/inquiries');
 }
 
 const columns = [
-    { key: 'description', label: 'Description' },
+    { key: 'product_id', label: 'Existing product (if any)', width: '14rem' },
+    { key: 'description', label: 'Description', required: true },
     { key: 'product_type', label: 'Product type', width: '13rem' },
     { key: 'qty', label: 'Quantity (pcs)', width: '10rem', align: 'right' },
     { key: 'target_rate_per_m', label: 'Target rate /M', width: '10rem', align: 'right' },
@@ -149,6 +197,18 @@ const columns = [
                             @add="addLine"
                             @remove="removeLine"
                         >
+                                <template #cell:product_id="{ line }">
+                                <SelectInput
+                                    v-model="line.product_id"
+                                    placeholder="— new, not made before —"
+                                    :options="availableProducts"
+                                    value-key="id"
+                                    label-key="code"
+                                    hint-key="name"
+                                    @update:model-value="onProductChange(line)"
+                                />
+                            </template>
+
                                 <template #cell:description="{ line }">
                                 <TextInput cell v-model="line.description" placeholder="Centre-fold satin care label, 40 × 20 mm" />
                             </template>
@@ -176,7 +236,7 @@ const columns = [
 
                                 <template #footer>
                                 <tr>
-                                    <td colspan="3" class="px-1.5 py-2 text-right text-xs text-ink-600">Total</td>
+                                    <td colspan="4" class="px-1.5 py-2 text-right text-xs text-ink-600">Total</td>
                                     <td class="px-1.5 py-2 text-right text-sm font-semibold tnum text-ink-900">
                                         {{ pcs(totalQty) }}
                                     </td>
@@ -189,7 +249,10 @@ const columns = [
                             </template>
                         </LineItemsTable>
 
-                        <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
+                        <p v-if="droppedProducts" role="status" class="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                            {{ droppedProducts }} {{ droppedProducts === 1 ? 'line named a product' : 'lines named products' }}
+                            belonging to the previous customer. {{ droppedProducts === 1 ? 'It has' : 'They have' }} been cleared.
+                        </p>
                     </div>
                 </Card>
 
