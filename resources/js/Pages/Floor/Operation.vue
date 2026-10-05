@@ -192,7 +192,35 @@ async function logDowntime() {
                 </button>
                 <button class="floor-btn bg-sky-500" @click="mode = 'log'">আউটপুট · OUTPUT</button>
                 <button class="floor-btn bg-amber-500 text-slate-900" @click="mode = 'downtime'">ডাউনটাইম · DOWNTIME</button>
-                <button class="floor-btn bg-slate-600" @click="finish">শেষ · FINISH</button>
+                <button class="floor-btn bg-slate-600" @click="mode = 'confirm-finish'">শেষ · FINISH</button>
+            </div>
+
+            <!--
+                FINISH closes the step for good — the next step is readied and the terminal has
+                no undo — and it used to fire on one tap, in a grid beside OUTPUT and DOWNTIME.
+                The job and what has been booked are read back before it is done.
+            -->
+            <div v-else-if="mode === 'confirm-finish'" class="space-y-4">
+                <div class="rounded-2xl bg-amber-500 px-5 py-5 text-slate-900">
+                    <p class="text-2xl font-bold">এই ধাপ শেষ করবেন? · Finish this step?</p>
+                    <p class="mt-2 text-xl font-semibold">
+                        {{ operation.job_card.number }} · {{ operation.name }}
+                    </p>
+                    <p class="mt-2 text-xl">
+                        ভালো · Good: <span class="font-bold tnum">{{ Number(operation.good_qty).toLocaleString() }}</span>
+                        &nbsp;·&nbsp;
+                        নষ্ট · Waste: <span class="font-bold tnum">{{ Number(operation.waste_qty).toLocaleString() }}</span>
+                    </p>
+                    <p class="mt-3 text-lg">
+                        শেষ করার পর এই টার্মিনাল থেকে এই ধাপে আর কিছু বুক করা যাবে না।
+                        · After this, nothing more can be booked on this step from the terminal.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <button class="floor-btn bg-slate-600" @click="mode = null">না, ফিরে যান · NO, GO BACK</button>
+                    <button class="floor-btn bg-emerald-500" @click="finish">হ্যাঁ, শেষ · YES, FINISH</button>
+                </div>
             </div>
 
             <div v-else-if="mode === 'log'" class="space-y-4">
