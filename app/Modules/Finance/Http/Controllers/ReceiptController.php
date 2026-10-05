@@ -195,4 +195,46 @@ class ReceiptController extends Controller
             ->route('receipts.index')
             ->with('success', "Receipt {$receipt->number} posted and allocated.");
     }
+
+    /** One receipt: what was taken, which invoices it settled, and what has happened to it since. */
+    public function show(Receipt $receipt): Response
+    {
+        $receipt->load(['customer:id,code,name', 'currency:id,code']);
+
+        return Inertia::render('Finance/Receipts/Show', [
+            'receipt' => [
+                ...$receipt->only(['id', 'number', 'receipt_date', 'method', 'reference_no', 'bank_name',
+                    'amount', 'allocated_amount', 'status', 'remarks']),
+                'customer' => $receipt->customer?->only(['id', 'code', 'name']),
+                'currency' => $receipt->currency?->code,
+            ],
+            'allocations' => DB::table('receipt_allocations as ra')
+                ->join('sales_invoices as si', 'si.id', '=', 'ra.sales_invoice_id')
+                ->where('ra.receipt_id', $receipt->id)
+                ->orderBy('ra.id')
+                ->get(['ra.id', 'ra.amount', 'si.id as invoice_id', 'si.number as invoice_number',
+                    'si.status as invoice_status', 'si.total as invoice_total']),
+        ]);
+    }
+
+    /**
+     * Voids a receipt keyed in error, or records that its cheque bounced. Either way what it
+     * settled is taken back off the invoices (`SettlementReversal`).
+     */
+    public function reverse(Request $request, Receipt $receipt, \App\Modules\Finance\Services\SettlementReversal $reversal): RedirectResponse
+    {
+        $data = $request->validate([
+            'outcome' => ['required', Rule::in(['bounced', 'cancelled'])],
+            'reason' => ['required', 'string', 'min:5', 'max:300'],
+        ], [
+            'reason.required' => 'Say why this receipt is being reversed.',
+            'reason.min' => 'Say why this receipt is being reversed, in a few words.',
+        ]);
+
+        $reversal->reverseReceipt($receipt, $data['outcome'], $data['reason']);
+
+        return back()->with('success', $data['outcome'] === 'bounced'
+            ? "Receipt {$receipt->number} marked as bounced. The invoices it settled are owed again."
+            : "Receipt {$receipt->number} voided. The invoices it settled are owed again.");
+    }
 }

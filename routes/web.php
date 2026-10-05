@@ -614,6 +614,10 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:receipt.view_any')->name('receipts.index');
     Route::post('receipts', [ReceiptController::class, 'store'])
         ->middleware('can:receipt.allocate')->name('receipts.store');
+    Route::get('receipts/{receipt}', [ReceiptController::class, 'show'])
+        ->middleware('can:receipt.view')->name('receipts.show');
+    Route::post('receipts/{receipt}/reverse', [ReceiptController::class, 'reverse'])
+        ->middleware('can:receipt.delete')->name('receipts.reverse');
 
     // FN-4 — supplier bills: three-way match, approve, pay.
     Route::get('supplier-bills', [SupplierBillController::class, 'index'])
@@ -632,6 +636,10 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:payment.view_any')->name('payments.index');
     Route::post('payments', [PaymentController::class, 'store'])
         ->middleware('can:payment.allocate')->name('payments.store');
+    Route::get('payments/{payment}', [PaymentController::class, 'show'])
+        ->middleware('can:payment.view')->name('payments.show');
+    Route::post('payments/{payment}/reverse', [PaymentController::class, 'reverse'])
+        ->middleware('can:payment.delete')->name('payments.reverse');
 
     Route::resource('expenses', ExpenseController::class)
         ->except(['show', 'destroy'])

@@ -32,8 +32,10 @@ class SupplierBillStateMachine extends StateMachine
         return [
             'draft' => ['approved', 'cancelled'],
             'approved' => ['partially_paid', 'paid'],
-            'partially_paid' => ['paid'],
-            'paid' => [],
+            // Back to `approved` when a payment is voided and nothing is left against the bill.
+            // Only `reflectReversal()` walks the backward steps, as the system.
+            'partially_paid' => ['paid', 'approved'],
+            'paid' => ['partially_paid', 'approved'],
             'cancelled' => [],
         ];
     }
@@ -55,7 +57,9 @@ class SupplierBillStateMachine extends StateMachine
      */
     protected function guard(Model $document, string $from, string $to, array $context): void
     {
-        if ($to === 'approved') {
+        // Approval is what happens to a draft. A bill returning to `approved` because its
+        // payment was voided has already been matched and approved once.
+        if ($to === 'approved' && $from === 'draft') {
             if ($document->lines()->doesntExist()) {
                 throw TransitionDenied::guard('FN-4', 'A bill with no lines cannot be approved.');
             }
@@ -165,6 +169,22 @@ class SupplierBillStateMachine extends StateMachine
 
         if ($target !== null && $bill->status !== $target) {
             $this->transition($bill, $target);
+        }
+    }
+
+    /** A payment was voided; derive the status again and walk back to it. */
+    public function reflectReversal(SupplierBill $bill): void
+    {
+        $paid = (float) $bill->paid_amount;
+
+        $target = match (true) {
+            $paid >= (float) $bill->total - 0.0001 => 'paid',
+            $paid > 0.0001 => 'partially_paid',
+            default => 'approved',
+        };
+
+        if ($bill->status !== $target) {
+            self::asSystem(fn () => $this->transition($bill, $target));
         }
     }
 }

@@ -36,9 +36,14 @@ class SalesInvoiceStateMachine extends StateMachine
         return [
             'draft' => ['issued', 'cancelled'],
             'issued' => ['partially_paid', 'paid', 'credited', 'overdue', 'cancelled'],
-            'partially_paid' => ['paid', 'credited', 'overdue'],
+            // `issued` again when a receipt is voided or bounces and nothing is left against the
+            // invoice: the money was never really there. Only `reflectReversal()` walks these
+            // backward steps, as the system — no screen offers them.
+            'partially_paid' => ['paid', 'credited', 'overdue', 'issued'],
             'overdue' => ['partially_paid', 'paid', 'credited'],
-            'paid' => [],
+            // No longer strictly terminal: a cheque that bounces un-pays the invoice it settled.
+            // A customer return still does not touch it (SR) — that is a credit, not a reversal.
+            'paid' => ['partially_paid', 'issued'],
             // Terminal, like `paid`, and deliberately not the same word: the money never came.
             'credited' => [],
             'cancelled' => [],
@@ -67,7 +72,9 @@ class SalesInvoiceStateMachine extends StateMachine
      */
     protected function guard(Model $document, string $from, string $to, array $context): void
     {
-        if ($to === 'issued') {
+        // Issuing is what happens to a draft. An invoice returning to `issued` because its
+        // receipt was reversed is not being issued a second time.
+        if ($to === 'issued' && $from === 'draft') {
             if (DB::table('sales_invoice_lines')->where('sales_invoice_id', $document->getKey())->doesntExist()) {
                 throw TransitionDenied::guard('FN-1', 'An invoice with no lines cannot be issued.');
             }
@@ -88,7 +95,9 @@ class SalesInvoiceStateMachine extends StateMachine
     protected function effect(Model $document, string $from, string $to, array $context): void
     {
         match ($to) {
-            'issued' => $this->onIssued($document),
+            // From a draft only: re-running this on a reversal would count the invoiced
+            // quantity onto the sales order twice.
+            'issued' => $from === 'draft' ? $this->onIssued($document) : null,
             'cancelled' => $this->onCancelled($document, $from),
             'overdue' => $this->onOverdue($document),
             default => null,
@@ -193,6 +202,37 @@ class SalesInvoiceStateMachine extends StateMachine
 
         if ($target !== null && $invoice->status !== $target) {
             $this->transition($invoice, $target);
+        }
+    }
+
+    /**
+     * A receipt was voided or bounced; derive the payment status again and walk back to it.
+     *
+     * The mirror of `reflectPayment()`, which only ever moves forward. Run as the system: the
+     * backward steps belong to whoever may reverse a receipt, not to the permissions that guard
+     * issuing an invoice.
+     */
+    public function reflectReversal(SalesInvoice $invoice): void
+    {
+        $received = (float) $invoice->received_amount;
+        $credited = $this->appliedCredits($invoice);
+        $settled = $received + $credited;
+
+        $target = match (true) {
+            $settled >= (float) $invoice->total - 0.0001 && $received <= 0.0001 && $credited > 0 => 'credited',
+            $settled >= (float) $invoice->total - 0.0001 => 'paid',
+            $settled > 0.0001 => 'partially_paid',
+            default => 'issued',
+        };
+
+        // An overdue invoice with nothing against it is still overdue; that status is the
+        // collector's, and a reversal does not clear it.
+        if ($target === 'issued' && $invoice->status === 'overdue') {
+            return;
+        }
+
+        if ($invoice->status !== $target) {
+            self::asSystem(fn () => $this->transition($invoice, $target));
         }
     }
 }

@@ -186,4 +186,38 @@ class PaymentController extends Controller
             ->route('payments.index')
             ->with('success', "Payment {$payment->number} posted and allocated.");
     }
+
+    /** One payment: what was paid, which bills it settled, and what has happened to it since. */
+    public function show(Payment $payment): Response
+    {
+        return Inertia::render('Finance/Payments/Show', [
+            'payment' => [
+                ...$payment->only(['id', 'number', 'payment_date', 'method', 'reference_no', 'amount',
+                    'allocated_amount', 'status', 'remarks']),
+                'supplier' => DB::table('suppliers')->where('id', $payment->supplier_id)->first(['id', 'code', 'name']),
+                'currency' => DB::table('currencies')->where('id', $payment->currency_id)->value('code'),
+            ],
+            'allocations' => DB::table('payment_allocations as pa')
+                ->join('supplier_bills as sb', 'sb.id', '=', 'pa.supplier_bill_id')
+                ->where('pa.payment_id', $payment->id)
+                ->orderBy('pa.id')
+                ->get(['pa.id', 'pa.amount', 'sb.id as bill_id', 'sb.number as bill_number', 'sb.bill_no',
+                    'sb.status as bill_status', 'sb.total as bill_total']),
+        ]);
+    }
+
+    /** Voids a payment keyed in error; what it settled is taken back off the bills. */
+    public function reverse(Request $request, Payment $payment, \App\Modules\Finance\Services\SettlementReversal $reversal): RedirectResponse
+    {
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'min:5', 'max:300'],
+        ], [
+            'reason.required' => 'Say why this payment is being voided.',
+            'reason.min' => 'Say why this payment is being voided, in a few words.',
+        ]);
+
+        $reversal->reversePayment($payment, $data['reason']);
+
+        return back()->with('success', "Payment {$payment->number} voided. The bills it settled are owed again.");
+    }
 }
