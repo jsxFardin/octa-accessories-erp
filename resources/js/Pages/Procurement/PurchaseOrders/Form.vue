@@ -269,6 +269,7 @@ const columns = [
                                 :options="items"
                                 value-key="id"
                                 label-key="code"
+                                hint-key="name"
                                 @update:model-value="onItemChange(line)"
                             />
                             <p v-if="line.pr_line_id" class="mt-1 text-[10px] text-brand-700">from requisition</p>

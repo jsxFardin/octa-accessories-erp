@@ -258,6 +258,7 @@ const columns = [
                                 :options="items"
                                 value-key="id"
                                 label-key="code"
+                                hint-key="name"
                                 @update:model-value="onItemChange(line)"
                             />
                             <p v-if="itemFor(line)" class="mt-1 truncate text-[11px] text-ink-500">

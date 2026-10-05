@@ -364,6 +364,7 @@ const columns = [
                                 :options="availableProducts"
                                 value-key="id"
                                 label-key="code"
+                                hint-key="name"
                             />
                             <p v-if="line.product_id" class="mt-1 truncate text-[11px] text-ink-500">
                                 {{ availableProducts.find((p) => p.id === Number(line.product_id))?.name }}

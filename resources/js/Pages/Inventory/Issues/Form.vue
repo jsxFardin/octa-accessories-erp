@@ -343,6 +343,7 @@ function submit() {
                             :options="items"
                             value-key="id"
                             label-key="code"
+                            hint-key="name"
                         />
                     </FormField>
 
