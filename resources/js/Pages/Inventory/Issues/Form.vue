@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
+import { useConfirmedReset } from '@/composables/useConfirmedReset';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -247,8 +248,13 @@ watch(pickLotId, (id) => {
     pickLotId.value = '';
 });
 
-watch(
+/*
+ * An issue comes out of one store, so the lines belong to the store, the job and the direction
+ * chosen above. Changing any of them drops the lines — which it used to do without a word.
+ */
+useConfirmedReset(
     () => [form.issue_type, form.job_card_id, form.warehouse_id],
+    () => form.lines.length > 0,
     () => {
         form.lines = [];
         suggestion.value = null;
@@ -259,6 +265,15 @@ watch(
         }
 
         loadReturnable();
+    },
+    ([type, job, warehouse]) => {
+        form.issue_type = type;
+        form.job_card_id = job;
+        form.warehouse_id = warehouse;
+    },
+    {
+        title: 'Change this and clear the lines?',
+        message: 'One issue comes out of one store, for one job. The lots already added belong to the previous choice and will be removed. To issue from a second store, post this one first and raise another.',
     },
 );
 
@@ -306,7 +321,7 @@ function submit() {
                         :label="isReturn ? 'Warehouse' : 'From warehouse'"
                         :hint="isReturn
                             ? 'Where the unused material goes back to.'
-                            : 'Which store the material comes out of — it decides which lots are offered below.'"
+                            : 'Which store the material comes out of. One issue per store: for yarn and ink from different stores, raise two issues.'"
                         :error="form.errors.warehouse_id"
                         required
                     >

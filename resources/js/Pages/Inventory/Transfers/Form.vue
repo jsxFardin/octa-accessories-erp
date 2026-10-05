@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
+import { useConfirmedReset } from '@/composables/useConfirmedReset';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
 import Badge from '@/Components/Ui/Badge.vue';
@@ -76,12 +77,24 @@ function removeLine(index) {
     form.lines = form.lines.filter((_, i) => i !== index);
 }
 
-watch(() => form.from_warehouse_id, (warehouseId) => {
-    form.lines = form.lines.filter((line) => Number(lotOf(line)?.warehouse_id) === Number(warehouseId));
-    if (Number(form.to_warehouse_id) === Number(warehouseId)) {
-        form.to_warehouse_id = toWarehouses.value[0]?.id ?? '';
-    }
-});
+useConfirmedReset(
+    () => [form.from_warehouse_id],
+    () => form.lines.length > 0,
+    ([warehouseId]) => {
+        form.lines = form.lines.filter((line) => Number(lotOf(line)?.warehouse_id) === Number(warehouseId));
+
+        if (Number(form.to_warehouse_id) === Number(warehouseId)) {
+            form.to_warehouse_id = toWarehouses.value[0]?.id ?? '';
+        }
+    },
+    ([warehouseId]) => {
+        form.from_warehouse_id = warehouseId;
+    },
+    {
+        title: 'Change the source warehouse and clear the lines?',
+        message: 'A transfer moves lots out of one warehouse. The lots already added are in the previous one and will be removed.',
+    },
+);
 
 const sameWarehouse = computed(() =>
     form.from_warehouse_id !== '' && Number(form.from_warehouse_id) === Number(form.to_warehouse_id),
