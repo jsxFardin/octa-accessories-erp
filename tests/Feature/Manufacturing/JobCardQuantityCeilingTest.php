@@ -175,3 +175,30 @@ it('excludes the card being edited from its own committed quantity', function ()
     // Re-planning the same card at the same quantity is not a second commitment of it.
     expect($this->guard->refusalReason($this->line->refresh(), 3000, (int) $card->id))->toBeNull();
 });
+
+/*
+ * UX audit M-16. A product with no approved artwork or no routing cannot carry a job card, and
+ * the planner used to find that out only after filling the card in. The line now says so.
+ */
+it('tells the form which lines cannot be planned yet, and why', function (): void {
+    $missing = fn (): array => (array) collect(
+        json_decode(json_encode($this->actingAs($this->planner)->get('/job-cards/create')->viewData('page')['props']['orderLines']), true),
+    )->firstWhere('id', $this->line->id)['missing'];
+
+    expect($missing())->toBe([]);
+
+    $productId = (int) DB::table('sales_order_lines')->where('id', $this->line->id)->value('product_id');
+    $routingId = DB::table('products')->where('id', $productId)->value('routing_id');
+
+    DB::table('products')->where('id', $productId)->update(['routing_id' => null]);
+    expect($missing())->toBe(['a routing']);
+
+    DB::table('products')->where('id', $productId)->update(['routing_id' => $routingId]);
+    DB::table('artwork_versions')
+        ->whereIn('artwork_id', DB::table('artworks')->where('product_id', $productId)->select('id'))
+        ->update(['status' => 'draft']);
+    expect($missing())->toBe(['approved artwork']);
+
+    // The server still refuses it, in words that say what to do.
+    ($this->post)(100)->assertSessionHasErrors(['sales_order_line_id' => 'This product has no approved artwork version, and a job card cannot be raised without one. Approve an artwork version on the product, then try again.']);
+});

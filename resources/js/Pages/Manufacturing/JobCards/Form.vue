@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
@@ -85,11 +85,48 @@ const quantityError = computed(() => {
         + `It can absorb ${pcs(headroom.value)} more pcs; reduce the planned quantity to that or less.`;
 });
 
-const canSubmit = computed(() => Boolean(form.sales_order_line_id) && quantityError.value === null);
+const canSubmit = computed(() => Boolean(form.sales_order_line_id)
+    && quantityError.value === null
+    && (selectedLine.value === null || ready(selectedLine.value)));
+
+const blockedBy = computed(() => {
+    if (!form.sales_order_line_id) return 'Choose the order line this card is for.';
+    if (selectedLine.value && !ready(selectedLine.value)) {
+        return `${selectedLine.value.product_code} needs ${selectedLine.value.missing.join(' and ')} before a card can be raised.`;
+    }
+
+    return quantityError.value;
+});
 
 function lineHeadroom(line) {
     return line.capacity ? Number(line.capacity.headroom) : 0;
 }
+
+/** How much of what can be planned is the customer's over-delivery allowance, as a percentage. */
+function lineAllowancePct(line) {
+    const pct = Number(line.capacity?.over_tolerance_pct ?? 0);
+
+    return pct > 0 && lineHeadroom(line) > Number(line.capacity.outstanding) ? pct : 0;
+}
+
+/** A product that lacks approved artwork or a routing cannot carry a card; the server refuses it. */
+const ready = (line) => !(line.missing ?? []).length;
+
+/*
+ * Fifty open lines in a box six rows tall, with nothing to narrow them by. The planner knows
+ * the order number or the product; they type it.
+ */
+const search = ref('');
+
+const shownLines = computed(() => {
+    const term = search.value.trim().toLowerCase();
+
+    if (!term) return props.orderLines;
+
+    return props.orderLines.filter((line) => line.id === Number(form.sales_order_line_id)
+        || [line.so_number, line.product_code, line.product_name, line.customer_name]
+            .some((text) => String(text ?? '').toLowerCase().includes(term)));
+});
 
 function pickLine(id) {
     form.sales_order_line_id = id;
@@ -169,17 +206,33 @@ function submit() {
             </div>
 
             <Card title="Order line to produce" :padded="false">
-                <div class="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+                <div v-if="orderLines.length > 5" class="border-b border-slate-200 px-3 py-2.5">
+                    <FormField label="Find a line">
+                        <TextInput v-model="search" type="search" placeholder="Order number, product or customer" data-line-search />
+                    </FormField>
+                    <p v-if="search.trim()" class="mt-1 text-xs text-ink-600" role="status">
+                        {{ shownLines.length }} of {{ orderLines.length }} lines
+                    </p>
+                </div>
+
+                <div class="max-h-[32rem] divide-y divide-slate-100 overflow-y-auto" role="radiogroup" aria-label="Order line to produce">
                     <label
-                        v-for="line in orderLines"
+                        v-for="line in shownLines"
                         :key="line.id"
-                        class="flex cursor-pointer items-start gap-3 px-3 py-2.5 transition hover:bg-slate-50"
-                        :class="Number(form.sales_order_line_id) === line.id && 'bg-brand-50'"
+                        class="flex items-start gap-3 px-3 py-2.5 transition"
+                        :class="[
+                            Number(form.sales_order_line_id) === line.id && 'bg-brand-50',
+                            ready(line) ? 'cursor-pointer hover:bg-slate-50' : 'bg-slate-50',
+                        ]"
+                        data-order-line
                     >
                         <input
                             type="radio"
+                            name="sales_order_line_id"
                             class="form-radio mt-1"
                             :checked="Number(form.sales_order_line_id) === line.id"
+                            :disabled="!ready(line)"
+                            :aria-describedby="ready(line) ? null : `line-missing-${line.id}`"
                             @change="pickLine(line.id)"
                         >
 
@@ -191,6 +244,14 @@ function submit() {
                             </div>
                             <p class="truncate text-xs text-ink-500">
                                 {{ line.customer_name }} — {{ line.product_name }}
+                            </p>
+                            <!--
+                                Known when the page loads, so said when the page loads — with the
+                                way to fix it — rather than as a refusal after the form is filled in.
+                            -->
+                            <p v-if="!ready(line)" :id="`line-missing-${line.id}`" class="mt-1 text-xs text-amber-800" data-line-missing>
+                                Cannot be planned yet: this product needs {{ line.missing.join(' and ') }}.
+                                <Link :href="`/products/${line.product_id}`" class="font-medium underline">Open {{ line.product_code }}</Link>
                             </p>
                         </div>
 
@@ -208,6 +269,10 @@ function submit() {
                                 {{ pcs(lineHeadroom(line)) }} can be planned
                             </p>
                             <p class="tnum text-ink-500">of {{ pcs(line.ordered_qty) }} ordered</p>
+                            <!-- Why "3,150 of 3,000" is not a mistake. -->
+                            <p v-if="lineAllowancePct(line)" class="text-ink-500">
+                                includes the {{ lineAllowancePct(line) }}% over-delivery allowance
+                            </p>
                             <p
                                 v-if="line.capacity && Number(line.capacity.committed) > 0"
                                 class="tnum text-ink-400"
@@ -217,6 +282,11 @@ function submit() {
                             <p v-if="line.promised_date" class="text-ink-400">due {{ date(line.promised_date) }}</p>
                         </div>
                     </label>
+
+                    <p v-if="orderLines.length && shownLines.length === 0" class="px-3 py-6 text-center text-sm text-ink-600">
+                        No line matches "{{ search }}".
+                        <button type="button" class="text-brand-700 underline" @click="search = ''">Clear the search</button>
+                    </p>
 
                     <div v-if="orderLines.length === 0" class="px-3 py-8">
                         <EmptyState
@@ -308,29 +378,29 @@ function submit() {
                 </Card>
 
                 <!--
-                    Gate 1 is structural: `job_cards.artwork_version_id` is NOT NULL, so the
-                    controller resolves the approved version and refuses outright if there
-                    isn't one. Nothing on this form can bypass it.
+                    The artwork gate is structural: `job_cards.artwork_version_id` is NOT NULL,
+                    so the controller resolves the approved version and refuses outright if
+                    there isn't one. Nothing on this form can bypass it.
                 -->
-                <Card title="What happens on save" rule="Gate 1 · J1">
-                    <ul class="space-y-2 text-xs text-ink-700">
+                <Card title="What happens on save" rule="J1">
+                    <ol class="space-y-2 text-xs text-ink-700">
                         <li class="flex gap-2">
                             <Badge tone="info" label="1" />
-                            <span>The product's <strong>approved artwork version</strong> is resolved and bound. No approved version, no card.</span>
+                            <span>The product's <strong>approved artwork version</strong> is attached to the card.</span>
                         </li>
                         <li class="flex gap-2">
                             <Badge tone="info" label="2" />
-                            <span>The consumption plan is computed and <strong>snapshotted</strong> — gross metres, ends, labels per metre.</span>
+                            <span>The material plan is worked out and <strong>fixed for this card</strong>: gross metres, ends and labels per metre. Later changes to the product do not alter it.</span>
                         </li>
                         <li class="flex gap-2">
                             <Badge tone="info" label="3" />
-                            <span>One operation per routing step is scheduled with its planned minutes.</span>
+                            <span>One step is created for each step of the routing, with its planned minutes.</span>
                         </li>
                         <li class="flex gap-2">
                             <Badge tone="neutral" label="4" />
-                            <span>The card is a <strong>draft</strong>. Planning numbers it; the J1 gate governs release.</span>
+                            <span>The card is saved as a <strong>draft</strong>. It gets its number when it is planned, and is checked again before release.</span>
                         </li>
-                    </ul>
+                    </ol>
                 </Card>
             </template>
 
@@ -339,7 +409,7 @@ function submit() {
                 <FormFooter
                     :form="form"
                     :disabled="!canSubmit"
-                    :disabled-reason="quantityError ?? (form.sales_order_line_id ? null : 'Choose the order line this card is for.')"
+                    :disabled-reason="blockedBy"
                     cancel-href="/job-cards"
                     :label="'Create draft'"
                     @save="submit"

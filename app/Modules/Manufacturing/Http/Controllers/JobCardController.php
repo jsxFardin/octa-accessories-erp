@@ -123,8 +123,29 @@ class JobCardController extends Controller
         // The figures are the guard's own, not a second calculation that could drift from it.
         $capacities = $this->planning->capacities($lines);
 
-        $lines = $lines->map(function (object $line) use ($capacities): object {
+        /*
+         * What `store` would refuse, known now. A product with no approved artwork or no routing
+         * cannot carry a job card, and the planner used to learn that only after choosing the
+         * line, filling the card in and pressing Create. The line now says so in the list.
+         */
+        $productIds = $lines->pluck('product_id')->unique()->all();
+
+        $withArtwork = DB::table('artworks as a')
+            ->join('artwork_versions as av', 'av.artwork_id', '=', 'a.id')
+            ->whereIn('a.product_id', $productIds)
+            ->where('av.status', ArtworkVersion::APPROVED)
+            ->distinct()
+            ->pluck('a.product_id')
+            ->flip();
+
+        $withRouting = DB::table('products')->whereIn('id', $productIds)->whereNotNull('routing_id')->pluck('id')->flip();
+
+        $lines = $lines->map(function (object $line) use ($capacities, $withArtwork, $withRouting): object {
             $line->capacity = $capacities[(int) $line->id] ?? null;
+            $line->missing = array_values(array_filter([
+                $withArtwork->has($line->product_id) ? null : 'approved artwork',
+                $withRouting->has($line->product_id) ? null : 'a routing',
+            ]));
 
             return $line;
         });
@@ -221,14 +242,14 @@ class JobCardController extends Controller
 
         if ($approvedVersion === null) {
             throw ValidationException::withMessages([
-                'sales_order_line_id' => 'Gate 1: this product has no approved artwork version. '
-                    .'A job card cannot exist without one.',
+                'sales_order_line_id' => 'This product has no approved artwork version, and a job card cannot be raised without one. '
+                    .'Approve an artwork version on the product, then try again.',
             ]);
         }
 
         if ($product->routing === null) {
             throw ValidationException::withMessages([
-                'sales_order_line_id' => 'This product has no routing, so there are no operations to schedule.',
+                'sales_order_line_id' => 'This product has no routing, so there are no steps to plan. Choose a routing on the product, then try again.',
             ]);
         }
 
