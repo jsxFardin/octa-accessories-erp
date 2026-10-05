@@ -10,7 +10,7 @@ import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
-import { date, money, qty } from '@/plugins/formatting';
+import { baseCurrency, date, money, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
@@ -148,12 +148,18 @@ function reopen() {
             <Card v-if="approval" title="Approval" rule="06-rbac §5">
                 <div class="grid gap-3 sm:grid-cols-3">
                     <div>
-                        <p class="text-xs text-ink-500">Order value</p>
-                        <p class="text-lg font-semibold tnum text-ink-900">{{ money(approval.value, purchaseOrder.currency) }}</p>
+                        <p class="text-xs text-ink-500">Order value in {{ baseCurrency() }}</p>
+                        <!-- Approval limits are set in the base currency, so the order is
+                             converted to compare. It used to print this converted figure with
+                             the order's own currency code: a USD 5,000 order read "USD 612,500". -->
+                        <p class="text-lg font-semibold tnum text-ink-900">{{ money(approval.value) }}</p>
+                        <p v-if="purchaseOrder.currency && purchaseOrder.currency !== baseCurrency()" class="text-xs text-ink-500">
+                            {{ money(purchaseOrder.total, purchaseOrder.currency) }} at a rate of {{ Number(purchaseOrder.exchange_rate) }}
+                        </p>
                     </div>
                     <div>
-                        <p class="text-xs text-ink-500">Purchase manager band</p>
-                        <p class="text-lg font-semibold tnum text-ink-700">{{ money(approval.band, purchaseOrder.currency) }}</p>
+                        <p class="text-xs text-ink-500">Purchase manager's limit</p>
+                        <p class="text-lg font-semibold tnum text-ink-700">{{ money(approval.band) }}</p>
                     </div>
                     <div>
                         <p class="text-xs text-ink-500">Signs off</p>
