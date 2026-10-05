@@ -326,7 +326,10 @@ class JobCardController extends Controller
             ->with('success', 'Job card created as a draft. Schedule its operations on the planning board to plan it.');
     }
 
-    public function show(JobCard $jobCard): Response
+    /** The sections under the operations table, and which one a card at each stage opens on. */
+    private const TABS = ['bookings', 'waste', 'materials', 'finished-goods', 'ncrs'];
+
+    public function show(Request $request, JobCard $jobCard): Response
     {
         $jobCard->load([
             'product.customer', 'spec', 'artworkVersion.artwork', 'bom.lines.item', 'routing',
@@ -339,7 +342,18 @@ class JobCardController extends Controller
         // exactly what was planned.
         $output = $jobCard->finalOperationOutput();
 
+        // The section a person at this stage most likely came for; any other is one click away
+        // and the choice rides in the URL, so it survives a save and can be sent to a colleague.
+        $tab = in_array($request->query('tab'), self::TABS, true)
+            ? (string) $request->query('tab')
+            : match (true) {
+                in_array($jobCard->status, [JobCard::DRAFT, JobCard::PLANNED, JobCard::RELEASED], true) => 'materials',
+                in_array($jobCard->status, [JobCard::QC_PENDING, JobCard::COMPLETED, JobCard::CLOSED], true) => 'finished-goods',
+                default => 'bookings',
+            };
+
         return Inertia::render('Manufacturing/JobCards/Show', [
+            'tab' => $tab,
             'jobCard' => [
                 ...$jobCard->only([
                     'id', 'number', 'colourway', 'planned_qty',
@@ -416,7 +430,7 @@ class JobCardController extends Controller
             // G4 — waste with its cause. This was fetched on every page load and rendered
             // nowhere, against a table nothing wrote to, so the query returned an empty set
             // that no one would have missed.
-            'wasteLogs' => DB::table('waste_logs as wl')
+            'wasteLogs' => Inertia::defer(fn () => DB::table('waste_logs as wl')
                 ->leftJoin('job_card_operations as jco', 'jco.id', '=', 'wl.job_card_operation_id')
                 ->leftJoin('employees as e', 'e.id', '=', 'wl.reported_by')
                 ->leftJoin('uoms as u', 'u.id', '=', 'wl.uom_id')
@@ -428,9 +442,9 @@ class JobCardController extends Controller
                     'wl.id', 'wl.waste_type', 'wl.qty', 'wl.occurred_at', 'wl.remarks',
                     'jco.sequence_no', 'jco.name as operation',
                     'e.name as reported_by', 'u.code as uom', 'sl.lot_no',
-                ]),
-            'ncrs' => DB::table('ncrs')->where('job_card_id', $jobCard->id)
-                ->orderByDesc('id')->get(['id', 'number', 'status', 'severity', 'raised_on']),
+                ]), 'history'),
+            'ncrs' => Inertia::defer(fn () => DB::table('ncrs')->where('job_card_id', $jobCard->id)
+                ->orderByDesc('id')->get(['id', 'number', 'status', 'severity', 'raised_on']), 'history'),
             /*
              * The shift bookings behind the operation totals.
              *
@@ -440,7 +454,7 @@ class JobCardController extends Controller
              * booked it, who booked it, or that it was one mis-keyed entry rather than a
              * week's work.
              */
-            'operationLogs' => DB::table('operation_logs as ol')
+            'operationLogs' => Inertia::defer(fn () => DB::table('operation_logs as ol')
                 ->join('job_card_operations as jco', 'jco.id', '=', 'ol.job_card_operation_id')
                 ->leftJoin('employees as e', 'e.id', '=', 'ol.operator_id')
                 ->leftJoin('machines as m', 'm.id', '=', 'ol.machine_id')
@@ -459,19 +473,20 @@ class JobCardController extends Controller
                     'e.name as operator', 'm.code as machine', 'sh.name as shift',
                     'ol.manual_reason', 'ol.created_at', 'u.name as entered_by',
                     DB::raw('rev.id IS NOT NULL AS is_reversed'),
-                ]),
+                ]), 'history'),
             // What the manual booking form needs. Operators are the people the work belongs
             // to, not whoever is typing — a booking keyed by a supervisor for Monday's night
             // shift still belongs to the operator who ran it.
-            'operators' => DB::table('employees')
+            // Only the booking dialog reads these two lists, so they follow the page rather than hold it up.
+            'operators' => Inertia::defer(fn () => DB::table('employees')
                 ->where('is_active', true)
                 ->orderBy('name')
-                ->get(['id', 'name', 'card_no']),
+                ->get(['id', 'name', 'card_no']), 'pickers'),
             'shifts' => DB::table('shifts')->orderBy('code')->get(['id', 'code', 'name']),
-            'machines' => DB::table('machines')
+            'machines' => Inertia::defer(fn () => DB::table('machines')
                 ->where('is_active', true)
                 ->orderBy('code')
-                ->get(['id', 'code', 'name']),
+                ->get(['id', 'code', 'name']), 'pickers'),
         ]);
     }
 

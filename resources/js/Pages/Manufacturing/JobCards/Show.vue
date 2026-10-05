@@ -4,6 +4,7 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import Tabs from '@/Components/Ui/Tabs.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
@@ -23,16 +24,29 @@ const props = defineProps({
     availableTransitions: { type: Array, default: () => [] },
     bomRequirement: { type: Array, default: () => [] },
     issues: { type: Array, default: () => [] },
-    wasteLogs: { type: Array, default: () => [] },
+    // Sent after the page has drawn: `null` means still loading, an empty list means there are none.
+    wasteLogs: { type: Array, default: null },
     fgPosition: { type: Object, default: () => ({ produced: 0, received: 0, available: 0, quarantined: 0, remaining_receivable: 0 }) },
     fgReceipts: { type: Array, default: () => [] },
     fgWarehouses: { type: Array, default: () => [] },
-    ncrs: { type: Array, default: () => [] },
-    operationLogs: { type: Array, default: () => [] },
-    operators: { type: Array, default: () => [] },
+    ncrs: { type: Array, default: null },
+    operationLogs: { type: Array, default: null },
+    operators: { type: Array, default: null },
     shifts: { type: Array, default: () => [] },
-    machines: { type: Array, default: () => [] },
+    machines: { type: Array, default: null },
+    /** Which section under the operations table is open. Rides in the URL as `?tab=`. */
+    tab: { type: String, default: 'bookings' },
 });
+
+const count = (list) => (list === null ? undefined : list.length);
+
+const tabs = computed(() => [
+    { key: 'bookings', label: 'Shift bookings', count: count(props.operationLogs) },
+    { key: 'waste', label: 'Waste', count: count(props.wasteLogs) },
+    { key: 'materials', label: 'Materials', count: props.issues.length },
+    { key: 'finished-goods', label: 'Finished goods', count: props.fgReceipts.length },
+    { key: 'ncrs', label: 'NCRs', count: count(props.ncrs) },
+].map((entry) => ({ ...entry, href: `/job-cards/${props.jobCard.id}?tab=${entry.key}` })));
 
 /*
  * Booking output from the desk.
@@ -96,10 +110,12 @@ const bookableOperations = computed(() => props.operations
  * the one place that can reasonably point at it is the field that needs it.
  */
 const nothingBookable = computed(
-    () => bookableOperations.value.length === 0 || props.operators.length === 0,
+    () => bookableOperations.value.length === 0 || (props.operators ?? []).length === 0,
 );
 
 const nothingBookableReason = computed(() => {
+    if (props.operators === null) return 'Loading the list of operators…';
+
     if (props.operators.length === 0) {
         return 'No employees exist yet, so there is nobody to book this against. Add them under '
             + 'Configuration → Lists → Employees — each needs a factory unit, and a card number if '
@@ -113,7 +129,7 @@ const nothingBookableReason = computed(() => {
         + 'or a planner can reset one).';
 });
 
-const operatorOptions = computed(() => props.operators.map((e) => ({
+const operatorOptions = computed(() => (props.operators ?? []).map((e) => ({
     value: e.id,
     label: e.name,
     hint: e.card_no,
@@ -802,131 +818,6 @@ const bomColumns = [
                 </Card>
             </div>
 
-            <!--
-                Where the waste went. The operation row carries a waste figure; this says what
-                the waste was, which is the half that can be acted on.
-            -->
-            <Card
-                title="Waste"
-                rule="G4"
-                subtitle="Booked from the floor with its cause. Setup, shade and a weave defect are three different problems."
-                :padded="false"
-            >
-                <DataTable :columns="wasteColumns" :rows="wasteLogs" empty="No waste has been booked against this job card." dense>
-                    <template #cell:occurred_at="{ value }">{{ datetime(value) }}</template>
-                    <template #cell:operation="{ row }">
-                        <span class="text-ink-700">{{ row.sequence_no }} · {{ row.operation }}</span>
-                    </template>
-                    <template #cell:waste_type="{ value }"><Badge tone="warning" :label="titleCase(value)" /></template>
-                    <template #cell:qty="{ row, value }">
-                        <span class="tnum text-rose-600">{{ qty(value) }}</span>
-                        <span class="text-ink-400"> {{ row.uom ?? '' }}</span>
-                    </template>
-                    <template #cell:lot_no="{ value }">{{ value ?? '—' }}</template>
-                    <template #cell:reported_by="{ value }">{{ value ?? '—' }}</template>
-                </DataTable>
-            </Card>
-
-            <!--
-                The shift bookings behind those totals, and the only way to correct one. The
-                card showed that a step held 5,000 with no way to see which shift booked it,
-                who booked it, or that it was one mis-keyed entry.
-            -->
-            <Card
-                title="Shift bookings"
-                rule="I1"
-                subtitle="What the floor recorded, newest first. A correction is a reversing entry — the original row stays as booked."
-                :padded="false"
-            >
-                <template #actions>
-                    <!--
-                        The way in when the kiosk is down. Not the normal path, and it does not
-                        look like one: it asks which shift, which operator, and why.
-                    -->
-                    <Button
-                        v-if="mayBook"
-                        size="sm"
-                        variant="secondary"
-                        :disabled="nothingBookable"
-                        :title="nothingBookable ? nothingBookableReason : 'Key a booking the terminal could not take'"
-                        @click="openBooking"
-                    >
-                        Book output manually
-                    </Button>
-                </template>
-                <DataTable :columns="logColumns" :rows="operationLogs" empty="Nothing has been booked from the floor yet." dense>
-                    <template #cell:started_at="{ row, value }">
-                        <div :class="row.is_reversed ? 'text-ink-400' : 'text-ink-700'">{{ datetime(value) }}</div>
-                        <!--
-                            A reversal carries the window of the booking it cancels, so the two
-                            rows show the same time. When it was actually keyed is a different
-                            fact and belongs on the row that was keyed.
-                        -->
-                        <div v-if="row.reverses_log_id" class="text-[11px] text-ink-500">
-                            reversed {{ datetime(row.created_at) }}
-                        </div>
-                    </template>
-
-                    <template #cell:operation="{ row }">
-                        <div class="flex items-center gap-1.5">
-                            <span :class="row.is_reversed ? 'text-ink-400 line-through' : 'text-ink-800'">
-                                {{ row.sequence_no }} · {{ row.operation }}
-                            </span>
-                            <Badge v-if="row.reverses_log_id" tone="warning" label="reversal" />
-                            <Badge v-else-if="row.is_reversed" tone="neutral" label="reversed" />
-                            <Badge v-if="row.manual_reason" tone="info" label="desk" />
-                        </div>
-
-                        <!--
-                            The reasons, read rather than hovered. A correction with a stated
-                            reason is only useful if the reason is on the screen next to it.
-                        -->
-                        <p v-if="row.reversal_reason" class="mt-0.5 text-[11px] text-amber-800">
-                            Reversed: {{ row.reversal_reason }}
-                        </p>
-                        <p v-if="row.manual_reason" class="mt-0.5 text-[11px] text-ink-500">
-                            Keyed by {{ row.entered_by ?? 'a desk user' }}: {{ row.manual_reason }}
-                        </p>
-                        <p v-if="row.remarks" class="mt-0.5 text-[11px] text-ink-500">{{ row.remarks }}</p>
-                    </template>
-
-                    <template #cell:input_qty="{ row, value }">
-                        <span class="tnum text-ink-600">{{ qty(value) }}</span>
-                        <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
-                    </template>
-                    <template #cell:good_qty="{ row, value }">
-                        <span class="tnum" :class="Number(value) < 0 ? 'text-amber-700' : 'text-emerald-700'">{{ qty(value) }}</span>
-                        <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
-                    </template>
-                    <template #cell:waste_qty="{ row, value }">
-                        <span class="tnum" :class="Number(value) < 0 ? 'text-amber-700' : 'text-rose-600'">{{ qty(value) }}</span>
-                        <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
-                    </template>
-
-                    <!--
-                        Three columns of mostly-repeating text became one line. Operator,
-                        machine and shift are the same for every booking on a run, and reading
-                        the same three values down forty rows is how a table stops being read.
-                    -->
-                    <template #cell:who="{ row }">
-                        <span class="text-ink-700">{{ row.operator ?? '—' }}</span>
-                        <span v-if="row.machine" class="text-ink-400"> · {{ row.machine }}</span>
-                        <span v-if="row.shift" class="text-ink-400"> · {{ row.shift }}</span>
-                    </template>
-
-                    <template #cell:act="{ row }">
-                        <Button
-                            v-if="mayCorrect && !row.reverses_log_id && !row.is_reversed"
-                            size="sm"
-                            variant="ghost"
-                            @click="askReverse(row)"
-                        >
-                            Reverse
-                        </Button>
-                    </template>
-                </DataTable>
-            </Card>
-
             <!-- Operations -->
             <Card title="Operations" rule="J2" subtitle="Execute in sequence; a step cannot start before its predecessor closes" :padded="false">
                 <DataTable :columns="operationColumns" :rows="operations" empty="No operations scheduled." dense>
@@ -964,208 +855,352 @@ const bomColumns = [
                 </DataTable>
             </Card>
 
-            <div class="grid gap-4 lg:grid-cols-2">
-                <Card title="Material requirement" rule="BR-1" subtitle="BOM scaled from per-1000 to this job's quantity" :padded="false">
-                    <DataTable :columns="bomColumns" :rows="bomRequirement" empty="No BOM bound." dense>
-                        <template #cell:item="{ row }">
-                            <span class="font-medium">{{ row.item?.code }}</span>
-                            <span class="text-ink-500"> {{ row.item?.name }}</span>
+            <!--
+                Everything else about the card, one section at a time. It used to be one long
+                scroll with Waste and a hundred shift bookings above the operations a planner
+                opens the card for; the operations now come first and the history is a tab away.
+            -->
+            <Tabs :tabs="tabs" :current="tab" />
+
+            <div v-if="tab === 'bookings'" data-tab="bookings">
+                <!--
+                    The shift bookings behind those totals, and the only way to correct one. The
+                    card showed that a step held 5,000 with no way to see which shift booked it,
+                    who booked it, or that it was one mis-keyed entry.
+                -->
+                <Card
+                    title="Shift bookings"
+                    rule="I1"
+                    subtitle="What the floor recorded, newest first. A correction is a reversing entry — the original row stays as booked."
+                    :padded="false"
+                >
+                    <template #actions>
+                        <!--
+                            The way in when the kiosk is down. Not the normal path, and it does not
+                            look like one: it asks which shift, which operator, and why.
+                        -->
+                        <Button
+                            v-if="mayBook"
+                            size="sm"
+                            variant="secondary"
+                            :disabled="nothingBookable"
+                            :title="nothingBookable ? nothingBookableReason : 'Key a booking the terminal could not take'"
+                            @click="openBooking"
+                        >
+                            Book output manually
+                        </Button>
+                    </template>
+                    <DataTable :columns="logColumns" :rows="operationLogs ?? []" :empty="operationLogs === null ? 'Loading…' : 'Nothing has been booked from the floor yet.'" dense>
+                        <template #cell:started_at="{ row, value }">
+                            <div :class="row.is_reversed ? 'text-ink-400' : 'text-ink-700'">{{ datetime(value) }}</div>
+                            <!--
+                                A reversal carries the window of the booking it cancels, so the two
+                                rows show the same time. When it was actually keyed is a different
+                                fact and belongs on the row that was keyed.
+                            -->
+                            <div v-if="row.reverses_log_id" class="text-[11px] text-ink-500">
+                                reversed {{ datetime(row.created_at) }}
+                            </div>
                         </template>
-                        <template #cell:qty_per_base="{ value }">{{ qty(value) }}</template>
-                        <template #cell:required="{ value }">{{ qty(value) }}</template>
-                        <template #cell:formula_ref="{ value }">
-                            <span v-if="value" class="rounded bg-slate-100 px-1 font-mono text-[10px]">{{ value }}</span>
-                            <span v-else class="text-ink-400">fixed</span>
+
+                        <template #cell:operation="{ row }">
+                            <div class="flex items-center gap-1.5">
+                                <span :class="row.is_reversed ? 'text-ink-400 line-through' : 'text-ink-800'">
+                                    {{ row.sequence_no }} · {{ row.operation }}
+                                </span>
+                                <Badge v-if="row.reverses_log_id" tone="warning" label="reversal" />
+                                <Badge v-else-if="row.is_reversed" tone="neutral" label="reversed" />
+                                <Badge v-if="row.manual_reason" tone="info" label="desk" />
+                            </div>
+
+                            <!--
+                                The reasons, read rather than hovered. A correction with a stated
+                                reason is only useful if the reason is on the screen next to it.
+                            -->
+                            <p v-if="row.reversal_reason" class="mt-0.5 text-[11px] text-amber-800">
+                                Reversed: {{ row.reversal_reason }}
+                            </p>
+                            <p v-if="row.manual_reason" class="mt-0.5 text-[11px] text-ink-500">
+                                Keyed by {{ row.entered_by ?? 'a desk user' }}: {{ row.manual_reason }}
+                            </p>
+                            <p v-if="row.remarks" class="mt-0.5 text-[11px] text-ink-500">{{ row.remarks }}</p>
+                        </template>
+
+                        <template #cell:input_qty="{ row, value }">
+                            <span class="tnum text-ink-600">{{ qty(value) }}</span>
+                            <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
+                        </template>
+                        <template #cell:good_qty="{ row, value }">
+                            <span class="tnum" :class="Number(value) < 0 ? 'text-amber-700' : 'text-emerald-700'">{{ qty(value) }}</span>
+                            <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
+                        </template>
+                        <template #cell:waste_qty="{ row, value }">
+                            <span class="tnum" :class="Number(value) < 0 ? 'text-amber-700' : 'text-rose-600'">{{ qty(value) }}</span>
+                            <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
+                        </template>
+
+                        <!--
+                            Three columns of mostly-repeating text became one line. Operator,
+                            machine and shift are the same for every booking on a run, and reading
+                            the same three values down forty rows is how a table stops being read.
+                        -->
+                        <template #cell:who="{ row }">
+                            <span class="text-ink-700">{{ row.operator ?? '—' }}</span>
+                            <span v-if="row.machine" class="text-ink-400"> · {{ row.machine }}</span>
+                            <span v-if="row.shift" class="text-ink-400"> · {{ row.shift }}</span>
+                        </template>
+
+                        <template #cell:act="{ row }">
+                            <Button
+                                v-if="mayCorrect && !row.reverses_log_id && !row.is_reversed"
+                                size="sm"
+                                variant="ghost"
+                                @click="askReverse(row)"
+                            >
+                                Reverse
+                            </Button>
                         </template>
                     </DataTable>
                 </Card>
+            </div>
 
-                <Card title="Material issued" :padded="false">
-                    <template #actions>
-                        <Button v-if="canIssueMaterial" size="sm" :href="issueHref">Issue material</Button>
-                    </template>
+            <div v-if="tab === 'waste'" data-tab="waste">
+                <!--
+                    Where the waste went. The operation row carries a waste figure; this says what
+                    the waste was, which is the half that can be acted on.
+                -->
+                <Card
+                    title="Waste"
+                    rule="G4"
+                    subtitle="Booked from the floor with its cause. Setup, shade and a weave defect are three different problems."
+                    :padded="false"
+                >
+                    <DataTable :columns="wasteColumns" :rows="wasteLogs ?? []" :empty="wasteLogs === null ? 'Loading…' : 'No waste has been booked against this job card.'" dense>
+                        <template #cell:occurred_at="{ value }">{{ datetime(value) }}</template>
+                        <template #cell:operation="{ row }">
+                            <span class="text-ink-700">{{ row.sequence_no }} · {{ row.operation }}</span>
+                        </template>
+                        <template #cell:waste_type="{ value }"><Badge tone="warning" :label="titleCase(value)" /></template>
+                        <template #cell:qty="{ row, value }">
+                            <span class="tnum text-rose-600">{{ qty(value) }}</span>
+                            <span class="text-ink-400"> {{ row.uom ?? '' }}</span>
+                        </template>
+                        <template #cell:lot_no="{ value }">{{ value ?? '—' }}</template>
+                        <template #cell:reported_by="{ value }">{{ value ?? '—' }}</template>
+                    </DataTable>
+                </Card>
+            </div>
 
-                    <ul class="divide-y divide-slate-100 text-sm">
-                        <!-- Each issue now opens: which lots it moved is the shade-traceability
-                             record, and it used to be a dead line of text. -->
-                        <li v-for="issue in issues" :key="issue.id" class="flex items-center justify-between px-3 py-2">
-                            <Link :href="`/material-issues/${issue.id}`" class="doc-link-quiet">
-                                {{ issue.number ?? `issue #${issue.id}` }}
-                            </Link>
-                            <span class="text-xs text-ink-500">{{ date(issue.issued_on) }}</span>
-                            <Badge :status="issue.status" />
+            <div v-if="tab === 'materials'" data-tab="materials">
+                <div class="grid gap-4 lg:grid-cols-2">
+                    <Card title="Material requirement" rule="BR-1" subtitle="BOM scaled from per-1000 to this job's quantity" :padded="false">
+                        <DataTable :columns="bomColumns" :rows="bomRequirement" empty="No BOM bound." dense>
+                            <template #cell:item="{ row }">
+                                <span class="font-medium">{{ row.item?.code }}</span>
+                                <span class="text-ink-500"> {{ row.item?.name }}</span>
+                            </template>
+                            <template #cell:qty_per_base="{ value }">{{ qty(value) }}</template>
+                            <template #cell:required="{ value }">{{ qty(value) }}</template>
+                            <template #cell:formula_ref="{ value }">
+                                <span v-if="value" class="rounded bg-slate-100 px-1 font-mono text-[10px]">{{ value }}</span>
+                                <span v-else class="text-ink-400">fixed</span>
+                            </template>
+                        </DataTable>
+                    </Card>
+
+                    <Card title="Material issued" :padded="false">
+                        <template #actions>
+                            <Button v-if="canIssueMaterial" size="sm" :href="issueHref">Issue material</Button>
+                        </template>
+
+                        <ul class="divide-y divide-slate-100 text-sm">
+                            <!-- Each issue now opens: which lots it moved is the shade-traceability
+                                 record, and it used to be a dead line of text. -->
+                            <li v-for="issue in issues" :key="issue.id" class="flex items-center justify-between px-3 py-2">
+                                <Link :href="`/material-issues/${issue.id}`" class="doc-link-quiet">
+                                    {{ issue.number ?? `issue #${issue.id}` }}
+                                </Link>
+                                <span class="text-xs text-ink-500">{{ date(issue.issued_on) }}</span>
+                                <Badge :status="issue.status" />
+                            </li>
+                            <li v-if="issues.length === 0" class="px-3 py-4">
+                                <EmptyState
+                                    icon="issue"
+                                    title="No material issued to this card yet"
+                                    :description="canIssueMaterial
+                                        ? 'Production cannot draw against it until material is issued from a store.'
+                                        : 'Material is issued once the card has been released to the floor.'"
+                                    :action-label="canIssueMaterial ? 'Issue material' : null"
+                                    :action-href="canIssueMaterial ? issueHref : null"
+                                />
+                            </li>
+                        </ul>
+                    </Card>
+                </div>
+            </div>
+
+            <div v-if="tab === 'finished-goods'" data-tab="finished-goods">
+                <!-- P0-3: production output becomes stock here. The gap is stated, never smoothed. -->
+                <Card title="Finished goods" rule="P0-3" subtitle="Output enters FG stock through a receipt; quarantine until final QC accepts">
+                    <dl class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+                        <div>
+                            <dt class="text-xs text-ink-500">Produced (final op)</dt>
+                            <dd class="font-medium tnum">{{ pcs(fgPosition.produced) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Received to FG</dt>
+                            <dd class="font-medium tnum">{{ pcs(fgPosition.received) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Available</dt>
+                            <dd class="font-medium tnum text-emerald-700">{{ pcs(fgPosition.available) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">In quarantine</dt>
+                            <dd class="font-medium tnum text-amber-700">{{ pcs(fgPosition.quarantined) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Unreceived production</dt>
+                            <dd class="font-medium tnum" :class="fgPosition.remaining_receivable > 0 ? 'text-rose-600' : ''">
+                                {{ pcs(fgPosition.remaining_receivable) }}
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <!--
+                        BR-48 — what the issued material can account for, and what a piece
+                        of this job is therefore worth. A lot valued at 0.00 is a job with nothing
+                        issued against it, and that is worth saying on the screen rather than
+                        leaving someone to discover it in a stock valuation.
+                    -->
+                    <dl
+                        v-if="fgPosition.material_required"
+                        class="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-sm sm:grid-cols-5"
+                    >
+                        <div class="sm:col-span-2">
+                            <dt class="text-xs text-ink-500">Material covers</dt>
+                            <dd
+                                class="font-medium tnum"
+                                :class="fgPosition.material_issued_any ? '' : 'text-rose-600'"
+                            >
+                                <template v-if="fgPosition.material_issued_any">{{ pcs(fgPosition.material_supports) }} pcs</template>
+                                <template v-else>Nothing issued</template>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">FG unit cost</dt>
+                            <dd class="font-medium tnum" :class="Number(fgPosition.unit_cost) > 0 ? '' : 'text-rose-600'">
+                                {{ money(fgPosition.unit_cost) }}
+                            </dd>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <dd v-if="!fgPosition.material_issued_any" class="text-xs text-rose-600">
+                                No material has been issued to this job, so finished goods cannot be
+                                received from it and would value at zero.
+                                <Link :href="`/material-issues/create?job_card=${jobCard.id}`" class="underline">Issue material</Link>.
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <ul v-if="fgReceipts.length" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">
+                        <li v-for="receipt in fgReceipts" :key="receipt.id" class="flex items-center justify-between gap-2 py-2">
+                            <span class="font-medium text-ink-800">{{ receipt.number }}</span>
+                            <span class="tnum">{{ pcs(receipt.qty) }}</span>
+                            <Link
+                                v-if="receipt.lot_id"
+                                :href="`/lots/${receipt.lot_id}`"
+                                class="text-xs text-brand-700 hover:underline"
+                            >lot {{ receipt.lot_no }}</Link>
+                            <span v-else class="text-xs text-ink-500">lot —</span>
+                            <Badge v-if="receipt.grade !== 'A'" tone="warning" :label="`grade ${receipt.grade}`" />
+                            <Badge :status="receipt.lot_status ?? receipt.status" />
+                            <span class="text-xs text-ink-500">{{ date(receipt.received_on) }}</span>
                         </li>
-                        <li v-if="issues.length === 0" class="px-3 py-4">
-                            <EmptyState
-                                icon="issue"
-                                title="No material issued to this card yet"
-                                :description="canIssueMaterial
-                                    ? 'Production cannot draw against it until material is issued from a store.'
-                                    : 'Material is issued once the card has been released to the floor.'"
-                                :action-label="canIssueMaterial ? 'Issue material' : null"
-                                :action-href="canIssueMaterial ? issueHref : null"
+                    </ul>
+
+                    <!--
+                        P0-3 — a card whose status cannot take a receipt says so instead of
+                        offering a form that the service will refuse. `closed` is the one that
+                        matters: it is terminal and it cannot receive, so output left unreceived
+                        there is stranded, and a live-looking form on that screen reads as a way
+                        out that does not exist.
+                    -->
+                    <p
+                        v-if="!canReceiveFg && fgPosition.remaining_receivable > 0"
+                        class="mt-3 border-t border-slate-100 pt-3 text-xs text-rose-700"
+                    >
+                        {{ pcs(fgPosition.remaining_receivable) }} unreceived. Finished goods cannot be
+                        received from a job card that is {{ titleCase(jobCard.status) }}.
+                    </p>
+
+                    <form
+                        v-if="canReceiveFg && can('fg_receipt.post') && fgPosition.remaining_receivable > 0"
+                        class="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3"
+                        @submit.prevent="postFgReceipt"
+                    >
+                        <FormField
+                            label="Quantity"
+                            :error="fgForm.errors.qty"
+                            rule="P0-3"
+                            class="w-36"
+                        >
+                            <TextInput
+                                v-model="fgForm.qty"
+                                type="number"
+                                min="0.000001"
+                                step="any"
+                                numeric
+                                :max="fgPosition.remaining_receivable"
+                                :placeholder="`≤ ${fgPosition.remaining_receivable}`"
                             />
+                        </FormField>
+                        <FormField label="Warehouse" :error="fgForm.errors.warehouse_id" class="w-52">
+                            <SelectInput v-model="fgForm.warehouse_id" :options="warehouseOptions" hint-key="hint" :placeholder="null" />
+                        </FormField>
+                        <FormField label="Grade" :error="fgForm.errors.grade" class="w-28">
+                            <SelectInput v-model="fgForm.grade" :options="GRADES" :placeholder="null" />
+                        </FormField>
+                        <!--
+                            BR-48 and BR-52 both refuse a receipt and both name the same remedy —
+                            "record a waiver with a reason" — so there has to be somewhere to record
+                            it, in both cases. Offered when the material falls short *or* when the
+                            goods would enter stock at no value, and only to someone holding the
+                            permission the rules name.
+                        -->
+                        <FormField
+                            v-if="needsMaterialWaiver"
+                            label="Material waiver reason"
+                            :error="fgForm.errors.material_waiver_reason"
+                            :rule="Number(fgPosition.unit_cost ?? 0) <= 0 ? 'BR-52' : 'BR-48'"
+                            class="w-full sm:w-96"
+                            :hint="Number(fgPosition.unit_cost ?? 0) <= 0
+                                ? 'Nothing issued to this job carries a cost, so these goods would enter stock at no value. Say why.'
+                                : 'Material issued covers less than this receipt. Say why it is being received anyway.'"
+                        >
+                            <TextInput v-model="fgForm.material_waiver_reason" placeholder="Rework fed from a previous run…" />
+                        </FormField>
+                        <Button type="submit" size="sm" variant="primary" :loading="fgForm.processing" :disabled="fgForm.processing">Receive to FG</Button>
+                    </form>
+                </Card>
+            </div>
+
+            <div v-if="tab === 'ncrs'" data-tab="ncrs">
+                <Card title="NCRs" subtitle="Non-conformance reports, raised when QC rejected output from this job">
+                    <p v-if="ncrs === null" class="text-sm text-ink-600">Loading…</p>
+                    <p v-else-if="!ncrs.length" class="text-sm text-ink-600">No output from this job has been rejected.</p>
+                    <ul v-else class="divide-y divide-slate-100 text-sm">
+                        <li v-for="ncr in ncrs" :key="ncr.id" class="flex items-center justify-between py-2">
+                            <Link :href="`/ncrs/${ncr.id}`" class="doc-link-quiet">{{ ncr.number }}</Link>
+                            <Badge
+                                :tone="ncr.severity === 'critical' ? 'danger' : ncr.severity === 'major' ? 'warning' : 'neutral'"
+                                :label="titleCase(ncr.severity)"
+                            />
+                            <Badge :status="ncr.status" />
+                            <span class="text-xs text-ink-500">{{ date(ncr.raised_on) }}</span>
                         </li>
                     </ul>
                 </Card>
             </div>
-
-            <!-- P0-3: production output becomes stock here. The gap is stated, never smoothed. -->
-            <Card title="Finished goods" rule="P0-3" subtitle="Output enters FG stock through a receipt; quarantine until final QC accepts">
-                <dl class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
-                    <div>
-                        <dt class="text-xs text-ink-500">Produced (final op)</dt>
-                        <dd class="font-medium tnum">{{ pcs(fgPosition.produced) }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs text-ink-500">Received to FG</dt>
-                        <dd class="font-medium tnum">{{ pcs(fgPosition.received) }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs text-ink-500">Available</dt>
-                        <dd class="font-medium tnum text-emerald-700">{{ pcs(fgPosition.available) }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs text-ink-500">In quarantine</dt>
-                        <dd class="font-medium tnum text-amber-700">{{ pcs(fgPosition.quarantined) }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs text-ink-500">Unreceived production</dt>
-                        <dd class="font-medium tnum" :class="fgPosition.remaining_receivable > 0 ? 'text-rose-600' : ''">
-                            {{ pcs(fgPosition.remaining_receivable) }}
-                        </dd>
-                    </div>
-                </dl>
-
-                <!--
-                    BR-48 — what the issued material can account for, and what a piece
-                    of this job is therefore worth. A lot valued at 0.00 is a job with nothing
-                    issued against it, and that is worth saying on the screen rather than
-                    leaving someone to discover it in a stock valuation.
-                -->
-                <dl
-                    v-if="fgPosition.material_required"
-                    class="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-sm sm:grid-cols-5"
-                >
-                    <div class="sm:col-span-2">
-                        <dt class="text-xs text-ink-500">Material covers</dt>
-                        <dd
-                            class="font-medium tnum"
-                            :class="fgPosition.material_issued_any ? '' : 'text-rose-600'"
-                        >
-                            <template v-if="fgPosition.material_issued_any">{{ pcs(fgPosition.material_supports) }} pcs</template>
-                            <template v-else>Nothing issued</template>
-                        </dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs text-ink-500">FG unit cost</dt>
-                        <dd class="font-medium tnum" :class="Number(fgPosition.unit_cost) > 0 ? '' : 'text-rose-600'">
-                            {{ money(fgPosition.unit_cost) }}
-                        </dd>
-                    </div>
-                    <div class="sm:col-span-2">
-                        <dd v-if="!fgPosition.material_issued_any" class="text-xs text-rose-600">
-                            No material has been issued to this job, so finished goods cannot be
-                            received from it and would value at zero.
-                            <Link :href="`/material-issues/create?job_card=${jobCard.id}`" class="underline">Issue material</Link>.
-                        </dd>
-                    </div>
-                </dl>
-
-                <ul v-if="fgReceipts.length" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">
-                    <li v-for="receipt in fgReceipts" :key="receipt.id" class="flex items-center justify-between gap-2 py-2">
-                        <span class="font-medium text-ink-800">{{ receipt.number }}</span>
-                        <span class="tnum">{{ pcs(receipt.qty) }}</span>
-                        <Link
-                            v-if="receipt.lot_id"
-                            :href="`/lots/${receipt.lot_id}`"
-                            class="text-xs text-brand-700 hover:underline"
-                        >lot {{ receipt.lot_no }}</Link>
-                        <span v-else class="text-xs text-ink-500">lot —</span>
-                        <Badge v-if="receipt.grade !== 'A'" tone="warning" :label="`grade ${receipt.grade}`" />
-                        <Badge :status="receipt.lot_status ?? receipt.status" />
-                        <span class="text-xs text-ink-500">{{ date(receipt.received_on) }}</span>
-                    </li>
-                </ul>
-
-                <!--
-                    P0-3 — a card whose status cannot take a receipt says so instead of
-                    offering a form that the service will refuse. `closed` is the one that
-                    matters: it is terminal and it cannot receive, so output left unreceived
-                    there is stranded, and a live-looking form on that screen reads as a way
-                    out that does not exist.
-                -->
-                <p
-                    v-if="!canReceiveFg && fgPosition.remaining_receivable > 0"
-                    class="mt-3 border-t border-slate-100 pt-3 text-xs text-rose-700"
-                >
-                    {{ pcs(fgPosition.remaining_receivable) }} unreceived. Finished goods cannot be
-                    received from a job card that is {{ titleCase(jobCard.status) }}.
-                </p>
-
-                <form
-                    v-if="canReceiveFg && can('fg_receipt.post') && fgPosition.remaining_receivable > 0"
-                    class="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3"
-                    @submit.prevent="postFgReceipt"
-                >
-                    <FormField
-                        label="Quantity"
-                        :error="fgForm.errors.qty"
-                        rule="P0-3"
-                        class="w-36"
-                    >
-                        <TextInput
-                            v-model="fgForm.qty"
-                            type="number"
-                            min="0.000001"
-                            step="any"
-                            numeric
-                            :max="fgPosition.remaining_receivable"
-                            :placeholder="`≤ ${fgPosition.remaining_receivable}`"
-                        />
-                    </FormField>
-                    <FormField label="Warehouse" :error="fgForm.errors.warehouse_id" class="w-52">
-                        <SelectInput v-model="fgForm.warehouse_id" :options="warehouseOptions" hint-key="hint" :placeholder="null" />
-                    </FormField>
-                    <FormField label="Grade" :error="fgForm.errors.grade" class="w-28">
-                        <SelectInput v-model="fgForm.grade" :options="GRADES" :placeholder="null" />
-                    </FormField>
-                    <!--
-                        BR-48 and BR-52 both refuse a receipt and both name the same remedy —
-                        "record a waiver with a reason" — so there has to be somewhere to record
-                        it, in both cases. Offered when the material falls short *or* when the
-                        goods would enter stock at no value, and only to someone holding the
-                        permission the rules name.
-                    -->
-                    <FormField
-                        v-if="needsMaterialWaiver"
-                        label="Material waiver reason"
-                        :error="fgForm.errors.material_waiver_reason"
-                        :rule="Number(fgPosition.unit_cost ?? 0) <= 0 ? 'BR-52' : 'BR-48'"
-                        class="w-full sm:w-96"
-                        :hint="Number(fgPosition.unit_cost ?? 0) <= 0
-                            ? 'Nothing issued to this job carries a cost, so these goods would enter stock at no value. Say why.'
-                            : 'Material issued covers less than this receipt. Say why it is being received anyway.'"
-                    >
-                        <TextInput v-model="fgForm.material_waiver_reason" placeholder="Rework fed from a previous run…" />
-                    </FormField>
-                    <Button type="submit" size="sm" variant="primary" :loading="fgForm.processing" :disabled="fgForm.processing">Receive to FG</Button>
-                </form>
-            </Card>
-
-            <Card v-if="ncrs.length" title="NCRs" subtitle="Raised when QC rejected output from this job">
-                <ul class="divide-y divide-slate-100 text-sm">
-                    <li v-for="ncr in ncrs" :key="ncr.id" class="flex items-center justify-between py-2">
-                        <Link :href="`/ncrs/${ncr.id}`" class="doc-link-quiet">{{ ncr.number }}</Link>
-                        <Badge
-                            :tone="ncr.severity === 'critical' ? 'danger' : ncr.severity === 'major' ? 'warning' : 'neutral'"
-                            :label="titleCase(ncr.severity)"
-                        />
-                        <Badge :status="ncr.status" />
-                        <span class="text-xs text-ink-500">{{ date(ncr.raised_on) }}</span>
-                    </li>
-                </ul>
-            </Card>
         </div>
 
         <!-- Release: the waiver is the only way past a shortage, and it demands a reason -->
@@ -1409,7 +1444,7 @@ const bomColumns = [
                     <FormField label="Machine" :error="bookForm.errors.machine_id">
                         <SelectInput
                             v-model="bookForm.machine_id"
-                            :options="machines.map((m) => ({ value: m.id, label: m.code, hint: m.name }))"
+                            :options="(machines ?? []).map((m) => ({ value: m.id, label: m.code, hint: m.name }))"
                             hint-key="hint"
                         />
                     </FormField>

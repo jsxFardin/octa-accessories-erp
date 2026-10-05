@@ -206,8 +206,11 @@ it('production: shows the shift bookings on the job card they belong to', functi
         ->get("/job-cards/{$this->jobCard->id}")
         ->assertInertia(fn ($page) => $page
             ->component('Manufacturing/JobCards/Show')
-            ->has('operationLogs', 1)
-            ->where('operationLogs.0.good_qty', fn ($value): bool => (float) $value === 500.0));
+            // Sent after the page has drawn (UX audit M-31), so it is asked for the way the page asks.
+            ->missing('operationLogs')
+            ->loadDeferredProps('history', fn ($page) => $page
+                ->has('operationLogs', 1)
+                ->where('operationLogs.0.good_qty', fn ($value): bool => (float) $value === 500.0)));
 });
 
 /**
@@ -254,4 +257,27 @@ it('production: records the negated input on the reversing row', function (): vo
     $reversal = DB::table('operation_logs')->where('reverses_log_id', $logId)->first();
 
     expect((float) $reversal->input_qty)->toEqualWithDelta(-300.0, 0.0001);
+});
+
+/*
+ * UX audit M-31. The card opens on the section a person at that stage came for, the choice
+ * rides in the URL, and the long lists follow the page instead of holding it up.
+ */
+it('production: opens the job card on a section and sends its history afterwards', function (): void {
+    $open = fn (string $query = '') => $this->actingAs($this->supervisor)->get("/job-cards/{$this->jobCard->id}{$query}");
+
+    $open()->assertInertia(fn ($page) => $page
+        ->where('tab', 'bookings')
+        ->has('operations')
+        ->has('releaseGate')
+        ->missing('operationLogs')->missing('wasteLogs')->missing('ncrs')
+        ->missing('operators')->missing('machines')
+        ->loadDeferredProps('pickers', fn ($page) => $page->has('operators')->has('machines')));
+
+    $open('?tab=finished-goods')->assertInertia(fn ($page) => $page->where('tab', 'finished-goods'));
+    // A section that does not exist falls back rather than showing an empty page.
+    $open('?tab=nonsense')->assertInertia(fn ($page) => $page->where('tab', 'bookings'));
+
+    $this->jobCard->forceFill(['status' => JobCard::PLANNED])->save();
+    $open()->assertInertia(fn ($page) => $page->where('tab', 'materials'));
 });

@@ -149,6 +149,7 @@ it('waste: shows the causes on the job card', function (): void {
     $this->actingAs($supervisor)
         ->get("/job-cards/{$this->jobCard->id}")
         ->assertInertia(fn ($page) => $page
-            ->has('wasteLogs', 1)
-            ->where('wasteLogs.0.waste_type', 'edge_trim'));
+            ->loadDeferredProps('history', fn ($page) => $page
+                ->has('wasteLogs', 1)
+                ->where('wasteLogs.0.waste_type', 'edge_trim')));
 });
