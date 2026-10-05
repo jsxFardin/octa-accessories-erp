@@ -208,8 +208,18 @@ class ProductController extends Controller
         return $request->validate([
             // P1 — a product belongs to exactly one customer, and that never changes: the
             // artwork approval and the price both belong to that relationship.
-            'customer_id' => ['required', 'integer', 'exists:customers,id'],
-            'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
+            'customer_id' => [
+                'required', 'integer', 'exists:customers,id',
+                // …so on an existing product it is not a field at all, whatever the request says.
+                ...($product === null ? [] : [Rule::in([$product->customer_id])]),
+            ],
+            // A brand of this customer, or one that belongs to no single customer.
+            'brand_id' => [
+                'nullable', 'integer',
+                Rule::exists('brands', 'id')->where(fn ($query) => $query->where(fn ($brand) => $brand
+                    ->whereNull('customer_id')
+                    ->orWhere('customer_id', (int) $request->input('customer_id')))),
+            ],
             'routing_id' => ['nullable', 'integer', $this->routingOfType((string) $request->input('product_type'))],
             'code' => ['required', 'string', 'max:40', Rule::unique('products', 'code')->ignore($product?->id)],
             'name' => ['required', 'string', 'max:180'],
@@ -220,6 +230,9 @@ class ProductController extends Controller
             'annual_forecast_qty' => ['nullable', 'numeric', 'min:0', 'required_if:is_running_programme,true'],
             'status' => ['required', Rule::in(['development', 'active', 'on_hold', 'discontinued'])],
             'is_active' => ['boolean'],
+        ], [
+            'customer_id.in' => 'A product stays with the customer it was created for. To make it for another customer, create a new product.',
+            'brand_id.exists' => 'Choose a brand that belongs to this customer.',
         ]);
     }
 

@@ -175,3 +175,43 @@ it('keeps people without the permission from registering a tool', function (): v
 
     $this->post('/tools', ['code' => 'TOOL-T-09', 'kind' => 'screen', 'status' => 'available'])->assertForbidden();
 });
+
+/*
+ * UX audit M-20. The product form offered every customer's brands, and let the customer of an
+ * existing product be changed although everything about it belongs to that customer.
+ */
+it('keeps a product with its customer and its brand with that customer', function (): void {
+    $this->actingAs(App\Models\User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+
+    $product = Product::query()->firstOrFail();
+    // A second customer, copied from the first: the test seed has only one.
+    $row = (array) DB::table('customers')->where('id', $product->customer_id)->first();
+    unset($row['id']);
+    $otherCustomer = (int) DB::table('customers')->insertGetId([...$row, 'code' => 'CUS-T-OTHER', 'name' => 'Another customer']);
+
+    $brand = fn (?int $customerId, string $code): int => (int) DB::table('brands')->insertGetId([
+        'code' => $code, 'name' => "Brand {$code}", 'customer_id' => $customerId,
+    ]);
+
+    $payload = fn (array $changes): array => [
+        ...$product->only(['customer_id', 'code', 'name', 'product_type', 'status', 'routing_id']),
+        ...$changes,
+    ];
+
+    $update = fn (array $changes) => $this->put("/products/{$product->id}", $payload($changes));
+
+    $update(['customer_id' => $otherCustomer])->assertSessionHasErrors('customer_id');
+    expect($product->refresh()->customer_id)->not->toBe($otherCustomer);
+
+    $update(['brand_id' => $brand($otherCustomer, 'BR-T-OTHER')])
+        ->assertSessionHasErrors(['brand_id' => 'Choose a brand that belongs to this customer.']);
+
+    $own = $brand($product->customer_id, 'BR-T-OWN');
+    $update(['brand_id' => $own])->assertSessionHasNoErrors();
+    expect($product->refresh()->brand_id)->toBe($own);
+
+    // A brand that belongs to no single customer may go on anyone's product.
+    $shared = $brand(null, 'BR-T-SHARED');
+    $update(['brand_id' => $shared])->assertSessionHasNoErrors();
+    expect($product->refresh()->brand_id)->toBe($shared);
+});

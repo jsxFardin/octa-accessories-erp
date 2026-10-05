@@ -15,8 +15,22 @@ const sections = computed(() => [
         fields: [
             // `?customer=` was already resolved server-side and then dropped on the floor:
             // the prop existed, nothing consumed it, and the picker opened empty.
-            { key: 'customer_id', label: 'Customer', type: 'select', options: props.customers, valueKey: 'id', labelKey: 'name', required: true, rule: 'P1', hint: 'A product belongs to exactly one customer, permanently.', default: props.preselectedCustomer ?? '' },
-            { key: 'brand_id', label: 'Brand', type: 'select', options: props.brands, valueKey: 'id', labelKey: 'name' },
+            {
+                key: 'customer_id', label: 'Customer', type: 'select', options: props.customers, valueKey: 'id', labelKey: 'name', required: true, rule: 'P1',
+                // Said to be permanent, and it is: the artwork approvals and the prices belong
+                // to this customer. The field used to stay editable on a product that existed.
+                disabled: isEdit.value,
+                hint: isEdit.value
+                    ? 'A product stays with the customer it was created for. To make it for another customer, create a new product.'
+                    : 'A product belongs to one customer, and that cannot be changed later.',
+                default: props.preselectedCustomer ?? '',
+            },
+            {
+                key: 'brand_id', label: 'Brand', type: 'select', valueKey: 'id', labelKey: 'name',
+                // Only this customer's brands, and brands that belong to no one customer.
+                options: (form) => props.brands.filter((brand) => brand.customer_id === null || Number(brand.customer_id) === Number(form.customer_id)),
+                hint: 'Brands of the chosen customer.',
+            },
             { key: 'code', label: 'Code', required: true },
             { key: 'name', label: 'Name', required: true },
             { key: 'customer_style_ref', label: 'Customer style ref' },

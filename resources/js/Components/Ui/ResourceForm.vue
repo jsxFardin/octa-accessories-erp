@@ -1,4 +1,5 @@
 <script setup>
+import { watch } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import { useBookedRate } from '@/composables/useBookedRate';
 import Card from '@/Components/Ui/Card.vue';
@@ -18,7 +19,12 @@ import { resolveDefaults } from '@/plugins/formDefaults';
  * bespoke and does not use it.
  */
 const props = defineProps({
-    /** `[{ title, rule, fields: [{ key, label, type, options, rule, hint, required, span }] }]` */
+    /**
+     * `[{ title, rule, fields: [{ key, label, type, options, rule, hint, required, span, disabled }] }]`
+     *
+     * `options` may be a function of the form — `(form) => [...]` — for a list that depends on
+     * another field. When the list changes and no longer holds the chosen value, the value is cleared.
+     */
     sections: { type: Array, required: true },
     initial: { type: Object, default: () => ({}) },
     action: { type: String, required: true },
@@ -48,6 +54,29 @@ function visible(field) {
 
 function hintOf(field) {
     return (bookedRate && field.key === 'exchange_rate' ? bookedRate.rateHint.value : null) ?? field.hint;
+}
+
+/** A select's choices: fixed, or worked out from what else is on the form. */
+function optionsOf(field) {
+    return (typeof field.options === 'function' ? field.options(form) : field.options) ?? [];
+}
+
+/*
+ * A dependent list that no longer offers the chosen value drops it. Left alone, the field kept
+ * showing nothing while the form went on sending the old id — a brand of the previous customer.
+ */
+for (const field of props.sections.flatMap((section) => section.fields)) {
+    if (typeof field.options !== 'function') continue;
+
+    watch(() => optionsOf(field), (options) => {
+        const value = form[field.key];
+
+        if (value === '' || value === null || value === undefined) return;
+
+        const key = field.valueKey ?? 'value';
+
+        if (!options.some((option) => String(option?.[key] ?? option) === String(value))) form[field.key] = '';
+    }, { immediate: true });
 }
 
 function submit() {
@@ -93,7 +122,8 @@ function submit() {
                         <SelectInput
                             v-else-if="field.type === 'select'"
                             v-model="form[field.key]"
-                            :options="field.options ?? []"
+                            :options="optionsOf(field)"
+                            :disabled="field.disabled ?? false"
                             :value-key="field.valueKey ?? 'value'"
                             :label-key="field.labelKey ?? 'label'"
                             :hint-key="field.hintKey ?? null"
