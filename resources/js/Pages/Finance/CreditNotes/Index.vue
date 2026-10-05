@@ -46,7 +46,6 @@ const columns = [
                         title="No credit notes"
                         description="A challan return against an issued invoice drafts one automatically; claims and rate differences are raised by hand from the invoice."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

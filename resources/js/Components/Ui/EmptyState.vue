@@ -1,4 +1,5 @@
 <script setup>
+import { router, usePage } from '@inertiajs/vue3';
 import Button from '@/Components/Ui/Button.vue';
 import Icon from '@/Components/Ui/Icon.vue';
 
@@ -20,6 +21,19 @@ defineProps({
 });
 
 const emit = defineEmits(['action', 'clear-filters']);
+
+const page = usePage();
+
+/**
+ * Clearing filters is the same act on every list: the same page with no query string. It is
+ * done here once. Each page used to pass its own handler, written as
+ * `router.get(window.location.pathname)` — and `window` does not exist inside a Vue template,
+ * so on thirty-six lists the only button on this state threw instead of clearing.
+ */
+function clearFilters() {
+    router.get(page.url.split('?')[0], {}, { preserveScroll: true });
+    emit('clear-filters');
+}
 </script>
 
 <template>
@@ -37,7 +51,7 @@ const emit = defineEmits(['action', 'clear-filters']);
         </p>
 
         <div class="mt-3 flex items-center gap-2">
-            <Button v-if="filtered" size="sm" @click="emit('clear-filters')">Clear filters</Button>
+            <Button v-if="filtered" size="sm" @click="clearFilters">Clear filters</Button>
 
             <Button
                 v-else-if="actionLabel"

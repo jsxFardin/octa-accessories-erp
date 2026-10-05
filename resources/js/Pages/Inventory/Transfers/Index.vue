@@ -64,7 +64,6 @@ const warehouseOptions = props.warehouses.map((w) => ({ value: w.id, label: w.na
                         :action-label="can('stock_transfer.create') ? 'New transfer' : null"
                         action-href="/stock-transfers/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

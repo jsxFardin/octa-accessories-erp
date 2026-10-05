@@ -146,7 +146,6 @@ function submit() {
                         title="Nothing received yet"
                         description="A receipt allocates money against issued invoices and moves them toward paid."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

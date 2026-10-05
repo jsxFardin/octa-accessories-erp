@@ -87,7 +87,6 @@ const columns = [
                             title="No stock on hand"
                             description="Balances are derived from the append-only ledger — they are never edited directly."
                             :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                            @clear-filters="router.get(window.location.pathname)"
                         />
                     </template>
                     <template #cell:lot_no="{ row }">

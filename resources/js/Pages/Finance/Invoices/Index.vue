@@ -68,7 +68,6 @@ const columns = [
                         title="No invoices yet"
                         description="Invoices are raised from a delivery challan — the quantities have to be the ones that left the gate."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

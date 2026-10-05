@@ -65,7 +65,6 @@ const columns = [
                         title="No challans yet"
                         description="A delivery challan is what physically leaves the gate, and what an invoice is raised from."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

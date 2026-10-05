@@ -64,7 +64,6 @@ const columns = [
                         :action-label="can('inquiry.create') ? 'New inquiry' : null"
                         action-href="/inquiries/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

@@ -55,7 +55,6 @@ const columns = [
                         title="No trips yet"
                         description="A trip sequences drops for one vehicle and collects proof of delivery."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

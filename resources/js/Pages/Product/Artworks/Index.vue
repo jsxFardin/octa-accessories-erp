@@ -105,7 +105,6 @@ const columns = [
                         :action-label="can('artwork.create') ? 'New artwork' : null"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
                         @action="createOpen = true"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
                 <template #cell:preview="{ row }">

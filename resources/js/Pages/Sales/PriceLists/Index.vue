@@ -84,7 +84,6 @@ const columns = [
                         :action-label="can('price_list.create') ? 'New price list' : null"
                         action-href="/price-lists/create"
                         :filtered="Boolean(filters.q)"
-                        @clear-filters="router.get('/price-lists')"
                     />
                 </template>
             </DataTable>

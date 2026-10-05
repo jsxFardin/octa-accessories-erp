@@ -64,7 +64,6 @@ const columns = [
                         :action-label="can('stock_adjustment.create') ? 'New adjustment' : null"
                         action-href="/stock-adjustments/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

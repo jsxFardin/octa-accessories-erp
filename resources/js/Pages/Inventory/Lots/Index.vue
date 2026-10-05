@@ -60,7 +60,6 @@ const columns = [
                         title="No lots yet"
                         description="Every lot traces back to the goods receipt that created it, and forward to the cartons it left in."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

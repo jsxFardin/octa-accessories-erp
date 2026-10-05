@@ -190,7 +190,6 @@ function rowHref(row) {
                             title="No rows"
                             description="Reports are read-only. Change the date range or filters, or wait for transactional activity."
                             :filtered="Object.entries(applied ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                            @clear-filters="router.get(`/reports/${report.key}`)"
                         />
                     </template>
                 </DataTable>

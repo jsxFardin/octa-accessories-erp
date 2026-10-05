@@ -57,7 +57,6 @@ const columns = [
                         title="No tools yet"
                         description="Dies, screens and cylinders — their reuse is what keeps a repeat order cheaper than the first."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

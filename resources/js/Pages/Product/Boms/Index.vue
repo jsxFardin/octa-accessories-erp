@@ -53,7 +53,6 @@ const columns = [
                         title="No BOMs yet"
                         description="A bill of material lives on the product. Open a product, then add a BOM before releasing a job card."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get('/boms')"
                     />
                 </template>
             </DataTable>

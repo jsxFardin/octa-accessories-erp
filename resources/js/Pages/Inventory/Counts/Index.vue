@@ -60,7 +60,6 @@ const columns = [
                         :action-label="can('physical_count.create') ? 'New count' : null"
                         action-href="/physical-counts/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

@@ -97,7 +97,6 @@ const columns = [
                         :action-label="can('machine.create') ? 'New machine' : null"
                         action-href="/machines/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

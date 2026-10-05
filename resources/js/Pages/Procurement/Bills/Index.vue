@@ -62,7 +62,6 @@ const columns = [
                         title="No supplier bills"
                         description="Enter supplier invoices here. Approval runs a three-way match against PO and GRN."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

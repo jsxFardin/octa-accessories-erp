@@ -68,7 +68,6 @@ const columns = [
                         :action-label="can('stock_issue.create') ? 'New issue' : null"
                         action-href="/material-issues/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

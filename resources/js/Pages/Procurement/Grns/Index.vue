@@ -56,7 +56,6 @@ const columns = [
                         :action-label="can('grn.create') ? 'New GRN' : null"
                         action-href="/grns/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

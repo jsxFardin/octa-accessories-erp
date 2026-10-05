@@ -71,7 +71,6 @@ const columns = [
                         :action-label="can('quotation.create') ? 'New quotation' : null"
                         action-href="/quotations/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

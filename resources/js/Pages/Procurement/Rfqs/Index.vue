@@ -58,7 +58,6 @@ const columns = [
                         :action-label="can('rfq.create') ? 'New RFQ' : null"
                         action-href="/rfqs/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

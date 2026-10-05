@@ -51,7 +51,6 @@ const columns = [
                         title="Nothing packed yet"
                         description="Scan-to-pack builds the carton contents that a challan and an invoice are drawn from."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

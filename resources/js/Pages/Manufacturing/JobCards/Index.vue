@@ -87,7 +87,6 @@ const columns = [
                         :action-label="can('job_card.create') ? 'New job card' : null"
                         action-href="/job-cards/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

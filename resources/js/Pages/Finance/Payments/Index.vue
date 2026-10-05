@@ -149,7 +149,6 @@ function submit() {
                         title="No payments yet"
                         description="A payment allocates money against approved supplier bills and moves them toward paid."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

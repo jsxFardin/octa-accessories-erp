@@ -83,7 +83,6 @@ const columns = [
                         :action-label="can('sales_order.create') ? 'New order' : null"
                         action-href="/sales-orders/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

@@ -95,7 +95,6 @@ const summary = [
                         title="No NCRs"
                         description="A rejected QC inspection raises an NCR automatically. There is no hand-drafted NCR."
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>

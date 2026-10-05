@@ -59,7 +59,6 @@ const columns = [
                         :action-label="can('qc_inspection.create') ? 'New inspection' : null"
                         action-href="/qc-inspections/create"
                         :filtered="Object.entries(filters ?? {}).some(([key, value]) => key !== 'sort' && value)"
-                        @clear-filters="router.get(window.location.pathname)"
                     />
                 </template>
             </DataTable>
