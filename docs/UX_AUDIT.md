@@ -128,19 +128,19 @@ Severity: **Critical** = a core task cannot be completed, or data is lost. **Hig
 | H-28 | Confirm | The shared status-change confirm is generic and developer-worded: "Move to qc pending JC-…?", "The state machine will still apply its own checks.", button "Continue". Posting stock is not marked destructive; "Start counting" does not say it blocks the warehouse | `resources/js/composables/useTransitionConfirm.js:12-55` | The dialog does not say what will happen | High | S | Per-call title, consequence sentence and button label | C | Done (0c4e0c8) |
 | H-29 | Confirm | Irreversible actions with no confirm and no busy state: delivery-note Cancel / Mark delivered / Create invoice; floor FINISH; trade LC and shipment Cancel / Close / Remove; bulk Approve / Submit; NCR Close; packing carton removal; "Make current" spec; BOM "Activate" | `Pages/Dispatch/Challans/Show.vue:25-26,77-88`; `Pages/Floor/Operation.vue:195`; `Pages/Trade/LettersOfCredit/Show.vue:71-79`; `Pages/Trade/Shipments/Show.vue:84-114`; `Pages/Procurement/PurchaseOrders/Index.vue:36-48`; `Pages/Quality/Ncrs/Show.vue:107-132`; `Pages/Dispatch/PackingLists/Show.vue:389-405`; `Pages/Product/Products/Show.vue:128-134,357-359` | One slip cancels, closes or posts; a double-click may create duplicates | High | M | Route through the existing confirm dialog with a consequence line; disable while in flight | C | Done (3029f40, ebee4fa) |
 | H-30 | Errors | Refusals sent with `abort(422, …)` are not in the handled status list, so the message is likely lost (not reproduced) | `bootstrap/app.php:73`; `app/Modules/Finance/Http/Controllers/ExpenseController.php:146`; `app/Modules/Trade/Http/Controllers/LetterOfCreditController.php:216-249` | A refused approval shows a raw response instead of a reason | High | S | Return a flash or validation error | C | Done (a02d4c8) |
-| H-31 | Floor | SAVE, START and FINISH have no in-flight lock and a new idempotency key is minted per send | `Pages/Floor/Operation.vue:61-83,239-245`; `resources/js/Composables/useOfflineQueue.js:108-113` | A double tap books output twice | High | S | Disable while sending; create the key when the form opens | C | Open |
-| H-32 | Floor | Queued and sent look the same ("Logged"); totals do not change when offline | `Pages/Floor/Operation.vue:55-66,112-116` | The operator sees "Logged", sees no change, and books it again | High | S | A distinct "saved on this device" state; add queued figures to the tiles | C | Open |
+| H-31 | Floor | SAVE, START and FINISH have no in-flight lock and a new idempotency key is minted per send | `Pages/Floor/Operation.vue:61-83,239-245`; `resources/js/Composables/useOfflineQueue.js:108-113` | A double tap books output twice | High | S | Disable while sending; create the key when the form opens | C | Done (34a0449) |
+| H-32 | Floor | Queued and sent look the same ("Logged"); totals do not change when offline | `Pages/Floor/Operation.vue:55-66,112-116` | The operator sees "Logged", sees no change, and books it again | High | S | A distinct "saved on this device" state; add queued figures to the tiles | C | Done (34a0449) |
 | H-33 | Floor | Rejected records are a bare count that never clears, shown on one screen only, with no list of what or why | `Pages/Floor/Operation.vue:156-158`; `resources/js/Composables/useOfflineQueue.js:37-41` | The supervisor cannot tell which job, quantity or reason | High | M | A "Not sent" screen listing each record with re-key and dismiss | C | Open |
 | H-34 | Floor | Server refusals are English with rule codes ("J3: output … exceeds …"); long guidance on login and queue is English only; one line is Bangla only | `app/Modules/Manufacturing/Services/OperationBookingService.php:94-334`; `Pages/Floor/Login.vue:42-139`; `Pages/Floor/Queue.vue:114,149-153` | Bangla-first operators cannot act on the message that explains why a button did nothing | High | M | Stable error codes rendered as short bilingual sentences; one floor dictionary | B (login), C | Open |
-| H-35 | Floor | Quantities on the terminal carry no unit, while the desk page adds one to every figure | `Pages/Floor/Operation.vue:160-177,200-210` | Metres and pieces are entered in identical boxes | High | S | Send and print the operation's unit | C | Open |
+| H-35 | Floor | Quantities on the terminal carry no unit, while the desk page adds one to every figure | `Pages/Floor/Operation.vue:160-177,200-210` | Metres and pieces are entered in identical boxes | High | S | Send and print the operation's unit | C | Done (34a0449) |
 | H-36 | Dispatch | Marking a stop failed flashes "Stop delivered."; the dialog does not say that failing returns the goods to stock | `app/Modules/Dispatch/Http/Controllers/TripController.php:222-268` | A green "delivered" toast for a failed drop | High | S | Correct the flash; state the consequence | C | Done (2b9adcd) |
 | H-37 | Dispatch | Delivery mode is hard-coded to own fleet; start odometer has no input | `Pages/Dispatch/PackingLists/Show.vue:250-254`; `Pages/Dispatch/Trips/Form.vue:25-26` | Courier and pickup deliveries are mislabelled | High | S | Ask the mode when creating the delivery note | C | Open |
 | H-38 | Quality | Lab form requires a value for every catalogue test and shows no row errors; thresholds stay at the house default after a customer is chosen | `Pages/Quality/Lab/Form.vue:26-34,86-99`; `app/Modules/Quality/Http/Controllers/LabController.php:102-104` | A technician who ran 3 of 9 tests presses Save and nothing visible happens | High | M | Send only filled rows, show errors, load the applicable threshold | C | Open |
-| H-39 | Language | The desk has no translation layer, yet Profile and Users offer "English / বাংলা" | `Pages/Profile/Edit.vue:64-72`; `Pages/Admin/Users.vue:219-224` | Choosing বাংলা changes nothing | High | L | Remove the selector from desk screens until translations exist, or add a translation layer starting with the kit strings | C | Open |
-| H-40 | Language | Changing language sits in the change-password form; the dedicated route is never called | `Pages/Profile/Edit.vue:13-21`; `routes/web.php:93` | Language cannot be changed without changing the password | High | S | Give language its own card posting to `/profile/locale` | C | Open |
+| H-39 | Language | The desk has no translation layer, yet Profile and Users offer "English / বাংলা" | `Pages/Profile/Edit.vue:64-72`; `Pages/Admin/Users.vue:219-224` | Choosing বাংলা changes nothing | High | L | Remove the selector from desk screens until translations exist, or add a translation layer starting with the kit strings | C | Decided (bfab0be): desk stays English; selector removed. No translation layer planned |
+| H-40 | Language | Changing language sits in the change-password form; the dedicated route is never called | `Pages/Profile/Edit.vue:13-21`; `routes/web.php:93` | Language cannot be changed without changing the password | High | S | Give language its own card posting to `/profile/locale` | C | Done (bfab0be): selector removed per decision 2 |
 | H-41 | Reports | Reports have no export and no print | `Pages/Reports/Show.vue:130-197`; `routes/web.php:105-110` | Ageing and stock reports are retyped or screenshotted | High | M | Reuse `ExportDialog`; add Print | C | Open |
 | H-42 | Import | Choosing a file imports it at once: no preview, no confirmation | `Ui/ImportDialog.vue:54-67,122` | A wrong spreadsheet updates up to 1,000 master records with no undo | High | M | Validate first, show "N created, M updated, K skipped", then an explicit Import button | C | Open |
-| H-43 | First run | No password reset and no guidance on the login page | `routes/web.php:80-81`; `Pages/Auth/Login.vue:35-67` | A locked-out user has no path | High | M | "Forgot password? Ask your administrator" with a contact, or a reset flow | B | Open |
+| H-43 | First run | No password reset and no guidance on the login page | `routes/web.php:80-81`; `Pages/Auth/Login.vue:35-67` | A locked-out user has no path | High | M | "Forgot password? Ask your administrator" with a contact, or a reset flow | B | Done (e03be6c): ask-administrator help per decision 10 |
 | H-44 | First run | A new installation shows a dashboard of zero tiles with no setup path; "Needs you" is hidden when empty; the shared seed password is flagged only on Profile | `Pages/Dashboard.vue:84,118-133`; `Pages/Setup/Index.vue:85-111` | A new admin does not know where to start | High | M | A first-run checklist card driven by record counts; a banner while the seed password is in use | C | Open |
 | H-45 | Feedback | Error toasts disappear after 10 seconds, and several errors collapse to "and N more fields to fix" | `resources/js/composables/useToasts.js:27`; `resources/js/app.js:30-32` | For forms without inline errors (see H-03) the only explanation is gone | High | S | Keep errors until dismissed; list every message | C | Done (c4211a8) |
 | H-46 | Help | Rule tooltips are clipped by the card they sit in | `Ui/RuleHint.vue:38`; `Ui/Card.vue:18` | The plain-language explanation of a rule is cut off at the top; used on 67 cards | High | M | Render the tooltip in `body` with fixed positioning, as `SelectInput` does | B | Done (d862de2) |
@@ -153,7 +153,7 @@ Severity: **Critical** = a core task cannot be completed, or data is lost. **Hig
 
 | ID | Area | Issue | Where | User impact | Sev | Effort | Recommended fix | Check | Status |
 |---|---|---|---|---|---|---|---|---|---|
-| M-01 | Dashboard | At 1280 px the eight tiles truncate their labels ("Job cards o…" and "Job cards n…" look alike), "BDT 431,150.67" overflows its tile, and the order book clips the Promised and Status columns | `Pages/Dashboard.vue:118-131,135-146` | The first screen is hard to read on the most common laptop width | Medium | S | Four tiles per row below 1536 px; wrap labels; let the table scroll or drop a column | B | Open |
+| M-01 | Dashboard | At 1280 px the eight tiles truncate their labels ("Job cards o…" and "Job cards n…" look alike), "BDT 431,150.67" overflows its tile, and the order book clips the Promised and Status columns | `Pages/Dashboard.vue:118-131,135-146` | The first screen is hard to read on the most common laptop width | Medium | S | Four tiles per row below 1536 px; wrap labels; let the table scroll or drop a column | B | Done (330c18e) |
 | M-02 | Dashboard | Every role sees the same tiles; a store keeper gets Quotations out and Artwork awaiting approval, and Receivables/Payables in the Reports menu | `Pages/Dashboard.vue:25-38`; `resources/js/navigation.js:135-146` | The landing page is not about the user's own work | Medium | M | Filter tiles and report links by permission; lead with the role's own queue | B | Open |
 | M-03 | Microcopy | Developer and specification wording on user screens. Examples: "numbered on submit, never on form open"; "Snapshotted on send; a reprint never re-reads it"; "Written by a model observer, not a trigger"; "a `grn_receipt` ledger row"; "This is a bug in a posting path"; "the database refuses this row, so it cannot exist"; "the two gates, live" | `Pages/Sales/Inquiries/Index.vue:39`; `Pages/Sales/Quotations/Form.vue` (exchange-rate hint); `Pages/Admin/AuditLog.vue:27`; `Pages/Procurement/Grns/Form.vue:373`; `Pages/Inventory/Stock/Index.vue:60-61`; `Pages/Quality/Inspections/Show.vue:56-58`; `Pages/Dashboard.vue:77` | Users read implementation notes where they need "what is this screen for" | Medium | M | Rewrite subtitles and hints in task language | B, C | Open |
 | M-04 | Microcopy | Internal rule codes in visible text and flashes ("BR-29", "Gate 1 · A2", "P0-3:", "J5 ceiling", "S2:", "QL-5 —"); several `rule` props are not in the dictionary, so the tooltip says "Enforced by an internal rule." | `Pages/Manufacturing/JobCards/Show.vue:677,758,1134`; `Pages/Quality/Lab/Form.vue:55`; `Pages/Dispatch/Trips/Form.vue:54`; `resources/js/plugins/rules.js:73-79`; `app/Modules/Sales/Http/Controllers/SalesOrderController.php:278,342` | Codes read as errors | Medium | S | Keep codes inside the tooltip only; add the missing dictionary entries | B, C | Open |
@@ -185,7 +185,7 @@ Severity: **Critical** = a core task cannot be completed, or data is lost. **Hig
 | M-30 | Quality | Inspection defect counters are 28 px although described as the tablet control; a permanent REJECTED verdict has no confirm | `Pages/Quality/Inspections/Form.vue:225-246,349-355` | Mis-taps on a permanent record | Medium | S | 44 px targets; confirm with consequences on reject | C | Partly done (8bb1d68): reject confirm; 44 px counters in Phase 3 (M-47) |
 | M-31 | Job card | The detail page loads everything eagerly (all employees, machines, 100 logs, eight modals) and puts Waste above Operations | `app/Modules/Manufacturing/Http/Controllers/JobCardController.php:321-454`; `Pages/Manufacturing/JobCards/Show.vue:768-890` | Slow open and a long scroll on the busiest production page | Medium | M | Defer secondary props; move Operations up; use tabs | C | Open |
 | M-32 | Job card | Copy contradicts the UI: the Close dialog says "cannot be reopened" but a Reopen button exists | `Pages/Manufacturing/JobCards/Show.vue:590-597,1204,1211` | Users are over-warned | Medium | S | Correct the copy | C | Done (af905e4) |
-| M-33 | Floor | The pending count shows only when the browser reports offline; with wifi up and the server down, the pill says ONLINE while records wait | `Pages/Floor/Queue.vue:110-115`; `resources/js/Composables/useOfflineQueue.js:146-169` | Unsent work is invisible | Medium | S | Always show "n waiting"; retry on a timer; add "Send now" | C | Open |
+| M-33 | Floor | The pending count shows only when the browser reports offline; with wifi up and the server down, the pill says ONLINE while records wait | `Pages/Floor/Queue.vue:110-115`; `resources/js/Composables/useOfflineQueue.js:146-169` | Unsent work is invisible | Medium | S | Always show "n waiting"; retry on a timer; add "Send now" | C | Done (34a0449) |
 | M-34 | Floor | Queue cards hide status, progress and due date the API already sends; START is greyed when running with no label; the machine choice is not remembered | `Pages/Floor/Queue.vue:157-178`; `Pages/Floor/Operation.vue:186-192`; `Pages/Floor/Login.vue:90-95` | The operator cannot tell the running job from the next | Medium | S | A "RUNNING" pill, progress, due date; remember the machine | C | Open |
 | M-35 | Tables | With a row link, every cell is its own link: 150 tab stops on a 25-row list, each 20 px tall | `Ui/DataTable.vue:266-281` | Keyboard users tab through every cell | Medium | S | Link the first cell only | B | Open |
 | M-36 | Tables | Sort arrows appear on hover only; sort buttons are 16 px tall | `Ui/DataTable.vue:197-209` | On touch nothing shows which columns sort | Medium | S | Faint arrow at rest | B, C | Open |
@@ -219,7 +219,7 @@ Severity: **Critical** = a core task cannot be completed, or data is lost. **Hig
 | L-05 | Empty states | 52 of 97 tables use a plain string instead of `EmptyState`; several lists have an empty `<span />` in the actions column | `Ui/DataTable.vue:243-248`; `Pages/Admin/Users.vue:147`; `Pages/Finance/Invoices/Index.vue:52-57` | No next step on about half the secondary lists | Low | M | Default `DataTable` to `EmptyState` | C | Open |
 | L-06 | Microcopy | Expense row actions are status nouns ("Approved", "Paid"); quotation header has "Rejected" and "Cancel" beside seven other buttons; "Send" only marks as sent; card titled "Header" | `Pages/Finance/Expenses/Index.vue:55`; `Pages/Sales/Quotations/Show.vue:69-114` | Wrong-button risk | Low | S | Verbs: "Approve", "Mark as sent", "Record rejection", "Cancel quotation"; group secondary actions in a menu | B, C | Open |
 | L-07 | Microcopy | Statuses title-cased mechanically: "Qc Pending" | `Pages/Dashboard.vue` (status badges); `resources/js/plugins/formatting.js` (`titleCase`) | Looks unfinished | Low | S | A small exceptions map (QC, PO, LC) | B | Open |
-| L-08 | Login | The login page hard-codes "Maheen Label · Label & garment-accessory manufacturing"; no show-password toggle | `Pages/Auth/Login.vue:32` | Wrong name after a rebrand | Low | S | Use the organisation profile | B | Open |
+| L-08 | Login | The login page hard-codes "Maheen Label · Label & garment-accessory manufacturing"; no show-password toggle | `Pages/Auth/Login.vue:32` | Wrong name after a rebrand | Low | S | Use the organisation profile | B | Done (e03be6c) |
 | L-09 | Artwork | Each version prints its storage path and full checksum; the list filter is labelled "Gate" | `Pages/Product/Artworks/Show.vue:250-257,434-436`; `Pages/Product/Artworks/Index.vue:91` | Noise for merchandisers | Low | S | Show the filename; move the checksum behind "Details" | C | Open |
 | L-10 | Robustness | `localStorage` is read unguarded when a table mounts | `Ui/DataTable.vue:129-131` | With storage blocked, every list fails | Low | S | try/catch | C | Open |
 | L-11 | Admin | The roles page uses a unicode glyph as an icon; the users table shows raw "en"/"bn" | `Pages/Admin/Roles.vue:177`; `Pages/Admin/Users.vue:118` | A blank box on some Android devices | Low | S | Use the icon component; print the language name | C | Open |
@@ -300,21 +300,23 @@ Severity: **Critical** = a core task cannot be completed, or data is lost. **Hig
 
 ## 5. Quick wins (high impact, small effort)
 
-1. **C-01** Customer return Save: use `FormFooter`.
-2. **C-03** Sales order: set `product_spec_id` from the product's current spec.
-3. **C-04** Credit note: rename the `money` prop.
-4. **C-05** Payments: stop sending `exchange_rate: 1`.
-5. **C-07** Floor queue: file expired entries as rejected instead of dropping them.
-6. **C-09** Proof of delivery: `required_without:failure_reason`; correct the "Stop delivered." flash (H-36).
-7. **H-01** "Clear filters": fix once in `EmptyState`, repairs 36 lists.
-8. **H-17** Item pickers: add `hint-key="name"`.
-9. **H-28** Status-change confirm: real titles, consequences and button labels.
-10. **H-31 / H-32** Floor: lock buttons while sending; show "saved on this device" when queued.
-11. **H-35** Floor: print the unit beside every quantity.
-12. **H-40** Profile: give language its own card.
-13. **H-45** Toasts: keep errors until dismissed and list every message.
-14. **M-09** Save hint: "Ctrl S" on non-Mac.
-15. **H-06** Overlays: confirm before closing a dirty form.
+All fifteen were completed in Phase 1 (branch `ux/phase-1`).
+
+1. **C-01** Customer return Save: use `FormFooter`. — **Done** (09ef498)
+2. **C-03** Sales order: set `product_spec_id` from the product's current spec. — **Done** (4c7ea07)
+3. **C-04** Credit note: rename the `money` prop. — **Done** (e382657)
+4. **C-05** Payments: stop sending `exchange_rate: 1`. — **Done** (dc5f3cf)
+5. **C-07** Floor queue: file expired entries as rejected instead of dropping them. — **Done** (ba255c0)
+6. **C-09** Proof of delivery: `required_without:failure_reason`; correct the "Stop delivered." flash (H-36). — **Done** (2b9adcd)
+7. **H-01** "Clear filters": fix once in `EmptyState`, repairs 36 lists. — **Done** (57152aa)
+8. **H-17** Item pickers: add `hint-key="name"`. — **Done** (90efb0a)
+9. **H-28** Status-change confirm: real titles, consequences and button labels. — **Done** (0c4e0c8)
+10. **H-31 / H-32** Floor: lock buttons while sending; show "saved on this device" when queued. — **Done** (34a0449)
+11. **H-35** Floor: print the unit beside every quantity. — **Done** (34a0449)
+12. **H-40** Profile: give language its own card. — **Done** (bfab0be)
+13. **H-45** Toasts: keep errors until dismissed and list every message. — **Done** (c4211a8)
+14. **M-09** Save hint: "Ctrl S" on non-Mac. — **Done** (400e095)
+15. **H-06** Overlays: confirm before closing a dirty form. — **Done** (b9c453a)
 
 ---
 
@@ -322,13 +324,19 @@ Severity: **Critical** = a core task cannot be completed, or data is lost. **Hig
 
 ### Phase 1 — Unblock and stop silent failures
 
-- The nine Critical items (C-01 … C-09).
-- The quick wins above.
-- Error visibility: H-03 (line errors), H-04 (refusals keep the dialog open), H-30 (`abort(422)`), M-08 (disabled reasons).
-- Confirms on irreversible actions (H-29), starting with GRN post (H-18), delivery-note cancel and floor FINISH.
-- Date typing (H-02) and exchange-rate autofill (H-07).
-- Rule tooltip clipping (H-46).
-- Dashboard at 1280 px (M-01).
+**Status: complete on branch `ux/phase-1`.** Every item below is Done unless marked.
+
+- The nine Critical items (C-01 … C-09) — Done.
+- The quick wins above — Done.
+- Error visibility: H-03 (line errors), H-04 (refusals keep the dialog open), H-30 (`abort(422)`), M-08 (disabled reasons) — Done.
+- Confirms on irreversible actions (H-29), GRN post (H-18), inspection reject (M-30), job card close wording (M-32) — Done. H-18 is the confirmation only; draft-then-post is Phase 2. M-30's larger counters are Phase 3.
+- Date typing (H-02), week start and calendar dimming (M-13), native date inputs (M-12) — Done. One date-and-time field on the job card stays native because the kit has no time picker.
+- Exchange-rate autofill (H-07) and purchase order approval labels (H-22) — Done.
+- Rule tooltip clipping (H-46) — Done.
+- Floor terminal: in-flight lock and stable keys (H-31), sent / saved-on-device states (H-32), units (H-35), waiting count and Send now (M-33) — Done.
+- Language selector removed from the desk (H-40, and H-39 by decision), forgot-password help (H-43), login from the organisation profile (L-08), dashboard at 1280 px (M-01) — Done.
+- Also done along the way: M-22 (return form rail only), M-18 (counted indicator only), M-09, M-14.
+- New: **H-50** (missing number sequences on older databases) — needs a decision.
 
 ### Phase 2 — Core flow redesigns
 
@@ -355,16 +363,27 @@ Severity: **Critical** = a core task cannot be completed, or data is lost. **Hig
 
 ## 7. Open questions
 
+Answered on 5 October 2026 (recorded here as the decisions the implementation follows):
+
+| # | Question | Decision |
+|---|---|---|
+| 2 | Bangla on the desk | No. The desk stays English and the language selector is removed. The floor terminal stays bilingual |
+| 3 | Number grouping and currency label | Lakh grouping (12,34,567.00) with the "BDT" code, Latin digits |
+| 4 | Typed date formats | Day first: dd/mm/yyyy, dd-mm-yyyy, dd.mm.yy, two-digit years, "20 Oct 2026", and ISO. Never month first |
+| 5 | Goods receipt | Draft, then Post with a confirmation (Phase 2). Phase 1 adds the confirmation only |
+| 6 | Floor records older than four hours | Not posted late; filed as rejected with reason "expired" for a supervisor to re-key |
+| 7 | Lot labels and scanning | In scope for Phase 2 |
+| 8 | One receipt or payment across several invoices | In scope for Phase 2, oldest first, with void and bounce |
+| 9 | Tools | Create and edit in the UI (Phase 2) |
+| 10 | Password reset | No email reset. The login page says to ask the administrator |
+| — | Recount from Reconciled (H-26) | In scope for Phase 2 |
+| — | Schema or calculation changes | Asked about each time before they are made |
+
+Still open:
+
 1. **Product name.** The brief says TrimFlow; the code says Octa ERP. Is a rename planned, and should user-facing copy change?
-2. **Bangla on the desk.** Is it wanted? If yes, for which roles first (store keepers are the likely case)? If no, the language selector should leave desk screens.
-3. **Number grouping.** Should new installations default to lakh/crore grouping (12,34,567), and should the currency show as "BDT" or "৳"?
-4. **Date entry.** Is `dd/mm/yyyy` the format users type? It decides how H-02 is fixed.
-5. **Goods receipt.** Is one-click posting intended, or is a draft step acceptable to the store?
-6. **Floor queue age limit.** The four-hour drop is deliberate per the code comment. Is routing expired entries to a supervisor acceptable instead of discarding them?
-7. **Barcode scanning.** Is label print and scan in scope for the current phase? Several store screens assume it.
-8. **Receipts and payments.** Is one cheque against several invoices common enough to prioritise multi-allocation?
-9. **Tools.** Should plates, screens and dies be created in the UI, or do they come from another process?
-10. **Password reset.** Is outbound email available in production? It decides between a reset flow and "ask your administrator".
-11. **Devices.** Which desk roles really use Android phones or tablets? The audit found phone layouts workable but dense; targeted work needs the list of roles.
-12. **Known complaints.** None were supplied. Support tickets or user feedback would let the roadmap be re-ordered by real frequency.
-13. **Customer portal.** It is one placeholder page with developer copy. Is it reachable by customers today?
+2. **H-50.** May a data migration add the number sequences that older databases lack (customer returns, refunds)?
+3. **Devices.** Which desk roles really use Android phones or tablets?
+4. **Known complaints.** None were supplied. Support tickets or user feedback would let the remaining roadmap be re-ordered by real frequency.
+5. **Customer portal.** It is one placeholder page with developer copy. Is it reachable by customers today?
+6. **Date and time entry.** The job card's "When was it made?" field needs a time as well as a date. Should the kit gain a time picker, or is the browser's own control acceptable there?
