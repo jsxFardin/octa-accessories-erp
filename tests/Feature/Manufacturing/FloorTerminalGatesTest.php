@@ -93,7 +93,11 @@ it('refuses output that would breach the J5 overrun ceiling at the moment it is 
         'input_qty' => $over,
     ], ($this->headers)('j5-over'))
         ->assertStatus(422)
-        ->assertSee('J5', escape: false);
+        ->assertSee('J5', escape: false)
+        // UX audit H-34 — beside the English sentence, a code and the figures behind it, so the
+        // terminal can say the same thing in Bangla without parsing prose.
+        ->assertJsonPath('code', 'output_exceeds_ceiling')
+        ->assertJsonPath('params.ceiling', fn ($ceiling) => abs((float) $ceiling - $this->jobCard->overrunCeiling()) < 0.001);
 
     expect((float) $this->jobCard->refresh()->produced_qty_running)
         ->toBeLessThanOrEqual($this->jobCard->overrunCeiling());
@@ -145,4 +149,16 @@ it('tells the operation screen which unit its quantities are in', function (): v
             ->component('Floor/Operation')
             ->where('operation.unit', $operation->unit())
             ->where('operation.unit', fn ($unit) => in_array($unit, ['m', 'pcs'], true)));
+});
+
+it('names a refusal that comes from the API controller itself', function (): void {
+    $operation = $this->jobCard->operations()->orderBy('sequence_no')->firstOrFail();
+    $operation->forceFill(['status' => JobCardOperation::IN_PROGRESS])->save();
+
+    $this->postJson("/api/v1/operations/{$operation->id}/log", [
+        'good_qty' => 0, 'waste_qty' => 5, 'input_qty' => 5,
+    ], ($this->headers)('waste-no-reason'))
+        ->assertStatus(422)
+        ->assertJsonPath('code', 'waste_reason_needed')
+        ->assertJsonStructure(['message', 'code', 'params']);
 });

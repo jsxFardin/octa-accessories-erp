@@ -61,6 +61,24 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         /*
+         * A booking the floor rules refuse keeps its English sentence and gains a `code` and
+         * the figures behind it, so the terminal can say it in Bangla (`OperationRefused`).
+         * The response is otherwise what it always was: 422, with `message`.
+         */
+        $exceptions->render(function (App\Modules\Manufacturing\Exceptions\OperationRefused $exception, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'errors' => $exception->errors(),
+                'code' => $exception->refusalCode,
+                'params' => $exception->refusalParams,
+            ], 422);
+        });
+
+        /*
          * A save from someone whose session has run out is answered 419, not with a redirect.
          *
          * An expired session usually fails authentication before it ever reaches the CSRF

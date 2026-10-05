@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Manufacturing\Services;
 
+use App\Modules\Manufacturing\Exceptions\OperationRefused;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
@@ -94,7 +95,7 @@ class OperationBookingService
                     'J3: output %.3f exceeds the %.3f handed to this operation. Record the input first.',
                     $newGood + $newWaste,
                     $newInput,
-                ));
+                ), 'output_exceeds_input', ['output' => round($newGood + $newWaste, 3), 'input' => round($newInput, 3)]);
             }
 
             $card = $locked->jobCard;
@@ -112,7 +113,7 @@ class OperationBookingService
                         'J3: %.3f handed to this operation exceeds its %.3f plan. Re-check the figure, or record why more was fed in.',
                         $newInput,
                         $inputCeiling,
-                    ));
+                    ), 'input_exceeds_plan', ['input' => round($newInput, 3), 'ceiling' => round($inputCeiling, 3)]);
                 }
             }
 
@@ -133,7 +134,7 @@ class OperationBookingService
                         $produced,
                         $ceiling,
                         rtrim(rtrim((string) $card->overrun_tolerance_pct, '0'), '.'),
-                    ));
+                    ), 'output_exceeds_ceiling', ['produced' => round($produced, 3), 'ceiling' => round($ceiling, 3)]);
                 }
             }
 
@@ -308,7 +309,7 @@ class OperationBookingService
         $this->refuse('job_card_operation_id', sprintf(
             'J1: this job card is %s. Production cannot be booked against it until it is released.',
             str_replace('_', ' ', (string) ($status ?? 'in no state')),
-        ));
+        ), 'job_card_not_released', ['status' => (string) ($status ?? '')]);
     }
 
     /**
@@ -322,7 +323,7 @@ class OperationBookingService
                 'Production cannot be recorded for %s because the step is %s. Reopen it, or record against the step that is running.',
                 $operation->name,
                 str_replace('_', ' ', $operation->status),
-            ));
+            ), 'step_not_open', ['step' => $operation->name, 'status' => $operation->status]);
         }
 
         $blocker = $operation->blockingPredecessor();
@@ -340,11 +341,11 @@ class OperationBookingService
                     ? sprintf(' with %s %s booked', $this->trim($made), $blocker->unit())
                     : ' and has produced nothing',
                 $blocker->name,
-            ));
+            ), 'earlier_step_unfinished', ['step' => $operation->name, 'blocker' => $blocker->name, 'blocker_step' => (int) $blocker->sequence_no]);
         }
 
         if (! $operation->qcClearedUpstream()) {
-            $this->refuse('job_card_operation_id', 'Production cannot be recorded for '.$operation->name.' because an earlier operation needs an accepted inspection first (QC1). Ask QC to pass it.');
+            $this->refuse('job_card_operation_id', 'Production cannot be recorded for '.$operation->name.' because an earlier operation needs an accepted inspection first (QC1). Ask QC to pass it.', 'inspection_needed', ['step' => $operation->name]);
         }
 
         // Nothing is being handed over, so there is nothing to compare against what the step
@@ -374,7 +375,7 @@ class OperationBookingService
                 $operation->unit(),
                 $operation->name,
                 $predecessor->name,
-            ));
+            ), 'input_exceeds_previous_output', ['available' => round((float) $available, 3), 'would_hold' => round($wouldHold, 3), 'previous' => $predecessor->name]);
         }
     }
 
@@ -386,9 +387,13 @@ class OperationBookingService
      * beside the field they have to change. A `ValidationException` is a 422 with the same
      * `message` on the JSON side and a field error on the web side, so one throw serves both.
      */
-    private function refuse(string $field, string $message): never
+    /**
+     * @param  string  $code  a stable name the floor terminal translates (`OperationRefused`)
+     * @param  array<string, scalar|null>  $params  the figures the message was built from
+     */
+    private function refuse(string $field, string $message, string $code = 'refused', array $params = []): never
     {
-        throw ValidationException::withMessages([$field => $message]);
+        throw OperationRefused::because($code, $field, $message, $params);
     }
 
     private function trim(float $value): string

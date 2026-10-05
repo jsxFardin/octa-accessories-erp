@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Manufacturing\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Manufacturing\Exceptions\OperationRefused;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\Services\OperationBookingService;
@@ -43,18 +44,18 @@ class OperationEventController extends Controller
             $blocker = $operation->blockingPredecessor();
 
             if ($blocker !== null) {
-                abort(422, sprintf(
+                throw OperationRefused::because('earlier_step_unfinished', 'operation', sprintf(
                     'J2: %s cannot start because %s (step %d) is still %s. Finish it first, or ask a planner to skip it.',
                     $operation->name,
                     $blocker->name,
                     $blocker->sequence_no,
                     str_replace('_', ' ', $blocker->status),
-                ));
+                ), ['step' => $operation->name, 'blocker' => $blocker->name, 'blocker_step' => (int) $blocker->sequence_no]);
             }
 
             // QC1 — the `QC` badge on the preceding row is a gate, not a note.
             if (! $operation->qcClearedUpstream()) {
-                abort(422, 'QC1: an earlier operation needs an accepted inspection before this one may start.');
+                throw OperationRefused::because('inspection_needed', 'operation', 'QC1: an earlier operation needs an accepted inspection before this one may start.', ['step' => $operation->name]);
             }
 
             $occurredAt = $this->occurredAt($request);
@@ -116,7 +117,7 @@ class OperationEventController extends Controller
 
         // The reason is owed when there is waste to explain, not whenever the key is present.
         if ((float) ($data['waste_qty'] ?? 0) > 0 && blank($data['waste_type'] ?? null)) {
-            abort(422, 'Waste needs a reason. Pick what the waste was: setup, shade, a print or weave defect, cutting, edge trim, damage, expiry, or other.');
+            throw OperationRefused::because('waste_reason_needed', 'operation', 'Waste needs a reason. Pick what the waste was: setup, shade, a print or weave defect, cutting, edge trim, damage, expiry, or other.', []);
         }
 
         return $this->idempotent($request, $operation, 'log', function () use ($request, $operation, $data): array {
@@ -157,7 +158,7 @@ class OperationEventController extends Controller
             $booked = (float) $operation->good_qty + (float) $operation->waste_qty;
 
             if ($booked <= 0 && blank($request->input('no_output_reason'))) {
-                abort(422, 'J3: nothing has been booked against this operation. Record the output, or finish with a reason.');
+                throw OperationRefused::because('nothing_booked', 'operation', 'J3: nothing has been booked against this operation. Record the output, or finish with a reason.', []);
             }
 
             DB::transaction(function () use ($operation, $occurredAt): void {
@@ -225,7 +226,7 @@ class OperationEventController extends Controller
             $machineId = $data['machine_id'] ?? $operation->machine_id;
 
             if ($machineId === null) {
-                abort(422, 'This step is not on a machine yet, and downtime belongs to a machine. Start the operation first, or ask a planner to schedule it.');
+                throw OperationRefused::because('no_machine', 'operation', 'This step is not on a machine yet, and downtime belongs to a machine. Start the operation first, or ask a planner to schedule it.', []);
             }
 
             $id = DB::table('downtime_logs')->insertGetId([
