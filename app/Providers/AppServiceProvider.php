@@ -66,6 +66,25 @@ class AppServiceProvider extends ServiceProvider
             || $user->hasPermission('trip.view_own'));
 
         /*
+         * …and may open one of them. The list was scoped to the driver's own trips, but the
+         * trip itself asked for `trip.view`, which a driver does not hold — so every row in
+         * the driver's list led to "403". Anyone holding `trip.view` never reaches this: the
+         * `before` hook above has already said yes.
+         */
+        Gate::define('trip.view', function (User $user, ?\App\Modules\Dispatch\Models\Trip $trip = null): bool {
+            if ($trip === null || $trip->driver_id === null || ! $user->hasPermission('trip.view_own')) {
+                return false;
+            }
+
+            $employeeId = $user->employee?->id;
+
+            return $employeeId !== null && \Illuminate\Support\Facades\DB::table('drivers')
+                ->where('id', $trip->driver_id)
+                ->where('employee_id', $employeeId)
+                ->exists();
+        });
+
+        /*
          * The shop-floor terminal screens, for the people who work an operation as well as
          * those who may view one.
          *

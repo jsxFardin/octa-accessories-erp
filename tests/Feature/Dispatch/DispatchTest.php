@@ -259,8 +259,11 @@ function failedStopFor(object $test, DeliveryChallan $challan): array
         'is_active' => true,
     ]);
 
-    $driverId = DB::table('drivers')->value('id') ?? DB::table('drivers')->insertGetId([
-        'employee_id' => DB::table('employees')->value('id'),
+    // The trip is the seeded driver's own: a driver records deliveries on their trips only (H-52).
+    $employeeId = User::query()->where('email', 'driver@octapussolution.com')->firstOrFail()->employee?->id;
+
+    $driverId = DB::table('drivers')->where('employee_id', $employeeId)->value('id') ?? DB::table('drivers')->insertGetId([
+        'employee_id' => $employeeId,
         'name' => 'Test Driver',
         'licence_no' => 'DL-TEST-0001',
         'is_active' => true,
