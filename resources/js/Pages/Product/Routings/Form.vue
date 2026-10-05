@@ -10,6 +10,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
+import { pct, qty } from '@/plugins/formatting';
 
 const props = defineProps({
     routing: { type: Object, default: null },
@@ -55,6 +56,23 @@ function removeOperation(index) {
     form.operations = form.operations.filter((_, i) => i !== index);
 }
 
+/*
+ * Steps run in the order listed, and the order could only be changed by retyping rows: a step
+ * forgotten in the middle meant re-entering everything below it.
+ */
+function moveOperation(index, by) {
+    const to = index + by;
+
+    if (to < 0 || to >= form.operations.length) return;
+
+    const operations = [...form.operations];
+    operations.splice(to, 0, operations.splice(index, 1)[0]);
+    form.operations = operations;
+}
+
+/** Metres for a step that runs the web, pieces for one that handles finished labels. */
+const rateUnit = (operation) => (operation.consumes_web ? 'm per hour' : 'pcs per hour');
+
 /**
  * BR-8 — wastage is additive across the operations that consume the web, and only those.
  * Packing and QC do not eat ribbon, so they must not inflate the total.
@@ -75,14 +93,22 @@ function submit() {
     isEdit.value ? form.put(`/routings/${props.routing.id}`) : form.post('/routings');
 }
 
+/*
+ * One column per figure. Code and name, and setup minutes and make-ready metres, used to be
+ * stacked two to a cell under one heading — told apart only by placeholders that vanish on the
+ * first keystroke, and read out identically by a screen reader. Minutes and metres got swapped.
+ */
 const columns = [
-    { key: 'operation', label: 'Operation', width: '16rem', errorKeys: ['code', 'name'] },
+    { key: 'order', label: 'Move', width: '4.5rem' },
+    { key: 'code', label: 'Code', width: '7rem', required: true },
+    { key: 'name', label: 'Name', width: '11rem', required: true },
     { key: 'machine_group_id', label: 'Machine group', width: '11rem' },
-    { key: 'std_rate_per_hour', label: 'Rate / hour', width: '8rem', align: 'right' },
-    { key: 'setup', label: 'Make-ready', width: '11rem', errorKeys: ['setup_minutes', 'setup_qty'] },
-    { key: 'wastage_pct', label: 'Wastage %', width: '7rem', align: 'right' },
-    { key: 'manning_level', label: 'Manning', width: '7rem', align: 'right' },
-    { key: 'flags', label: 'Flags', width: '13rem', errorKeys: ['requires_qc', 'allow_parallel', 'consumes_web'] },
+    { key: 'std_rate_per_hour', label: 'Rate per hour', width: '9rem', align: 'right' },
+    { key: 'setup_minutes', label: 'Setup (minutes)', width: '7rem', align: 'right' },
+    { key: 'setup_qty', label: 'Make-ready (m)', width: '7rem', align: 'right' },
+    { key: 'wastage_pct', label: 'Wastage %', width: '6.5rem', align: 'right' },
+    { key: 'manning_level', label: 'People', width: '6rem', align: 'right' },
+    { key: 'flags', label: 'Options', width: '12rem', errorKeys: ['requires_qc', 'allow_parallel', 'consumes_web'] },
 ];
 </script>
 
@@ -91,7 +117,7 @@ const columns = [
         <Head :title="isEdit ? `Edit ${routing.code}` : 'New routing'" />
 
         <template #title>{{ isEdit ? `Routing ${routing.code}` : 'New routing' }}</template>
-        <template #subtitle>Operations execute in the order listed here</template>
+        <template #subtitle>The steps a product of this type goes through, in order</template>
 
         <FormLayout @submit="submit">
 
@@ -131,122 +157,126 @@ const columns = [
                 </div>
             </Card>
 
-            <Card title="Operations" rule="BR-8 · BR-16" :padded="false">
+            <Card title="Steps" rule="BR-8 · BR-16" subtitle="A job runs these steps in the order listed." :padded="false">
                 <div class="p-3">
                     <LineItemsTable
                         :columns="columns"
                         :lines="form.operations"
                         :errors="form.errors"
                         error-prefix="operations"
-                        add-label="Add operation"
-                        empty="A routing needs at least one operation."
+                        add-label="Add step"
+                        empty="A routing needs at least one step."
                         @add="addOperation"
                         @remove="removeOperation"
                     >
-                        <template #cell:operation="{ line }">
-                            <div class="space-y-1">
-                                <TextInput cell v-model="line.code" placeholder="weave" />
-                                <TextInput cell v-model="line.name" placeholder="Weaving" />
+                        <template #cell:order="{ index }">
+                            <div class="flex items-center gap-1">
+                                <Button
+                                    size="sm" variant="ghost" :disabled="index === 0"
+                                    :aria-label="`Move step ${index + 1} up`" data-move-up @click="moveOperation(index, -1)"
+                                >↑</Button>
+                                <Button
+                                    size="sm" variant="ghost" :disabled="index === form.operations.length - 1"
+                                    :aria-label="`Move step ${index + 1} down`" data-move-down @click="moveOperation(index, 1)"
+                                >↓</Button>
                             </div>
                         </template>
 
+                        <template #cell:code="{ line }">
+                            <TextInput cell v-model="line.code" placeholder="weave" />
+                        </template>
+
+                        <template #cell:name="{ line }">
+                            <TextInput cell v-model="line.name" placeholder="Weaving" />
+                        </template>
+
                         <template #cell:machine_group_id="{ line }">
-                            <SelectInput v-model="line.machine_group_id" :options="machineGroups" value-key="id" label-key="name" />
+                            <SelectInput v-model="line.machine_group_id" :options="machineGroups" value-key="id" label-key="name" placeholder="Any" clearable />
                         </template>
 
                         <template #cell:std_rate_per_hour="{ line }">
                             <TextInput cell v-model="line.std_rate_per_hour" type="number" step="0.000001" numeric />
+                            <!-- The unit follows the step: a loom is rated in metres, a packing table in pieces. -->
+                            <p class="mt-0.5 text-right text-[11px] text-ink-600">{{ rateUnit(line) }}</p>
                         </template>
 
-                        <template #cell:setup="{ line }">
-                            <div class="space-y-1">
-                                <TextInput cell v-model="line.setup_minutes" type="number" step="0.01" placeholder="Setup minutes" numeric />
-                                <TextInput cell v-model="line.setup_qty" type="number" step="0.000001" placeholder="Make-ready metres" numeric />
-                            </div>
+                        <template #cell:setup_minutes="{ line }">
+                            <TextInput cell v-model="line.setup_minutes" type="number" step="0.01" min="0" numeric />
+                        </template>
+
+                        <template #cell:setup_qty="{ line }">
+                            <TextInput cell v-model="line.setup_qty" type="number" step="0.000001" min="0" numeric />
                         </template>
 
                         <template #cell:wastage_pct="{ line }">
-                            <TextInput cell v-model="line.wastage_pct" type="number" step="0.01" numeric />
+                            <TextInput cell v-model="line.wastage_pct" type="number" step="0.01" min="0" numeric />
                         </template>
 
                         <template #cell:manning_level="{ line }">
-                            <TextInput cell v-model="line.manning_level" type="number" step="0.01" numeric />
+                            <TextInput cell v-model="line.manning_level" type="number" step="0.01" min="0" numeric />
                         </template>
 
-                        <template #cell:flags="{ line }">
+                        <template #cell:flags="{ line, index }">
                             <div class="space-y-1 text-xs">
-                                <!-- The flag that decides whether this step's wastage counts at all. -->
+                                <!-- The option that decides whether this step's wastage counts at all. -->
                                 <label class="flex items-center gap-1.5 text-ink-700">
-                                    <input v-model="line.consumes_web" type="checkbox" class="form-checkbox">
-                                    Consumes web
+                                    <input v-model="line.consumes_web" type="checkbox" class="form-checkbox" :aria-label="`Uses the web, step ${index + 1}`">
+                                    Uses the web (metres)
                                 </label>
                                 <label class="flex items-center gap-1.5 text-ink-700">
-                                    <input v-model="line.allow_parallel" type="checkbox" class="form-checkbox">
+                                    <input v-model="line.allow_parallel" type="checkbox" class="form-checkbox" :aria-label="`May run in parallel, step ${index + 1}`">
                                     May run in parallel
                                 </label>
                                 <label class="flex items-center gap-1.5 text-ink-700">
-                                    <input v-model="line.requires_qc" type="checkbox" class="form-checkbox">
-                                    Requires QC
+                                    <input v-model="line.requires_qc" type="checkbox" class="form-checkbox" :aria-label="`Needs a QC check, step ${index + 1}`">
+                                    Needs a QC check
                                 </label>
                             </div>
                         </template>
+                    </LineItemsTable>
 
-                        <template #rail>
-                <Card title="Routing" rule="BR-8 · BR-16">
+                    <p v-if="form.errors.operations" class="mt-2 text-xs text-rose-600">{{ form.errors.operations }}</p>
+
+                    <p class="mt-2 text-xs text-ink-600">
+                        People is operators per machine: a loom watched one-in-four is 0.25, a screen table needing two people is 2.
+                        Make-ready is the metres run to set the step up before good output starts.
+                    </p>
+                </div>
+            </Card>
+
+            <!-- In the layout's own rail slot: it had been left inside the table, where nothing drew it. -->
+            <template #rail>
+                <Card title="Totals" rule="BR-8 · BR-16">
                     <dl class="space-y-2.5 text-sm">
                         <div class="flex items-baseline justify-between gap-3">
-                            <dt class="text-xs text-ink-500">Operations</dt>
+                            <dt class="text-xs text-ink-500">Steps</dt>
                             <dd class="tnum text-ink-900">{{ form.operations.length }}</dd>
                         </div>
 
                         <div class="flex items-baseline justify-between gap-3">
-                            <dt class="text-xs text-ink-500">Web-consuming</dt>
+                            <dt class="text-xs text-ink-500">Steps that use the web</dt>
                             <dd class="tnum text-ink-900">
                                 {{ form.operations.filter((operation) => operation.consumes_web).length }}
                             </dd>
                         </div>
 
                         <div class="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-2.5">
-                            <dt class="text-xs text-ink-500">Additive wastage</dt>
-                            <dd class="text-base font-semibold tnum text-ink-900">{{ totalWastage.toFixed(2) }}%</dd>
+                            <dt class="text-xs text-ink-500">Total wastage</dt>
+                            <dd class="text-base font-semibold tnum text-ink-900">{{ pct(totalWastage, 2) }}</dd>
                         </div>
 
                         <div class="flex items-baseline justify-between gap-3">
-                            <dt class="text-xs text-ink-500">Make-ready</dt>
-                            <dd class="tnum text-ink-900">{{ totalSetup }} m</dd>
+                            <dt class="text-xs text-ink-500">Total make-ready</dt>
+                            <dd class="tnum text-ink-900">{{ qty(totalSetup, 2) }} m</dd>
                         </div>
                     </dl>
 
-                    <p class="mt-3 text-[11px] leading-relaxed text-ink-500">
-                        Only web-consuming operations count towards either figure — packing and QC
-                        handle the labels, they do not eat ribbon.
+                    <p class="mt-3 text-xs leading-relaxed text-ink-600">
+                        Only steps that use the web count towards these two figures. Packing and QC
+                        handle finished labels; they do not use up ribbon.
                     </p>
                 </Card>
             </template>
-
-            <template #footer>
-                            <tr>
-                                <td colspan="4" class="px-3 py-2 text-right text-xs text-ink-700">
-                                    Additive wastage across web-consuming operations
-                                </td>
-                                <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
-                                    {{ totalWastage.toFixed(2) }}%
-                                </td>
-                                <td colspan="3" class="px-2 py-2 text-xs text-ink-500">
-                                    + {{ totalSetup }} m make-ready
-                                </td>
-                            </tr>
-                        </template>
-                    </LineItemsTable>
-
-                    <p v-if="form.errors.operations" class="mt-2 text-xs text-rose-600">{{ form.errors.operations }}</p>
-
-                    <p class="mt-2 text-xs text-ink-500">
-                        Manning level is operators per machine — a loom watched one-in-four is 0.25,
-                        a screen table needing two people is 2.0.
-                    </p>
-                </div>
-            </Card>
 
             <template #footer>
                 <FormFooter

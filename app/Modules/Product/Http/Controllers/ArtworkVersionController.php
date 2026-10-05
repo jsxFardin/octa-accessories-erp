@@ -103,9 +103,7 @@ class ArtworkVersionController extends Controller
 
         $version->delete();
 
-        if ($path !== null) {
-            Storage::disk('local')->delete($path);
-        }
+        Storage::disk('local')->delete($path);
 
         return back()->with('success', "Version {$number} withdrawn. The next upload will be version {$number}.");
     }
