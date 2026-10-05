@@ -95,6 +95,19 @@ abstract class ReportQuery
             ->withQueryString();
     }
 
+    /** Enough for a year of documents; small enough to stream inside one request. */
+    public const EXPORT_LIMIT = 20000;
+
+    /**
+     * Every row the filters match — not one page of them — for a download or a printout.
+     *
+     * @return \Illuminate\Support\LazyCollection<int, \stdClass>
+     */
+    public function everyRow(Request $request, int $limit = self::EXPORT_LIMIT): \Illuminate\Support\LazyCollection
+    {
+        return $this->base($request)->limit($limit)->cursor();
+    }
+
     /**
      * Column totals.
      *

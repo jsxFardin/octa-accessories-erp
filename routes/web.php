@@ -105,6 +105,12 @@ Route::middleware('auth')->group(function (): void {
     Route::get('reports', [ReportController::class, 'index'])
         ->middleware('can:report.view_any')
         ->name('reports.index');
+    Route::get('reports/{report}/export', [ReportController::class, 'export'])
+        ->middleware(['can:report.view', 'can:report.export'])
+        ->name('reports.export');
+    Route::get('reports/{report}/print', [ReportController::class, 'print'])
+        ->middleware('can:report.view')
+        ->name('reports.print');
     Route::get('reports/{report}', [ReportController::class, 'show'])
         ->middleware('can:report.view')
         ->name('reports.show');

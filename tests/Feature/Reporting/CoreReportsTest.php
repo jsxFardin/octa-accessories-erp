@@ -247,3 +247,58 @@ it('lists an NCR after QC rejection and flags an overdue CAPA', function (): voi
         ->and($investigating['corrective_action'])->toBe('Reset the impression and reprint the lot.')
         ->and($investigating['preventive_action'])->toBe('Add a mid-shift registration check.');
 });
+
+/*
+ * UX audit H-41. A report could only be read on screen. It can now be downloaded with every
+ * matching row and its totals, and laid out for printing.
+ */
+it('downloads a report as a spreadsheet with every matching row and its totals', function (): void {
+    p23Invoice($this, 1000);
+    p23Invoice($this, 250);
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+
+    $invoices = DB::table('sales_invoices')->count();
+
+    $response = $this->get('/reports/receivables/export?format=csv')->assertOk();
+
+    expect($response->headers->get('content-disposition'))->toContain('invoice-receivables-')->toContain('.csv');
+
+    $lines = array_values(array_filter(explode("\n", trim(str_replace("\xEF\xBB\xBF", '', $response->streamedContent())))));
+
+    expect($lines[0])->toBe('Invoice,Customer,"Invoice date",Due,Total,Received,Credited,Outstanding,Currency,Status,Overdue')
+        // One header, one line per invoice, one totals line.
+        ->and(count($lines))->toBe($invoices + 2)
+        ->and(end($lines))->toContain('Total')
+        // Raw values a spreadsheet can sort: an ISO date, a plain number, a status in words.
+        ->and($lines[1])->toMatch('/,\d{4}-\d{2}-\d{2},/')
+        ->and($lines[1])->not->toContain('BDT ');
+
+    // The filters on screen are the filters in the file.
+    $filtered = $this->get('/reports/receivables/export?format=csv&status=__none__')->assertOk()->streamedContent();
+    expect(count(array_filter(explode("\n", trim($filtered)))))->toBeLessThan(count($lines));
+
+    $this->get('/reports/receivables/export?format=xlsx')->assertOk()
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    $this->get('/reports/receivables/export?format=pdf')->assertSessionHasErrors('format');
+});
+
+it('lays a report out for printing, with its filters and totals', function (): void {
+    $this->get('/reports/receivables/print?status=issued')
+        ->assertOk()
+        ->assertViewIs('reports.print')
+        ->assertViewHas('filters', [['label' => 'Status', 'value' => 'Issued']])
+        ->assertViewHas('hasTotals', true)
+        ->assertSee('Invoice / receivables')
+        ->assertSee('Only rows matching');
+});
+
+it('keeps report downloads to people who may export', function (): void {
+    $viewer = User::query()->get()->first(fn (User $user): bool => $user->hasPermission('report.view') && ! $user->hasPermission('report.export'));
+
+    if ($viewer === null) {
+        $this->markTestSkipped('Every seeded role that can view reports can also export them.');
+    }
+
+    $this->actingAs($viewer)->get('/reports/receivables/export')->assertForbidden();
+    $this->actingAs($viewer)->get('/reports/receivables/print')->assertOk();
+});

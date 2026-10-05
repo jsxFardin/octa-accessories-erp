@@ -2,11 +2,14 @@
 import { computed } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
+import Button from '@/Components/Ui/Button.vue';
+import Icon from '@/Components/Ui/Icon.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import { baseCurrency, date, money, pcs, pct, qty, titleCase } from '@/plugins/formatting';
+import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -74,6 +77,34 @@ const currencyBreakdown = computed(() => {
     return Object.entries(by).map(([code, amounts]) => ({ code, amounts }));
 });
 
+/*
+ * The way out of the screen. A report could only be read here: sending an ageing list to the
+ * people it was about meant retyping it or pasting a screenshot of one page of it.
+ *
+ * Both links carry the query string, so what is downloaded or printed is what is filtered on
+ * screen — every matching row, not the page in view.
+ */
+function outUrl(kind, format = null) {
+    const query = new URLSearchParams(window.location.search);
+
+    query.delete('page');
+    query.delete('per_page');
+    if (format) query.set('format', format);
+
+    const tail = query.toString();
+
+    return `/reports/${props.report.key}/${kind}${tail ? `?${tail}` : ''}`;
+}
+
+function download(format) {
+    // A real navigation: the browser saves the file and the page stays where it is.
+    window.location.href = outUrl('export', format);
+}
+
+function print() {
+    window.open(outUrl('print'), '_blank', 'noopener');
+}
+
 function rowHref(row) {
     if (!props.report.document_path || !row?.id) {
         return null;
@@ -89,6 +120,20 @@ function rowHref(row) {
 
         <template #title>{{ report.title }}</template>
         <template #subtitle>{{ report.subtitle }}</template>
+
+        <template #actions>
+            <Button size="sm" data-report-print @click="print">
+                <Icon name="print" size="size-3.5" />
+                Print
+            </Button>
+            <template v-if="can('report.export')">
+                <Button size="sm" data-report-excel @click="download('xlsx')">
+                    <Icon name="download" size="size-3.5" />
+                    Download Excel
+                </Button>
+                <Button size="sm" variant="ghost" data-report-csv @click="download('csv')">CSV</Button>
+            </template>
+        </template>
 
         <div class="space-y-4">
             <div
