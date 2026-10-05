@@ -12,6 +12,7 @@ use App\Modules\Dispatch\States\PackingListStateMachine;
 use App\Modules\MasterData\Models\CustomerAddress;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
+use App\Support\Http\RefusesActions;
 use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ class PackingListController extends Controller
 {
     use ContextualId;
     use ListsResources;
+    use RefusesActions;
 
     public function __construct(private readonly PackingListStateMachine $states) {}
 
@@ -159,7 +161,7 @@ class PackingListController extends Controller
     /** Add a carton; its number is the next integer within this list (composite unique key). */
     public function storeCarton(Request $request, PackingList $packingList): RedirectResponse
     {
-        abort_unless($packingList->status === 'draft', 422, 'Cartons can only be edited on a draft packing list.');
+        $this->refuseUnless($packingList->status === 'draft', 'Cartons can only be edited on a draft packing list.');
 
         $data = $request->validate([
             'gross_weight_kg' => ['nullable', 'numeric', 'min:0'],
@@ -181,7 +183,7 @@ class PackingListController extends Controller
 
     public function destroyCarton(PackingList $packingList, Carton $carton): RedirectResponse
     {
-        abort_unless($packingList->status === 'draft', 422, 'Cartons can only be edited on a draft packing list.');
+        $this->refuseUnless($packingList->status === 'draft', 'Cartons can only be edited on a draft packing list.');
         abort_unless((int) $carton->packing_list_id === (int) $packingList->id, 404);
 
         $carton->delete();
@@ -202,7 +204,7 @@ class PackingListController extends Controller
      */
     public function updateCarton(Request $request, PackingList $packingList, Carton $carton): RedirectResponse
     {
-        abort_unless($packingList->status === 'draft', 422, 'Cartons can only be edited on a draft packing list.');
+        $this->refuseUnless($packingList->status === 'draft', 'Cartons can only be edited on a draft packing list.');
         abort_unless((int) $carton->packing_list_id === (int) $packingList->id, 404);
 
         $data = $request->validate([
@@ -220,7 +222,7 @@ class PackingListController extends Controller
 
     public function storeContent(Request $request, PackingList $packingList, Carton $carton): RedirectResponse
     {
-        abort_unless($packingList->status === 'draft', 422, 'Contents can only be edited on a draft packing list.');
+        $this->refuseUnless($packingList->status === 'draft', 'Contents can only be edited on a draft packing list.');
         abort_unless((int) $carton->packing_list_id === (int) $packingList->id, 404);
 
         $data = $request->validate([
@@ -258,7 +260,7 @@ class PackingListController extends Controller
 
     public function destroyContent(PackingList $packingList, Carton $carton, CartonContent $content): RedirectResponse
     {
-        abort_unless($packingList->status === 'draft', 422, 'Contents can only be edited on a draft packing list.');
+        $this->refuseUnless($packingList->status === 'draft', 'Contents can only be edited on a draft packing list.');
         abort_unless((int) $content->carton_id === (int) $carton->id
             && (int) $carton->packing_list_id === (int) $packingList->id, 404);
 

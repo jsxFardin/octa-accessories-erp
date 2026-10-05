@@ -53,7 +53,7 @@ it('refuses an order in another currency, posted directly', function (): void {
 
     $this->actingAs($this->admin)
         ->post("/letters-of-credit/{$this->credit->id}/orders", ['po_id' => $orderId])
-        ->assertStatus(422);
+        ->assertSessionHasErrors('action');
 
     expect(DB::table('lc_purchase_orders')->where('lc_id', $this->credit->id)->count())->toBe(0);
 });

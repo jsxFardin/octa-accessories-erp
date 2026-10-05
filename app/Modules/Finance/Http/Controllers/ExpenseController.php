@@ -9,6 +9,7 @@ use App\Modules\Finance\Models\Expense;
 use App\Modules\Finance\Models\ExpenseCategory;
 use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
+use App\Support\Http\RefusesActions;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,6 +32,7 @@ use Inertia\Response;
 class ExpenseController extends Controller
 {
     use ListsResources;
+    use RefusesActions;
 
     public function __construct(
         private readonly NumberAllocator $numbers,
@@ -106,7 +108,7 @@ class ExpenseController extends Controller
     {
         // An approved expense is a decision somebody signed; changing the amount underneath it
         // would make the approval meaningless. Cancel and re-raise instead.
-        abort_unless(in_array($expense->status, ['draft', 'pending_approval'], true), 422,
+        $this->refuseUnless(in_array($expense->status, ['draft', 'pending_approval'], true),
             'An approved or paid expense cannot be edited. Cancel it and raise a new one.');
 
         $data = $this->validated($request);
@@ -135,15 +137,15 @@ class ExpenseController extends Controller
             default => [],
         };
 
-        abort_unless(in_array($data['status'], $allowed, true), 422,
-            "An expense cannot go from {$expense->status} to {$data['status']}.");
+        $this->refuseUnless(in_array($data['status'], $allowed, true),
+            "An expense cannot go from {$this->statusWords($expense->status)} to {$this->statusWords($data['status'])}.");
 
         if ($data['status'] === 'approved') {
             abort_unless($request->user()->hasPermission('expense.approve'), 403);
 
             // Nobody approves their own spend. The rule is worth more than the rest of the
             // module and costs one line.
-            abort_if($expense->created_by === $request->user()->id, 422,
+            $this->refuseIf($expense->created_by === $request->user()->id,
                 'An expense has to be approved by somebody other than the person who raised it.');
         }
 
@@ -164,7 +166,7 @@ class ExpenseController extends Controller
 
     public function destroy(Expense $expense): RedirectResponse
     {
-        abort_unless($expense->status === 'draft', 422, 'Only a draft expense can be deleted.');
+        $this->refuseUnless($expense->status === 'draft', 'Only a draft expense can be deleted.');
 
         $expense->delete();
 

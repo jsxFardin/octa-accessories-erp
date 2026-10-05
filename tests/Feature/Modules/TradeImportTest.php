@@ -279,12 +279,12 @@ it('walks a credit through its lifecycle and refuses a jump', function (): void 
     // Straight from applied to shipped skips the bank actually opening it.
     $this->actingAs($this->admin)
         ->postJson("/letters-of-credit/{$letter->id}/transition", ['status' => 'shipped'])
-        ->assertStatus(422);
+        ->assertSessionHasErrors('action');
 
     // And opening without the bank's number leaves a credit no document can be matched to.
     $this->actingAs($this->admin)
         ->postJson("/letters-of-credit/{$letter->id}/transition", ['status' => 'opened'])
-        ->assertStatus(422);
+        ->assertSessionHasErrors('lc_no');
 
     $this->actingAs($this->admin)->post("/letters-of-credit/{$letter->id}/transition", [
         'status' => 'opened',
@@ -356,7 +356,7 @@ it('refuses to cover an order from another supplier', function (): void {
 
     $this->actingAs($this->admin)
         ->postJson("/letters-of-credit/{$letter->id}/orders", ['po_id' => $other->id])
-        ->assertStatus(422);
+        ->assertSessionHasErrors('action');
 });
 
 it('gates allocation behind its own permission', function (): void {
@@ -383,7 +383,7 @@ it('links a receipt only from the shipment supplier', function (): void {
     if ($foreign !== null) {
         $this->actingAs($this->admin)
             ->postJson("/import-shipments/{$shipment->id}/receipts", ['grn_id' => $foreign->id])
-            ->assertStatus(422);
+            ->assertSessionHasErrors('action');
     }
 
     $own = DB::table('grns')->insertGetId([

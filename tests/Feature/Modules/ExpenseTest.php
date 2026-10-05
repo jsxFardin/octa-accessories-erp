@@ -46,7 +46,7 @@ it('will not let somebody approve their own spend', function (): void {
 
     $this->actingAs($this->accounts)
         ->postJson("/expenses/{$expense->id}/transition", ['status' => 'approved'])
-        ->assertStatus(422);
+        ->assertSessionHasErrors('action');
 
     expect($expense->fresh()->status)->toBe('pending_approval');
 });
@@ -72,7 +72,7 @@ it('refuses a jump straight from draft to paid', function (): void {
     $expense = Expense::query()->latest('id')->firstOrFail();
 
     $this->actingAs($this->admin)->postJson("/expenses/{$expense->id}/transition", ['status' => 'paid'])
-        ->assertStatus(422);
+        ->assertSessionHasErrors('action');
 });
 
 it('freezes an approved expense against editing', function (): void {
@@ -86,7 +86,7 @@ it('freezes an approved expense against editing', function (): void {
 
     $this->actingAs($this->accounts)
         ->putJson("/expenses/{$expense->id}", [...$this->payload, 'amount' => 90000])
-        ->assertStatus(422);
+        ->assertSessionHasErrors('action');
 
     expect((float) $expense->fresh()->amount)->toBe(24000.0);
 });
@@ -123,4 +123,25 @@ it('seeds the categories a label factory actually spends on', function (): void 
     expect($codes)->toContain('FUEL', 'CNF', 'DUTY', 'BANKCH')
         // Import charges are their own kind: they are the ones that end up inside a lot cost.
         ->and(DB::table('expense_categories')->where('kind', 'import')->count())->toBeGreaterThan(0);
+});
+
+/*
+ * UX audit H-30. This refusal used to be `abort(422)`, a status the desk renders no page for,
+ * so on screen the creator pressed Approve and was told nothing. It now comes back as an
+ * ordinary form error on the page they are on.
+ */
+it('tells the creator on screen why they cannot approve their own expense', function (): void {
+    $this->actingAs($this->admin)->post('/expenses', $this->payload);
+
+    $expense = Expense::query()->latest('id')->firstOrFail();
+
+    $this->actingAs($this->admin)->post("/expenses/{$expense->id}/transition", ['status' => 'pending_approval']);
+
+    $this->actingAs($this->admin)
+        ->from('/expenses')
+        ->post("/expenses/{$expense->id}/transition", ['status' => 'approved'])
+        ->assertRedirect('/expenses')
+        ->assertSessionHasErrors(['action' => 'An expense has to be approved by somebody other than the person who raised it.']);
+
+    expect($expense->fresh()->status)->toBe('pending_approval');
 });

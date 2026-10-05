@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Trade\Models\LetterOfCredit;
 use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
+use App\Support\Http\RefusesActions;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ use Inertia\Response;
 class LetterOfCreditController extends Controller
 {
     use ListsResources;
+    use RefusesActions;
 
     /** An LC that has left draft is a commitment; only these fields still move. */
     private const EDITABLE_AFTER_DRAFT = ['lc_no', 'issued_on', 'remarks', 'bank_account_id', 'charges_amount'];
@@ -213,12 +215,12 @@ class LetterOfCreditController extends Controller
             default => [],
         };
 
-        abort_unless(in_array($data['status'], $allowed, true), 422, "An LC cannot go from {$letterOfCredit->status} to {$data['status']}.");
+        $this->refuseUnless(in_array($data['status'], $allowed, true), "A letter of credit cannot go from {$this->statusWords($letterOfCredit->status)} to {$this->statusWords($data['status'])}.");
 
         // Opening is the moment the bank's own number exists; without it the credit cannot be
         // matched to a shipment document, so it is required here rather than hoped for later.
         if ($data['status'] === 'opened') {
-            abort_if(($data['lc_no'] ?? $letterOfCredit->lc_no) === null, 422, "The bank's LC number is needed to mark this credit open.");
+            $this->refuseIf(($data['lc_no'] ?? $letterOfCredit->lc_no) === null, "The bank's LC number is needed to mark this credit open.", 'lc_no');
         }
 
         $letterOfCredit->update(array_filter([
@@ -240,13 +242,13 @@ class LetterOfCreditController extends Controller
 
         $order = DB::table('purchase_orders')->where('id', $data['po_id'])->first();
 
-        abort_unless($order !== null && (int) $order->supplier_id === $letterOfCredit->supplier_id, 422,
+        $this->refuseUnless($order !== null && (int) $order->supplier_id === $letterOfCredit->supplier_id,
             'That order is for a different supplier than the credit.');
 
         // BR-56 — the credit is denominated in one currency. An order in another cannot be
         // drawn on it, and attaching it would make `covered` a sum of two units. Refused on the
         // server, not merely absent from the picker: the id arrives by POST.
-        abort_unless((int) $order->currency_id === $letterOfCredit->currency_id, 422,
+        $this->refuseUnless((int) $order->currency_id === $letterOfCredit->currency_id,
             'That order is in a different currency from the credit and cannot be covered by it.');
 
         DB::table('lc_purchase_orders')->updateOrInsert(
@@ -267,7 +269,7 @@ class LetterOfCreditController extends Controller
     /** Record an amendment — more money, a later date, and what the bank charged for it. */
     public function amend(Request $request, LetterOfCredit $letterOfCredit): RedirectResponse
     {
-        abort_unless(in_array($letterOfCredit->status, ['applied', 'opened', 'shipped'], true), 422,
+        $this->refuseUnless(in_array($letterOfCredit->status, ['applied', 'opened', 'shipped'], true),
             'Only a live credit can be amended.');
 
         $data = $request->validate([
@@ -309,7 +311,7 @@ class LetterOfCreditController extends Controller
 
     public function destroy(LetterOfCredit $letterOfCredit): RedirectResponse
     {
-        abort_unless($letterOfCredit->status === 'draft', 422, 'Only a draft credit can be deleted; cancel the others.');
+        $this->refuseUnless($letterOfCredit->status === 'draft', 'Only a draft credit can be deleted; cancel the others.');
 
         $letterOfCredit->delete();
 

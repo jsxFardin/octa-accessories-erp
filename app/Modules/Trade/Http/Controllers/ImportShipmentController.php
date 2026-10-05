@@ -10,6 +10,7 @@ use App\Modules\Trade\Models\ImportShipment;
 use App\Modules\Trade\Services\LandedCostAllocator;
 use App\Support\Currency\ExchangeRateResolver;
 use App\Support\Http\ListsResources;
+use App\Support\Http\RefusesActions;
 use App\Support\Numbering\NumberAllocator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ use Inertia\Response;
 class ImportShipmentController extends Controller
 {
     use ListsResources;
+    use RefusesActions;
 
     public function __construct(
         private readonly NumberAllocator $numbers,
@@ -189,8 +191,8 @@ class ImportShipmentController extends Controller
             default => [],
         };
 
-        abort_unless(in_array($data['status'], $allowed, true), 422,
-            "A shipment cannot go from {$importShipment->status} to {$data['status']}.");
+        $this->refuseUnless(in_array($data['status'], $allowed, true),
+            "A shipment cannot go from {$this->statusWords($importShipment->status)} to {$this->statusWords($data['status'])}.");
 
         $importShipment->forceFill(array_filter([
             'status' => $data['status'],
@@ -264,8 +266,8 @@ class ImportShipmentController extends Controller
 
         $grn = DB::table('grns')->where('id', $data['grn_id'])->first();
 
-        abort_unless($grn !== null && (int) $grn->supplier_id === $importShipment->supplier_id, 422,
-            'That receipt is from a different supplier.');
+        $this->refuseUnless($grn !== null && (int) $grn->supplier_id === $importShipment->supplier_id,
+            'That goods receipt is from a different supplier.');
 
         DB::table('grns')->where('id', $data['grn_id'])->update([
             'import_shipment_id' => $importShipment->id,
@@ -306,7 +308,7 @@ class ImportShipmentController extends Controller
 
     public function destroy(ImportShipment $importShipment): RedirectResponse
     {
-        abort_unless($importShipment->status === 'draft', 422, 'Only a draft shipment can be deleted.');
+        $this->refuseUnless($importShipment->status === 'draft', 'Only a draft shipment can be deleted.');
 
         $importShipment->delete();
 
