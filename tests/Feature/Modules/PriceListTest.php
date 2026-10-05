@@ -91,3 +91,27 @@ it('needs at least one rate', function (): void {
         'lines' => [],
     ])->assertSessionHasErrors('lines');
 });
+
+/*
+ * UX audit H-16. A deactivated price list had no way back.
+ */
+it('reactivates a deactivated price list', function (): void {
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+
+    $id = makePriceList($this);
+    expect($id)->toBeGreaterThan(0);
+
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+
+    // The edit form is told the list is active as a boolean, so its checkbox shows it.
+    $this->get("/price-lists/{$id}/edit")->assertOk();
+
+    $this->delete("/price-lists/{$id}")->assertSessionHas('success');
+    expect((bool) DB::table('price_lists')->where('id', $id)->value('is_active'))->toBeFalse();
+
+    $this->post("/price-lists/{$id}/reactivate")->assertSessionHas('success');
+    expect((bool) DB::table('price_lists')->where('id', $id)->value('is_active'))->toBeTrue();
+
+    // Already active: said, not silently repeated.
+    $this->post("/price-lists/{$id}/reactivate")->assertSessionHas('error');
+});

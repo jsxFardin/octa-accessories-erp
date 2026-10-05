@@ -139,6 +139,27 @@ class PriceListController extends Controller
         return redirect()->route('price-lists.index')->with('success', 'Price list deactivated.');
     }
 
+    /**
+     * Bring a deactivated list back.
+     *
+     * "Deactivate" had no way back: the form kept `is_active` but offered no control for it,
+     * so a list switched off by mistake had to be typed in again from the first rate.
+     */
+    public function reactivate(int $priceList): RedirectResponse
+    {
+        $existing = DB::table('price_lists')->where('id', $priceList)->first() ?? abort(404);
+
+        if ($existing->is_active) {
+            return back()->with('error', "Price list {$existing->code} is already active.");
+        }
+
+        DB::table('price_lists')->where('id', $priceList)->update(['is_active' => true]);
+
+        $this->audit->recordTable('price_lists', $priceList, 'updated', ['is_active' => false], ['is_active' => true]);
+
+        return back()->with('success', "Price list {$existing->code} is active again. New quotations will read its rates.");
+    }
+
     /** @return array<string, mixed> */
     private function validated(Request $request, ?int $ignoreId): array
     {

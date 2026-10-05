@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -42,6 +42,13 @@ const byProduct = computed(() => {
 
         <template #actions>
             <Badge :tone="list.is_active ? 'success' : 'neutral'" :label="list.is_active ? 'Active' : 'Inactive'" />
+            <Button
+                v-if="!list.is_active && can('price_list.update')"
+                size="sm"
+                variant="primary"
+                data-reactivate
+                @click="router.post(`/price-lists/${list.id}/reactivate`, {}, { preserveScroll: true })"
+            >Reactivate</Button>
             <Button v-if="can('price_list.update')" size="sm" :href="`/price-lists/${list.id}/edit`">Edit</Button>
         </template>
 

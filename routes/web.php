@@ -235,6 +235,8 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:quotation.view')->name('quotations.transition');
 
     // Contract pricing: a header with quantity-break lines, so not a generic reference list.
+    Route::post('price-lists/{priceList}/reactivate', [PriceListController::class, 'reactivate'])
+        ->middleware('can:price_list.update')->name('price-lists.reactivate');
     Route::resource('price-lists', PriceListController::class)
         ->parameters(['price-lists' => 'priceList'])
         ->middlewareFor(['index', 'show'], 'can:price_list.view_any')

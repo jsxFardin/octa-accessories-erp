@@ -26,12 +26,18 @@ function rowActions(row) {
             onSelect: async () => {
                 if (await confirm({
                     title: `Deactivate ${row.code}?`,
-                    message: 'Quotations already priced from it keep their rates.',
+                    message: 'New quotations will stop reading its rates. Quotations already priced from it keep theirs. It can be reactivated later.',
                     confirmLabel: 'Deactivate',
                 })) {
                     router.delete(`/price-lists/${row.id}`, { preserveScroll: true });
                 }
             },
+        },
+        {
+            // The way back. There was none: a list deactivated by mistake had to be recreated.
+            label: 'Reactivate',
+            hidden: !can('price_list.update') || Boolean(row.is_active),
+            onSelect: () => router.post(`/price-lists/${row.id}/reactivate`, {}, { preserveScroll: true }),
         },
     ];
 }

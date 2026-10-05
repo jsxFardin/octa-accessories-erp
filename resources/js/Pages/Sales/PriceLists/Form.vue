@@ -33,7 +33,8 @@ const form = useForm({
     currency_id: props.list?.currency_id ?? props.currencies.find((c) => c.is_base)?.id ?? "",
     valid_from: isoDate(props.list?.valid_from) || todayIso(),
     valid_to: isoDate(props.list?.valid_to),
-    is_active: props.list?.is_active ?? true,
+    // The row comes straight from the table, where this is 1 or 0; a checkbox wants a boolean.
+    is_active: Boolean(props.list?.is_active ?? true),
     lines: props.list?.lines?.length ? props.list.lines.map((line) => ({ ...line })) : [blankLine()],
 });
 
@@ -116,6 +117,17 @@ const columns = [
                         <DateInput v-model="form.valid_to" />
                     </FormField>
                 </div>
+
+                <!-- The form always carried this value and never showed it. -->
+                <label class="mt-3 flex items-start gap-2 text-sm text-ink-700">
+                    <input v-model="form.is_active" type="checkbox" class="form-checkbox mt-0.5" data-active>
+                    <span>
+                        <span class="font-medium text-ink-900">Active</span>
+                        <span class="block text-xs text-ink-600">
+                            New quotations read rates only from active lists. Untick to stop using this list without deleting it.
+                        </span>
+                    </span>
+                </label>
             </Card>
 
             <Card title="Rates" subtitle="One row per quantity break; the highest floor at or below the ordered quantity wins" :padded="false">
