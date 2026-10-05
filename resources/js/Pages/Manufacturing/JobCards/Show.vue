@@ -1210,14 +1210,15 @@ const bomColumns = [
         <Modal
             v-model:open="closeOpen"
             title="Close with output still unreceived"
-            subtitle="P0-3: a closed card cannot receive finished goods, and cannot be reopened."
+            subtitle="A closed card cannot receive finished goods until a supervisor reopens it."
         >
             <div class="space-y-3">
                 <p class="text-sm text-ink-700">
                     <strong>{{ pcs(fgPosition.remaining_receivable) }}</strong> of this job's output
                     has never been received into stock. Closing now leaves it on the job card and
-                    nowhere in inventory — the order it was made for cannot be packed from it, and
-                    there is no way back. Receive it first unless it is genuinely not being stocked.
+                    nowhere in inventory — the order it was made for cannot be packed from it
+                    until the card is reopened and the output received. Receive it first unless
+                    it is genuinely not being stocked.
                 </p>
 
                 <FormField
