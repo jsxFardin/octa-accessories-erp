@@ -225,7 +225,9 @@ class InquiryController extends Controller
         }
 
         DB::transaction(function () use ($inquiry, $data): void {
-            if ($data['status'] !== 'draft' && $inquiry->number === null) {
+            // A draft raised by mistake and cancelled stays unnumbered: giving it the next
+            // number would leave a gap in the series for an inquiry that never existed.
+            if (! in_array($data['status'], ['draft', 'cancelled'], true) && $inquiry->number === null) {
                 $inquiry->forceFill(['number' => $this->numbers->next('inquiry')])->save();
             }
 

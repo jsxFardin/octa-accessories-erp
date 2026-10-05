@@ -222,3 +222,29 @@ it('leaves no inquiry disagreeing with its own quotations', function (): void {
 
     expect($disagreeing->pluck('number', 'id')->all())->toBe([]);
 });
+
+/*
+ * UX audit M-26. A draft inquiry raised by mistake could not be cancelled, and the server gave
+ * any non-draft status the next number — so cancelling one would have left a gap in the series
+ * for an inquiry that never existed.
+ */
+it('cancels a draft inquiry without taking a number', function (): void {
+    $sales = User::query()->where('email', 'sales@octapussolution.com')->firstOrFail();
+
+    $this->actingAs($this->merchandiser)->post('/inquiries', [
+        'customer_id' => $this->customer->id,
+        'inquiry_date' => now()->toDateString(),
+        'lines' => [['description' => 'Raised by mistake', 'qty' => 1000]],
+    ])->assertSessionHasNoErrors();
+
+    $inquiry = Inquiry::query()->latest('id')->firstOrFail();
+    $next = (int) DB::table('number_sequences')
+        ->where('document_type', 'inquiry')->where('series_key', now()->format('y'))->value('next_number');
+
+    $this->actingAs($sales)->post("/inquiries/{$inquiry->id}/transition", ['status' => 'cancelled']);
+
+    expect($inquiry->fresh()->status)->toBe('cancelled')
+        ->and($inquiry->fresh()->number)->toBeNull()
+        ->and((int) DB::table('number_sequences')
+            ->where('document_type', 'inquiry')->where('series_key', now()->format('y'))->value('next_number'))->toBe($next);
+});

@@ -117,11 +117,11 @@ const orderColumns = [
 
             <!--
                 An inquiry raised in error had no way out: only "Mark lost", which is a different
-                thing and asks for a reason the customer gave. Offered once the inquiry has its
-                number; cancelling an unnumbered draft is left for a decision on numbering.
+                thing and asks for a reason the customer gave. A draft cancelled here stays
+                unnumbered, so it leaves no gap in the inquiry series.
             -->
             <Button
-                v-if="inquiry.status === 'open' && can('inquiry.close')"
+                v-if="['draft', 'open'].includes(inquiry.status) && can('inquiry.close')"
                 size="sm"
                 variant="danger"
                 @click="transition('cancelled')"
