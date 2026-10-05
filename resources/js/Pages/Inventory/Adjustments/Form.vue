@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
+import { useConfirmedReset } from '@/composables/useConfirmedReset';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -26,9 +27,35 @@ const form = useForm({
     lines: (props.adjustment?.lines ?? []).map((line) => ({
         lot_id: line.lot_id,
         qty_delta: line.qty_delta,
+        // How the signed figure is entered: a direction and a plain quantity.
+        direction: Number(line.qty_delta) < 0 ? 'out' : 'in',
+        amount: line.qty_delta === null || line.qty_delta === '' ? '' : Math.abs(Number(line.qty_delta)),
         remarks: line.remarks ?? '',
     })),
 });
+
+/**
+ * The signed quantity the server stores, from the two things a person actually decides.
+ *
+ * It used to be one box labelled "Qty (+ in / − out)". A forgotten minus sign added stock that
+ * should have been written off, and nothing on the row showed what the lot would hold after.
+ */
+function setDelta(line) {
+    const amount = Number(line.amount);
+
+    line.qty_delta = line.amount === '' || Number.isNaN(amount) ? '' : (line.direction === 'out' ? -amount : amount);
+}
+
+function balanceAfter(line) {
+    const lot = lotOf(line);
+
+    if (!lot || line.qty_delta === '') return null;
+
+    return Number(lot.balance_qty) + Number(line.qty_delta);
+}
+
+/** Taking out more than the lot holds — refused by the server; said here first. */
+const overdrawn = computed(() => form.lines.some((line) => (balanceAfter(line) ?? 0) < -0.000001));
 
 const warehouseLots = computed(() =>
     props.lots.filter((lot) => Number(lot.warehouse_id) === Number(form.warehouse_id)),
@@ -64,16 +91,27 @@ function addLine(lotId) {
     const lot = props.lots.find((row) => Number(row.id) === Number(lotId));
     if (!lot) return;
 
-    form.lines = [...form.lines, { lot_id: lot.id, qty_delta: '', remarks: '' }];
+    form.lines = [...form.lines, { lot_id: lot.id, qty_delta: '', direction: 'out', amount: '', remarks: '' }];
 }
 
 function removeLine(index) {
     form.lines = form.lines.filter((_, i) => i !== index);
 }
 
-watch(() => form.warehouse_id, (warehouseId) => {
-    form.lines = form.lines.filter((line) => Number(lotOf(line)?.warehouse_id) === Number(warehouseId));
-});
+useConfirmedReset(
+    () => [form.warehouse_id],
+    () => form.lines.length > 0,
+    ([warehouseId]) => {
+        form.lines = form.lines.filter((line) => Number(lotOf(line)?.warehouse_id) === Number(warehouseId));
+    },
+    ([warehouseId]) => {
+        form.warehouse_id = warehouseId;
+    },
+    {
+        title: 'Change the warehouse and clear the lines?',
+        message: 'An adjustment is made in one warehouse. The lots already added are in the previous one and will be removed.',
+    },
+);
 
 const totalValue = computed(() =>
     form.lines.reduce((sum, line) => {
@@ -87,12 +125,6 @@ const aboveBand = computed(() => totalValue.value > Number(props.band));
 const zeroLine = computed(() =>
     form.lines.some((line) => line.qty_delta !== '' && Math.abs(Number(line.qty_delta)) < 0.000001),
 );
-
-function direction(qtyDelta) {
-    const n = Number(qtyDelta);
-    if (!n) return '';
-    return n > 0 ? 'In' : 'Out';
-}
 
 function submit() {
     const payload = {
@@ -139,7 +171,7 @@ function submit() {
                 </div>
             </Card>
 
-            <Card title="Lines" subtitle="Each line is a signed quantity against one existing lot in this warehouse" :padded="false">
+            <Card title="Lines" subtitle="Each line takes stock out of, or puts stock into, one existing lot in this warehouse" :padded="false">
                 <div class="border-b border-slate-200 px-3 py-3">
                     <FormField label="Add an existing lot" :error="form.errors.lines">
                         <SelectInput
@@ -153,22 +185,24 @@ function submit() {
                     </FormField>
                 </div>
 
+                <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead class="bg-slate-50 text-xs text-ink-700">
                         <tr>
                             <th class="px-3 py-2 text-left">Lot</th>
-                            <th class="px-3 py-2 text-left">On hand</th>
+                            <th class="px-3 py-2 text-right">On hand now</th>
                             <th class="px-3 py-2 text-right">Unit cost</th>
-                            <th class="px-3 py-2 text-right">Qty (+ in / − out)</th>
-                            <th class="px-3 py-2 text-left">Direction</th>
+                            <th class="px-3 py-2 text-left">Stock goes</th>
+                            <th class="px-3 py-2 text-right">Quantity</th>
+                            <th class="px-3 py-2 text-right">On hand after</th>
                             <th class="px-3 py-2 text-left">Remarks</th>
                             <th class="w-10 px-3 py-2" />
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         <tr v-if="form.lines.length === 0">
-                            <td colspan="7" class="px-3 py-8 text-center text-sm text-ink-500">
-                                Pick a lot above. Zero quantity is not an adjustment.
+                            <td colspan="8" class="px-3 py-8 text-center text-sm text-ink-500">
+                                Pick a lot above, then say whether stock is going out or coming in and how much.
                             </td>
                         </tr>
                         <tr v-for="(line, index) in form.lines" :key="`${line.lot_id}-${index}`">
@@ -182,20 +216,41 @@ function submit() {
                             <td class="px-3 py-2 text-right tnum">{{ qty(lotOf(line)?.balance_qty) }}</td>
                             <td class="px-3 py-2 text-right tnum">{{ money(lotOf(line)?.unit_cost) }}</td>
                             <td class="px-3 py-2">
-                                <TextInput
-                                    v-model="line.qty_delta"
-                                    type="number"
-                                    step="0.000001"
-                                    numeric
-                                    :error="form.errors[`lines.${index}.qty_delta`] || form.errors[`lines.${index}.lot_id`]"
-                                />
+                                <div class="inline-flex rounded-md border border-slate-300" role="group" :aria-label="`Direction, line ${index + 1}`">
+                                    <button
+                                        type="button"
+                                        class="min-h-9 rounded-l-md px-3 text-sm transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                        :class="line.direction === 'out' ? 'bg-amber-100 font-medium text-amber-900' : 'bg-white text-ink-700 hover:bg-slate-50'"
+                                        :aria-pressed="line.direction === 'out'"
+                                        @click="line.direction = 'out'; setDelta(line)"
+                                    >Out</button>
+                                    <button
+                                        type="button"
+                                        class="min-h-9 rounded-r-md border-l border-slate-300 px-3 text-sm transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                        :class="line.direction === 'in' ? 'bg-emerald-100 font-medium text-emerald-900' : 'bg-white text-ink-700 hover:bg-slate-50'"
+                                        :aria-pressed="line.direction === 'in'"
+                                        @click="line.direction = 'in'; setDelta(line)"
+                                    >In</button>
+                                </div>
                             </td>
                             <td class="px-3 py-2">
-                                <Badge
-                                    v-if="direction(line.qty_delta)"
-                                    :tone="Number(line.qty_delta) > 0 ? 'success' : 'warning'"
-                                    :label="direction(line.qty_delta)"
+                                <TextInput
+                                    v-model="line.amount"
+                                    type="number"
+                                    step="0.000001"
+                                    min="0"
+                                    numeric
+                                    :aria-label="`Quantity, line ${index + 1}`"
+                                    :error="form.errors[`lines.${index}.qty_delta`] || form.errors[`lines.${index}.lot_id`]"
+                                    @update:model-value="setDelta(line)"
                                 />
+                            </td>
+                            <td class="px-3 py-2 text-right tnum">
+                                <span v-if="balanceAfter(line) === null" class="text-ink-500">—</span>
+                                <span v-else :class="balanceAfter(line) < 0 ? 'font-medium text-rose-700' : 'text-ink-900'">
+                                    {{ qty(balanceAfter(line)) }}
+                                </span>
+                                <p v-if="(balanceAfter(line) ?? 0) < 0" class="text-xs text-rose-700">more than the lot holds</p>
                             </td>
                             <td class="px-3 py-2">
                                 <TextInput v-model="line.remarks" />
@@ -215,13 +270,14 @@ function submit() {
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </Card>
 
             <template #rail>
                 <Card title="Approval value" rule="06-rbac §5">
                     <dl class="space-y-2.5 text-sm">
                         <div class="flex items-baseline justify-between gap-3">
-                            <dt class="text-xs text-ink-500">Σ |qty| × lot cost</dt>
+                            <dt class="text-xs text-ink-500">Value being adjusted</dt>
                             <dd class="text-base font-semibold tnum text-ink-900">{{ money(totalValue) }}</dd>
                         </div>
                         <div class="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-2.5">
@@ -244,12 +300,14 @@ function submit() {
             <template #footer>
                 <FormFooter
                     :form="form"
-                    :disabled="form.lines.length === 0 || !form.reason || zeroLine"
+                    :disabled="form.lines.length === 0 || !form.reason || zeroLine || overdrawn"
                     :disabled-reason="form.lines.length === 0
                         ? 'Add at least one lot to adjust.'
                         : !form.reason
                             ? 'Give the reason for the adjustment.'
-                            : zeroLine ? 'A line has a quantity of zero. Enter the change or remove the line.' : null"
+                            : zeroLine
+                                ? 'A line has a quantity of zero. Enter the change or remove the line.'
+                                : overdrawn ? 'A line takes out more than its lot holds.' : null"
                     cancel-href="/stock-adjustments"
                     :label="isEdit ? 'Save draft' : 'Save draft'"
                     @save="submit"
