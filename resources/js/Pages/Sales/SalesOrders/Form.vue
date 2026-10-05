@@ -66,6 +66,24 @@ const availableProducts = computed(() =>
         : props.products,
 );
 
+function productOf(line) {
+    return props.products.find((product) => product.id === Number(line.product_id)) ?? null;
+}
+
+/**
+ * The line follows its product's current specification. Nobody picks a version on this form,
+ * so the id is set here rather than left blank for the server to refuse; the server settles
+ * it again on save.
+ */
+function onProductChange(line) {
+    line.product_spec_id = productOf(line)?.current_spec?.id ?? '';
+}
+
+/** Products on the order that cannot be ordered yet, said before the save rather than after. */
+const linesWithoutSpec = computed(() => form.lines
+    .map((line, index) => ({ line, index, product: productOf(line) }))
+    .filter(({ product }) => product && !product.current_spec));
+
 function addLine() {
     form.lines = [...form.lines, blankLine()];
 }
@@ -217,7 +235,17 @@ const columns = [
                                 :options="availableProducts"
                                 value-key="id"
                                 label-key="code"
+                                hint-key="name"
+                                @update:model-value="onProductChange(line)"
                             />
+                            <p v-if="productOf(line)?.current_spec" class="mt-1 text-xs text-ink-500">
+                                Specification v{{ productOf(line).current_spec.version_no }}
+                            </p>
+                            <p v-else-if="productOf(line)" class="mt-1 text-xs text-rose-700">
+                                No current specification.
+                                <a :href="`/products/${line.product_id}`" target="_blank" rel="noopener" class="font-medium underline">Open the product</a>
+                                to add one.
+                            </p>
                             <p v-if="Number(line.produced_qty) > 0" class="mt-1 text-[11px] text-ink-500">
                                 {{ pcs(line.produced_qty) }} produced — line cannot be removed
                             </p>
@@ -332,6 +360,8 @@ const columns = [
                     cancel-href="/sales-orders"
                     :summary="`${filledLines} ${filledLines === 1 ? 'line' : 'lines'} · ${money(subtotal, currencyCode)}`"
                     :label="isEdit ? 'Save changes' : 'Save draft'"
+                    :disabled="linesWithoutSpec.length > 0"
+                    :disabled-reason="linesWithoutSpec.length ? `Line ${linesWithoutSpec.map(({ index }) => index + 1).join(', ')}: the product has no current specification yet.` : null"
                     @save="submit"
                 />
             </template>

@@ -463,6 +463,8 @@ class SalesOrderController extends Controller
     /** @return array<string, mixed> */
     private function validated(Request $request, ?SalesOrder $order = null): array
     {
+        $this->resolveLineSpecs($request);
+
         $data = $request->validate([
             'customer_id' => ['required', 'integer', 'exists:customers,id'],
             'quotation_id' => ['nullable', 'integer', 'exists:quotations,id'],
@@ -488,6 +490,8 @@ class SalesOrderController extends Controller
             'lines.*.over_tolerance_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'lines.*.under_tolerance_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'lines.*.promised_date' => ['nullable', 'date'],
+        ], [
+            'lines.*.product_spec_id.required' => 'Line :position: this product has no current specification. Open the product and make a specification current, then add it to the order.',
         ]);
 
         // BR-58 — the snapshot rate is booked by the server from the reference table, not
@@ -501,6 +505,43 @@ class SalesOrderController extends Controller
         );
 
         return $data;
+    }
+
+    /**
+     * An order line is written against the product's current specification, and the server is
+     * the one that knows which that is.
+     *
+     * The form has no specification control — nobody ordering 5,000 labels picks a version —
+     * so a line arrives with none, and one whose product was changed on edit arrives with the
+     * previous product's. Both are settled here: a missing or mismatched id becomes the
+     * product's current spec. A spec that does belong to the product is left alone, because a
+     * confirmed order keeps the version it was confirmed against.
+     */
+    private function resolveLineSpecs(Request $request): void
+    {
+        $lines = $request->input('lines');
+
+        if (! is_array($lines)) {
+            return;
+        }
+
+        foreach ($lines as $index => $line) {
+            if (! is_array($line) || empty($line['product_id']) || ! is_numeric($line['product_id'])) {
+                continue;
+            }
+
+            $productId = (int) $line['product_id'];
+            $specId = $line['product_spec_id'] ?? null;
+
+            $belongs = is_numeric($specId) && DB::table('product_specs')
+                ->where('id', (int) $specId)->where('product_id', $productId)->exists();
+
+            if (! $belongs) {
+                $lines[$index]['product_spec_id'] = Product::query()->find($productId)?->currentSpec?->getKey();
+            }
+        }
+
+        $request->merge(['lines' => $lines]);
     }
 
     /** @param list<array<string, mixed>> $lines */
