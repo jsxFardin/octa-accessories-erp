@@ -281,7 +281,7 @@ const columns = [
                                 <a :href="`/products/${line.product_id}`" target="_blank" rel="noopener" class="font-medium underline">Open the product</a>
                                 to add one.
                             </p>
-                            <p v-if="Number(line.produced_qty) > 0" class="mt-1 text-[11px] text-ink-500">
+                            <p v-if="Number(line.produced_qty) > 0" class="mt-1 text-xs text-ink-500">
                                 {{ pcs(line.produced_qty) }} produced — line cannot be removed
                             </p>
                         </template>
@@ -377,7 +377,7 @@ const columns = [
                         </div>
                     </dl>
 
-                    <p class="mt-3 text-[11px] leading-relaxed text-ink-500">
+                    <p class="mt-3 text-xs leading-relaxed text-ink-500">
                         Ordered quantity, not shipped: each line may land inside its own
                         tolerance band, which the Lines table shows per line.
                     </p>

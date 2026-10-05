@@ -45,7 +45,7 @@ const columns = [
                             · {{ row.new_values.reason ?? row.new_values.hold_reason }}
                         </span>
                     </span>
-                    <span v-else class="font-mono text-[10px] text-ink-500">
+                    <span v-else class="font-mono text-xs text-ink-500">
                         {{ Object.keys(row.new_values ?? {}).slice(0, 4).join(', ') }}
                     </span>
                 </template>

@@ -132,7 +132,7 @@ defineExpose({ show });
                 <div class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
                     <p class="field-label mb-0">Columns</p>
                     <button
-                        class="text-[11px] text-brand-700 hover:underline"
+                        class="text-xs text-brand-700 hover:underline"
                         @click="chosen = new Set(chosen.size === columns.length ? [] : columns)"
                     >
                         {{ chosen.size === columns.length ? 'Clear all' : 'Select all' }}
@@ -184,11 +184,11 @@ defineExpose({ show });
                             >
                             <span class="text-sm font-medium text-ink-900">{{ option.label }}</span>
                         </span>
-                        <span class="mt-1 block text-[11px] leading-snug text-ink-500">{{ option.hint }}</span>
+                        <span class="mt-1 block text-xs leading-snug text-ink-500">{{ option.hint }}</span>
                     </label>
                 </div>
 
-                <p v-if="format === 'pdf'" class="mt-1.5 text-[11px] text-ink-500">
+                <p v-if="format === 'pdf'" class="mt-1.5 text-xs text-ink-500">
                     A PDF is laid out in one pass, so it stops at the first 2,000 rows. Use Excel or CSV for a full list.
                 </p>
             </div>

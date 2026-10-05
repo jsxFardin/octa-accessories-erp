@@ -399,7 +399,7 @@ const bomColumns = [
                         <template #cell:qty_per_base="{ value }">{{ qty(value) }}</template>
                         <template #cell:colour_index="{ value }">{{ value ?? 'all' }}</template>
                         <template #cell:formula_ref="{ value }">
-                            <span v-if="value" class="rounded bg-slate-100 px-1 font-mono text-[10px]">{{ value }}</span>
+                            <span v-if="value" class="rounded bg-slate-100 px-1 font-mono text-xs">{{ value }}</span>
                             <span v-else class="text-ink-400">fixed</span>
                         </template>
                     </DataTable>

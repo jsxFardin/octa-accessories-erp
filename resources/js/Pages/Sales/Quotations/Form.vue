@@ -505,7 +505,7 @@ const columns = [
                                 label-key="code"
                                 hint-key="name"
                             />
-                            <p v-if="line.product_id" class="mt-1 truncate text-[11px] text-ink-500">
+                            <p v-if="line.product_id" class="mt-1 truncate text-xs text-ink-500">
                                 {{ availableProducts.find((p) => p.id === Number(line.product_id))?.name }}
                             </p>
                             <p v-if="sheets[index]?.error" class="mt-1 text-xs text-rose-700">
@@ -532,7 +532,7 @@ const columns = [
                             <TextInput cell v-model="line.margin_pct" type="number" step="0.01" numeric />
                             <p
                                 v-if="Number(line.margin_pct) < Number(marginFloorPct)"
-                                class="mt-1 text-[11px] text-amber-700"
+                                class="mt-1 text-xs text-amber-700"
                             >
                                 below {{ marginFloorPct }}% floor
                             </p>
@@ -645,7 +645,7 @@ const columns = [
                                     <td class="px-3 py-1.5 text-right tnum">{{ Number(cl.rate).toFixed(4) }}</td>
                                     <td class="px-3 py-1.5 text-right font-medium tnum">{{ money(cl.amount, false) }}</td>
                                     <td class="px-3 py-1.5">
-                                        <span class="rounded bg-slate-100 px-1 font-mono text-[10px] text-ink-700">
+                                        <span class="rounded bg-slate-100 px-1 font-mono text-xs text-ink-700">
                                             {{ cl.formula_ref }}
                                         </span>
                                     </td>
@@ -655,7 +655,7 @@ const columns = [
                     </div>
 
                     <div class="border-t border-slate-200 p-3 text-sm lg:border-t-0 lg:border-l">
-                        <p class="mb-2 text-[11px] font-medium tracking-wide text-ink-500 uppercase">
+                        <p class="mb-2 text-xs font-medium tracking-wide text-ink-500 uppercase">
                             Costs in {{ baseCurrency() }}
                         </p>
 
@@ -681,14 +681,14 @@ const columns = [
                             </div>
                         </dl>
 
-                        <p class="mt-2 text-[11px] text-ink-500">
+                        <p class="mt-2 text-xs text-ink-500">
                             Margin is applied on price — unit cost × 1000 ÷ (1 − margin) — not on cost.
                         </p>
 
                         <p
                             v-for="warning in sheet.warnings"
                             :key="warning"
-                            class="mt-2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-900"
+                            class="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900"
                         >
                             {{ warning }}
                         </p>
@@ -735,7 +735,7 @@ const columns = [
                          sending; it belongs where the total is, not only on the line. -->
                     <p
                         v-if="belowFloor"
-                        class="mt-3 rounded bg-amber-50 px-2 py-1.5 text-[11px] leading-relaxed text-amber-900"
+                        class="mt-3 rounded bg-amber-50 px-2 py-1.5 text-xs leading-relaxed text-amber-900"
                     >
                         A line is priced below the {{ marginFloorPct }}% margin floor. Sending it needs
                         an approval.

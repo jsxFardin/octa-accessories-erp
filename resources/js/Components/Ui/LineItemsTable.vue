@@ -117,13 +117,13 @@ function applyCellLabel(el, binding) {
             <table class="min-w-full text-sm">
                 <thead>
                     <tr class="border-b border-slate-200">
-                        <th class="w-8 pb-2 text-left text-[10px] font-semibold tracking-wider text-ink-400 uppercase">
+                        <th class="w-8 pb-2 text-left text-xs font-semibold tracking-wider text-ink-400 uppercase">
                             #
                         </th>
                         <th
                             v-for="column in columns"
                             :key="column.key"
-                            class="px-1.5 pb-2 text-[10px] font-semibold tracking-wider text-ink-400 uppercase"
+                            class="px-1.5 pb-2 text-xs font-semibold tracking-wider text-ink-400 uppercase"
                             :class="column.align === 'right' ? 'text-right' : 'text-left'"
                             :style="column.width ? { width: column.width } : undefined"
                         >
@@ -168,7 +168,7 @@ function applyCellLabel(el, binding) {
                             <button
                                 v-if="!fixed && canRemove(line, index)"
                                 type="button"
-                                class="rounded p-1 text-ink-500 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-600 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none pointer-coarse:opacity-100"
+                                class="inline-flex size-7 items-center justify-center rounded text-ink-600 opacity-60 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-700 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none pointer-coarse:opacity-100"
                                 :aria-label="`Remove line ${index + 1}`"
                                 title="Remove line"
                                 @click="emit('remove', index)"

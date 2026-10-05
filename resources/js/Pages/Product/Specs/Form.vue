@@ -356,12 +356,15 @@ function submit() {
                                         v-for="scheme in schemes"
                                         :key="scheme"
                                         type="button"
-                                        class="rounded-md border px-2 py-1 text-xs"
+                                        class="inline-flex min-h-7 items-center gap-1 rounded-md border px-2.5 py-1 text-xs focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                        :aria-pressed="form.claims.includes(scheme)"
                                         :class="form.claims.includes(scheme)
-                                            ? 'border-brand-500 bg-brand-50 text-brand-800'
-                                            : 'border-slate-200 text-ink-600 hover:bg-slate-50'"
+                                            ? 'border-brand-600 bg-brand-50 font-medium text-brand-800'
+                                            : 'border-slate-300 text-ink-700 hover:bg-slate-50'"
                                         @click="toggleClaim(scheme)"
                                     >
+                                        <!-- A tick as well as a colour: the state was colour alone. -->
+                                        <span v-if="form.claims.includes(scheme)" aria-hidden="true">✓</span>
                                         {{ scheme }}
                                     </button>
                                 </div>
@@ -382,7 +385,7 @@ function submit() {
                                     <input v-model="form.make_current" type="checkbox" class="form-checkbox">
                                     Make this the current specification
                                 </label>
-                                <p class="mt-1 text-[11px] text-ink-500">
+                                <p class="mt-1 text-xs text-ink-500">
                                     Exactly one version is current at a time; ticking this supersedes
                                     <template v-if="current">v{{ current.version_no }}</template>
                                     <template v-else>nothing — this is the first version</template>.

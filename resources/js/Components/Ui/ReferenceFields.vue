@@ -46,13 +46,14 @@ defineProps({
                 type="button"
                 role="switch"
                 :aria-checked="form[field.name]"
-                class="relative h-5 w-9 rounded-full transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                :class="form[field.name] ? 'bg-brand-600' : 'bg-slate-300'"
+                :aria-label="field.label"
+                class="relative h-6 w-11 rounded-full transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-2 focus-visible:outline-none"
+                :class="form[field.name] ? 'bg-brand-600' : 'bg-slate-400'"
                 @click="form[field.name] = !form[field.name]"
             >
                 <span
-                    class="absolute top-0.5 size-4 rounded-full bg-white shadow transition-all"
-                    :class="form[field.name] ? 'left-4.5' : 'left-0.5'"
+                    class="absolute top-0.5 size-5 rounded-full bg-white shadow transition-all"
+                    :class="form[field.name] ? 'left-5.5' : 'left-0.5'"
                 />
             </button>
 

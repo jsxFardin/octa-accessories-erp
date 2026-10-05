@@ -223,7 +223,7 @@ function unschedule(operation) {
         <div class="space-y-4">
             <Card :padded="false">
                 <!-- The colour ramp, named. Four tones with no key made the board a guess. -->
-                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-slate-100 px-3 py-2 text-[11px] text-ink-600">
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-slate-100 px-3 py-2 text-xs text-ink-600">
                     <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-emerald-50 ring-1 ring-emerald-200" /> Loaded</span>
                     <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-amber-100 ring-1 ring-amber-300" /> 85%+ full</span>
                     <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-rose-100 ring-1 ring-rose-300" /> Over capacity</span>
@@ -252,7 +252,7 @@ function unschedule(operation) {
                             <tr v-for="machine in machines" :key="machine.id">
                                 <td class="sticky left-0 z-10 bg-white px-3 py-1.5 whitespace-nowrap">
                                     <div class="font-medium text-ink-800">{{ machine.code }}</div>
-                                    <div class="text-[10px] text-ink-500">
+                                    <div class="text-xs text-ink-500">
                                         {{ machine.group_code }} · {{ Math.round(machine.efficiency_pct) }}% eff
                                     </div>
                                 </td>
@@ -269,14 +269,14 @@ function unschedule(operation) {
                                         <!-- Capped: 5781% in the same visual language as 11% reads as noise, not
                                              as an alarm. Over 100 becomes a flat "over"; the exact figure is in
                                              the panel the cell opens. -->
-                                        <span class="block text-[11px] font-semibold">
+                                        <span class="block text-xs font-semibold">
                                             {{ cell(machine.id, d)?.is_holiday
                                                 ? '—'
                                                 : (cell(machine.id, d)?.utilisation_pct ?? 0) > 100
                                                     ? '>100%'
                                                     : `${Math.round(cell(machine.id, d)?.utilisation_pct ?? 0)}%` }}
                                         </span>
-                                        <span class="block text-[10px]">
+                                        <span class="block text-xs">
                                             {{ cell(machine.id, d)?.operations || '\u00a0' }}
                                         </span>
                                     </button>

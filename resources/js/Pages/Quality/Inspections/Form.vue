@@ -233,7 +233,7 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
 
                         <div class="min-w-0 flex-1">
                             <p class="truncate text-sm text-ink-800">{{ defect.name }}</p>
-                            <p class="text-[10px] text-ink-400">{{ defect.code }} · {{ titleCase(defect.process) }}</p>
+                            <p class="text-xs text-ink-400">{{ defect.code }} · {{ titleCase(defect.process) }}</p>
                         </div>
 
                         <div class="flex items-center gap-1">
@@ -275,15 +275,15 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
                     <div v-if="plan" class="space-y-3">
                         <dl class="grid grid-cols-3 gap-2 text-center">
                             <div class="rounded-md bg-slate-50 py-2">
-                                <dt class="text-[10px] text-ink-500">Sample</dt>
+                                <dt class="text-xs text-ink-500">Sample</dt>
                                 <dd class="text-lg font-semibold tnum text-ink-900">{{ pcs(plan.sample_size) }}</dd>
                             </div>
                             <div class="rounded-md bg-emerald-50 py-2">
-                                <dt class="text-[10px] text-emerald-700">Accept ≤</dt>
+                                <dt class="text-xs text-emerald-700">Accept ≤</dt>
                                 <dd class="text-lg font-semibold tnum text-emerald-800">{{ plan.accept_number }}</dd>
                             </div>
                             <div class="rounded-md bg-rose-50 py-2">
-                                <dt class="text-[10px] text-rose-700">Reject ≥</dt>
+                                <dt class="text-xs text-rose-700">Reject ≥</dt>
                                 <dd class="text-lg font-semibold tnum text-rose-800">{{ plan.reject_number }}</dd>
                             </div>
                         </dl>
@@ -294,15 +294,15 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
 
                         <div class="grid grid-cols-3 gap-2 text-center text-sm">
                             <div>
-                                <p class="text-[10px] text-ink-500">Critical</p>
+                                <p class="text-xs text-ink-500">Critical</p>
                                 <p class="font-semibold tnum text-rose-600">{{ form.critical_found }}</p>
                             </div>
                             <div>
-                                <p class="text-[10px] text-ink-500">Major</p>
+                                <p class="text-xs text-ink-500">Major</p>
                                 <p class="font-semibold tnum text-ink-900">{{ form.major_found }}</p>
                             </div>
                             <div>
-                                <p class="text-[10px] text-ink-500">DHU</p>
+                                <p class="text-xs text-ink-500">DHU</p>
                                 <p class="font-semibold tnum text-ink-900">{{ dhu }}</p>
                             </div>
                         </div>
@@ -311,7 +311,7 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
                             class="rounded-md px-3 py-2 text-center"
                             :class="verdict === 'rejected' ? 'bg-rose-100 text-rose-900' : 'bg-emerald-100 text-emerald-900'"
                         >
-                            <p class="text-[10px] tracking-wider uppercase">Computed verdict</p>
+                            <p class="text-xs tracking-wider uppercase">Computed verdict</p>
                             <p class="text-lg font-bold">{{ verdict === 'rejected' ? 'REJECTED' : 'ACCEPTED' }}</p>
                         </div>
 

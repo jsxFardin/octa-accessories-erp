@@ -1,5 +1,5 @@
 <script setup>
-import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue';
 
 /**
  * The one select in the system, and it is searchable.
@@ -21,6 +21,8 @@ const props = defineProps({
     /** Falsy (or `null`) removes the "clear" row: the field then has no empty state. */
     placeholder: { type: String, default: '—' },
     disabled: { type: Boolean, default: false },
+    /** The control's name when it has no visible label of its own — a filter, a table cell. */
+    ariaLabel: { type: String, default: null },
     valueKey: { type: String, default: 'value' },
     labelKey: { type: String, default: 'label' },
     /** Secondary line under each option — a name beside a code, a customer beside an order. */
@@ -96,12 +98,33 @@ const filtered = computed(() => {
 
 const showSearch = computed(() => props.options.length >= props.searchThreshold);
 
+/*
+ * What the arrow keys move through: the "clear" row, when the field has one, and then the
+ * options. The clear row used to sit outside the list the keyboard knew about, so a value
+ * could be chosen without a mouse and never un-chosen.
+ */
+const CLEAR = Symbol('clear');
+const rows = computed(() => (props.placeholder && !query.value ? [CLEAR, ...filtered.value] : filtered.value));
+
+/** Ids, so the control can tell a screen reader which option the arrow keys are on. */
+const uid = useId();
+const listId = `${uid}-list`;
+const rowId = (index) => `${uid}-row-${index}`;
+const activeId = computed(() => (open.value && rows.value.length ? rowId(activeIndex.value) : undefined));
+
+/**
+ * A touch screen raises its keyboard the moment a text box takes focus. Opening a two-option
+ * list did that every time, covering the list it had just opened. The filter box is still
+ * there to tap into; it just does not grab focus on a device whose main pointer is a finger.
+ */
+const coarsePointer = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+
 function place() {
     const rect = trigger.value?.getBoundingClientRect();
 
     if (!rect) return;
 
-    const height = Math.min(288, filtered.value.length * 34 + (showSearch.value ? 44 : 8) + 8);
+    const height = Math.min(288, rows.value.length * 34 + (showSearch.value ? 44 : 8) + 8);
     const below = window.innerHeight - rect.bottom;
 
     position.value = {
@@ -123,11 +146,12 @@ async function toggle() {
 
     open.value = true;
     query.value = '';
-    activeIndex.value = Math.max(0, filtered.value.findIndex((option) => option === selected.value));
+    activeIndex.value = Math.max(0, rows.value.findIndex((option) => option === selected.value));
 
     await nextTick();
     place();
-    searchBox.value?.focus();
+    if (!coarsePointer) searchBox.value?.focus();
+    scrollActiveIntoView();
 }
 
 function close() {
@@ -142,9 +166,16 @@ function choose(option) {
 }
 
 function move(delta) {
-    if (!filtered.value.length) return;
+    if (!rows.value.length) return;
 
-    activeIndex.value = (activeIndex.value + delta + filtered.value.length) % filtered.value.length;
+    activeIndex.value = (activeIndex.value + delta + rows.value.length) % rows.value.length;
+    scrollActiveIntoView();
+}
+
+function jump(index) {
+    if (!rows.value.length) return;
+
+    activeIndex.value = index < 0 ? rows.value.length - 1 : index;
     scrollActiveIntoView();
 }
 
@@ -169,11 +200,17 @@ function onKeydown(event) {
     } else if (event.key === 'ArrowUp') {
         event.preventDefault();
         move(-1);
+    } else if (event.key === 'Home') {
+        event.preventDefault();
+        jump(0);
+    } else if (event.key === 'End') {
+        event.preventDefault();
+        jump(-1);
     } else if (event.key === 'Enter') {
         event.preventDefault();
-        const option = filtered.value[activeIndex.value];
+        const option = rows.value[activeIndex.value];
 
-        if (option) choose(option);
+        if (option !== undefined) choose(option === CLEAR ? null : option);
     } else if (event.key === 'Escape') {
         event.preventDefault();
         // Stopped here: a slide-over listens for Escape too, and one press should shut the
@@ -182,7 +219,11 @@ function onKeydown(event) {
         close();
         trigger.value?.focus();
     } else if (event.key === 'Tab') {
+        // The list is drawn at the end of the page, so Tab from inside it used to land on
+        // whatever came last in the document. Focus goes back to the field first; the
+        // browser then carries Tab on to the field after it, which is where it was headed.
         close();
+        trigger.value?.focus();
     }
 }
 
@@ -220,21 +261,24 @@ onUnmounted(() => {
             :class="[invalid && 'form-input-error', disabled && 'cursor-not-allowed opacity-60']"
             :disabled="disabled"
             role="combobox"
+            :aria-label="ariaLabel ?? undefined"
             :aria-expanded="open"
             aria-haspopup="listbox"
+            :aria-controls="open ? listId : undefined"
+            :aria-activedescendant="activeId"
             :aria-invalid="invalid || undefined"
             :aria-describedby="describedBy?.value ?? undefined"
             @click="toggle"
             @keydown="onKeydown"
         >
-            <span class="truncate" :class="selected ? 'text-ink-900' : 'text-ink-400'">
+            <span class="truncate" :class="selected ? 'text-ink-900' : 'text-ink-500'">
                 <template v-if="selected">
                     <span v-if="codeOf(selected)" class="font-medium">{{ codeOf(selected) }}</span>
-                    <span v-if="codeOf(selected)" class="text-ink-400"> · </span>{{ labelOf(selected) }}
+                    <span v-if="codeOf(selected)" class="text-ink-500"> · </span>{{ labelOf(selected) }}
                 </template>
                 <template v-else>{{ placeholder || '—' }}</template>
             </span>
-            <svg class="size-4 shrink-0 text-ink-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6">
+            <svg class="size-4 shrink-0 text-ink-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
                 <path d="M6 8l4 4 4-4" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
         </button>
@@ -251,45 +295,65 @@ onUnmounted(() => {
                         ref="searchBox"
                         v-model="query"
                         type="text"
-                        class="w-full rounded border border-slate-200 px-2 py-1 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none"
+                        class="w-full rounded border border-slate-200 px-2 py-1 text-sm text-ink-900 placeholder:text-ink-500 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none"
                         placeholder="Type to filter…"
+                        :aria-label="ariaLabel ? `Filter ${ariaLabel}` : 'Type to filter the list'"
+                        role="combobox"
+                        aria-expanded="true"
+                        aria-autocomplete="list"
+                        :aria-controls="listId"
+                        :aria-activedescendant="activeId"
                         @keydown="onKeydown"
                     >
                 </div>
 
-                <div ref="listBox" role="listbox" class="max-h-64 overflow-y-auto py-1">
-                    <button
-                        v-if="placeholder"
-                        type="button"
-                        class="block w-full px-3 py-1.5 text-left text-sm text-ink-400 hover:bg-slate-50"
-                        @click="choose(null)"
-                    >
-                        {{ placeholder }}
-                    </button>
+                <div :id="listId" ref="listBox" role="listbox" class="max-h-64 overflow-y-auto py-1">
+                    <!--
+                        Rows are chosen with the arrow keys and Enter from the field or the
+                        filter box, so none of them is a Tab stop of its own.
+                    -->
+                    <template v-for="(option, index) in rows" :key="option === CLEAR ? '__clear' : valueOf(option)">
+                        <button
+                            v-if="option === CLEAR"
+                            :id="rowId(index)"
+                            type="button"
+                            role="option"
+                            tabindex="-1"
+                            :data-active="index === activeIndex"
+                            :aria-selected="selected === null"
+                            class="block min-h-8 w-full px-3 py-1.5 text-left text-sm text-ink-600"
+                            :class="index === activeIndex ? 'bg-brand-50' : 'hover:bg-slate-50'"
+                            @click="choose(null)"
+                            @mousemove="activeIndex = index"
+                        >
+                            {{ placeholder }}
+                        </button>
 
-                    <button
-                        v-for="(option, index) in filtered"
-                        :key="valueOf(option)"
-                        type="button"
-                        role="option"
-                        :data-active="index === activeIndex"
-                        :aria-selected="option === selected"
-                        class="block w-full px-3 py-1.5 text-left text-sm"
-                        :class="[
-                            index === activeIndex ? 'bg-brand-50' : 'hover:bg-slate-50',
-                            option === selected ? 'font-medium text-brand-800' : 'text-ink-800',
-                        ]"
-                        @click="choose(option)"
-                        @mousemove="activeIndex = index"
-                    >
-                        <span class="block truncate">
-                            <span v-if="codeOf(option)" class="font-medium">{{ codeOf(option) }}</span>
-                            <span v-if="codeOf(option)" class="text-ink-400"> · </span>{{ labelOf(option) }}
-                        </span>
-                        <span v-if="hintOf(option)" class="block truncate text-[11px] text-ink-500">
-                            {{ hintOf(option) }}
-                        </span>
-                    </button>
+                        <button
+                            v-else
+                            :id="rowId(index)"
+                            type="button"
+                            role="option"
+                            tabindex="-1"
+                            :data-active="index === activeIndex"
+                            :aria-selected="option === selected"
+                            class="block min-h-8 w-full px-3 py-1.5 text-left text-sm"
+                            :class="[
+                                index === activeIndex ? 'bg-brand-50' : 'hover:bg-slate-50',
+                                option === selected ? 'font-medium text-brand-800' : 'text-ink-800',
+                            ]"
+                            @click="choose(option)"
+                            @mousemove="activeIndex = index"
+                        >
+                            <span class="block truncate">
+                                <span v-if="codeOf(option)" class="font-medium">{{ codeOf(option) }}</span>
+                                <span v-if="codeOf(option)" class="text-ink-500"> · </span>{{ labelOf(option) }}
+                            </span>
+                            <span v-if="hintOf(option)" class="block truncate text-xs text-ink-600">
+                                {{ hintOf(option) }}
+                            </span>
+                        </button>
+                    </template>
 
                     <p v-if="filtered.length === 0" class="px-3 py-4 text-center text-xs text-ink-500">
                         <template v-if="query">Nothing matches “{{ query }}”.</template>

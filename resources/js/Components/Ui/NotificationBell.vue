@@ -111,7 +111,7 @@ onUnmounted(() => {
             <Icon name="bell" />
             <span
                 v-if="unread > 0"
-                class="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-semibold text-white"
+                class="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-xs font-semibold text-white"
             >
                 {{ unreadLabel }}
             </span>
@@ -139,7 +139,7 @@ onUnmounted(() => {
                     <p class="text-sm font-semibold text-ink-900">Notifications</p>
                     <button
                         v-if="unread > 0"
-                        class="text-[11px] font-medium text-brand-700 hover:underline"
+                        class="text-xs font-medium text-brand-700 hover:underline"
                         type="button"
                         @click="markAllRead"
                     >
@@ -163,10 +163,10 @@ onUnmounted(() => {
                             <span class="text-sm leading-snug font-medium">{{ item.title }}</span>
                             <!-- Why it matters and what to do: a title alone says only that
                                  something happened, not why this reader is being told. -->
-                            <span v-if="item.body" class="text-[11px] leading-relaxed text-ink-500">
+                            <span v-if="item.body" class="text-xs leading-relaxed text-ink-500">
                                 {{ item.body }}
                             </span>
-                            <span v-if="item.document_number" class="text-[11px] text-ink-400">
+                            <span v-if="item.document_number" class="text-xs text-ink-400">
                                 {{ item.document_number }}
                             </span>
                         </button>

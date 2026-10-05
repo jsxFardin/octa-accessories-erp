@@ -215,7 +215,7 @@ const columns = [
                             @update:model-value="onSupplierChange"
                         />
                         <!-- The state machine refuses submission to an unapproved supplier; warn early. -->
-                        <p v-if="supplier && !supplier.is_approved" class="mt-1 text-[11px] text-amber-700">
+                        <p v-if="supplier && !supplier.is_approved" class="mt-1 text-xs text-amber-700">
                             Not an approved supplier — this order cannot be submitted until purchasing approves them.
                         </p>
                     </FormField>
@@ -276,8 +276,8 @@ const columns = [
                                 hint-key="name"
                                 @update:model-value="onItemChange(line)"
                             />
-                            <p v-if="line.pr_line_id" class="mt-1 text-[10px] text-brand-700">from requisition</p>
-                            <p v-else-if="itemFor(line)" class="mt-1 truncate text-[11px] text-ink-500">
+                            <p v-if="line.pr_line_id" class="mt-1 text-xs text-brand-700">from requisition</p>
+                            <p v-else-if="itemFor(line)" class="mt-1 truncate text-xs text-ink-500">
                                 {{ itemFor(line).name }}
                             </p>
                         </template>
@@ -291,7 +291,7 @@ const columns = [
                             <button
                                 v-if="line.qty && roundedQty(line) > Number(line.qty)"
                                 type="button"
-                                class="mt-1 text-[10px] text-amber-700 underline"
+                                class="mt-1 text-xs text-amber-700 underline"
                                 @click="roundLine(line)"
                             >
                                 round up to {{ qty(roundedQty(line)) }} (pack multiple)
@@ -358,9 +358,9 @@ const columns = [
                     </dl>
 
                     <div class="mt-3 rounded-md bg-brand-50 px-3 py-2">
-                        <p class="text-[10px] tracking-wider text-brand-700 uppercase">Needs approval from</p>
+                        <p class="text-xs tracking-wider text-brand-700 uppercase">Needs approval from</p>
                         <p class="text-sm font-semibold text-brand-800">{{ approver }}</p>
-                        <p class="mt-0.5 text-[11px] text-ink-500">
+                        <p class="mt-0.5 text-xs text-ink-500">
                             <!-- BR-51 — the band is a base-currency figure and is labelled as
                                  one, beside an order total that may not be. -->
                             Manager band {{ money(approvalBand, baseCurrency?.code) }}
@@ -385,7 +385,7 @@ const columns = [
                         >
                             <div class="min-w-0 flex-1">
                                 <p class="truncate text-sm font-medium text-ink-900">{{ prLine.item_code }}</p>
-                                <p class="truncate text-[11px] text-ink-500">
+                                <p class="truncate text-xs text-ink-500">
                                     {{ prLine.pr_number }} ·
                                     {{ qty(Number(prLine.qty) - Number(prLine.ordered_qty)) }} outstanding
                                     <span v-if="prLine.required_by"> · by {{ date(prLine.required_by) }}</span>

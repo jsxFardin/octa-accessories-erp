@@ -111,7 +111,7 @@ function reset() {
             <!-- Fixed width: a search box that eats the whole row makes the filters beside it
                  look like an afterthought, which is how the old bar read. -->
             <div class="relative w-full sm:w-72">
-                <Icon name="search" size="size-3.5" class="pointer-events-none absolute top-2.5 left-2.5 text-ink-400" />
+                <Icon name="search" size="size-3.5" class="pointer-events-none absolute top-2.5 left-2.5 text-ink-500" aria-hidden="true" />
                 <input
                     v-model="state.q"
                     type="search"
@@ -126,6 +126,7 @@ function reset() {
                     v-if="field.type === 'date'"
                     v-model="state[field.key]"
                     :placeholder="field.label"
+                    :aria-label="field.label"
                 />
                 <!-- A customer filter over 400 customers is unusable without a search box. -->
                 <SelectInput
@@ -133,6 +134,7 @@ function reset() {
                     v-model="state[field.key]"
                     :options="field.options"
                     :placeholder="`All ${field.label.toLowerCase()}`"
+                    :aria-label="field.label"
                 />
             </div>
 
@@ -140,20 +142,22 @@ function reset() {
         </div>
 
         <div v-if="chips.length" class="flex flex-wrap items-center gap-1.5 border-t border-slate-100 px-3 py-1.5">
-            <span class="text-[10px] font-medium tracking-wider text-ink-400 uppercase">Filtered by</span>
+            <span class="text-xs font-medium text-ink-600">Filtered by</span>
 
             <button
                 v-for="chip in chips"
                 :key="chip.key"
-                class="group inline-flex items-center gap-1 rounded-full bg-brand-50 py-0.5 pr-1 pl-2 text-[11px] text-brand-800 transition hover:bg-brand-100"
+                type="button"
+                class="group inline-flex min-h-6 items-center gap-1 rounded-full bg-brand-50 py-0.5 pr-1.5 pl-2.5 text-xs text-brand-800 transition hover:bg-brand-100 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                :aria-label="`Remove filter ${chip.label}: ${chip.value}`"
                 @click="clearOne(chip.key)"
             >
-                <span class="text-brand-600">{{ chip.label }}:</span>
+                <span class="text-brand-700">{{ chip.label }}:</span>
                 <span class="font-medium">{{ chip.value }}</span>
-                <Icon name="close" size="size-3" class="text-brand-400 group-hover:text-brand-700" />
+                <Icon name="close" size="size-3.5" class="text-brand-600 group-hover:text-brand-800" aria-hidden="true" />
             </button>
 
-            <button class="ml-1 text-[11px] text-ink-500 transition hover:text-ink-800 hover:underline" @click="reset">
+            <button type="button" class="ml-1 min-h-6 rounded px-1 text-xs text-ink-600 transition hover:text-ink-900 hover:underline focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none" @click="reset">
                 Clear all
             </button>
         </div>

@@ -56,3 +56,18 @@ describe('titleCase', () => {
         expect(titleCase(null)).toBe('');
     });
 });
+
+// UX audit H-49: 10 and 11 px text, much of it in the lightest grey, carried real content.
+describe('text size floor', () => {
+    it('sets nothing a person reads below 12 px', () => {
+        const small = [];
+
+        for (const file of vueFiles('resources/js')) {
+            const hits = readFileSync(file, 'utf8').match(/text-\[(?:[0-9]|1[01])px\]/g);
+
+            if (hits) small.push(`${file}: ${hits.join(', ')}`);
+        }
+
+        expect(small).toEqual([]);
+    });
+});

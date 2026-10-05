@@ -28,6 +28,8 @@ const props = defineProps({
     min: { type: String, default: null },
     max: { type: String, default: null },
     clearable: { type: Boolean, default: true },
+    /** The field's name when it has no visible label of its own — a filter, a table cell. */
+    ariaLabel: { type: String, default: null },
 });
 
 // Adopt the FormField's generated id/description so the label and error are associated.
@@ -143,10 +145,83 @@ async function show() {
 function pick(day) {
     if (day.disabled) return;
 
+    const fromKeyboard = popover.value?.contains(document.activeElement);
+
     isoValue.value = day.iso;
     draft.value = typedDate(day.iso);
     typingError.value = null;
     open.value = false;
+
+    if (fromKeyboard) backToField();
+}
+
+/*
+ * The calendar by keyboard. It could be opened from the field and then only clicked: the days
+ * were buttons with no way to reach them but the mouse. Arrow Down from the field now moves
+ * into the grid; arrows move by day and week, Page Up and Page Down by month, Home and End to
+ * the ends of the week; Enter picks; Escape and Tab go back to the field.
+ */
+const popover = ref(null);
+/** The day the arrow keys are on — the one day in the grid that is a Tab stop. */
+const focusIso = ref(null);
+/** Set while focus is handed back to the field, so arriving there does not reopen the calendar. */
+let returning = false;
+
+function backToField() {
+    returning = true;
+    field.value?.focus();
+    returning = false;
+}
+
+async function focusDay(isoDay) {
+    const date = parse(isoDay);
+
+    if (!date) return;
+
+    if (date.getMonth() !== cursor.value.getMonth() || date.getFullYear() !== cursor.value.getFullYear()) {
+        cursor.value = startOfMonth(date);
+    }
+
+    focusIso.value = isoDay;
+    await nextTick();
+    popover.value?.querySelector(`[data-iso="${isoDay}"]`)?.focus();
+}
+
+function shiftFocus(days, months = 0) {
+    const from = parse(focusIso.value) ?? selected.value ?? new Date();
+    const to = months
+        ? new Date(from.getFullYear(), from.getMonth() + months, Math.min(from.getDate(), new Date(from.getFullYear(), from.getMonth() + months + 1, 0).getDate()))
+        : new Date(from.getFullYear(), from.getMonth(), from.getDate() + days);
+
+    focusDay(iso(to));
+}
+
+function onGridKeydown(event) {
+    const weekday = ((parse(focusIso.value)?.getDay() ?? 0) - WEEK_START + 7) % 7;
+    const moves = {
+        ArrowLeft: () => shiftFocus(-1),
+        ArrowRight: () => shiftFocus(1),
+        ArrowUp: () => shiftFocus(-7),
+        ArrowDown: () => shiftFocus(7),
+        Home: () => shiftFocus(-weekday),
+        End: () => shiftFocus(6 - weekday),
+        PageUp: () => shiftFocus(0, -1),
+        PageDown: () => shiftFocus(0, 1),
+    };
+
+    if (moves[event.key]) {
+        event.preventDefault();
+        moves[event.key]();
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        open.value = false;
+        backToField();
+    } else if (event.key === 'Tab') {
+        // The calendar is drawn at the end of the page; Tab from inside it would land there.
+        open.value = false;
+        backToField();
+    }
 }
 
 function shiftMonth(delta) {
@@ -164,7 +239,7 @@ function onFocus() {
     focused.value = true;
     // Shown the way it is typed, so editing one digit does not mean retyping the date.
     draft.value = typedDate(isoValue.value);
-    show();
+    if (!returning) show();
 }
 
 /** Why a readable date still cannot be used here, or null. */
@@ -224,7 +299,12 @@ function onKeydown(event) {
         event.stopPropagation();
         open.value = false;
     }
-    if (event.key === 'ArrowDown' && !open.value) show();
+    if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        // First press opens the calendar; with it open, the next goes into the days.
+        if (!open.value) show();
+        else focusDay(isoValue.value || today);
+    }
 }
 
 function onDocumentClick(event) {
@@ -232,6 +312,11 @@ function onDocumentClick(event) {
         open.value = false;
     }
 }
+
+// A calendar that is opened again starts from the chosen date, not from where the arrows last were.
+watch(open, (value) => {
+    if (!value) focusIso.value = null;
+});
 
 watch(() => isoValue.value, (value) => {
     const parsed = parse(value);
@@ -278,6 +363,7 @@ onUnmounted(() => {
                 :class="invalid && 'form-input-error'"
                 :placeholder="placeholder"
                 :disabled="disabled"
+                :aria-label="ariaLabel ?? undefined"
                 :aria-invalid="invalid || undefined"
                 :aria-describedby="typingError ? typingErrorId : (describedBy?.value ?? undefined)"
                 @focus="onFocus"
@@ -287,9 +373,10 @@ onUnmounted(() => {
             >
             <button
                 type="button"
-                class="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-ink-400 transition hover:text-ink-700"
+                class="absolute inset-y-0 right-0 flex w-8 items-center justify-center rounded-r-md text-ink-600 transition hover:text-ink-900 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                 :disabled="disabled"
-                aria-label="Open calendar"
+                :aria-label="open ? 'Close calendar' : 'Open calendar'"
+                :aria-expanded="open"
                 @click="open ? (open = false) : show()"
             >
                 <svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -304,14 +391,17 @@ onUnmounted(() => {
         <Teleport to="body">
             <div
                 v-if="open"
+                ref="popover"
                 data-date-popover
+                role="dialog"
+                aria-label="Choose a date"
                 class="fixed z-[90] w-[260px] rounded-md border border-slate-200 bg-white p-2 shadow-lg"
                 :style="{ top: `${position.top}px`, left: `${position.left}px` }"
             >
                 <div class="flex items-center justify-between px-1 pb-2">
                     <button
                         type="button"
-                        class="rounded p-1 text-ink-500 transition hover:bg-slate-100"
+                        class="flex size-7 items-center justify-center rounded text-ink-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                         aria-label="Previous month"
                         @click="shiftMonth(-1)"
                     >
@@ -320,13 +410,13 @@ onUnmounted(() => {
                         </svg>
                     </button>
 
-                    <p class="text-sm font-medium text-ink-900">
+                    <p class="text-sm font-medium text-ink-900" aria-live="polite">
                         {{ MONTHS[cursor.getMonth()] }} {{ cursor.getFullYear() }}
                     </p>
 
                     <button
                         type="button"
-                        class="rounded p-1 text-ink-500 transition hover:bg-slate-100"
+                        class="flex size-7 items-center justify-center rounded text-ink-600 transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                         aria-label="Next month"
                         @click="shiftMonth(1)"
                     >
@@ -336,23 +426,27 @@ onUnmounted(() => {
                     </button>
                 </div>
 
-                <div class="grid grid-cols-7 gap-0.5 text-center">
-                    <span v-for="day in WEEKDAYS" :key="day" class="py-1 text-[10px] font-medium text-ink-400">
+                <div class="grid grid-cols-7 gap-0.5 text-center" @keydown="onGridKeydown">
+                    <span v-for="day in WEEKDAYS" :key="day" class="py-1 text-xs font-medium text-ink-600" aria-hidden="true">
                         {{ day }}
                     </span>
 
+                    <!-- One day is a Tab stop; the arrow keys move between the rest. -->
                     <button
                         v-for="day in days"
                         :key="day.iso"
                         type="button"
-                        class="rounded py-1 text-xs transition"
+                        :data-iso="day.iso"
+                        :tabindex="day.iso === (focusIso ?? isoValue ?? today) ? 0 : -1"
+                        :aria-pressed="day.iso === isoValue"
+                        class="min-h-7 rounded py-1 text-xs transition focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:outline-none"
                         :class="[
                             day.iso === isoValue
                                 ? 'bg-brand-600 font-semibold text-white'
                                 : day.iso === today
                                     ? 'bg-brand-50 font-medium text-brand-800'
                                     : day.outside
-                                        ? 'text-ink-400 hover:bg-slate-50'
+                                        ? 'text-ink-500 hover:bg-slate-50'
                                         : 'text-ink-800 hover:bg-slate-100',
                             day.disabled && 'cursor-not-allowed opacity-30 hover:bg-transparent',
                         ]"
@@ -368,7 +462,7 @@ onUnmounted(() => {
                 <div class="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
                     <button
                         type="button"
-                        class="rounded px-2 py-1 text-xs text-brand-700 transition hover:bg-brand-50"
+                        class="min-h-6 rounded px-2 py-1 text-xs text-brand-700 transition hover:bg-brand-50"
                         @click="pick({ iso: today, disabled: (min && today < min) || (max && today > max) })"
                     >
                         Today
@@ -376,7 +470,7 @@ onUnmounted(() => {
                     <button
                         v-if="clearable"
                         type="button"
-                        class="rounded px-2 py-1 text-xs text-ink-500 transition hover:bg-slate-100"
+                        class="min-h-6 rounded px-2 py-1 text-xs text-ink-600 transition hover:bg-slate-100"
                         @click="clear"
                     >
                         Clear

@@ -575,16 +575,16 @@ function submit() {
 
                     <p
                         v-if="missingReason"
-                        class="mt-3 rounded bg-amber-50 px-2 py-1.5 text-[11px] leading-relaxed text-amber-900"
+                        class="mt-3 rounded bg-amber-50 px-2 py-1.5 text-xs leading-relaxed text-amber-900"
                     >
                         A line takes a lot out of FIFO order without a reason. Give one on the line
                         before this can be posted.
                     </p>
-                    <p v-else-if="isReturn" class="mt-3 text-[11px] leading-relaxed text-ink-500">
+                    <p v-else-if="isReturn" class="mt-3 text-xs leading-relaxed text-ink-500">
                         Unused material returns to the same original lot. The remaining returnable
                         quantity is issued minus already returned, for this job only.
                     </p>
-                    <p v-else class="mt-3 text-[11px] leading-relaxed text-ink-500">
+                    <p v-else class="mt-3 text-xs leading-relaxed text-ink-500">
                         Lots are picked oldest-first. A line that departs from that carries the
                         reason with it, onto the ledger.
                     </p>

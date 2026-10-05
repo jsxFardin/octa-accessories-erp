@@ -97,7 +97,7 @@ function lineValue(line) {
                 <DataTable :columns="lineColumns" :rows="lines" row-key="id" empty="No lines on this issue." dense>
                     <template #cell:item_code="{ row }">
                         <span class="font-medium text-ink-800">{{ row.item_code }}</span>
-                        <span class="block text-[11px] text-ink-500">{{ row.item_name }}</span>
+                        <span class="block text-xs text-ink-500">{{ row.item_name }}</span>
                     </template>
                     <template #cell:lot_no="{ row }">
                         <Link v-if="row.lot_id" :href="`/lots/${row.lot_id}`" class="doc-link-quiet font-mono text-xs">

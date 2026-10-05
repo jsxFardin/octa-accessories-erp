@@ -141,7 +141,7 @@ const columns = [
                                 hint-key="name"
                                 @update:model-value="onItemChange(line)"
                             />
-                            <p v-if="itemFor(line)" class="mt-1 truncate text-[11px] text-ink-500">
+                            <p v-if="itemFor(line)" class="mt-1 truncate text-xs text-ink-500">
                                 {{ itemFor(line).name }}
                             </p>
                         </template>
@@ -161,7 +161,7 @@ const columns = [
                             >
                                 {{ line.qty ? qty(roundedQty(line)) : '—' }}
                             </span>
-                            <p v-if="itemFor(line) && roundedQty(line) > Number(line.qty)" class="text-[10px] text-ink-400">
+                            <p v-if="itemFor(line) && roundedQty(line) > Number(line.qty)" class="text-xs text-ink-400">
                                 min {{ itemFor(line).min_order_qty }} · × {{ itemFor(line).order_multiple }}
                             </p>
                         </template>
@@ -195,7 +195,7 @@ const columns = [
                         </div>
                     </dl>
 
-                    <p class="mt-3 text-[11px] leading-relaxed text-ink-500">
+                    <p class="mt-3 text-xs leading-relaxed text-ink-500">
                         Quantities are rounded up to the item's order multiple — a requisition
                         for 7 kg of a 25 kg drum asks for the drum.
                     </p>

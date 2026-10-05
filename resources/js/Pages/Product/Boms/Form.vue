@@ -163,7 +163,7 @@ function submit() {
                             <input v-model="form.activate" type="checkbox" class="form-checkbox">
                             Activate this bill of materials
                         </label>
-                        <p class="mt-1 text-[11px] text-ink-500">
+                        <p class="mt-1 text-xs text-ink-500">
                             One BOM per product is active at a time, and a job card cannot be released
                             without one. Ticking this supersedes the version currently active.
                         </p>

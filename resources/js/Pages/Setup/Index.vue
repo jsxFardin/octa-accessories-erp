@@ -138,7 +138,7 @@ onUnmounted(() => observer?.disconnect());
                         :aria-current="activeGroup === group.key ? 'true' : undefined"
                     >
                         {{ group.label }}
-                        <span class="tnum text-[10px]" :class="activeGroup === group.key ? 'text-brand-500' : 'text-ink-400'">
+                        <span class="tnum text-xs" :class="activeGroup === group.key ? 'text-brand-500' : 'text-ink-400'">
                             {{ group.lists.length }}
                         </span>
                     </a>
@@ -172,7 +172,7 @@ onUnmounted(() => observer?.disconnect());
                             <!-- A zero is not a count, it is a to-do: name it. -->
                             <span
                                 v-if="list.total === 0"
-                                class="mt-1 shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200"
+                                class="mt-1 shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200"
                             >
                                 Empty — add first
                             </span>

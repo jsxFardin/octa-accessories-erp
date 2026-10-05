@@ -171,7 +171,7 @@ onUnmounted(() => {
                     @click="save"
                 >
                     {{ label }}
-                    <kbd class="ml-1 rounded border border-white/30 px-1 font-sans text-[10px] opacity-80">{{ shortcutHint }}</kbd>
+                    <kbd class="ml-1 rounded border border-white/30 px-1 font-sans text-xs opacity-80">{{ shortcutHint }}</kbd>
                 </Button>
             </div>
         </div>

@@ -223,7 +223,7 @@ async function transition(to) {
                                 <tr v-for="cl in line.cost_lines" :key="cl.sequence_no">
                                     <td class="px-3 py-1.5 font-medium text-ink-800">
                                         {{ titleCase(cl.cost_type) }}
-                                        <span v-if="cl.description" class="block text-[11px] font-normal text-ink-500">{{ cl.description }}</span>
+                                        <span v-if="cl.description" class="block text-xs font-normal text-ink-500">{{ cl.description }}</span>
                                     </td>
                                     <td class="px-3 py-1.5 text-ink-500">{{ cl.basis_uom }}</td>
 
@@ -267,7 +267,7 @@ async function transition(to) {
 
                                     <td class="px-3 py-1.5 text-right tnum font-medium">{{ money(cl.amount, false) }}</td>
                                     <td class="px-3 py-1.5">
-                                        <span v-if="cl.formula_ref" class="rounded bg-slate-100 px-1 font-mono text-[10px] text-ink-700">
+                                        <span v-if="cl.formula_ref" class="rounded bg-slate-100 px-1 font-mono text-xs text-ink-700">
                                             {{ cl.formula_ref }}
                                         </span>
                                     </td>
@@ -285,7 +285,7 @@ async function transition(to) {
                         sides of the conversion.
                     -->
                     <div class="border-t border-slate-200 p-3 text-sm lg:border-t-0 lg:border-l">
-                        <p class="mb-2 text-[11px] font-medium tracking-wide text-ink-500 uppercase">
+                        <p class="mb-2 text-xs font-medium tracking-wide text-ink-500 uppercase">
                             Cost sheet — all figures in {{ baseCurrency() }}
                         </p>
 
@@ -314,14 +314,14 @@ async function transition(to) {
 
                         <p
                             v-if="quotation.currency && quotation.currency.code !== baseCurrency()"
-                            class="mt-2 text-[11px] text-ink-500"
+                            class="mt-2 text-xs text-ink-500"
                         >
                             Converted from {{ baseCurrency() }} at
                             <span class="tnum">{{ Number(quotation.exchange_rate).toFixed(4) }}</span>
                             (BR-22), snapshotted when the quotation was sent.
                         </p>
 
-                        <p class="mt-2 text-[11px] text-ink-500">
+                        <p class="mt-2 text-xs text-ink-500">
                             Margin is applied <strong>on price</strong> — unit cost × 1000 ÷ (1 − margin),
                             not × (1 + margin).
                         </p>

@@ -63,7 +63,7 @@ const TONES = {
                 <p class="max-h-[50vh] min-w-0 flex-1 overflow-y-auto break-words whitespace-pre-line">{{ toast.message }}</p>
                 <button
                     type="button"
-                    class="-my-0.5 -mr-1 flex size-6 shrink-0 items-center justify-center rounded text-lg leading-none opacity-60 transition hover:opacity-100 focus-visible:ring-2 focus-visible:ring-current focus-visible:outline-none"
+                    class="-my-1 -mr-1.5 flex size-7 shrink-0 items-center justify-center rounded text-lg leading-none opacity-80 transition hover:opacity-100 focus-visible:ring-2 focus-visible:ring-current focus-visible:outline-none"
                     aria-label="Dismiss"
                     @click="remove(toast.id)"
                 >

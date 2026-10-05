@@ -70,7 +70,7 @@ const txColumns = [
                             <span class="font-medium text-ink-800">{{ row.cert_scheme.replace('_', ' ') }}</span>
                             <span class="text-right">
                                 <span class="block tnum font-medium">{{ qty(row.qty) }}</span>
-                                <span class="block text-[10px] text-ink-500">{{ row.lots }} lot(s)</span>
+                                <span class="block text-xs text-ink-500">{{ row.lots }} lot(s)</span>
                             </span>
                         </li>
                         <li v-if="certifiedStock.length === 0" class="py-6 text-center text-ink-500">

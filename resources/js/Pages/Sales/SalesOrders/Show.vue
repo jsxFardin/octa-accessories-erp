@@ -284,7 +284,7 @@ const lineColumns = [
                         {{ pcs(value) }} pcs
                         <span
                             v-if="row.over_allocation"
-                            class="mt-0.5 block text-[11px] font-medium text-amber-700"
+                            class="mt-0.5 block text-xs font-medium text-amber-700"
                             :title="`${pcs(row.over_allocation.committed)} pcs committed to ${row.over_allocation.live_cards} live job card(s) against an allowance of ${pcs(row.over_allocation.allowance)} pcs.`"
                         >
                             {{ pcs(row.over_allocation.excess) }} pcs over-allocated
@@ -394,7 +394,7 @@ const lineColumns = [
                                 </template>
                             </p>
                             <p class="mt-0.5 text-xs text-ink-700">{{ amendment.reason }}</p>
-                            <p v-if="amendment.changed_by || amendment.created_at" class="mt-0.5 text-[11px] text-ink-400">
+                            <p v-if="amendment.changed_by || amendment.created_at" class="mt-0.5 text-xs text-ink-400">
                                 <template v-if="amendment.changed_by">{{ amendment.changed_by }} · </template>{{ relative(amendment.created_at) }}
                             </p>
                         </li>

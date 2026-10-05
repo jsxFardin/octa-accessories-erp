@@ -46,7 +46,7 @@ const columns = [
                     <p class="text-xs text-ink-500">Total wastage</p>
                     <p class="text-2xl font-semibold tnum text-ink-900">{{ Number(totalWastagePct).toFixed(2) }}%</p>
                     <!-- BR-8 is additive, and only over the operations that actually run the web. -->
-                    <p class="mt-1 text-[11px] text-ink-500">
+                    <p class="mt-1 text-xs text-ink-500">
                         Additive across web-consuming operations only
                     </p>
                 </Card>
@@ -54,7 +54,7 @@ const columns = [
                 <Card>
                     <p class="text-xs text-ink-500">Operations</p>
                     <p class="text-2xl font-semibold tnum text-ink-900">{{ operations.length }}</p>
-                    <p class="mt-1 text-[11px] text-ink-500">
+                    <p class="mt-1 text-xs text-ink-500">
                         {{ operations.filter((o) => o.consumes_web).length }} consume the web ·
                         {{ operations.filter((o) => o.requires_qc).length }} inspected
                     </p>
@@ -65,7 +65,7 @@ const columns = [
                     <p class="text-2xl font-semibold tnum text-ink-900">
                         {{ routing.max_lot_size ? pcs(routing.max_lot_size) : '—' }}
                     </p>
-                    <p class="mt-1 text-[11px] text-ink-500">{{ products.length }} product(s) use this routing</p>
+                    <p class="mt-1 text-xs text-ink-500">{{ products.length }} product(s) use this routing</p>
                 </Card>
             </div>
 

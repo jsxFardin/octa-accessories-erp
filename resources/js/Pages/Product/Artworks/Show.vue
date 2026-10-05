@@ -337,7 +337,7 @@ function openReject(version) {
                                     class="size-full object-contain"
                                     loading="lazy"
                                 >
-                                <span v-else class="flex size-full items-center justify-center text-[10px] font-medium text-ink-500">
+                                <span v-else class="flex size-full items-center justify-center text-xs font-medium text-ink-500">
                                     PDF
                                 </span>
                             </button>
@@ -364,7 +364,7 @@ function openReject(version) {
                                     <p class="break-all">Fingerprint (SHA-256): <span class="font-mono">{{ version.checksum_sha256 }}</span></p>
                                 </details>
 
-                                <dl class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-500">
+                                <dl class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-500">
                                     <div v-if="version.submitted_at">
                                         <dt class="inline">Submitted</dt>
                                         <dd class="inline font-medium text-ink-700">{{ datetime(version.submitted_at) }}</dd>
@@ -551,7 +551,7 @@ function openReject(version) {
                     />
                 </div>
 
-                <p v-if="previewed.checksum_sha256" class="font-mono text-[10px] break-all text-ink-400">
+                <p v-if="previewed.checksum_sha256" class="font-mono text-xs break-all text-ink-400">
                     Fingerprint (SHA-256): {{ previewed.checksum_sha256 }}
                 </p>
             </div>

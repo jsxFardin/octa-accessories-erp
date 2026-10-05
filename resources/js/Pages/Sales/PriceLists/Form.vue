@@ -198,12 +198,12 @@ const columns = [
 
                     <p
                         v-if="duplicateBreak"
-                        class="mt-3 rounded bg-amber-50 px-2 py-1.5 text-[11px] leading-relaxed text-amber-900"
+                        class="mt-3 rounded bg-amber-50 px-2 py-1.5 text-xs leading-relaxed text-amber-900"
                     >
                         Two breaks share a product and a floor quantity — which rate applies is then
                         a coin toss. Move one of them.
                     </p>
-                    <p v-else class="mt-3 text-[11px] leading-relaxed text-ink-500">
+                    <p v-else class="mt-3 text-xs leading-relaxed text-ink-500">
                         The highest floor at or below the ordered quantity wins, so a 10,000 break
                         prices a 25,000 order unless a higher one exists.
                     </p>

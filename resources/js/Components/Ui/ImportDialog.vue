@@ -317,7 +317,7 @@ async function confirmImport() {
 
             <div class="overflow-hidden rounded-md ring-1 ring-slate-200">
                 <table class="w-full text-left text-xs">
-                    <thead class="bg-slate-50 text-[11px] tracking-wider text-ink-500 uppercase">
+                    <thead class="bg-slate-50 text-xs tracking-wider text-ink-500 uppercase">
                         <tr>
                             <th class="px-3 py-2 font-medium">Field</th>
                             <th class="px-3 py-2 font-medium">Type</th>
@@ -329,10 +329,10 @@ async function confirmImport() {
                         <tr v-for="field in spec?.fields ?? []" :key="field.name">
                             <td class="px-3 py-2 align-top">
                                 <code class="text-ink-900">{{ field.name }}</code>
-                                <span v-if="field.required" class="ml-1 text-[10px] font-medium text-rose-600">Required</span>
+                                <span v-if="field.required" class="ml-1 text-xs font-medium text-rose-600">Required</span>
                             </td>
                             <td class="px-3 py-2 align-top">
-                                <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-ink-600">{{ field.type }}</span>
+                                <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-ink-600">{{ field.type }}</span>
                             </td>
                             <td class="px-3 py-2 align-top">
                                 <code class="text-ink-600">{{ field.example }}</code>

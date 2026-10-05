@@ -128,7 +128,7 @@ function save() {
             >
                 <p class="font-medium">Queue worker unavailable</p>
                 <p class="mt-0.5 text-xs leading-relaxed">{{ queue.detail }}</p>
-                <p class="mt-1 font-mono text-[11px]">php artisan queue:work --queue=default</p>
+                <p class="mt-1 font-mono text-xs">php artisan queue:work --queue=default</p>
             </div>
 
             <div
@@ -232,7 +232,7 @@ function save() {
                                 <div class="flex items-center gap-3">
                                     <div class="flex h-14 w-32 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
                                         <img v-if="organisation.logo_url" :src="organisation.logo_url" alt="" class="max-h-12 max-w-28 object-contain">
-                                        <span v-else class="text-[10px] text-ink-400">none</span>
+                                        <span v-else class="text-xs text-ink-400">none</span>
                                     </div>
 
                                     <div class="space-y-1">
@@ -245,7 +245,7 @@ function save() {
                                         >
                                         <button
                                             v-if="organisation.logo_url"
-                                            class="text-[11px] text-rose-600 hover:underline"
+                                            class="text-xs text-rose-600 hover:underline"
                                             @click="removeBranding('logo')"
                                         >
                                             Remove
@@ -259,7 +259,7 @@ function save() {
                                 <div class="flex items-center gap-3">
                                     <div class="flex size-14 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
                                         <img v-if="organisation.icon_url" :src="organisation.icon_url" alt="" class="max-h-12 max-w-12 object-contain">
-                                        <span v-else class="text-[10px] text-ink-400">none</span>
+                                        <span v-else class="text-xs text-ink-400">none</span>
                                     </div>
 
                                     <div class="space-y-1">
@@ -272,14 +272,14 @@ function save() {
                                         >
                                         <button
                                             v-if="organisation.icon_url"
-                                            class="text-[11px] text-rose-600 hover:underline"
+                                            class="text-xs text-rose-600 hover:underline"
                                             @click="removeBranding('icon')"
                                         >
                                             Remove
                                         </button>
                                     </div>
                                 </div>
-                                <p class="mt-1 text-[11px] text-ink-500">
+                                <p class="mt-1 text-xs text-ink-500">
                                     Used as the favicon and the collapsed-sidebar badge. PNG, SVG or WebP, up to 1 MB.
                                 </p>
                             </div>
@@ -306,7 +306,7 @@ function save() {
                             </div>
                         </dl>
 
-                        <p class="mt-3 text-[11px] text-ink-500">
+                        <p class="mt-3 text-xs text-ink-500">
                             The preview follows the saved profile, not the unsaved form.
                         </p>
                     </Card>
@@ -330,7 +330,7 @@ function save() {
                                     {{ setting.hint }}
                                 </p>
                                 <!-- The key stays visible: it is what appears in the audit log and in support threads. -->
-                                <p class="mt-1 font-mono text-[10px] text-ink-400">{{ setting.key }}</p>
+                                <p class="mt-1 font-mono text-xs text-ink-400">{{ setting.key }}</p>
                             </div>
 
                             <div class="col-span-2 flex items-center justify-end gap-2">
@@ -340,13 +340,13 @@ function save() {
                                     type="button"
                                     role="switch"
                                     :aria-checked="entry(setting.key).value"
-                                    class="relative h-5 w-9 shrink-0 rounded-full transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                                    :class="entry(setting.key).value ? 'bg-brand-600' : 'bg-slate-300'"
+                                    class="relative h-6 w-11 shrink-0 rounded-full transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-2 focus-visible:outline-none"
+                                    :class="entry(setting.key).value ? 'bg-brand-600' : 'bg-slate-400'"
                                     @click="entry(setting.key).value = !entry(setting.key).value"
                                 >
                                     <span
-                                        class="absolute top-0.5 size-4 rounded-full bg-white shadow transition-all"
-                                        :class="entry(setting.key).value ? 'left-4.5' : 'left-0.5'"
+                                        class="absolute top-0.5 size-5 rounded-full bg-white shadow transition-all"
+                                        :class="entry(setting.key).value ? 'left-5.5' : 'left-0.5'"
                                     />
                                 </button>
 
@@ -357,6 +357,7 @@ function save() {
                                     v-model="entry(setting.key).value"
                                     :options="setting.options"
                                     :placeholder="null"
+                                    :aria-label="setting.label"
                                     class="w-full"
                                 />
 

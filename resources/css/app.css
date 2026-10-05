@@ -39,8 +39,14 @@
     /* Ink: the text ramp. Body copy is --color-ink-700, never lighter. */
     /* 300 is for decoration only — a chevron, a divider glyph. Never text that has to be read. */
     --color-ink-300: oklch(0.760 0.015 258);
-    --color-ink-400: oklch(0.640 0.019 258);
-    --color-ink-500: oklch(0.551 0.021 258);
+    /*
+     * 400 carries real content all over the application — column headings, placeholders,
+     * hints, "—" for an empty cell — and at its old lightness (0.640) it was 3.4:1 on white,
+     * under the 4.5:1 that small text needs. It now sits where 500 was (4.8:1), and 500 moves
+     * a step darker so the two still read as different weights.
+     */
+    --color-ink-400: oklch(0.551 0.021 258);
+    --color-ink-500: oklch(0.505 0.022 258);
     --color-ink-600: oklch(0.461 0.023 257);
     --color-ink-700: oklch(0.386 0.024 257);
     --color-ink-800: oklch(0.301 0.023 256);
@@ -126,7 +132,7 @@
        until someone happened to click it. */
     .cell-input {
         @apply block w-full rounded border border-transparent border-b-slate-200 bg-slate-50/50 px-1.5 py-1
-               text-sm text-ink-900 transition placeholder:text-ink-400/70
+               text-sm text-ink-900 transition placeholder:text-ink-400
                hover:border-slate-200 hover:bg-white focus:border-brand-500 focus:bg-white
                focus:ring-1 focus:ring-brand-500/30 focus:outline-none;
     }

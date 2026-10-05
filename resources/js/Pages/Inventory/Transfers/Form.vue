@@ -304,14 +304,14 @@ function submit() {
 
             <template #rail>
                 <Card title="How it moves" rule="IN-4">
-                    <p class="text-[11px] leading-relaxed text-ink-500">
+                    <p class="text-xs leading-relaxed text-ink-500">
                         Saving a draft writes no stock. Dispatch posts the quantity into the transit warehouse.
                         Receive posts it into the destination as a new child lot.
                     </p>
-                    <p v-if="sameWarehouse" class="mt-3 rounded bg-rose-50 px-2 py-1.5 text-[11px] text-rose-800">
+                    <p v-if="sameWarehouse" class="mt-3 rounded bg-rose-50 px-2 py-1.5 text-xs text-rose-800">
                         Source and destination must be different warehouses.
                     </p>
-                    <p v-if="invalidQty" class="mt-2 rounded bg-rose-50 px-2 py-1.5 text-[11px] text-rose-800">
+                    <p v-if="invalidQty" class="mt-2 rounded bg-rose-50 px-2 py-1.5 text-xs text-rose-800">
                         Quantity must be greater than zero and within the lot’s free quantity.
                     </p>
                 </Card>

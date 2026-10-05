@@ -108,7 +108,7 @@ onBeforeUnmount(() => {
         <button
             ref="trigger"
             type="button"
-            class="inline-flex cursor-help text-ink-400 transition hover:text-ink-600 focus-visible:text-ink-600 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+            class="-m-1.5 inline-flex size-6 shrink-0 cursor-help items-center justify-center rounded-full text-ink-500 transition hover:text-ink-800 focus-visible:text-ink-800 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
             aria-label="What this rule enforces"
             :aria-describedby="panelId"
             :aria-expanded="shown"
@@ -136,9 +136,9 @@ onBeforeUnmount(() => {
                     </span>
                 </span>
                 <span v-else class="block text-xs leading-relaxed font-normal text-white">
-                    Enforced by an internal rule.
+                    This follows one of the factory's own rules. Ask your administrator which.
                 </span>
-                <span class="mt-1 block font-mono text-[10px] font-normal text-slate-400">{{ rule }}</span>
+                <span class="mt-1 block font-mono text-xs font-normal text-slate-400">{{ rule }}</span>
             </span>
         </Teleport>
     </span>

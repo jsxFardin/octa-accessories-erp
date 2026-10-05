@@ -197,7 +197,7 @@ const columns = [
                         <template #cell:std_rate_per_hour="{ line }">
                             <TextInput cell v-model="line.std_rate_per_hour" type="number" step="0.000001" numeric />
                             <!-- The unit follows the step: a loom is rated in metres, a packing table in pieces. -->
-                            <p class="mt-0.5 text-right text-[11px] text-ink-600">{{ rateUnit(line) }}</p>
+                            <p class="mt-0.5 text-right text-xs text-ink-600">{{ rateUnit(line) }}</p>
                         </template>
 
                         <template #cell:setup_minutes="{ line }">

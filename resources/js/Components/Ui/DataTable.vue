@@ -36,6 +36,23 @@ function items(rows) {
     return Array.isArray(rows) ? rows : (rows?.data ?? []);
 }
 
+/**
+ * A click on a cell that is not the row's link. Opens the record, unless the click was on
+ * something with a job of its own inside the cell, or was the end of selecting text to copy.
+ */
+function openRow(row, event) {
+    if (event.defaultPrevented || event.target.closest('a, button, input, select, textarea, label, summary, [role="button"]')) return;
+    if (window.getSelection()?.toString()) return;
+
+    const href = props.rowHref(row);
+
+    if (!href) return;
+
+    // The same keys that open a link in a new tab open the row in one.
+    if (event.metaKey || event.ctrlKey) window.open(href, '_blank', 'noopener');
+    else router.visit(href);
+}
+
 function alignClass(column) {
     return {
         right: 'text-right tnum',
@@ -194,17 +211,25 @@ onUnmounted(() => {
                             :style="column.width ? { width: column.width } : undefined"
                             :aria-sort="sortState(column) ? (sortState(column) === 'asc' ? 'ascending' : 'descending') : undefined"
                         >
+                            <!--
+                                The arrow is always there, faint until the column is the one
+                                sorted by. It used to appear on hover only, so on a touch screen
+                                nothing said which headings could be pressed.
+                            -->
                             <button
                                 v-if="sortKey(column)"
-                                class="group inline-flex items-center gap-1 rounded transition hover:text-ink-900 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                type="button"
+                                class="group -my-1 inline-flex min-h-6 items-center gap-1 rounded transition hover:text-ink-900 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                                 :class="column.align === 'right' && 'flex-row-reverse'"
+                                :title="sortState(column) ? `Sorted ${sortState(column) === 'asc' ? 'ascending' : 'descending'}. Press to reverse.` : `Sort by ${column.label}`"
                                 @click="toggleSort(column)"
                             >
                                 {{ column.label }}
                                 <Icon
                                     :name="sortState(column) === 'asc' ? 'up' : 'down'"
                                     size="size-3"
-                                    :class="sortState(column) ? 'text-brand-600' : 'text-ink-300 opacity-0 transition group-hover:opacity-100'"
+                                    aria-hidden="true"
+                                    :class="sortState(column) ? 'text-brand-600' : 'text-ink-400 transition group-hover:text-ink-700'"
                                 />
                             </button>
                             <template v-else>{{ column.label }}</template>
@@ -263,15 +288,22 @@ onUnmounted(() => {
                                 @change="toggleRow(row[rowKey])"
                             >
                         </td>
+                        <!--
+                            One link per row: the first cell. Every cell used to be its own
+                            link, so a 25-row list was 150 Tab stops and a screen reader read the
+                            same destination six times a row. The rest of the row still opens
+                            the record on a click, for the mouse.
+                        -->
                         <td
-                            v-for="column in columns"
+                            v-for="(column, columnIndex) in columns"
                             :key="column.key"
                             class="px-3 whitespace-nowrap text-ink-700"
-                            :class="[alignClass(column), rowPadding]"
+                            :class="[alignClass(column), rowPadding, rowHref && columnIndex > 0 && 'cursor-pointer']"
+                            @click="rowHref && columnIndex > 0 && openRow(row, $event)"
                         >
                             <component
-                                :is="rowHref ? Link : 'div'"
-                                v-bind="rowHref ? { href: rowHref(row) } : {}"
+                                :is="rowHref && columnIndex === 0 ? Link : 'div'"
+                                v-bind="rowHref && columnIndex === 0 ? { href: rowHref(row) } : {}"
                                 class="block rounded focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                             >
                                 <slot :name="`cell:${column.key}`" :row="row" :value="row[column.key]">

@@ -692,7 +692,7 @@ const bomColumns = [
                             <span class="text-sm font-medium" :class="check.ok ? 'text-emerald-900' : 'text-rose-900'">
                                 {{ check.label }}
                             </span>
-                            <span class="font-mono text-[10px]" :class="check.ok ? 'text-emerald-700' : 'text-rose-700'">
+                            <span class="font-mono text-xs" :class="check.ok ? 'text-emerald-700' : 'text-rose-700'">
                                 {{ check.rule }}
                             </span>
                         </div>
@@ -771,7 +771,7 @@ const bomColumns = [
                             </Link>
                             <Badge :status="jobCard.artwork.status" />
                         </div>
-                        <p class="font-mono text-[10px] break-all text-ink-400">
+                        <p class="font-mono text-xs break-all text-ink-400">
                             sha256 {{ jobCard.artwork.checksum }}
                         </p>
                         <p class="text-xs text-ink-500">
@@ -898,7 +898,7 @@ const bomColumns = [
                                 rows show the same time. When it was actually keyed is a different
                                 fact and belongs on the row that was keyed.
                             -->
-                            <div v-if="row.reverses_log_id" class="text-[11px] text-ink-500">
+                            <div v-if="row.reverses_log_id" class="text-xs text-ink-500">
                                 reversed {{ datetime(row.created_at) }}
                             </div>
                         </template>
@@ -917,26 +917,26 @@ const bomColumns = [
                                 The reasons, read rather than hovered. A correction with a stated
                                 reason is only useful if the reason is on the screen next to it.
                             -->
-                            <p v-if="row.reversal_reason" class="mt-0.5 text-[11px] text-amber-800">
+                            <p v-if="row.reversal_reason" class="mt-0.5 text-xs text-amber-800">
                                 Reversed: {{ row.reversal_reason }}
                             </p>
-                            <p v-if="row.manual_reason" class="mt-0.5 text-[11px] text-ink-500">
+                            <p v-if="row.manual_reason" class="mt-0.5 text-xs text-ink-500">
                                 Keyed by {{ row.entered_by ?? 'a desk user' }}: {{ row.manual_reason }}
                             </p>
-                            <p v-if="row.remarks" class="mt-0.5 text-[11px] text-ink-500">{{ row.remarks }}</p>
+                            <p v-if="row.remarks" class="mt-0.5 text-xs text-ink-500">{{ row.remarks }}</p>
                         </template>
 
                         <template #cell:input_qty="{ row, value }">
                             <span class="tnum text-ink-600">{{ qty(value) }}</span>
-                            <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
+                            <span class="text-xs text-ink-400"> {{ logUnit(row) }}</span>
                         </template>
                         <template #cell:good_qty="{ row, value }">
                             <span class="tnum" :class="Number(value) < 0 ? 'text-amber-700' : 'text-emerald-700'">{{ qty(value) }}</span>
-                            <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
+                            <span class="text-xs text-ink-400"> {{ logUnit(row) }}</span>
                         </template>
                         <template #cell:waste_qty="{ row, value }">
                             <span class="tnum" :class="Number(value) < 0 ? 'text-amber-700' : 'text-rose-600'">{{ qty(value) }}</span>
-                            <span class="text-[11px] text-ink-400"> {{ logUnit(row) }}</span>
+                            <span class="text-xs text-ink-400"> {{ logUnit(row) }}</span>
                         </template>
 
                         <!--
@@ -1002,7 +1002,7 @@ const bomColumns = [
                             <template #cell:qty_per_base="{ value }">{{ qty(value) }}</template>
                             <template #cell:required="{ value }">{{ qty(value) }}</template>
                             <template #cell:formula_ref="{ value }">
-                                <span v-if="value" class="rounded bg-slate-100 px-1 font-mono text-[10px]">{{ value }}</span>
+                                <span v-if="value" class="rounded bg-slate-100 px-1 font-mono text-xs">{{ value }}</span>
                                 <span v-else class="text-ink-400">fixed</span>
                             </template>
                         </DataTable>

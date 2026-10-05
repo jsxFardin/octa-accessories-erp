@@ -1,7 +1,8 @@
 <script setup>
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref, useId, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { useDirtyClose } from '@/composables/useDirtyClose';
+import { useFocusTrap } from '@/composables/useFocusTrap';
 import { closeOverlay, isTopOverlay, openOverlay } from '@/composables/useOverlay';
 
 const open = defineModel('open', { type: Boolean, default: false });
@@ -60,6 +61,13 @@ watch(open, (value) => {
     token.value = null;
 });
 
+/** The dialog element, and the ids that give it a name a screen reader announces. */
+const panel = ref(null);
+const titleId = useId();
+const subtitleId = useId();
+
+useFocusTrap(panel, () => open.value, () => isTopOverlay(token.value));
+
 onMounted(() => document.addEventListener('keydown', onKeydown));
 onUnmounted(() => {
     document.removeEventListener('keydown', onKeydown);
@@ -94,16 +102,34 @@ onUnmounted(() => {
 
                 <div class="relative flex min-h-full items-center justify-center p-4">
                     <div
-                        class="w-full rounded-lg bg-white shadow-xl ring-1 ring-slate-900/5"
+                        ref="panel"
+                        class="w-full rounded-lg bg-white shadow-xl ring-1 ring-slate-900/5 focus:outline-none"
                         :class="width"
                         role="dialog"
                         aria-modal="true"
+                        :aria-labelledby="title ? titleId : null"
+                        :aria-describedby="title && subtitle ? subtitleId : null"
+                        tabindex="-1"
                         @input="markTouched"
                         @change="markTouched"
                     >
-                        <header v-if="title" class="border-b border-slate-200 px-4 py-3">
-                            <h3 class="text-sm font-semibold text-ink-900">{{ title }}</h3>
-                            <p v-if="subtitle" class="mt-0.5 text-xs text-ink-500">{{ subtitle }}</p>
+                        <header v-if="title" class="flex items-start gap-3 border-b border-slate-200 px-4 py-3">
+                            <div class="min-w-0 flex-1">
+                                <h2 :id="titleId" class="text-sm font-semibold text-ink-900">{{ title }}</h2>
+                                <p v-if="subtitle" :id="subtitleId" class="mt-0.5 text-xs text-ink-600">{{ subtitle }}</p>
+                            </div>
+
+                            <!-- A way out that is not Escape or a click outside: there was none. -->
+                            <button
+                                class="-m-1 flex size-8 shrink-0 items-center justify-center rounded text-ink-600 transition hover:bg-slate-100 hover:text-ink-900 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                type="button"
+                                aria-label="Close"
+                                @click="requestClose"
+                            >
+                                <svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                    <path d="M6 6l8 8M14 6l-8 8" stroke-linecap="round" />
+                                </svg>
+                            </button>
                         </header>
 
                         <div class="px-4 py-4">

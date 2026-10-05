@@ -291,7 +291,7 @@ const columns = [
                         </div>
                     </dl>
 
-                    <p class="mt-3 text-[11px] leading-relaxed text-ink-500">
+                    <p class="mt-3 text-xs leading-relaxed text-ink-500">
                         The customer's own target rate × quantity ÷ 1000 — what they hope to pay,
                         not a quoted price. The cost sheet decides that.
                     </p>

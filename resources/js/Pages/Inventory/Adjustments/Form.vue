@@ -352,13 +352,13 @@ function submit() {
                             <dd class="tnum text-ink-700">{{ money(band) }}</dd>
                         </div>
                     </dl>
-                    <p v-if="aboveBand" class="mt-3 rounded bg-amber-50 px-2 py-1.5 text-[11px] leading-relaxed text-amber-900">
+                    <p v-if="aboveBand" class="mt-3 rounded bg-amber-50 px-2 py-1.5 text-xs leading-relaxed text-amber-900">
                         Above the store manager band — posting will need the Managing Director.
                     </p>
-                    <p v-else class="mt-3 text-[11px] leading-relaxed text-ink-500">
+                    <p v-else class="mt-3 text-xs leading-relaxed text-ink-500">
                         Drafting writes no stock. A store manager may post within the band; above it, only the MD.
                     </p>
-                    <p v-if="zeroLine" class="mt-2 rounded bg-rose-50 px-2 py-1.5 text-[11px] text-rose-800">
+                    <p v-if="zeroLine" class="mt-2 rounded bg-rose-50 px-2 py-1.5 text-xs text-rose-800">
                         A line of zero is not an adjustment.
                     </p>
                 </Card>

@@ -182,7 +182,7 @@ const loadByMachine = computed(() => {
         </section>
 
         <section v-if="queue.length" class="mb-4">
-            <h2 class="mb-2 text-[11px] font-semibold tracking-wider text-ink-400 uppercase">
+            <h2 class="mb-2 text-xs font-semibold tracking-wider text-ink-400 uppercase">
                 Needs you
             </h2>
 

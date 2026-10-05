@@ -1,5 +1,6 @@
 <script setup>
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref, useId, watch } from 'vue';
+import { useFocusTrap } from '@/composables/useFocusTrap';
 import { usePage } from '@inertiajs/vue3';
 import { useDirtyClose } from '@/composables/useDirtyClose';
 import { closeOverlay, isTopOverlay, openOverlay } from '@/composables/useOverlay';
@@ -64,6 +65,13 @@ watch(open, (value) => {
     token.value = null;
 });
 
+/** The panel element, and the ids that give it a name a screen reader announces. */
+const panel = ref(null);
+const titleId = useId();
+const subtitleId = useId();
+
+useFocusTrap(panel, () => open.value, () => isTopOverlay(token.value));
+
 onMounted(() => document.addEventListener('keydown', onKeydown));
 onUnmounted(() => {
     document.removeEventListener('keydown', onKeydown);
@@ -92,21 +100,25 @@ onUnmounted(() => {
                 appear
             >
                 <div
-                    class="fixed inset-y-0 right-0 flex w-full flex-col bg-white shadow-2xl"
+                    ref="panel"
+                    class="fixed inset-y-0 right-0 flex w-full flex-col bg-white shadow-2xl focus:outline-none"
                     :class="width"
                     role="dialog"
                     aria-modal="true"
+                    :aria-labelledby="titleId"
+                    :aria-describedby="subtitle ? subtitleId : null"
+                    tabindex="-1"
                     @input="markTouched"
                     @change="markTouched"
                 >
                     <header class="flex items-start gap-3 border-b border-slate-200 px-4 py-3">
                         <div class="min-w-0 flex-1">
-                            <h2 class="text-sm font-semibold text-ink-900">{{ title }}</h2>
-                            <p v-if="subtitle" class="mt-0.5 text-xs leading-relaxed text-ink-500">{{ subtitle }}</p>
+                            <h2 :id="titleId" class="text-sm font-semibold text-ink-900">{{ title }}</h2>
+                            <p v-if="subtitle" :id="subtitleId" class="mt-0.5 text-xs leading-relaxed text-ink-600">{{ subtitle }}</p>
                         </div>
 
                         <button
-                            class="rounded p-1 text-ink-400 transition hover:bg-slate-100 hover:text-ink-700"
+                            class="-m-1 flex size-8 shrink-0 items-center justify-center rounded text-ink-600 transition hover:bg-slate-100 hover:text-ink-900 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                             type="button"
                             aria-label="Close"
                             @click="requestClose"

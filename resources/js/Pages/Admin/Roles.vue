@@ -178,7 +178,7 @@ function accessPct(role) {
                         </div>
                         <div class="min-w-0">
                             <p class="truncate text-sm font-semibold text-ink-900">{{ role.label }}</p>
-                            <p class="truncate font-mono text-[10px] text-ink-400">{{ role.name }}</p>
+                            <p class="truncate font-mono text-xs text-ink-400">{{ role.name }}</p>
                         </div>
                     </div>
 
@@ -209,7 +209,7 @@ function accessPct(role) {
                 </p>
 
                 <div v-else class="mt-3">
-                    <p class="mb-1 text-[10px] font-semibold tracking-wider text-ink-400 uppercase">Modules</p>
+                    <p class="mb-1 text-xs font-semibold tracking-wider text-ink-400 uppercase">Modules</p>
                     <div class="flex flex-wrap gap-1">
                         <Badge
                             v-for="module in role.modules.slice(0, 4)"
@@ -268,19 +268,19 @@ function accessPct(role) {
                     <table class="min-w-full text-sm">
                         <thead class="sticky top-0 z-10 bg-slate-50">
                             <tr>
-                                <th class="px-3 py-2 text-left text-[10px] font-semibold tracking-wider text-ink-500 uppercase">
+                                <th class="px-3 py-2 text-left text-xs font-semibold tracking-wider text-ink-500 uppercase">
                                     Module
                                 </th>
                                 <th
                                     v-for="action in matrixActions"
                                     :key="action"
-                                    class="px-2 py-2 text-center text-[10px] font-semibold tracking-wider text-ink-500 uppercase"
+                                    class="px-2 py-2 text-center text-xs font-semibold tracking-wider text-ink-500 uppercase"
                                 >
                                     <button class="hover:text-brand-600" :title="`Toggle ${action} for every visible row`" @click="toggleColumn(action)">
                                         {{ ACTION_LABELS[action] ?? titleCase(action) }}
                                     </button>
                                 </th>
-                                <th class="px-3 py-2 text-right text-[10px] font-semibold tracking-wider text-ink-500 uppercase">
+                                <th class="px-3 py-2 text-right text-xs font-semibold tracking-wider text-ink-500 uppercase">
                                     All
                                 </th>
                             </tr>
@@ -291,7 +291,7 @@ function accessPct(role) {
                                 <tr class="hover:bg-slate-50/60">
                                     <td class="px-3 py-2">
                                         <span class="font-medium text-ink-800">{{ row.label }}</span>
-                                        <span class="ml-1.5 text-[10px] text-ink-400">{{ row.module }}</span>
+                                        <span class="ml-1.5 text-xs text-ink-400">{{ row.module }}</span>
                                     </td>
 
                                     <td v-for="action in matrixActions" :key="action" class="px-2 py-2 text-center">
@@ -299,6 +299,7 @@ function accessPct(role) {
                                             v-if="row.actions[action]"
                                             type="checkbox"
                                             class="form-checkbox"
+                                            :aria-label="`${titleCase(action)} ${row.label}`"
                                             :checked="has(row.actions[action])"
                                             @change="toggle(row.actions[action])"
                                         >
@@ -307,7 +308,9 @@ function accessPct(role) {
 
                                     <td class="px-3 py-2 text-right">
                                         <button
-                                            class="text-xs font-medium text-brand-600 hover:underline"
+                                            type="button"
+                                            class="min-h-6 rounded px-1 text-xs font-medium text-brand-700 hover:underline focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                            :aria-label="`${rowFullySelected(row) ? 'Clear every' : 'Tick every'} permission for ${row.label}`"
                                             @click="toggleRow(row)"
                                         >
                                             {{ rowFullySelected(row) ? 'None' : 'All' }}
@@ -323,7 +326,7 @@ function accessPct(role) {
                                 <tr v-if="row.extras.length" class="bg-amber-50/40">
                                     <td :colspan="matrixActions.length + 2" class="px-3 pb-2">
                                         <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                            <span class="text-[10px] font-semibold tracking-wider text-amber-700 uppercase">
+                                            <span class="text-xs font-semibold tracking-wider text-amber-700 uppercase">
                                                 Exceptional
                                             </span>
                                             <label

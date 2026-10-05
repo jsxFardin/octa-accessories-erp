@@ -32,7 +32,7 @@ defineProps({
                 {{ tab.label }}
                 <span
                     v-if="tab.count !== undefined"
-                    class="rounded-full px-1.5 py-0.5 text-[10px] tnum"
+                    class="rounded-full px-1.5 py-0.5 text-xs tnum"
                     :class="tab.key === current ? 'bg-brand-100 text-brand-800' : 'bg-slate-100 text-ink-500'"
                 >
                     {{ tab.count }}

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useFocusTrap } from '@/composables/useFocusTrap';
 import { router } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
 import Icon from '@/Components/Ui/Icon.vue';
@@ -110,19 +111,21 @@ watch(query, (value) => {
     fetchRecords(value);
 });
 
-async function show() {
+function show() {
     open.value = true;
     query.value = '';
     results.value = [];
     activeIndex.value = 0;
-
-    await nextTick();
-    input.value?.focus();
+    // Focus is moved in, kept in and put back by the trap below.
 }
 
 function close() {
     open.value = false;
 }
+
+const panel = ref(null);
+
+useFocusTrap(panel, () => open.value);
 
 function go(item) {
     close();
@@ -195,30 +198,51 @@ defineExpose({ show });
                 <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px]" @click="close" />
 
                 <div class="relative mx-auto mt-[12vh] w-full max-w-xl px-4">
-                    <div class="overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-slate-900/10">
+                    <div
+                        ref="panel"
+                        class="overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-slate-900/10"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Search and jump to a screen"
+                        tabindex="-1"
+                    >
                         <div class="flex items-center gap-2 border-b border-slate-100 px-3.5">
                             <Icon name="search" class="text-ink-400" />
                             <input
                                 ref="input"
                                 v-model="query"
                                 type="text"
-                                class="w-full bg-transparent py-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none"
-                                placeholder="Search orders, items, customers — or jump to a screen"
+                                class="w-full bg-transparent py-3.5 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none"
+                                data-autofocus
+                                role="combobox"
+                                aria-label="Search orders, materials and customers, or jump to a screen"
+                                aria-expanded="true"
+                                aria-controls="command-palette-results"
+                                aria-autocomplete="list"
+                                :aria-activedescendant="flatItems.length ? `command-palette-item-${activeIndex}` : undefined"
+                                placeholder="Search orders, materials, customers, or jump to a screen"
                             >
-                            <span v-if="loading" class="text-[11px] text-ink-400">searching…</span>
-                            <kbd class="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] text-ink-400">esc</kbd>
+                            <span v-if="loading" class="text-xs text-ink-400">searching…</span>
+                            <kbd class="rounded border border-slate-200 px-1.5 py-0.5 text-xs text-ink-400">esc</kbd>
                         </div>
 
-                        <div class="max-h-[22rem] overflow-y-auto py-1.5">
+                        <div id="command-palette-results" class="max-h-[22rem] overflow-y-auto py-1.5" role="listbox" aria-label="Results">
                             <template v-for="(item, index) in flatItems" :key="`${item.kind}-${item.href}`">
                                 <p
                                     v-if="index === 0 || flatItems[index - 1].group !== item.group"
-                                    class="px-3.5 pt-2 pb-1 text-[10px] font-semibold tracking-wider text-ink-400 uppercase"
+                                    class="px-3.5 pt-2 pb-1 text-xs font-semibold text-ink-600"
+                                    role="presentation"
                                 >
                                     {{ item.group ?? 'Go to' }}
                                 </p>
 
+                                <!-- Chosen with the arrow keys from the search box, so not a Tab stop of its own. -->
                                 <button
+                                    :id="`command-palette-item-${index}`"
+                                    type="button"
+                                    role="option"
+                                    tabindex="-1"
+                                    :aria-selected="index === activeIndex"
                                     class="flex w-full items-center gap-2.5 px-3.5 py-2 text-left"
                                     :class="index === activeIndex ? 'bg-brand-50' : 'hover:bg-slate-50'"
                                     @click="go(item)"
@@ -230,7 +254,7 @@ defineExpose({ show });
                                     />
                                     <span class="min-w-0 flex-1">
                                         <span class="block truncate text-sm text-ink-900">{{ item.title }}</span>
-                                        <span v-if="item.subtitle" class="block truncate text-[11px] text-ink-500">
+                                        <span v-if="item.subtitle" class="block truncate text-xs text-ink-500">
                                             {{ item.subtitle }}
                                         </span>
                                     </span>
@@ -248,7 +272,7 @@ defineExpose({ show });
                             </p>
                         </div>
 
-                        <div class="flex items-center gap-3 border-t border-slate-100 bg-slate-50 px-3.5 py-2 text-[10px] text-ink-500">
+                        <div class="flex items-center gap-3 border-t border-slate-100 bg-slate-50 px-3.5 py-2 text-xs text-ink-500">
                             <span><kbd class="font-sans">↑↓</kbd> move</span>
                             <span><kbd class="font-sans">↵</kbd> open</span>
                             <span class="ml-auto">Documents you may not see are never searched.</span>

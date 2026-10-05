@@ -245,7 +245,7 @@ const productHref = computed(() => `/products/create?customer=${props.customer.i
                             <p class="mt-0.5 text-xs text-ink-600">
                                 {{ [address.line1, address.line2, address.city, address.district, address.postcode, address.country].filter(Boolean).join(', ') }}
                             </p>
-                            <p class="mt-0.5 text-[11px] text-ink-500">
+                            <p class="mt-0.5 text-xs text-ink-500">
                                 Transit {{ address.transit_days }} day(s)<span v-if="address.route_zone"> · zone {{ address.route_zone }}</span>
                             </p>
                         </div>

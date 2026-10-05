@@ -347,7 +347,7 @@ const columns = [
                                 hint-key="name"
                                 @update:model-value="onItemChange(line)"
                             />
-                            <p v-if="itemFor(line)" class="mt-1 truncate text-[11px] text-ink-500">
+                            <p v-if="itemFor(line)" class="mt-1 truncate text-xs text-ink-500">
                                 {{ itemFor(line).name }}
                             </p>
                         </template>
@@ -375,7 +375,7 @@ const columns = [
                                 <span class="text-sm font-medium tnum text-ink-900">
                                     {{ money(landedRate(line, index), orderCurrency) }}
                                 </span>
-                                <p class="text-[10px] text-ink-400">+{{ money(landedShare(index), orderCurrency) }}</p>
+                                <p class="text-xs text-ink-400">+{{ money(landedShare(index), orderCurrency) }}</p>
                             </div>
                         </template>
 
@@ -459,7 +459,7 @@ const columns = [
                         </div>
                     </dl>
 
-                    <p class="mt-3 text-[11px] leading-relaxed text-ink-500">
+                    <p class="mt-3 text-xs leading-relaxed text-ink-500">
                         The landed cost is apportioned to the lines by value before the weighted
                         average moves, so the lot carries the true rate rather than the invoice one.
                     </p>

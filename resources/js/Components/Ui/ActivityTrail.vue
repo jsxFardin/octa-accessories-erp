@@ -135,7 +135,7 @@ function mark(event) {
                     -->
                     <span
                         v-if="entry.derived"
-                        class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-ink-500"
+                        class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-ink-500"
                         title="Read from the document's own record, not from the audit trail."
                     >from record</span>
                 </div>

@@ -339,7 +339,7 @@ function createChallan() {
                             exists to settle. Without it the packer finds out at the challan,
                             where BR-44 refuses the issue — one document too late.
                         -->
-                        <dd v-if="band" class="text-[11px]" :class="bandTone">
+                        <dd v-if="band" class="text-xs" :class="bandTone">
                             <span v-if="band.state === 'within'">within the {{ pcs(band.min) }}–{{ pcs(band.max) }} band</span>
                             <span v-else-if="band.state === 'short'">{{ pcs(band.short) }} short of {{ pcs(band.min) }}</span>
                             <span v-else>{{ pcs(band.over) }} over the {{ pcs(band.max) }} ceiling</span>
@@ -399,7 +399,7 @@ function createChallan() {
                     <div v-for="carton in cartons" :key="carton.id" class="px-4 py-3">
                         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                             <span class="font-medium text-ink-900">Carton {{ carton.carton_no }}</span>
-                            <span class="font-mono text-[11px] text-ink-400">{{ carton.barcode }}</span>
+                            <span class="font-mono text-xs text-ink-400">{{ carton.barcode }}</span>
 
                             <!-- What is in this one. Adding the rows up by eye was the alternative. -->
                             <span class="text-xs text-ink-500 tnum">{{ pcs(cartonQty(carton)) }} pcs</span>
@@ -420,7 +420,7 @@ function createChallan() {
                                     cell type="number" min="0" step="any" numeric class="w-20"
                                     placeholder="net" @blur="saveWeights(carton)"
                                 />
-                                <span class="text-[11px] text-ink-400">kg</span>
+                                <span class="text-xs text-ink-400">kg</span>
                             </span>
 
                             <!--

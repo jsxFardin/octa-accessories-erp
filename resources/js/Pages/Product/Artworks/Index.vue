@@ -147,7 +147,7 @@ const columns = [
                         label-key="name"
                         hint-key="customer_name"
                     />
-                    <p v-if="chosenProduct" class="mt-1 text-[11px] text-ink-500">
+                    <p v-if="chosenProduct" class="mt-1 text-xs text-ink-500">
                         {{ chosenProduct.name }}
                         <span v-if="chosenProduct.customer_name"> · {{ chosenProduct.customer_name }}</span>
                     </p>

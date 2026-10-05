@@ -53,7 +53,7 @@ const summary = [
                 :key="item.key"
                 class="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm"
             >
-                <dt class="text-[11px] text-ink-500">{{ item.label }}</dt>
+                <dt class="text-xs text-ink-500">{{ item.label }}</dt>
                 <dd class="text-lg font-semibold tnum" :class="item.key === 'overdue' && counts.overdue ? 'text-rose-700' : 'text-ink-900'">
                     {{ counts[item.key] ?? 0 }}
                 </dd>

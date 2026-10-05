@@ -184,7 +184,7 @@ function rowHref(row) {
                     class="grid grid-cols-2 gap-2 border-b border-slate-100 bg-slate-50/70 px-3 py-2 sm:grid-cols-4 xl:grid-cols-6"
                 >
                     <div v-for="column in totalColumns" :key="column.key">
-                        <dt class="text-[11px] text-ink-500">{{ column.label }}</dt>
+                        <dt class="text-xs text-ink-500">{{ column.label }}</dt>
                         <dd class="tnum text-sm font-semibold text-ink-900">
                             {{ formatTotal(column) }}
                         </dd>

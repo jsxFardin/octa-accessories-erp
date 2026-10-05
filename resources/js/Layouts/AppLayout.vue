@@ -305,7 +305,7 @@ const paletteHint = computed(() =>
 
                     <span class="min-w-0 flex-1">
                         <span class="block truncate text-sm font-semibold text-ink-900">{{ organisation.short_name ?? 'Octa ERP' }}</span>
-                        <span class="block truncate text-[11px] text-ink-500">{{ organisation.name }}</span>
+                        <span class="block truncate text-xs text-ink-500">{{ organisation.name }}</span>
                     </span>
                 </Link>
 
@@ -345,7 +345,7 @@ const paletteHint = computed(() =>
                         @click="toggleSection(section)"
                     >
                         <span
-                            class="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-[0.08em] uppercase"
+                            class="min-w-0 flex-1 truncate text-xs font-semibold tracking-[0.08em] uppercase"
                             :class="isSectionActive(section) ? 'text-ink-800' : 'text-ink-600'"
                         >
                             {{ section.label }}
@@ -414,7 +414,7 @@ const paletteHint = computed(() =>
                     <Icon name="search" class="shrink-0 text-ink-500 transition-colors group-hover:text-ink-700" />
                     <template v-if="!railed">
                         <span>Search</span>
-                        <kbd class="ml-auto rounded border border-slate-200 bg-white px-1 py-0.5 font-sans text-[10px] text-ink-400">
+                        <kbd class="ml-auto rounded border border-slate-200 bg-white px-1 py-0.5 font-sans text-xs text-ink-400">
                             {{ paletteHint }}
                         </kbd>
                     </template>
@@ -468,7 +468,7 @@ const paletteHint = computed(() =>
                     </button>
 
                     <div class="min-w-0 flex-1 basis-48">
-                        <nav v-if="crumbs.length" class="hidden items-center gap-1 text-[11px] text-ink-500 sm:flex">
+                        <nav v-if="crumbs.length" class="hidden items-center gap-1 text-xs text-ink-500 sm:flex">
                             <template v-for="(crumb, index) in crumbs" :key="crumb.label">
                                 <Icon v-if="index > 0" name="right" size="size-3" class="text-ink-400" />
                                 <Link
@@ -548,7 +548,7 @@ const paletteHint = computed(() =>
                                     <div class="border-b border-slate-100 px-3 py-2.5">
                                         <p class="truncate text-sm font-semibold text-ink-900">{{ user?.name }}</p>
                                         <p class="truncate text-xs text-ink-500">{{ user?.email }}</p>
-                                        <p v-if="roleLabels" class="mt-1 truncate text-[10px] text-ink-400">{{ roleLabels }}</p>
+                                        <p v-if="roleLabels" class="mt-1 truncate text-xs text-ink-400">{{ roleLabels }}</p>
                                     </div>
 
                                     <Link
