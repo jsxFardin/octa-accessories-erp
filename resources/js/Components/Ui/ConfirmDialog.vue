@@ -91,7 +91,7 @@ onUnmounted(() => {
 
                             <div class="min-w-0 flex-1">
                                 <h2 class="text-sm font-semibold text-ink-900">{{ state.title }}</h2>
-                                <p v-if="state.message" class="mt-1 text-sm leading-relaxed text-ink-600">
+                                <p v-if="state.message" class="mt-1 text-sm leading-relaxed whitespace-pre-line text-ink-600">
                                     {{ state.message }}
                                 </p>
                             </div>

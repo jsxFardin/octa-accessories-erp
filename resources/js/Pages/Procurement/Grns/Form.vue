@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useConfirm } from '@/composables/useConfirm';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -146,8 +147,36 @@ function landedRate(line, index) {
     return quantity > 0 ? (Number(line.rate) || 0) + landedShare(index) / quantity : 0;
 }
 
-function submit() {
-    form.post('/grns');
+const { confirm } = useConfirm();
+
+/**
+ * Receiving posts stock in the same step: lots are created, the ledger is written and the
+ * average rate moves. There is no draft and no reversal, so the figures are read back first.
+ */
+async function submit() {
+    if (form.processing) return;
+
+    const filled = form.lines.filter((line) => line.item_id && Number(line.qty) > 0).length;
+    const warehouse = props.warehouses.find((row) => row.id === Number(form.warehouse_id));
+    const into = warehouse ? `${warehouse.code} · ${warehouse.name}` : 'the chosen warehouse';
+
+    // Nothing to read back yet: let the server say what is missing rather than asking the user
+    // to confirm an empty receipt.
+    if (filled === 0 || !warehouse) {
+        form.post('/grns');
+
+        return;
+    }
+
+    const agreed = await confirm({
+        title: 'Receive and post these goods?',
+        message: `${filled} ${filled === 1 ? 'line' : 'lines'}, ${money(goodsValue.value + landed.value, orderCurrency.value)} including landed cost, into ${into}.\n\nStock is added straight away and cannot be taken back from this screen — a mistake is corrected with a stock adjustment.`,
+        confirmLabel: 'Receive and post',
+        cancelLabel: 'Check again',
+        tone: 'danger',
+    });
+
+    if (agreed) form.post('/grns');
 }
 
 const columns = [
@@ -382,7 +411,7 @@ const columns = [
                 <FormFooter
                     :form="form"
                     cancel-href="/grns"
-                    :label="'Receive & post'"
+                    label="Receive and post"
                     @save="submit"
                 />
             </template>
