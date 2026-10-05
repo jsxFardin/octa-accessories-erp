@@ -34,6 +34,9 @@ class ProductSpecController extends Controller
 
         return Inertia::render('Product/Specs/Form', [
             'product' => $product->only(['id', 'code', 'name', 'product_type']),
+            // What this product type cannot be costed without, so the form can mark the
+            // fields before the designer saves rather than after.
+            'requires' => $this->requirements($product),
             // A new version starts from the current one — most revisions change one dimension.
             'current' => $product->currentSpec?->only([
                 'id', 'version_no', 'label_width_mm', 'label_height_mm', 'web_width_mm',
@@ -187,19 +190,49 @@ class ProductSpecController extends Controller
         }
     }
 
+    /**
+     * The fields a spec of this product type cannot be costed without.
+     *
+     * Yarn (BR-9) and ink (BR-10) are both computed off the web width, so those types always
+     * need one. Any other type needs it only to suggest the ends (BR-5), and may type the ends
+     * instead. GSM is what turns metres into kilograms of yarn, so only yarn types need it.
+     *
+     * @return array{web_width: bool, fabric_gsm: bool}
+     */
+    private function requirements(Product $product): array
+    {
+        $type = Vocabulary::productType($product->product_type);
+
+        return [
+            'web_width' => $type->consumesYarn() || $type->consumesInk(),
+            'fabric_gsm' => $type->consumesYarn(),
+        ];
+    }
+
     /** @return array<string, mixed> */
     private function validated(Request $request, Product $product): array
     {
+        $requires = $this->requirements($product);
+
+        // A zero is a blank the form filled in. Read as a value it passed every rule here and
+        // then failed inside a costing run, on a quotation, with nothing on the screen to say
+        // which spec field was at fault.
+        foreach (['web_width_mm', 'fabric_gsm'] as $field) {
+            if (is_numeric($request->input($field)) && (float) $request->input($field) === 0.0) {
+                $request->merge([$field => null]);
+            }
+        }
+
         $data = $request->validate([
             'label_width_mm' => ['required', 'numeric', 'gt:0'],
             'label_height_mm' => ['required', 'numeric', 'gt:0'],
-            'web_width_mm' => ['nullable', 'numeric', 'min:0'],
+            'web_width_mm' => [$requires['web_width'] ? 'required' : 'required_without:ends', 'nullable', 'numeric', 'gt:0'],
             'selvedge_mm' => ['numeric', 'min:0'],
             'lane_gap_mm' => ['numeric', 'min:0'],
             'cut_gap_mm' => ['numeric', 'min:0'],
             'ends' => ['nullable', 'integer', 'min:1'],
             'base_material' => ['nullable', 'string', 'max:60'],
-            'fabric_gsm' => ['nullable', 'numeric', 'min:0'],
+            'fabric_gsm' => [$requires['fabric_gsm'] ? 'required' : 'nullable', 'nullable', 'numeric', 'gt:0'],
             'warp_ratio' => ['numeric', 'gt:0', 'lt:1'],
             'colours' => ['required', 'integer', 'min:1'],
             'colour_list' => ['array'],
@@ -219,6 +252,10 @@ class ProductSpecController extends Controller
             'claims' => ['array'],
             'attributes' => ['array'],
             'notes' => ['nullable', 'string'],
+        ], [
+            'web_width_mm.required' => 'BR-5: a web width is needed — yarn, ink and the ends are all computed from it.',
+            'web_width_mm.required_without' => 'BR-5: enter a web width, or type the ends if this product does not run on a web.',
+            'fabric_gsm.required' => 'BR-9: a fabric GSM is needed — the yarn weight of a woven label is computed from it.',
         ]);
 
         // BR-5 — a spec whose geometry yields no ends is invalid, and the message says which

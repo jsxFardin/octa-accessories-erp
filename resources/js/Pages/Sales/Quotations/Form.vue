@@ -134,6 +134,9 @@ async function priceLine(index) {
 
         if (!response.ok) {
             const payload = await response.json().catch(() => ({}));
+            // A rate left over from before the failure would still save, against a spec that
+            // no longer prices.
+            form.lines[index].rate_per_m = '';
             sheets.value = { ...sheets.value, [index]: { error: Object.values(payload.errors ?? {}).flat()[0] ?? 'Could not price this line.' } };
 
             return;
@@ -144,6 +147,8 @@ async function priceLine(index) {
 
         // The computed rate is the answer; typing over it is what BR-20 exists to prevent.
         form.lines[index].rate_per_m = payload.sheet.rate_per_m_in_currency;
+    } catch {
+        sheets.value = { ...sheets.value, [index]: { error: 'Could not reach the cost sheet. Check the connection and change the line to retry.' } };
     } finally {
         pending.value = { ...pending.value, [index]: false };
     }
@@ -201,6 +206,27 @@ const filledLines = computed(() => form.lines.filter((line) => line.product_id |
  * the form. Say what is actually missing, and keep the save button from being the way anyone
  * finds out.
  */
+/**
+ * "Still being priced" is only true while the request is out. Once it has come back, the line
+ * either failed — and the cost sheet said why — or priced at nothing, which means the product
+ * has no cost on it to mark up.
+ */
+function unpricedReason(index) {
+    if (pending.value[index]) {
+        return 'is still being priced';
+    }
+
+    if (sheets.value[index]?.error) {
+        return `could not be priced — ${sheets.value[index].error}`;
+    }
+
+    if (sheets.value[index]?.sheet) {
+        return 'priced at zero — the product has no material rate on its BOM and no costed routing';
+    }
+
+    return 'is still being priced';
+}
+
 const unpriced = computed(() =>
     form.lines
         .map((line, index) => ({ line, index }))
@@ -211,7 +237,7 @@ const unpriced = computed(() =>
                 ? 'needs a product before it can be priced'
                 : !line.qty
                     ? 'needs a quantity'
-                    : 'is still being priced',
+                    : unpricedReason(index),
         })),
 );
 

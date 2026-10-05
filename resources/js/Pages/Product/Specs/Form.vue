@@ -14,6 +14,8 @@ import { can } from '@/plugins/permissions';
 const props = defineProps({
     product: { type: Object, required: true },
     current: { type: Object, default: null },
+    // What this product type cannot be costed without — decided by the server, per type.
+    requires: { type: Object, default: () => ({ web_width: false, fabric_gsm: false }) },
     cutTypes: { type: Array, default: () => [] },
     foldTypes: { type: Array, default: () => [] },
     schemes: { type: Array, default: () => [] },
@@ -173,7 +175,14 @@ function submit() {
                                 <TextInput v-model="form.label_height_mm" type="number" step="0.01" numeric />
                             </FormField>
 
-                            <FormField label="Web width (mm)" hint="Blank for a product that is not woven on a web." :error="form.errors.web_width_mm">
+                            <FormField
+                                label="Web width (mm)"
+                                :hint="requires.web_width
+                                    ? 'Yarn, ink and the ends are computed from it.'
+                                    : 'Blank for a product that does not run on a web — type the ends instead.'"
+                                :error="form.errors.web_width_mm"
+                                :required="requires.web_width"
+                            >
                                 <TextInput v-model="form.web_width_mm" type="number" step="0.01" numeric />
                             </FormField>
 
@@ -223,7 +232,12 @@ function submit() {
                                 <TextInput v-model="form.base_material" placeholder="Satin" />
                             </FormField>
 
-                            <FormField label="Fabric GSM" hint="Grams per square metre; yarn weight comes from it." :error="form.errors.fabric_gsm">
+                            <FormField
+                                label="Fabric GSM"
+                                hint="Grams per square metre; yarn weight comes from it."
+                                :error="form.errors.fabric_gsm"
+                                :required="requires.fabric_gsm"
+                            >
                                 <TextInput v-model="form.fabric_gsm" type="number" step="0.001" numeric />
                             </FormField>
 
