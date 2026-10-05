@@ -63,6 +63,10 @@ const lineColumns = [
 
         <template #actions>
             <Badge :status="bill.status" />
+            <!-- A draft has moved no money and is not yet payable: it can be corrected. -->
+            <Button v-if="bill.status === 'draft' && can('supplier_bill.update')" size="sm" :href="`/supplier-bills/${bill.id}/edit`">
+                Edit
+            </Button>
             <Button
                 v-if="availableTransitions.includes('approved')"
                 size="sm"

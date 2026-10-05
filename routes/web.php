@@ -628,6 +628,10 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:supplier_bill.create')->name('supplier-bills.store');
     Route::get('supplier-bills/{supplierBill}', [SupplierBillController::class, 'show'])
         ->middleware('can:supplier_bill.view')->name('supplier-bills.show');
+    Route::get('supplier-bills/{supplierBill}/edit', [SupplierBillController::class, 'edit'])
+        ->middleware('can:supplier_bill.update')->name('supplier-bills.edit');
+    Route::put('supplier-bills/{supplierBill}', [SupplierBillController::class, 'update'])
+        ->middleware('can:supplier_bill.update')->name('supplier-bills.update');
     Route::post('supplier-bills/{supplierBill}/transition', [SupplierBillController::class, 'transition'])
         ->middleware('can:supplier_bill.view')->name('supplier-bills.transition');
 

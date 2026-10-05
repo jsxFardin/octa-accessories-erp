@@ -125,13 +125,109 @@ class SupplierBillController extends Controller
             'purchaseOrders' => $purchaseOrders,
             'grns' => $grns,
             'currencies' => $currencies,
+            'items' => $this->itemOptions(),
             'prefill' => $prefill,
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->validated($request);
+
+        $bill = DB::transaction(function () use ($data, $request): SupplierBill {
+            /** @var SupplierBill $bill */
+            $bill = new SupplierBill;
+            $bill->forceFill([
+                ...$this->header($data),
+                'subtotal' => 0,
+                'tax_amount' => 0,
+                'total' => 0,
+                'paid_amount' => 0,
+                'status' => SupplierBill::DRAFT,
+                'created_by' => $request->user()->id,
+            ])->save();
+
+            $this->writeLines($bill, $data['lines']);
+
+            return $bill;
+        });
+
+        return redirect()
+            ->route('supplier-bills.show', $bill)
+            ->with('success', 'Supplier bill created.');
+    }
+
+    /**
+     * A draft bill, opened for correction.
+     *
+     * There was no way to change a bill once saved: one mistyped rate meant cancelling it and
+     * entering the whole bill again. A draft has moved no money and is not yet payable, so it
+     * can be edited freely; once approved it cannot.
+     */
+    public function edit(SupplierBill $supplierBill): Response|RedirectResponse
+    {
+        if ($supplierBill->status !== SupplierBill::DRAFT) {
+            return redirect()->route('supplier-bills.show', $supplierBill)
+                ->with('error', 'Only a draft bill can be edited. An approved bill is cancelled and entered again.');
+        }
+
+        $supplierBill->load('lines');
+
+        return Inertia::render('Procurement/Bills/Form', [
+            'suppliers' => DB::table('suppliers')->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            'purchaseOrders' => DB::table('purchase_orders')
+                ->where(fn ($query) => $query->whereIn('status', ['approved', 'sent', 'partially_received', 'received'])
+                    ->orWhere('id', $supplierBill->po_id))
+                ->orderByDesc('id')->get(['id', 'number', 'supplier_id']),
+            'grns' => DB::table('grns')
+                ->where(fn ($query) => $query->where('status', 'posted')->orWhere('id', $supplierBill->grn_id))
+                ->orderByDesc('id')->get(['id', 'number', 'po_id', 'supplier_id']),
+            'currencies' => $this->rates->currencyOptions(),
+            'items' => $this->itemOptions(),
+            'prefill' => null,
+            'bill' => [
+                ...$supplierBill->only(['id', 'number', 'supplier_id', 'po_id', 'grn_id', 'bill_no', 'currency_id', 'exchange_rate']),
+                'bill_date' => $supplierBill->bill_date === null ? null : (string) \Illuminate\Support\Carbon::parse($supplierBill->bill_date)->toDateString(),
+                'due_date' => $supplierBill->due_date === null ? null : (string) \Illuminate\Support\Carbon::parse($supplierBill->due_date)->toDateString(),
+                'lines' => $supplierBill->lines->sortBy('line_no')->values()->map(fn (SupplierBillLine $line): array => [
+                    'item_id' => $line->item_id,
+                    'description' => $line->description ?? '',
+                    'qty' => (float) $line->qty,
+                    'rate' => (float) $line->rate,
+                    'tax_id' => $line->tax_id,
+                ])->all(),
+            ],
+        ]);
+    }
+
+    public function update(Request $request, SupplierBill $supplierBill): RedirectResponse
+    {
+        $data = $this->validated($request);
+
+        DB::transaction(function () use ($supplierBill, $data): void {
+            /** @var SupplierBill $locked */
+            $locked = SupplierBill::query()->lockForUpdate()->findOrFail($supplierBill->getKey());
+
+            if ($locked->status !== SupplierBill::DRAFT) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'lines' => 'This bill is no longer a draft and cannot be edited.',
+                ]);
+            }
+
+            $locked->forceFill($this->header($data))->save();
+            SupplierBillLine::query()->where('supplier_bill_id', $locked->id)->delete();
+            $this->writeLines($locked, $data['lines']);
+        });
+
+        return redirect()
+            ->route('supplier-bills.show', $supplierBill)
+            ->with('success', 'Supplier bill saved.');
+    }
+
+    /** @return array<string, mixed> */
+    private function validated(Request $request): array
+    {
+        return $request->validate([
             'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
             'po_id' => ['nullable', 'integer', 'exists:purchase_orders,id'],
             'grn_id' => ['nullable', 'integer', 'exists:grns,id'],
@@ -147,58 +243,68 @@ class SupplierBillController extends Controller
             'lines.*.rate' => ['required', 'numeric', 'min:0'],
             'lines.*.tax_id' => ['nullable', 'integer', 'exists:taxes,id'],
         ]);
+    }
 
-        $bill = DB::transaction(function () use ($data, $request): SupplierBill {
-            $subtotal = 0;
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function header(array $data): array
+    {
+        return [
+            ...\Illuminate\Support\Arr::except($data, ['lines']),
+            // BR-58 — booked from the reference table rather than defaulted to parity: a
+            // USD document at a rate of 1 understates it by the whole of the rate
+            // in every base-currency total that reads it.
+            'exchange_rate' => $this->rates->resolve(
+                (int) $data['currency_id'],
+                $data['exchange_rate'] ?? null,
+                $data['bill_date'] ?? null,
+            ),
+        ];
+    }
 
-            /** @var SupplierBill $bill */
-            $bill = new SupplierBill;
-            $bill->forceFill([
-                ...\Illuminate\Support\Arr::except($data, ['lines']),
-                // BR-58 — booked from the reference table rather than defaulted to parity: a
-                // USD document at a rate of 1 understates it by the whole of the rate
-                // in every base-currency total that reads it.
-                'exchange_rate' => $this->rates->resolve(
-                    (int) $data['currency_id'],
-                    $data['exchange_rate'] ?? null,
-                    $data['bill_date'] ?? null,
-                ),
-                'subtotal' => 0,
-                'tax_amount' => 0,
-                'total' => 0,
-                'paid_amount' => 0,
-                'status' => SupplierBill::DRAFT,
-                'created_by' => $request->user()->id,
+    /**
+     * Writes the bill's lines and its totals from them.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function writeLines(SupplierBill $bill, array $lines): void
+    {
+        $subtotal = 0;
+
+        foreach (array_values($lines) as $index => $lineData) {
+            $amount = round((float) $lineData['qty'] * (float) $lineData['rate'], 4);
+            $subtotal += $amount;
+
+            $line = new SupplierBillLine;
+            $line->forceFill([
+                'supplier_bill_id' => $bill->id,
+                'line_no' => $index + 1,
+                'item_id' => $lineData['item_id'] ?? null,
+                'description' => $lineData['description'] ?? null,
+                'qty' => $lineData['qty'],
+                'rate' => $lineData['rate'],
+                'tax_id' => $lineData['tax_id'] ?? null,
+                'amount' => $amount,
             ])->save();
+        }
 
-            foreach ($data['lines'] as $index => $lineData) {
-                $amount = round((float) $lineData['qty'] * (float) $lineData['rate'], 4);
-                $subtotal += $amount;
+        $bill->forceFill([
+            'subtotal' => round($subtotal, 4),
+            'total' => round($subtotal, 4),
+        ])->save();
+    }
 
-                $line = new SupplierBillLine;
-                $line->forceFill([
-                    'supplier_bill_id' => $bill->id,
-                    'line_no' => $index + 1,
-                    'item_id' => $lineData['item_id'] ?? null,
-                    'description' => $lineData['description'] ?? null,
-                    'qty' => $lineData['qty'],
-                    'rate' => $lineData['rate'],
-                    'tax_id' => $lineData['tax_id'] ?? null,
-                    'amount' => $amount,
-                ])->save();
-            }
-
-            $bill->forceFill([
-                'subtotal' => round($subtotal, 4),
-                'total' => round($subtotal, 4),
-            ])->save();
-
-            return $bill;
-        });
-
-        return redirect()
-            ->route('supplier-bills.show', $bill)
-            ->with('success', 'Supplier bill created.');
+    /**
+     * Materials for the line picker. A line typed by hand with no material on it can never be
+     * matched against the order and the goods receipt, which is the point of entering the bill.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    private function itemOptions(): \Illuminate\Support\Collection
+    {
+        return DB::table('items')->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']);
     }
 
     public function show(SupplierBill $supplierBill): Response
