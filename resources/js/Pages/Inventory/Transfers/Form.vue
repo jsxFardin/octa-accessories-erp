@@ -240,6 +240,11 @@ function submit() {
                 <FormFooter
                     :form="form"
                     :disabled="form.lines.length === 0 || sameWarehouse || invalidQty"
+                    :disabled-reason="form.lines.length === 0
+                        ? 'Add at least one lot to transfer.'
+                        : sameWarehouse
+                            ? 'The source and destination warehouse are the same.'
+                            : invalidQty ? 'A line has no quantity, or more than the lot has free.' : null"
                     cancel-href="/stock-transfers"
                     :label="isEdit ? 'Save draft' : 'Save draft'"
                     @save="submit"

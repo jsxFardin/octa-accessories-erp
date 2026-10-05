@@ -349,6 +349,9 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
                 <FormFooter
                     :form="form"
                     :disabled="!form.lot_size || (needsDisposition && !form.disposition)"
+                    :disabled-reason="!form.lot_size
+                        ? 'Enter the lot size being inspected.'
+                        : needsDisposition && !form.disposition ? 'This lot is rejected — choose what happens to it.' : null"
                     cancel-href="/qc-inspections"
                     :label="'Record inspection'"
                     @save="submit"

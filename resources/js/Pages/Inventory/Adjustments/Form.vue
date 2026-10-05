@@ -245,6 +245,11 @@ function submit() {
                 <FormFooter
                     :form="form"
                     :disabled="form.lines.length === 0 || !form.reason || zeroLine"
+                    :disabled-reason="form.lines.length === 0
+                        ? 'Add at least one lot to adjust.'
+                        : !form.reason
+                            ? 'Give the reason for the adjustment.'
+                            : zeroLine ? 'A line has a quantity of zero. Enter the change or remove the line.' : null"
                     cancel-href="/stock-adjustments"
                     :label="isEdit ? 'Save draft' : 'Save draft'"
                     @save="submit"

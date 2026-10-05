@@ -581,6 +581,9 @@ const columns = [
                     :form="form"
                     cancel-href="/quotations"
                     :disabled="unpriced.length > 0"
+                    :disabled-reason="unpriced.length
+                        ? `Line ${unpriced.map(({ index }) => index + 1).join(', ')} needs a product, a quantity and a price before the quotation can be saved.`
+                        : null"
                     :summary="unpriced.length
                         ? `${unpriced.length} ${unpriced.length === 1 ? 'line is' : 'lines are'} not priced yet`
                         : `${filledLines} ${filledLines === 1 ? 'line' : 'lines'} · ${money(subtotal, currencyCode)}`"

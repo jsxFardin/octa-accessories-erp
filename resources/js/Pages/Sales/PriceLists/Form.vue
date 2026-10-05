@@ -202,6 +202,7 @@ const columns = [
                 <FormFooter
                     :form="form"
                     :disabled="duplicateBreak"
+                    :disabled-reason="duplicateBreak ? 'Two lines give the same product the same starting quantity. Change or remove one.' : null"
                     cancel-href="/price-lists"
                     :label="isEdit ? 'Save changes' : 'Create price list'"
                     @save="submit"

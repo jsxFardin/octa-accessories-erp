@@ -161,6 +161,15 @@ function openBooking() {
     bookOpen.value = true;
 }
 
+/** Why "Book output" is not available yet — the rule about the reason's length was invisible. */
+const bookBlockedBy = computed(() => {
+    if (!bookForm.job_card_operation_id) return 'Choose the operation.';
+    if (!bookForm.operator_id) return 'Choose the operator.';
+    if ((bookForm.manual_reason ?? '').length < 5) return 'Say why this is booked at the desk (at least 5 characters).';
+
+    return null;
+});
+
 function submitBooking() {
     bookForm.post(`/job-cards/${props.jobCard.id}/book-output`, {
         preserveScroll: true,
@@ -1404,11 +1413,13 @@ const bomColumns = [
             </div>
 
             <template #footer="{ close }">
+                <span v-if="bookBlockedBy" id="book-blocked" class="mr-auto text-xs text-ink-600">{{ bookBlockedBy }}</span>
                 <Button @click="close">Cancel</Button>
                 <Button
                     variant="primary"
                     :loading="bookForm.processing"
-                    :disabled="!bookForm.job_card_operation_id || !bookForm.operator_id || (bookForm.manual_reason ?? '').length < 5"
+                    :disabled="bookBlockedBy !== null"
+                    :aria-describedby="bookBlockedBy ? 'book-blocked' : null"
                     @click="submitBooking"
                 >
                     Book output
@@ -1458,11 +1469,15 @@ const bomColumns = [
             </div>
 
             <template #footer>
+                <span v-if="(reversalForm.reason ?? '').length < 5" id="reverse-blocked" class="mr-auto text-xs text-ink-600">
+                    Give a reason of at least 5 characters.
+                </span>
                 <Button @click="reversing = null">Cancel</Button>
                 <Button
                     variant="danger"
                     :loading="reversalForm.processing"
                     :disabled="(reversalForm.reason ?? '').length < 5"
+                    :aria-describedby="(reversalForm.reason ?? '').length < 5 ? 'reverse-blocked' : null"
                     @click="submitReversal"
                 >
                     Reverse booking
