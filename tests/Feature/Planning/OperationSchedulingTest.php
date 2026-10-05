@@ -220,3 +220,27 @@ it('planning: refuses both writes to someone who may only read the board', funct
         ->post('/planning/unschedule', ['operation_id' => $this->operation->id])
         ->assertForbidden();
 });
+
+/*
+ * UX audit M-27. The board could not be moved off today, and its waiting list stopped at fifty
+ * steps without saying there were more.
+ */
+it('moves the board window, and says how many steps are waiting in all', function (): void {
+    $from = now()->addDays(30)->toDateString();
+    $waiting = DB::table('job_card_operations as jco')
+        ->join('job_cards as jc', 'jc.id', '=', 'jco.job_card_id')
+        ->whereNull('jco.scheduled_start')
+        ->whereIn('jco.status', ['pending', 'ready'])
+        ->whereNotIn('jc.status', ['closed', 'cancelled'])
+        ->count();
+
+    $this->actingAs($this->planner)->get("/planning?from={$from}&days=7")
+        ->assertOk()
+        ->assertInertia(fn (Inertia\Testing\AssertableInertia $page) => $page
+            ->component('Planning/Board')
+            ->where('dates.0', $from)
+            ->has('dates', 7)
+            ->where('filters.from', $from)
+            ->where('unscheduledTotal', $waiting)
+            ->where('unscheduled', fn ($rows) => count($rows) === min(50, $waiting)));
+});

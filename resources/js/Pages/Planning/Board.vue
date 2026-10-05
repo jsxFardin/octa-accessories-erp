@@ -8,9 +8,10 @@ import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import SlideOver from '@/Components/Ui/SlideOver.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { date, pcs } from '@/plugins/formatting';
+import { addCalendarDays, date, pcs, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useGuardedAction } from '@/composables/useGuardedAction';
 
 const props = defineProps({
     machines: { type: Array, default: () => [] },
@@ -20,6 +21,8 @@ const props = defineProps({
     groups: { type: Array, default: () => [] },
     unscheduled: { type: Array, default: () => [] },
     scheduled: { type: Array, default: () => [] },
+    // How many steps are waiting in all; `unscheduled` holds the first fifty of them.
+    unscheduledTotal: { type: Number, default: 0 },
 });
 
 const cellIndex = computed(() => {
@@ -49,12 +52,49 @@ function tone(cell) {
     return 'bg-white text-slate-300';
 }
 
+function visit(changes) {
+    router.get('/planning', { ...props.filters, ...changes }, { preserveState: true, preserveScroll: true, replace: true });
+}
+
 function shiftWindow(days) {
-    router.get('/planning', { ...props.filters, days }, { preserveState: true, replace: true });
+    visit({ days });
+}
+
+/*
+ * The window could be made longer but never moved: the board opened on today and there was no
+ * way to look at next month, or back at last week. The server has always taken `from`.
+ */
+const onToday = computed(() => props.filters.from === todayIso());
+
+function page(direction) {
+    visit({ from: addCalendarDays(props.filters.from, direction * Number(props.filters.days)) });
 }
 
 function weekday(value) {
-    return new Date(value).toLocaleDateString('en-GB', { weekday: 'short' });
+    return new Date(`${value}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short' });
+}
+
+/** Day then month, as everywhere else in the app. The header used to print the ISO tail, "10-05". */
+function dayMonth(value) {
+    const [, month, day] = value.split('-');
+
+    return `${day}/${month}`;
+}
+
+function percent(c) {
+    if (!c || c.is_holiday) return 'Holiday';
+
+    return (c.utilisation_pct ?? 0) > 100 ? 'over 100%' : `${Math.round(c.utilisation_pct ?? 0)}%`;
+}
+
+/** What a cell is, in words — for a screen reader, and for anyone without a mouse to hover with. */
+function describe(machine, day) {
+    const c = cell(machine.id, day);
+
+    if (!c) return `${machine.code}, ${date(day)}`;
+    if (c.is_holiday) return `${machine.code}, ${date(day)}: holiday`;
+
+    return `${machine.code}, ${date(day)}: ${percent(c)} full, ${Math.round(c.load)} of ${Math.round(c.available)} minutes, ${c.operations} ${c.operations === 1 ? 'step' : 'steps'}`;
 }
 
 /*
@@ -87,13 +127,46 @@ const preview = computed(() => {
     return { ...c, wanted, after: c.load + wanted, wouldOverrun: c.load + wanted > c.available + 0.0001 };
 });
 
-function plan(operation) {
+function plan(operation, slot = null) {
     chosen.value = operation;
-    form.defaults({ operation_id: operation.id, machine_id: '', date: props.dates[0] ?? '', override_reason: '' });
+    form.defaults({
+        operation_id: operation.id,
+        machine_id: slot?.machine.id ?? '',
+        date: slot?.day ?? props.dates[0] ?? '',
+        override_reason: '',
+    });
     form.reset();
     form.clearErrors();
+    slotOpen.value = false;
     panelOpen.value = true;
 }
+
+/*
+ * A cell is a place, and a place can be chosen. The cells were coloured boxes with their
+ * detail in a hover tooltip — nothing to click, nothing at all on a touch screen. Selecting
+ * one now shows what the tooltip did, the steps planned there, and the steps that could go there.
+ */
+const slot = ref(null);
+const slotOpen = ref(false);
+
+function openSlot(machine, day) {
+    slot.value = { machine, day };
+    slotOpen.value = true;
+}
+
+const slotCell = computed(() => (slot.value ? cell(slot.value.machine.id, slot.value.day) : null));
+
+const slotSteps = computed(() => (slot.value
+    ? props.scheduled.filter((op) => op.machine_id === slot.value.machine.id
+        && String(op.scheduled_start).slice(0, 10) === slot.value.day)
+    : []));
+
+/** Waiting steps this machine may take: the routing names a group, or names none. */
+const slotCandidates = computed(() => (slot.value
+    ? props.unscheduled.filter((op) => !op.machine_group_id || op.machine_group_id === slot.value.machine.machine_group_id)
+    : []));
+
+const { busy: takingOff, run: guarded } = useGuardedAction();
 
 function submit() {
     form.post('/planning/schedule', {
@@ -103,7 +176,12 @@ function submit() {
 }
 
 function unschedule(operation) {
-    router.post('/planning/unschedule', { operation_id: operation.id }, { preserveScroll: true });
+    // Not asked about — it is undone by scheduling the step again — but it cannot be fired twice.
+    guarded(`off-${operation.id}`, null, (done) => router.post(
+        '/planning/unschedule',
+        { operation_id: operation.id },
+        { preserveScroll: true, ...done },
+    ));
 }
 </script>
 
@@ -112,9 +190,15 @@ function unschedule(operation) {
         <Head title="Planning board" />
 
         <template #title>Planning board</template>
-        <template #subtitle>Machine × day utilisation — available minutes are discounted by planned downtime and machine efficiency</template>
+        <template #subtitle>How full each machine is, day by day. Available minutes allow for planned downtime and machine efficiency.</template>
 
         <template #actions>
+            <div class="flex items-center gap-1" role="group" aria-label="Move the window">
+                <Button size="sm" aria-label="Earlier days" data-earlier @click="page(-1)">←</Button>
+                <Button size="sm" :disabled="onToday" data-today @click="visit({ from: undefined })">Today</Button>
+                <Button size="sm" aria-label="Later days" data-later @click="page(1)">→</Button>
+            </div>
+
             <div class="w-36">
                 <SelectInput
                     :model-value="filters.group ?? ''"
@@ -144,7 +228,7 @@ function unschedule(operation) {
                     <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-amber-100 ring-1 ring-amber-300" /> 85%+ full</span>
                     <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-rose-100 ring-1 ring-rose-300" /> Over capacity</span>
                     <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-slate-100 ring-1 ring-slate-200" /> Holiday</span>
-                    <span class="text-ink-400">Hover a cell for minutes and operations.</span>
+                    <span class="text-ink-600">Select a cell to see its minutes and steps{{ mayPlan ? ', and to schedule into it' : '' }}.</span>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-xs">
@@ -159,7 +243,7 @@ function unschedule(operation) {
                                     class="px-1 py-2 text-center font-semibold whitespace-nowrap text-ink-700"
                                 >
                                     <div>{{ weekday(d) }}</div>
-                                    <div class="font-normal text-ink-400">{{ d.slice(5) }}</div>
+                                    <div class="font-normal text-ink-600">{{ dayMonth(d) }}</div>
                                 </th>
                             </tr>
                         </thead>
@@ -174,27 +258,28 @@ function unschedule(operation) {
                                 </td>
 
                                 <td v-for="d in dates" :key="d" class="p-0.5">
-                                    <div
-                                        class="rounded px-1 py-1.5 text-center tnum"
-                                        :class="tone(cell(machine.id, d))"
-                                        :title="cell(machine.id, d)
-                                            ? `${Math.round(cell(machine.id, d).utilisation_pct ?? 0)}% — ${cell(machine.id, d).load} of ${cell(machine.id, d).available} min · ${cell(machine.id, d).operations} ${cell(machine.id, d).operations === 1 ? 'op' : 'ops'}`
-                                            : ''"
+                                    <button
+                                        type="button"
+                                        class="block min-h-9 w-full min-w-11 rounded px-1 py-1.5 text-center tnum transition hover:ring-2 hover:ring-brand-500/50 focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:outline-none"
+                                        :class="[tone(cell(machine.id, d)), slotOpen && slot?.machine.id === machine.id && slot?.day === d ? 'ring-2 ring-brand-600' : '']"
+                                        :aria-label="describe(machine, d)"
+                                        data-cell
+                                        @click="openSlot(machine, d)"
                                     >
                                         <!-- Capped: 5781% in the same visual language as 11% reads as noise, not
-                                             as an alarm. Over 100 becomes a flat "over"; the exact figure stays
-                                             in the tooltip. -->
-                                        <div class="text-[11px] font-semibold">
+                                             as an alarm. Over 100 becomes a flat "over"; the exact figure is in
+                                             the panel the cell opens. -->
+                                        <span class="block text-[11px] font-semibold">
                                             {{ cell(machine.id, d)?.is_holiday
                                                 ? '—'
                                                 : (cell(machine.id, d)?.utilisation_pct ?? 0) > 100
                                                     ? '>100%'
                                                     : `${Math.round(cell(machine.id, d)?.utilisation_pct ?? 0)}%` }}
-                                        </div>
-                                        <div class="text-[9px] opacity-70">
-                                            {{ cell(machine.id, d)?.operations || '' }}
-                                        </div>
-                                    </div>
+                                        </span>
+                                        <span class="block text-[10px]">
+                                            {{ cell(machine.id, d)?.operations || '\u00a0' }}
+                                        </span>
+                                    </button>
                                 </td>
                             </tr>
 
@@ -208,7 +293,13 @@ function unschedule(operation) {
                 </div>
             </Card>
 
-            <Card title="Unscheduled operations" subtitle="Waiting for a machine and a slot" :padded="false">
+            <Card
+                title="Unscheduled steps"
+                :subtitle="unscheduledTotal > unscheduled.length
+                    ? `Showing the ${unscheduled.length} due soonest of ${unscheduledTotal} waiting. Schedule these and the rest will appear.`
+                    : 'Waiting for a machine and a day'"
+                :padded="false"
+            >
                 <ul class="divide-y divide-slate-100 text-sm">
                     <li v-for="op in unscheduled" :key="op.id" class="flex flex-wrap items-center gap-3 px-3 py-2">
                         <Link :href="`/job-cards/${op.job_card_id}`" class="doc-link-quiet">
@@ -243,7 +334,7 @@ function unschedule(operation) {
                         <span class="tnum text-xs text-ink-500">{{ Math.round(op.planned_minutes) }} min</span>
                         <span class="ml-auto text-xs text-ink-500">due {{ date(op.due_date) }}</span>
                         <template v-if="mayPlan">
-                            <Button size="sm" variant="ghost" @click="unschedule(op)">Take off</Button>
+                            <Button size="sm" variant="ghost" :loading="takingOff === `off-${op.id}`" :disabled="takingOff !== null" @click="unschedule(op)">Take off</Button>
                         </template>
                     </li>
                     <li v-if="scheduled.length === 0" class="px-3 py-6 text-center text-ink-500">
@@ -254,9 +345,68 @@ function unschedule(operation) {
         </div>
 
         <SlideOver
+            v-model:open="slotOpen"
+            :title="slot ? `${slot.machine.code} on ${weekday(slot.day)} ${date(slot.day)}` : ''"
+            :subtitle="slot ? `${slot.machine.name} · ${slot.machine.group_name}` : null"
+        >
+            <div v-if="slot" class="space-y-4 text-sm" data-slot>
+                <p v-if="slotCell?.is_holiday" class="rounded-md bg-amber-50 px-3 py-2 text-amber-900">
+                    This day is a holiday for this machine. Scheduling into it needs a reason.
+                </p>
+                <dl v-else-if="slotCell" class="grid grid-cols-3 gap-2">
+                    <div><dt class="text-xs text-ink-500">Planned</dt><dd class="font-medium tnum">{{ Math.round(slotCell.load) }} min</dd></div>
+                    <div><dt class="text-xs text-ink-500">Available</dt><dd class="font-medium tnum">{{ Math.round(slotCell.available) }} min</dd></div>
+                    <div>
+                        <dt class="text-xs text-ink-500">Full</dt>
+                        <dd class="font-medium tnum" :class="slotCell.over_capacity ? 'text-rose-700' : 'text-ink-900'">
+                            {{ Math.round(slotCell.utilisation_pct ?? 0) }}%
+                        </dd>
+                    </div>
+                </dl>
+
+                <section>
+                    <h3 class="mb-1 text-xs font-semibold text-ink-700">Planned here</h3>
+                    <ul v-if="slotSteps.length" class="divide-y divide-slate-100 rounded-md border border-slate-200">
+                        <li v-for="op in slotSteps" :key="op.id" class="flex flex-wrap items-center gap-2 px-3 py-2">
+                            <Link :href="`/job-cards/${op.job_card_id}`" class="doc-link-quiet">{{ op.number ?? '(unnumbered)' }}</Link>
+                            <span class="text-ink-700">{{ op.name }}</span>
+                            <span class="tnum text-xs text-ink-500">{{ Math.round(op.planned_minutes) }} min</span>
+                            <Button
+                                v-if="mayPlan" size="sm" variant="ghost" class="ml-auto"
+                                :loading="takingOff === `off-${op.id}`" :disabled="takingOff !== null"
+                                @click="unschedule(op)"
+                            >Take off</Button>
+                        </li>
+                    </ul>
+                    <p v-else class="text-ink-600">
+                        {{ slotCell?.operations ? 'The steps here have already started, so they cannot be moved from the board.' : 'Nothing is planned here.' }}
+                    </p>
+                </section>
+
+                <section v-if="mayPlan">
+                    <h3 class="mb-1 text-xs font-semibold text-ink-700">Schedule a waiting step here</h3>
+                    <ul v-if="slotCandidates.length" class="divide-y divide-slate-100 rounded-md border border-slate-200">
+                        <li v-for="op in slotCandidates" :key="op.id" class="flex flex-wrap items-center gap-2 px-3 py-2">
+                            <span class="font-medium text-ink-900">{{ op.number ?? '(unnumbered)' }}</span>
+                            <span class="text-ink-700">{{ op.name }}</span>
+                            <span class="tnum text-xs text-ink-500">{{ Math.round(op.planned_minutes) }} min · due {{ date(op.due_date) }}</span>
+                            <Button size="sm" class="ml-auto" data-schedule-here @click="plan(op, slot)">Schedule here</Button>
+                        </li>
+                    </ul>
+                    <p v-else class="text-ink-600">No waiting step can run on this machine.</p>
+                </section>
+            </div>
+
+            <template #footer>
+                <Button @click="slotOpen = false">Close</Button>
+            </template>
+        </SlideOver>
+
+        <SlideOver
             v-model:open="panelOpen"
             :title="chosen ? `Schedule ${chosen.name}` : 'Schedule'"
             :subtitle="chosen ? `${chosen.number ?? '(unnumbered)'} · step ${chosen.sequence_no} · ${Math.round(chosen.planned_minutes)} minutes` : null"
+            :dirty="form.isDirty"
         >
             <div class="space-y-4">
                 <FormField

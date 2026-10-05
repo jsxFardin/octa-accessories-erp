@@ -93,12 +93,8 @@ class PlanningBoardController extends Controller
             // `machine_group_id` and `planned_minutes` ride along because the planner needs
             // both to choose: the group says which machines may take the step at all, the
             // minutes say whether the day it is dropped on can hold it.
-            'unscheduled' => DB::table('job_card_operations as jco')
-                ->join('job_cards as jc', 'jc.id', '=', 'jco.job_card_id')
+            'unscheduled' => $this->unscheduled()
                 ->leftJoin('machine_groups as mg', 'mg.id', '=', 'jco.machine_group_id')
-                ->whereNull('jco.scheduled_start')
-                ->whereIn('jco.status', ['pending', 'ready'])
-                ->whereNotIn('jc.status', ['closed', 'cancelled'])
                 ->orderBy('jc.due_date')
                 ->orderBy('jc.id')
                 ->orderBy('jco.sequence_no')
@@ -108,6 +104,9 @@ class PlanningBoardController extends Controller
                     'jco.planned_minutes', 'jco.machine_group_id', 'mg.name as machine_group',
                     'jc.id as job_card_id', 'jc.number', 'jc.due_date',
                 ]),
+            // The list above stops at fifty, soonest due first. Without the full count it
+            // read as "this is everything", and the fifty-first step was simply not there.
+            'unscheduledTotal' => $this->unscheduled()->count(),
             // What is already on the board, so a plan can be moved or taken off it. Without
             // this list the only way to correct a placement was to have never made it.
             'scheduled' => DB::table('job_card_operations as jco')
@@ -123,6 +122,16 @@ class PlanningBoardController extends Controller
                     'jc.id as job_card_id', 'jc.number', 'jc.due_date',
                 ]),
         ]);
+    }
+
+    /** Open steps of live job cards that have no machine and day yet. */
+    private function unscheduled(): \Illuminate\Database\Query\Builder
+    {
+        return DB::table('job_card_operations as jco')
+            ->join('job_cards as jc', 'jc.id', '=', 'jco.job_card_id')
+            ->whereNull('jco.scheduled_start')
+            ->whereIn('jco.status', ['pending', 'ready'])
+            ->whereNotIn('jc.status', ['closed', 'cancelled']);
     }
 
     /**
