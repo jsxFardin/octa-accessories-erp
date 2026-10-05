@@ -532,12 +532,19 @@ class ReferenceDataSeeder extends Seeder
         }
     }
 
-    /** BR-34 — one series per document type for the current year. */
-    private function numberSequences(): void
+    /**
+     * Every numbered document type, with its prefix and the width its number is padded to.
+     *
+     * Public and static because a migration reads it too: a database seeded before a document
+     * type existed has no series for it, and the first document of that type then failed with
+     * a server error (customer returns and refunds did). One list, so the seeder and that
+     * migration cannot disagree.
+     *
+     * @return array<string, array{0: string, 1: int}>
+     */
+    public static function documentSeries(): array
     {
-        $year = now()->format('y');
-
-        $types = [
+        return [
             'inquiry' => ['INQ', 5],
             'quotation' => ['QTN', 5],
             'sales_order' => ['SO', 5],
@@ -571,6 +578,14 @@ class ReferenceDataSeeder extends Seeder
             'mrp_run' => ['MRP', 5],
             'fg_receipt' => ['FGR', 5],
         ];
+    }
+
+    /** BR-34 — one series per document type for the current year. */
+    private function numberSequences(): void
+    {
+        $year = now()->format('y');
+
+        $types = self::documentSeries();
 
         foreach ($types as $type => [$prefix, $padding]) {
             DB::table('number_sequences')->updateOrInsert(
