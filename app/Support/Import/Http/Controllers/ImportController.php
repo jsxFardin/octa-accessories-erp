@@ -93,7 +93,14 @@ class ImportController extends Controller
         }, $resource.'-import-sample.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
-    /** Upload. Returns counts and the rows that were skipped, with their line numbers. */
+    /**
+     * Upload. Returns counts and the rows that were skipped, with their line numbers.
+     *
+     * With `check=1` nothing is written: the same file is run through the same rules and
+     * rolled back, so the person sees "12 created, 380 updated, 8 skipped" and the eight
+     * reasons before deciding. Choosing a file used to import it on the spot, and a wrong
+     * spreadsheet updated up to a thousand master records with no way back.
+     */
     public function __invoke(Request $request, string $resource): JsonResponse
     {
         $definition = $this->definition($request, $resource);
@@ -106,19 +113,29 @@ class ImportController extends Controller
                 'required', 'file', 'max:'.self::MAX_KILOBYTES,
                 'extensions:'.implode(',', Spreadsheet::EXTENSIONS),
             ],
+            'check' => ['nullable', 'boolean'],
+        ], [
+            'file.max' => 'That file is larger than 10 MB. Split it and import the parts.',
+            'file.extensions' => 'That file is not a spreadsheet this list can read. Save it as CSV or XLSX and try again.',
         ]);
+
+        $check = $request->boolean('check');
 
         $file = $request->file('file');
         $extension = strtolower($file->getClientOriginalExtension());
 
         try {
-            $result = $this->importer->run($definition, $file->getRealPath(), $extension);
+            $result = $this->importer->run($definition, $file->getRealPath(), $extension, dryRun: $check);
         } catch (ImportException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         } catch (OpenSpoutException) {
             return response()->json([
                 'message' => 'That file could not be read as a spreadsheet. Save it as CSV or XLSX and try again.',
             ], 422);
+        }
+
+        if ($check) {
+            return response()->json([...$result, 'checked' => true]);
         }
 
         $this->audit->recordTable('imports', 0, 'imported', null, [

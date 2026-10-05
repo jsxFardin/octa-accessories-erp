@@ -37,11 +37,29 @@ class Importer
     private array $lookups = [];
 
     /**
+     * With `$dryRun` the file is read, checked and written exactly as an import would, and then
+     * every write is taken back. The counts it returns are therefore the counts the real import
+     * will give — not an estimate from a second, lighter set of rules — and nothing has changed.
+     *
      * @param  array<string, mixed>  $definition
      * @return array{created: int, updated: int, skipped: int, rows: int, errors: list<array{row: int, messages: list<string>}>}
      */
-    public function run(array $definition, string $path, string $extension): array
+    public function run(array $definition, string $path, string $extension, bool $dryRun = false): array
     {
+        if ($dryRun) {
+            $this->lookups = [];
+
+            DB::beginTransaction();
+
+            try {
+                return $this->run($definition, $path, $extension);
+            } finally {
+                DB::rollBack();
+                // Ids looked up or created inside the rolled-back transaction are not to be trusted afterwards.
+                $this->lookups = [];
+            }
+        }
+
         $rows = Spreadsheet::rows($path, $extension);
         $header = null;
         $result = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'rows' => 0, 'errors' => []];

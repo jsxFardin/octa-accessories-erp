@@ -215,3 +215,48 @@ it('has nothing importable that is not exportable', function (): void {
 
     expect(array_diff(array_keys(ImportRegistry::all()), $exportable))->toBe([]);
 });
+
+/*
+ * UX audit H-42. Choosing a file imported it on the spot. A file is now checked first: the
+ * same rules, the same counts, and nothing written until the person says so.
+ */
+it('checks a file without changing anything, and reports what importing it would do', function (): void {
+    $existing = Customer::query()->firstOrFail();
+    $before = Customer::query()->withTrashed()->count();
+    $audits = DB::table('audit_logs')->count();
+
+    $contents = <<<CSV
+    code,name,kind,credit_limit
+    CHK-001,Would Be Created,brand,1000
+    {$existing->code},Would Be Renamed,brand,1000
+    CHK-003,Bad Kind,emperor,1000
+    CSV;
+
+    $check = $this->actingAs($this->admin)->post('/imports/customers', ['file' => csvFile($contents), 'check' => '1']);
+
+    $check->assertOk()->assertJson(['checked' => true, 'created' => 1, 'updated' => 1, 'skipped' => 1, 'rows' => 3]);
+    expect(array_column($check->json('errors'), 'row'))->toBe([4]);
+
+    // Nothing landed: no new customer, the old name intact, and no import in the audit trail.
+    expect(Customer::query()->withTrashed()->count())->toBe($before)
+        ->and(Customer::query()->where('code', 'CHK-001')->exists())->toBeFalse()
+        ->and($existing->fresh()->name)->toBe($existing->name)
+        ->and(DB::table('audit_logs')->count())->toBe($audits);
+
+    // The import that follows gives the counts the check promised.
+    $this->post('/imports/customers', ['file' => csvFile($contents)])
+        ->assertOk()
+        ->assertJson(['created' => 1, 'updated' => 1, 'skipped' => 1])
+        ->assertJsonMissing(['checked' => true]);
+
+    expect(Customer::query()->where('code', 'CHK-001')->exists())->toBeTrue()
+        ->and($existing->fresh()->name)->toBe('Would Be Renamed');
+});
+
+it('checks a file with the same permission an import needs', function (): void {
+    $sales = User::query()->where('email', 'sales@octapussolution.com')->firstOrFail();
+
+    $this->actingAs($sales)
+        ->post('/imports/suppliers', ['file' => csvFile("code,name\nX-1,Nope\n"), 'check' => '1'])
+        ->assertForbidden();
+});
