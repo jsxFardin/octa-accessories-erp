@@ -1,9 +1,11 @@
 <script setup>
+import { ref } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import SelectWinner from '@/Components/Procurement/SelectWinner.vue';
 import { money, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 
@@ -18,9 +20,8 @@ function rateFor(quotation, itemId) {
     return quotation.lines.find((line) => Number(line.item_id) === Number(itemId)) ?? null;
 }
 
-function selectWinner(quotation) {
-    router.post(`/rfqs/${props.rfq.id}/select`, { quotation_id: quotation.id }, { preserveScroll: true });
-}
+/** The same selection, and the same reason dialog, as the RFQ page. This page had neither a reason nor an error. */
+const winner = ref(null);
 
 function raisePo() {
     router.post(`/rfqs/${props.rfq.id}/purchase-order`);
@@ -89,7 +90,10 @@ function raisePo() {
                                     v-if="rfq.status === 'issued' && !quote.is_selected && can('rfq.update')"
                                     class="mt-2"
                                     size="sm"
-                                    @click="selectWinner(quote)"
+                                    :loading="winner?.busy === quote.id"
+                                    :disabled="winner?.busy != null"
+                                    data-select-winner
+                                    @click="winner.choose(quote)"
                                 >
                                     Select winner
                                 </Button>
@@ -99,5 +103,7 @@ function raisePo() {
                 </table>
             </div>
         </Card>
+
+        <SelectWinner ref="winner" :rfq-id="rfq.id" />
     </AppLayout>
 </template>

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
@@ -11,6 +11,7 @@ import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
+import SelectWinner from '@/Components/Procurement/SelectWinner.vue';
 import { baseCurrency, date, money, qty, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -40,7 +41,8 @@ const quoteForm = useForm({
     })),
 });
 
-const override = reactive({ quotation_id: null, reason: '' });
+/** Selecting a winner, and the reason dialog when the three-quotation rule asks for one. */
+const winner = ref(null);
 
 const confirmTransition = useTransitionConfirm('rfq');
 
@@ -59,14 +61,6 @@ function onSupplierChange() {
 
 function recordQuote() {
     quoteForm.post(`/rfqs/${props.rfq.id}/quotations`, { preserveScroll: true });
-}
-
-function selectWinner(quotation) {
-    override.quotation_id = quotation.id;
-    router.post(`/rfqs/${props.rfq.id}/select`, {
-        quotation_id: quotation.id,
-        override_reason: override.reason || null,
-    }, { preserveScroll: true });
 }
 
 function raisePo() {
@@ -128,8 +122,8 @@ const needsThree = computed(() => {
                 <p v-if="needsThree" class="mb-3 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
                     <!-- BR-51 — the threshold is a base-currency figure and the quotations
                          beside it may not be, so it says which unit it is in. -->
-                    Quoted value is above {{ money(quoteThreshold, baseCurrency()) }} in the factory's books.
-                    Three quotations are required, or an override reason.
+                    The quoted value is above {{ money(quoteThreshold, baseCurrency()) }}, so three quotations are needed.
+                    With fewer, selecting a winner asks for a reason.
                 </p>
                 <DataTable
                     :columns="[
@@ -151,15 +145,16 @@ const needsThree = computed(() => {
                         <Button
                             v-else-if="rfq.status === 'issued' && can('rfq.update')"
                             size="sm"
-                            @click="selectWinner(row)"
+                            :loading="winner?.busy === row.id"
+                            :disabled="winner?.busy != null"
+                            :aria-label="`Select ${row.supplier?.name} as the winner`"
+                            data-select-winner
+                            @click="winner.choose(row)"
                         >
                             Select
                         </Button>
                     </template>
                 </DataTable>
-                <FormField v-if="rfq.status === 'issued'" class="mt-3" label="Override reason (if fewer than three quotes above the threshold)">
-                    <TextInput v-model="override.reason" />
-                </FormField>
             </Card>
 
             <Card v-if="rfq.status === 'issued' && can('rfq.update')" title="Record a quotation">
@@ -200,5 +195,7 @@ const needsThree = computed(() => {
                 <Button class="mt-4" variant="primary" :loading="quoteForm.processing" :disabled="quoteForm.processing" @click="recordQuote">Save quotation</Button>
             </Card>
         </div>
+
+        <SelectWinner ref="winner" :rfq-id="rfq.id" />
     </AppLayout>
 </template>
