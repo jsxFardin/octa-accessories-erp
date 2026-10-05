@@ -230,6 +230,15 @@
     @apply bg-slate-950 text-slate-50;
 }
 
+/*
+ * Headings on the floor take the floor's colour. The base rule above paints every heading in
+ * the desk's near-black ink, which on this near-black background made the terminal's title —
+ * the job card number, on the operation screen — all but invisible.
+ */
+.floor-scope :is(h1, h2, h3, h4) {
+    color: inherit;
+}
+
 .floor-scope .floor-btn {
     @apply min-h-24 cursor-pointer rounded-2xl text-2xl font-bold tracking-wide uppercase;
 }
