@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import { useDirtyClose } from '@/composables/useDirtyClose';
 import { closeOverlay, isTopOverlay, openOverlay } from '@/composables/useOverlay';
 
@@ -12,6 +13,20 @@ const props = defineProps({
     closeOnBackdrop: { type: Boolean, default: true },
     /** The form inside has unsaved input — see `useDirtyClose`. */
     dirty: { type: Boolean, default: false },
+});
+
+/**
+ * What the server refused while this was open, shown inside it.
+ *
+ * A refusal used to surface only as a toast in the corner, after the dialog had already closed.
+ * The dialog now stays open (`plugins/refusals.js`), so the reason belongs here, beside the
+ * button that was pressed and the input that needs changing.
+ */
+const page = usePage();
+const refusal = ref(null);
+
+watch(() => page.props.flash, (flash) => {
+    if (open.value && flash?.error) refusal.value = flash.error;
 });
 
 /** This instance's place in the overlay stack, while it is open. */
@@ -33,6 +48,7 @@ function onKeydown(event) {
 
 watch(open, (value) => {
     reset();
+    refusal.value = null;
 
     if (value) {
         token.value ??= openOverlay();
@@ -91,6 +107,13 @@ onUnmounted(() => {
                         </header>
 
                         <div class="px-4 py-4">
+                            <p
+                                v-if="refusal"
+                                role="alert"
+                                class="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-relaxed whitespace-pre-line text-rose-800"
+                            >
+                                {{ refusal }}
+                            </p>
                             <slot />
                         </div>
 

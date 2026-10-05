@@ -9,6 +9,7 @@ import { ZiggyVue } from 'ziggy';
 import { clearErrorToasts, pushToast } from '@/composables/useToasts';
 import permissions from '@/plugins/permissions';
 import formatting, { configureFormatting } from '@/plugins/formatting';
+import { installRefusalGuard } from '@/plugins/refusals';
 
 const fallbackName = import.meta.env.VITE_APP_NAME || 'Octa ERP';
 
@@ -39,6 +40,9 @@ router.on('error', (event) => {
 router.on('start', (event) => {
     if ((event.detail?.visit?.method ?? 'get').toLowerCase() !== 'get') clearErrorToasts();
 });
+
+// A refused write must not run a page's `onSuccess` — see `plugins/refusals.js`.
+installRefusalGuard(router);
 
 createInertiaApp({
     title: (title) => (title ? `${title} · ${appName}` : appName),
