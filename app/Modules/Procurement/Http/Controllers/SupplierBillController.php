@@ -147,7 +147,7 @@ class SupplierBillController extends Controller
                 'created_by' => $request->user()->id,
             ])->save();
 
-            $this->writeLines($bill, $data['lines']);
+            $this->writeLines($bill, array_values($data['lines']));
 
             return $bill;
         });
@@ -187,7 +187,7 @@ class SupplierBillController extends Controller
             'prefill' => null,
             'bill' => [
                 ...$supplierBill->only(['id', 'number', 'supplier_id', 'po_id', 'grn_id', 'bill_no', 'currency_id', 'exchange_rate']),
-                'bill_date' => $supplierBill->bill_date === null ? null : (string) \Illuminate\Support\Carbon::parse($supplierBill->bill_date)->toDateString(),
+                'bill_date' => $supplierBill->bill_date->toDateString(),
                 'due_date' => $supplierBill->due_date === null ? null : (string) \Illuminate\Support\Carbon::parse($supplierBill->due_date)->toDateString(),
                 'lines' => $supplierBill->lines->sortBy('line_no')->values()->map(fn (SupplierBillLine $line): array => [
                     'item_id' => $line->item_id,
@@ -216,7 +216,7 @@ class SupplierBillController extends Controller
 
             $locked->forceFill($this->header($data))->save();
             SupplierBillLine::query()->where('supplier_bill_id', $locked->id)->delete();
-            $this->writeLines($locked, $data['lines']);
+            $this->writeLines($locked, array_values($data['lines']));
         });
 
         return redirect()
@@ -273,7 +273,7 @@ class SupplierBillController extends Controller
     {
         $subtotal = 0;
 
-        foreach (array_values($lines) as $index => $lineData) {
+        foreach ($lines as $index => $lineData) {
             $amount = round((float) $lineData['qty'] * (float) $lineData['rate'], 4);
             $subtotal += $amount;
 
@@ -300,7 +300,7 @@ class SupplierBillController extends Controller
      * Materials for the line picker. A line typed by hand with no material on it can never be
      * matched against the order and the goods receipt, which is the point of entering the bill.
      *
-     * @return \Illuminate\Support\Collection<int, object>
+     * @return \Illuminate\Support\Collection<int, \stdClass>
      */
     private function itemOptions(): \Illuminate\Support\Collection
     {
