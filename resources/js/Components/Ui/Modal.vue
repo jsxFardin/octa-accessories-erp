@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { useDirtyClose } from '@/composables/useDirtyClose';
 import { closeOverlay, isTopOverlay, openOverlay } from '@/composables/useOverlay';
 
 const open = defineModel('open', { type: Boolean, default: false });
@@ -9,6 +10,8 @@ const props = defineProps({
     subtitle: { type: String, default: null },
     width: { type: String, default: 'max-w-lg' },
     closeOnBackdrop: { type: Boolean, default: true },
+    /** The form inside has unsaved input — see `useDirtyClose`. */
+    dirty: { type: Boolean, default: false },
 });
 
 /** This instance's place in the overlay stack, while it is open. */
@@ -18,15 +21,19 @@ function close() {
     open.value = false;
 }
 
+const { markTouched, reset, requestClose, onBackdrop } = useDirtyClose(() => open.value, () => props.dirty, close);
+
 function onKeydown(event) {
     // Only the innermost overlay answers Escape, or closing a modal opened from a slide-over
     // would close the panel behind it in the same keypress.
     if (event.key === 'Escape' && open.value && isTopOverlay(token.value)) {
-        close();
+        requestClose();
     }
 }
 
 watch(open, (value) => {
+    reset();
+
     if (value) {
         token.value ??= openOverlay();
 
@@ -66,7 +73,7 @@ onUnmounted(() => {
             <div v-if="open" class="fixed inset-0 z-[75] overflow-y-auto">
                 <div
                     class="fixed inset-0 bg-slate-900/50 backdrop-blur-[1px]"
-                    @click="closeOnBackdrop && close()"
+                    @click="closeOnBackdrop && onBackdrop()"
                 />
 
                 <div class="relative flex min-h-full items-center justify-center p-4">
@@ -75,6 +82,8 @@ onUnmounted(() => {
                         :class="width"
                         role="dialog"
                         aria-modal="true"
+                        @input="markTouched"
+                        @change="markTouched"
                     >
                         <header v-if="title" class="border-b border-slate-200 px-4 py-3">
                             <h3 class="text-sm font-semibold text-ink-900">{{ title }}</h3>

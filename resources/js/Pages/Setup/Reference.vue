@@ -172,7 +172,6 @@ function rowActions(row) {
                         :action-label="can.create ? `New ${reference.singular}` : null"
                         :filtered="Boolean(filters.q)"
                         @action="create"
-                        @clear-filters="router.get(`/setup/${reference.slug}`)"
                     />
                 </template>
             </DataTable>
@@ -180,6 +179,7 @@ function rowActions(row) {
 
         <SlideOver
             v-model:open="open"
+            :dirty="form.isDirty"
             :title="editing ? `Edit ${reference.singular}` : `New ${reference.singular}`"
             width="max-w-xl"
         >

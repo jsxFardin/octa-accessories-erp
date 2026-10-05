@@ -170,6 +170,7 @@ const columns = [
 
         <Modal
             v-model:open="open"
+            :dirty="form.isDirty"
             :title="editing ? `Edit ${editing.name}` : 'New user'"
             subtitle="The role decides what they can open; the employee record decides which factory unit they are scoped to."
             width="max-w-3xl"

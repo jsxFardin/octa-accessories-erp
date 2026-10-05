@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { useDirtyClose } from '@/composables/useDirtyClose';
 import { closeOverlay, isTopOverlay, openOverlay } from '@/composables/useOverlay';
 
 /**
@@ -16,6 +17,8 @@ const props = defineProps({
     title: { type: String, default: null },
     subtitle: { type: String, default: null },
     width: { type: String, default: 'max-w-xl' },
+    /** The form inside has unsaved input — see `useDirtyClose`. */
+    dirty: { type: Boolean, default: false },
 });
 
 /** This instance's place in the overlay stack, while it is open. */
@@ -25,12 +28,16 @@ function close() {
     open.value = false;
 }
 
+const { markTouched, reset, requestClose, onBackdrop } = useDirtyClose(() => open.value, () => props.dirty, close);
+
 function onKeydown(event) {
     // Only when nothing is stacked on top: a modal opened from this panel answers Escape first.
-    if (event.key === 'Escape' && open.value && isTopOverlay(token.value)) close();
+    if (event.key === 'Escape' && open.value && isTopOverlay(token.value)) requestClose();
 }
 
 watch(open, (value) => {
+    reset();
+
     if (value) {
         token.value ??= openOverlay();
 
@@ -58,7 +65,7 @@ onUnmounted(() => {
                 leave-to-class="opacity-0"
                 appear
             >
-                <div class="fixed inset-0 bg-slate-900/40" @click="close" />
+                <div class="fixed inset-0 bg-slate-900/40" @click="onBackdrop" />
             </Transition>
 
             <Transition
@@ -73,6 +80,8 @@ onUnmounted(() => {
                     :class="width"
                     role="dialog"
                     aria-modal="true"
+                    @input="markTouched"
+                    @change="markTouched"
                 >
                     <header class="flex items-start gap-3 border-b border-slate-200 px-4 py-3">
                         <div class="min-w-0 flex-1">
@@ -82,8 +91,9 @@ onUnmounted(() => {
 
                         <button
                             class="rounded p-1 text-ink-400 transition hover:bg-slate-100 hover:text-ink-700"
+                            type="button"
                             aria-label="Close"
-                            @click="close"
+                            @click="requestClose"
                         >
                             <svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <path d="M6 6l8 8M14 6l-8 8" stroke-linecap="round" />

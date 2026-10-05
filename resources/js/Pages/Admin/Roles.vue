@@ -230,6 +230,7 @@ function accessPct(role) {
         <!-- Editor -->
         <Modal
             v-model:open="open"
+            :dirty="form.isDirty"
             :title="editing ? `Edit ${editing.label}` : 'New role'"
             subtitle="Define what this role can view, create, update and delete across modules."
             width="max-w-4xl"
