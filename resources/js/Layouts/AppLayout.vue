@@ -585,7 +585,7 @@ const paletteHint = computed(() =>
                 is changed: it used to be mentioned only on the profile page, which nobody opens
                 unprompted, so a factory could run for months on a password everyone knew.
             -->
-            <div
+            <!-- <div
                 v-if="user?.using_seed_password && path !== '/profile'"
                 role="status"
                 class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 print:hidden"
@@ -597,7 +597,7 @@ const paletteHint = computed(() =>
                 <Link href="/profile" class="rounded font-medium underline hover:text-amber-950 focus-visible:ring-2 focus-visible:ring-amber-600/40 focus-visible:outline-none">
                     Change your password
                 </Link>
-            </div>
+            </div> -->
 
             <main class="mx-auto w-full max-w-[1600px] p-4">
                 <slot />
