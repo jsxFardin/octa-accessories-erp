@@ -1,6 +1,6 @@
 # UX audit, Phase 2: core flow redesigns
 
-Branch `ux/phase-2`, stacked on `ux/phase-1` (merge that first). Implements Phase 2 of `docs/UX_AUDIT.md`: 47 findings closed across ten workstreams, plus three found on the way. One commit per finding or tight group, each named `ux(<ID>)`. Statuses and commits are in the audit's findings tables; screenshots are in `docs/ux-evidence/`.
+Branch `ux/phase-2`, stacked on `ux/phase-1` (merge that first). Implements Phase 2 of `docs/UX_AUDIT.md`: 44 findings closed across ten workstreams, plus three found on the way. One commit per finding or tight group, each named `ux(<ID>)`. Statuses and commits are in the audit's findings tables; screenshots are in `docs/ux-evidence/`.
 
 ## What users will notice
 
