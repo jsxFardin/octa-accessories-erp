@@ -173,7 +173,9 @@ class PhysicalCountController extends Controller
         $data = $request->validate([
             'lines' => ['required', 'array'],
             'lines.*.id' => ['required', 'integer', 'exists:physical_count_lines,id'],
-            'lines.*.counted_qty' => ['required', 'numeric', 'min:0'],
+            // Nullable: a count is keyed over hours, by more than one person, and has to be
+            // saveable part-way. Reconciliation is what refuses a line still uncounted.
+            'lines.*.counted_qty' => ['nullable', 'numeric', 'min:0'],
             'lines.*.remarks' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -187,32 +189,52 @@ class PhysicalCountController extends Controller
                 ]);
             }
 
-            $lineIds = PhysicalCountLine::query()
+            $existing = PhysicalCountLine::query()
                 ->where('physical_count_id', $locked->id)
-                ->pluck('id')
-                ->all();
+                ->get(['id', 'counted_qty', 'counted_by', 'remarks'])
+                ->keyBy('id');
 
             foreach ($data['lines'] as $index => $line) {
-                if (! in_array((int) $line['id'], $lineIds, true)) {
+                /** @var PhysicalCountLine|null $current */
+                $current = $existing->get((int) $line['id']);
+
+                if ($current === null) {
                     throw ValidationException::withMessages([
                         "lines.{$index}.id" => 'That line does not belong to this count.',
                     ]);
                 }
 
+                $counted = ($line['counted_qty'] ?? null) === null || $line['counted_qty'] === ''
+                    ? null
+                    : (float) $line['counted_qty'];
+                $was = $current->counted_qty === null ? null : (float) $current->counted_qty;
+
+                // Whoever keyed the figure is the counter. A second person saving the sheet
+                // must not put their name on lines they never touched.
+                $quantityChanged = $counted !== $was;
+
                 PhysicalCountLine::query()
-                    ->where('id', $line['id'])
+                    ->where('id', $current->id)
                     ->where('physical_count_id', $locked->id)
                     ->update([
-                        'counted_qty' => $line['counted_qty'],
-                        'counted_by' => $request->user()?->id,
+                        'counted_qty' => $counted,
+                        'counted_by' => $quantityChanged
+                            ? ($counted === null ? null : $request->user()?->id)
+                            : $current->counted_by,
                         'remarks' => $line['remarks'] ?? null,
                     ]);
             }
         });
 
+        $total = PhysicalCountLine::query()->where('physical_count_id', $count->getKey())->count();
+        $counted = PhysicalCountLine::query()->where('physical_count_id', $count->getKey())
+            ->whereNotNull('counted_qty')->count();
+
         return redirect()
             ->route('physical-counts.show', $count)
-            ->with('success', 'Counted quantities saved.');
+            ->with('success', $counted === $total
+                ? "Saved. All {$total} lines are counted — the count can be reconciled."
+                : "Saved. {$counted} of {$total} lines counted so far.");
     }
 
     public function transition(Request $request, PhysicalCount $count): RedirectResponse

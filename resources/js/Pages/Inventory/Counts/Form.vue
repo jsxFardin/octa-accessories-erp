@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -36,11 +36,54 @@ const form = useForm(
           },
 );
 
+/** What the server holds for each line, to tell a keyed figure from an untouched one. */
+const saved = new Map((props.count?.lines ?? []).map((line) => [
+    line.id,
+    { counted_qty: line.counted_qty ?? '', remarks: line.remarks ?? '' },
+]));
+
+function isCounted(line) {
+    return line.counted_qty !== '' && line.counted_qty !== null;
+}
+
+function isChanged(line) {
+    const before = saved.get(line.id);
+
+    return !before
+        || String(line.counted_qty ?? '') !== String(before.counted_qty)
+        || (line.remarks ?? '') !== before.remarks;
+}
+
+const countedLines = computed(() => (form.lines ?? []).filter(isCounted).length);
+const totalLines = computed(() => form.lines?.length ?? 0);
+
+/** The ids sent on the last save, in order — server errors come back keyed by that position. */
+const sentIds = ref([]);
+
+function lineError(line, field) {
+    const position = sentIds.value.indexOf(line.id);
+
+    return position === -1 ? null : form.errors[`lines.${position}.${field}`];
+}
+
 function submit() {
     if (isEdit.value) {
-        form.put(`/physical-counts/${props.count.id}`, {
-            preserveScroll: true,
-        });
+        // Only the lines somebody keyed are sent. A blank line stays uncounted rather than
+        // failing the save, and a second counter does not overwrite the first one's lines.
+        const changed = form.lines.filter(isChanged);
+
+        sentIds.value = changed.map((line) => line.id);
+
+        form
+            .transform(() => ({
+                lines: changed.map((line) => ({
+                    id: line.id,
+                    counted_qty: isCounted(line) ? line.counted_qty : null,
+                    remarks: line.remarks,
+                })),
+            }))
+            .put(`/physical-counts/${props.count.id}`, { preserveScroll: true });
+
         return;
     }
 
@@ -62,7 +105,7 @@ function submit() {
             </template>
         </template>
 
-        <FormLayout @submit.prevent="submit">
+        <FormLayout @submit="submit">
             <Card v-if="!isEdit" title="Count setup">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <FormField label="Warehouse" :error="form.errors.warehouse_id" required>
@@ -77,10 +120,15 @@ function submit() {
                 </div>
             </Card>
 
-            <Card v-else title="Count lines" subtitle="Blind entry — system quantities are hidden until reconciliation.">
+            <Card
+                v-else
+                title="Count lines"
+                :subtitle="`${countedLines} of ${totalLines} counted. You can save part-way and carry on later — system quantities stay hidden until reconciliation.`"
+            >
+                <p v-if="form.errors.lines" role="alert" class="mb-3 text-xs text-rose-700">{{ form.errors.lines }}</p>
                 <div class="space-y-3">
                     <div
-                        v-for="(line, index) in form.lines"
+                        v-for="line in form.lines"
                         :key="line.id"
                         class="grid gap-3 rounded border border-slate-200 p-3 sm:grid-cols-12"
                     >
@@ -90,10 +138,10 @@ function submit() {
                                 {{ [line.item_code, line.bin_code].filter(Boolean).join(' · ') || '—' }}
                             </p>
                         </div>
-                        <FormField class="sm:col-span-3" label="Counted qty" :error="form.errors[`lines.${index}.counted_qty`]">
+                        <FormField class="sm:col-span-3" label="Counted qty" :error="lineError(line, 'counted_qty')">
                             <TextInput v-model="line.counted_qty" type="number" min="0" step="any" inputmode="decimal" />
                         </FormField>
-                        <FormField class="sm:col-span-5" label="Remarks" :error="form.errors[`lines.${index}.remarks`]">
+                        <FormField class="sm:col-span-5" label="Remarks" :error="lineError(line, 'remarks')">
                             <TextInput v-model="line.remarks" />
                         </FormField>
                     </div>
@@ -105,6 +153,7 @@ function submit() {
                     :form="form"
                     :cancel-href="isEdit ? `/physical-counts/${count.id}` : '/physical-counts'"
                     :label="isEdit ? 'Save counts' : 'Open count'"
+                    :summary="isEdit ? `${countedLines} of ${totalLines} counted` : null"
                     @save="submit"
                 />
             </template>

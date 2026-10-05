@@ -231,6 +231,51 @@ it('requires counted_qty on every line before reconciliation', function (): void
     expect($count->refresh()->status)->toBe(PhysicalCount::COUNTING);
 });
 
+/*
+ * UX audit C-06. Saving used to demand a quantity on every line, so a 300-lot count had to be
+ * keyed in one sitting while the warehouse stayed frozen. A save now takes whichever lines
+ * were keyed; reconciliation is still what refuses an uncounted line.
+ */
+it('saves a count part-way, keeps each counter\'s name, and still refuses to reconcile it', function (): void {
+    $lot = p28Lot();
+    $count = p28StartCounting($this, p28Open($this, $lot));
+
+    $lines = PhysicalCountLine::query()->where('physical_count_id', $count->id)->orderBy('id')->get();
+    $first = $lines->first();
+
+    // One line keyed, sent alone — the form sends only what changed.
+    $this->actingAs($this->keeper)
+        ->put("/physical-counts/{$count->id}", ['lines' => [
+            ['id' => $first->id, 'counted_qty' => 3, 'remarks' => 'first pass'],
+        ]])
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success');
+
+    expect((float) $first->refresh()->counted_qty)->toBe(3.0)
+        ->and((int) $first->counted_by)->toBe((int) $this->keeper->id);
+
+    // A blank quantity is accepted and leaves the line uncounted.
+    $this->actingAs($this->manager)
+        ->put("/physical-counts/{$count->id}", ['lines' => [
+            ['id' => $first->id, 'counted_qty' => 3, 'remarks' => 'checked'],
+            ...$lines->slice(1)->map(fn (PhysicalCountLine $line): array => [
+                'id' => $line->id, 'counted_qty' => null, 'remarks' => null,
+            ])->values()->all(),
+        ]])
+        ->assertSessionHasNoErrors();
+
+    // The manager saved the sheet but did not re-key the first line: it is still the keeper's.
+    expect((int) $first->refresh()->counted_by)->toBe((int) $this->keeper->id);
+
+    if ($lines->count() > 1) {
+        $this->actingAs($this->keeper)
+            ->post("/physical-counts/{$count->id}/transition", ['to' => 'reconciled'])
+            ->assertSessionHas('error');
+
+        expect($count->refresh()->status)->toBe(PhysicalCount::COUNTING);
+    }
+});
+
 it('reconciles when every line is counted and exposes generated variance', function (): void {
     $lot = p28Lot();
     $before = (float) $lot->balance_qty;
