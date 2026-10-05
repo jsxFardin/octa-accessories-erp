@@ -132,7 +132,7 @@ class CreditNoteController extends Controller
             // The four figures a credit note is actually about. `applied` and `refunded` are
             // where its value went; `available` is what is left to spend. The provenance
             // invoice above says where the credit came from, which is a different question.
-            'money' => [
+            'balance' => [
                 'amount' => (float) $creditNote->amount,
                 'applied' => (float) \Illuminate\Support\Facades\DB::table('credit_note_applications')
                     ->where('credit_note_id', $creditNote->getKey())->sum('amount'),

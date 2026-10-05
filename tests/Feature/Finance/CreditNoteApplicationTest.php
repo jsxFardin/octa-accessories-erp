@@ -259,3 +259,23 @@ it('keeps the identity holding on every invoice it touches', function (): void {
         )->and($this->invoices->outstanding($invoice))->toBeGreaterThanOrEqual(0.0);
     }
 });
+
+/*
+ * UX audit C-04. The page used to receive these figures as `money`, the same name as the
+ * formatter it imports; the import won, `available` read as undefined, and neither "Apply
+ * credit" nor "Refund" was ever offered. The prop name is part of the fix, so it is pinned.
+ */
+it('hands the credit note page its balance under a name the formatter does not shadow', function (): void {
+    $paid = appPay($this, appInvoice($this, 10000, 375));
+    $note = returnCredit($this, $paid, 2500);   // worth 937.50
+
+    $this->actingAs($this->accounts)
+        ->get("/credit-notes/{$note->id}")
+        ->assertOk()
+        ->assertInertia(fn (Inertia\Testing\AssertableInertia $page) => $page
+            ->component('Finance/CreditNotes/Show')
+            ->missing('money')
+            ->where('balance.amount', fn ($amount) => abs((float) $amount - 937.50) < 0.005)
+            ->where('balance.available', fn ($available) => abs((float) $available - 937.50) < 0.005),
+        );
+});

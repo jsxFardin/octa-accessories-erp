@@ -16,7 +16,11 @@ import { can } from '@/plugins/permissions';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
-    money: { type: Object, default: null },
+    /**
+     * Amount, applied, refunded and available. Not called `money`: the formatter imported above
+     * has that name, and in a template the import wins over the prop.
+     */
+    balance: { type: Object, default: null },
     applications: { type: Array, default: () => [] },
     refunds: { type: Array, default: () => [] },
     targets: { type: Array, default: () => [] },
@@ -85,7 +89,7 @@ function refundCredit() {
                 Apply to invoice
             </Button>
             <Button
-                v-if="money && money.available > 0 && can('credit_note.apply') && creditNote.status === 'approved'"
+                v-if="balance && balance.available > 0 && can('credit_note.apply') && creditNote.status === 'approved'"
                 size="sm"
                 variant="primary"
                 @click="applyOpen = true"
@@ -93,7 +97,7 @@ function refundCredit() {
                 Apply credit
             </Button>
             <Button
-                v-if="money && money.available > 0 && can('credit_note.refund') && creditNote.status === 'approved'"
+                v-if="balance && balance.available > 0 && can('credit_note.refund') && creditNote.status === 'approved'"
                 size="sm"
                 @click="refundOpen = true"
             >
@@ -134,12 +138,12 @@ function refundCredit() {
                 consumption; the invoice panel above is provenance. Keeping them on the same
                 screen but plainly apart is the whole point of the distinction.
             -->
-            <Card v-if="money" title="This credit" subtitle="Where the value went — which is not the same question as where it came from">
+            <Card v-if="balance" title="This credit" subtitle="Where the value went — which is not the same question as where it came from">
                 <dl class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                    <div><dt class="text-xs text-ink-500">Amount</dt><dd class="font-medium tnum">{{ money.amount }}</dd></div>
-                    <div><dt class="text-xs text-ink-500">Applied</dt><dd class="font-medium tnum text-amber-700">{{ money.applied }}</dd></div>
-                    <div><dt class="text-xs text-ink-500">Refunded</dt><dd class="font-medium tnum text-rose-700">{{ money.refunded }}</dd></div>
-                    <div><dt class="text-xs text-ink-500">Available</dt><dd class="font-medium tnum text-emerald-700">{{ money.available }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Amount</dt><dd class="font-medium tnum">{{ money(balance.amount, creditNote.currency) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Applied</dt><dd class="font-medium tnum text-amber-700">{{ money(balance.applied, creditNote.currency) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Refunded</dt><dd class="font-medium tnum text-rose-700">{{ money(balance.refunded, creditNote.currency) }}</dd></div>
+                    <div><dt class="text-xs text-ink-500">Available</dt><dd class="font-medium tnum text-emerald-700">{{ money(balance.available, creditNote.currency) }}</dd></div>
                 </dl>
 
                 <p v-if="salesReturn" class="mt-3 text-xs text-ink-600">
@@ -207,7 +211,7 @@ function refundCredit() {
                 <FormField
                     label="Amount"
                     :error="applyForm.errors.amount"
-                    :hint="money ? `At most ${money.available}, and no more than that invoice still owes.` : null"
+                    :hint="balance ? `At most ${money(balance.available, creditNote.currency)}, and no more than that invoice still owes.` : null"
                     required
                 >
                     <TextInput v-model="applyForm.amount" type="number" min="0" step="any" numeric />
@@ -235,7 +239,7 @@ function refundCredit() {
                 <FormField
                     label="Amount"
                     :error="refundForm.errors.amount"
-                    :hint="money ? `At most ${money.available}.` : null"
+                    :hint="balance ? `At most ${money(balance.available, creditNote.currency)}.` : null"
                     required
                 >
                     <TextInput v-model="refundForm.amount" type="number" min="0" step="any" numeric />
