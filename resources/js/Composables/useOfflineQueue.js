@@ -34,10 +34,29 @@ function readRejected() {
     }
 }
 
-function reject(entry, status, body) {
+function reject(entry, status, body, reason = 'refused') {
     const rejected = readRejected();
-    rejected.push({ ...entry, status, body, rejectedAt: new Date().toISOString() });
+    rejected.push({ ...entry, status, body, reason, rejectedAt: new Date().toISOString() });
     localStorage.setItem(REJECTED_KEY, JSON.stringify(rejected));
+}
+
+/**
+ * Splits a queue into what may still be posted and what has outlived the window.
+ *
+ * An entry older than the window is not posted: a shift's output arriving half a day late is
+ * worse than a gap someone reconciles. It is not thrown away either — it used to be, silently,
+ * and an overnight outage lost the output with no trace. The expired half goes to the rejected
+ * list, where a supervisor can see it and key it in by hand.
+ */
+export function splitExpired(queue, now = Date.now(), maxAgeMs = MAX_AGE_MS) {
+    const fresh = [];
+    const expired = [];
+
+    for (const entry of queue) {
+        (now - Date.parse(entry.occurredAt) > maxAgeMs ? expired : fresh).push(entry);
+    }
+
+    return { fresh, expired };
 }
 
 function session() {
@@ -79,14 +98,13 @@ export function useOfflineQueue() {
         queue.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 
         const remaining = [];
+        const { fresh, expired } = splitExpired(queue);
 
-        for (const entry of queue) {
-            // An entry older than the window is dropped rather than posted: a shift's output
-            // arriving half a day late is worse than a gap someone has to reconcile.
-            if (Date.now() - Date.parse(entry.occurredAt) > MAX_AGE_MS) {
-                continue;
-            }
+        for (const entry of expired) {
+            reject(entry, 0, '', 'expired');
+        }
 
+        for (const entry of fresh) {
             try {
                 const response = await post(entry);
 

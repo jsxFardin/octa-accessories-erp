@@ -154,7 +154,7 @@ async function logDowntime() {
             <p v-if="error" class="rounded-xl bg-rose-600 px-5 py-4 text-xl font-semibold">{{ error }}</p>
 
             <p v-if="rejected" class="rounded-xl bg-amber-500 px-5 py-4 text-lg font-semibold text-slate-900">
-                {{ rejected }} রেকর্ড সার্ভার নেয়নি · {{ rejected }} write(s) refused by the server — call your supervisor
+                {{ rejected }}টি রেকর্ড পাঠানো যায়নি — সুপারভাইজারকে জানান · {{ rejected }} record(s) not sent — call your supervisor
             </p>
 
             <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
