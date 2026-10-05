@@ -92,6 +92,11 @@ const orderCurrency = computed(() => props.purchaseOrder?.currency ?? baseCurren
                     Discard draft
                 </Button>
             </template>
+            <!-- Labels for the lots this receipt created, to go on the goods as they are put away.
+                 Opened in a new tab: it is a printout, not a page of the application. -->
+            <Button v-if="grn.status !== 'draft' && lots.length" :href="`/grns/${grn.id}/labels`" external target="_blank">
+                Print lot labels
+            </Button>
             <!-- A bill is for goods that were received; a draft has received nothing. -->
             <Button
                 v-else-if="can('supplier_bill.create')"

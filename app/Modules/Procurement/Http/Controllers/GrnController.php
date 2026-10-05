@@ -654,4 +654,25 @@ class GrnController extends Controller
 
         return redirect()->route('grns.index')->with('success', "Draft goods receipt {$grn->number} discarded.");
     }
+
+    /** A label for every lot a posted receipt created, to stick on the goods as they are put away. */
+    public function labels(Grn $grn, \App\Modules\Inventory\Services\LotLabels $labels): \Illuminate\Contracts\View\View|RedirectResponse
+    {
+        $lotIds = DB::table('stock_lots as sl')
+            ->join('grn_lines as gl', 'gl.id', '=', 'sl.grn_line_id')
+            ->where('gl.grn_id', $grn->id)
+            ->orderBy('gl.line_no')
+            ->pluck('sl.id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        if ($lotIds === []) {
+            return back()->with('error', 'There are no lots to label yet. Labels are printed once the receipt is posted.');
+        }
+
+        return view('print.lot-labels', [
+            'title' => 'Lot labels '.$grn->number,
+            'labels' => $labels->for($lotIds),
+        ]);
+    }
 }

@@ -89,4 +89,13 @@ class StockLotController extends Controller
             ],
         ]);
     }
+
+    /** The printable label for one lot — the barcode the scan fields read. */
+    public function label(StockLot $lot, \App\Modules\Inventory\Services\LotLabels $labels): \Illuminate\Contracts\View\View
+    {
+        return view('print.lot-labels', [
+            'title' => 'Lot label '.$lot->lot_no,
+            'labels' => $labels->for([(int) $lot->getKey()]),
+        ]);
+    }
 }

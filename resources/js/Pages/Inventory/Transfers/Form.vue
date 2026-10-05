@@ -57,13 +57,40 @@ const toWarehouses = computed(() =>
 
 const pickLotId = ref('');
 
+/**
+ * The scan box. A handheld reader types the label's code and presses Enter, so this is a text
+ * field that adds a line on Enter and clears itself for the next label.
+ */
+const scanCode = ref('');
+const scanMessage = ref(null);
+
+async function onScan() {
+    const code = scanCode.value.trim();
+
+    if (code === '') return;
+
+    const lot = await scanLot(code);
+
+    if (!lot) {
+        scanMessage.value = { tone: 'error', text: `No lot "${code}" in this warehouse.` };
+
+        return;
+    }
+
+    const already = form.lines.some((line) => Number(line.lot_id) === Number(lot.id));
+
+    addLine(Number(lot.id));
+    scanMessage.value = { tone: 'ok', text: already ? `${lot.lot_no} is already on the list.` : `Added ${lot.lot_no}.` };
+    scanCode.value = '';
+}
+
 watch(pickLotId, (id) => {
     if (!id) return;
     addLine(Number(id));
     pickLotId.value = '';
 });
 
-const { lotOf, known: knownLots, search: lotSearch, loading: lotsLoading, partial: lotsPartial } = useLotPicker({
+const { lotOf, known: knownLots, search: lotSearch, loading: lotsLoading, partial: lotsPartial, scan: scanLot } = useLotPicker({
     lots: () => props.lots,
     meta: () => props.lotsMeta,
     warehouse: () => form.from_warehouse_id,
@@ -184,6 +211,22 @@ function submit() {
                             hint-key="hint"
                         />
                     </FormField>
+
+                    <div class="mt-3">
+                        <FormField
+                            label="Or scan a lot label"
+                            hint="Point the scanner at the label's barcode, or type the lot number and press Enter."
+                            :error="scanMessage?.tone === 'error' ? scanMessage.text : null"
+                        >
+                            <TextInput
+                                v-model="scanCode"
+                                placeholder="Scan here"
+                                autocomplete="off"
+                                @keydown.enter.prevent="onScan"
+                            />
+                        </FormField>
+                        <p v-if="scanMessage?.tone === 'ok'" role="status" class="mt-1 text-xs text-emerald-800">{{ scanMessage.text }}</p>
+                    </div>
 
                     <!--
                         The list above holds this warehouse's lots, up to a limit. When there are

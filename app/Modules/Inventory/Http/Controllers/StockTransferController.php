@@ -398,6 +398,7 @@ class StockTransferController extends Controller
         $matching = fn () => $base()->when($search !== '', function ($query) use ($search): void {
             $query->where(function ($inner) use ($search): void {
                 $inner->where('lot_no', 'like', "%{$search}%")
+                    ->orWhere('barcode', $search)
                     ->orWhereHas('item', fn ($item) => $item->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"))
                     ->orWhereHas('product', fn ($product) => $product->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"));
             });
@@ -431,6 +432,8 @@ class StockTransferController extends Controller
                         'id' => $lot->id,
                         'lot_no' => $lot->lot_no,
                         'warehouse_id' => $lot->warehouse_id,
+                        // What a scanner reads off the lot's label.
+                        'barcode' => $lot->barcode,
                         'status' => $lot->status,
                         'balance_qty' => $lot->balance_qty,
                         'free_qty' => max(0, (float) $lot->balance_qty - $claimed),

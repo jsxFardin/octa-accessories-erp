@@ -1,5 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import Button from '@/Components/Ui/Button.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
@@ -23,6 +24,12 @@ const props = defineProps({
 
         <template #title>{{ lot.lot_no }}</template>
         <template #subtitle>{{ lot.item?.code }} — {{ lot.item?.name }} · {{ lot.warehouse?.code }}</template>
+
+        <!-- The lot page was a dead end. The label is what turns a lot number on a screen into
+             something on the goods a scanner can read. -->
+        <template #actions>
+            <Button :href="`/lots/${lot.id}/label`" external target="_blank">Print label</Button>
+        </template>
 
         <!--
             "Blocked" on its own read as a defect: an auditor saw this status beside a dispatch

@@ -58,6 +58,50 @@ export function useLotPicker({ lots, meta, warehouse, keep }) {
         reload();
     });
 
+    function match(code) {
+        const wanted = String(code).trim().toLowerCase();
+
+        if (wanted === '') return null;
+
+        for (const lot of known.values()) {
+            if (Number(lot.warehouse_id) !== Number(warehouse())) continue;
+
+            if (String(lot.barcode ?? '').toLowerCase() === wanted || String(lot.lot_no ?? '').toLowerCase() === wanted) {
+                return lot;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * A lot label scanned with a handheld reader, which types the code and presses Enter.
+     *
+     * Resolves to the lot, or null when this warehouse has no such lot. A lot the page has not
+     * been sent yet is asked for first, so scanning works however many lots the warehouse holds.
+     *
+     * @returns {Promise<object|null>}
+     */
+    function scan(code) {
+        const found = match(code);
+
+        if (found || String(code).trim() === '') return Promise.resolve(found);
+
+        return new Promise((resolve) => {
+            loading.value = true;
+
+            router.get(window.location.pathname, { warehouse: warehouse() || undefined, lot_search: String(code).trim(), keep: keep() }, {
+                only: ['lots', 'lotsMeta'],
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                onSuccess: () => resolve(match(code)),
+                onError: () => resolve(null),
+                onFinish: () => { loading.value = false; },
+            });
+        });
+    }
+
     /** "Showing 200 of 1,240" — only when the list is partial. */
     const partial = computed(() => {
         const info = meta();
@@ -65,5 +109,5 @@ export function useLotPicker({ lots, meta, warehouse, keep }) {
         return info && info.total > info.shown ? info : null;
     });
 
-    return { lotOf, known, search, loading, partial };
+    return { lotOf, known, search, loading, partial, scan };
 }

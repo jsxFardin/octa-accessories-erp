@@ -45,3 +45,35 @@ it('keeps a lot already on the document in the list whatever is searched for', f
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('lots', fn ($lots) => collect($lots)->pluck('id')->map(fn ($id) => (int) $id)->all() === [(int) $this->lot->id]));
 });
+
+/*
+ * UX audit H-25. Lots were called barcoded, and nothing printed a barcode or read one.
+ */
+it('prints a scannable label for a lot', function (): void {
+    $this->actingAs($this->keeper)->get("/lots/{$this->lot->id}/label")
+        ->assertOk()
+        ->assertSee((string) $this->lot->lot_no)
+        ->assertSee('<svg', false)
+        ->assertSee('Print labels');
+});
+
+it('prints a label for every lot of a posted goods receipt, and none for one with no lots', function (): void {
+    $grnId = (int) DB::table('grn_lines as gl')->join('stock_lots as sl', 'sl.grn_line_id', '=', 'gl.id')->value('gl.grn_id');
+    $lots = DB::table('stock_lots as sl')->join('grn_lines as gl', 'gl.id', '=', 'sl.grn_line_id')
+        ->where('gl.grn_id', $grnId)->pluck('sl.lot_no');
+
+    $response = $this->actingAs($this->keeper)->get("/grns/{$grnId}/labels")->assertOk();
+
+    $lots->each(fn ($lotNo) => $response->assertSee((string) $lotNo));
+});
+
+it('finds a lot by the exact code on its label', function (): void {
+    DB::table('stock_lots')->where('id', $this->lot->id)->update(['barcode' => 'SCAN-ME-0001']);
+
+    $this->actingAs($this->keeper)
+        ->get("/stock-transfers/create?warehouse={$this->lot->warehouse_id}&lot_search=SCAN-ME-0001")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('lots', fn ($lots) => collect($lots)->contains(
+                fn ($lot) => (int) $lot['id'] === (int) $this->lot->id && $lot['barcode'] === 'SCAN-ME-0001',
+            )));
+});

@@ -293,10 +293,14 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:grn.update')->name('grns.edit');
     Route::put('grns/{grn}', [GrnController::class, 'update'])
         ->middleware('can:grn.update')->name('grns.update');
+    Route::get('grns/{grn}/labels', [GrnController::class, 'labels'])
+        ->middleware('can:grn.view')->name('grns.labels');
     Route::post('grns/{grn}/post', [GrnController::class, 'post'])
         ->middleware('can:grn.post')->name('grns.post');
     Route::delete('grns/{grn}', [GrnController::class, 'destroy'])
         ->middleware('can:grn.delete')->name('grns.destroy');
+    Route::get('grns/{grn}/labels', [GrnController::class, 'labels'])
+        ->middleware('can:grn.view')->name('grns.labels');
     Route::post('grns/{grn}/post', [GrnController::class, 'post'])
         ->middleware('can:grn.post')->name('grns.post');
 
@@ -307,6 +311,8 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:stock_lot.view_any')->name('lots.index');
     Route::get('lots/{lot}', [StockLotController::class, 'show'])
         ->middleware('can:stock_lot.view')->name('lots.show');
+    Route::get('lots/{lot}/label', [StockLotController::class, 'label'])
+        ->middleware('can:stock_lot.view')->name('lots.label');
 
     Route::get('material-issues', [MaterialIssueController::class, 'index'])
         ->middleware('can:stock_issue.view_any')->name('material-issues.index');
