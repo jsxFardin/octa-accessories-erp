@@ -7,7 +7,7 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
-import { qty } from '@/plugins/formatting';
+import { number, qty } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
@@ -94,7 +94,7 @@ function submitClose() {
                 <!-- The balance is struck against consumption; receipts are context. -->
                 <template #cell:certified_input_qty="{ value }">{{ qty(value) }}</template>
                 <template #cell:certified_output_qty="{ value }">{{ qty(value) }}</template>
-                <template #cell:conversion_factor="{ value }">{{ Number(value).toFixed(4) }}</template>
+                <template #cell:conversion_factor="{ value }">{{ number(value, 4, 4) }}</template>
                 <template #cell:flagged="{ value }">
                     <!-- Flagged means more certified goods left than came in: the condition an auditor tests -->
                     <Badge v-if="value" tone="danger" label="Exceeds input" />
@@ -126,7 +126,7 @@ function submitClose() {
                     <div>
                         <dt class="text-xs text-ink-500">Conversion</dt>
                         <dd class="font-medium tnum" :class="closing.flagged ? 'text-rose-700' : ''">
-                            {{ Number(closing.conversion_factor).toFixed(4) }}
+                            {{ number(closing.conversion_factor, 4, 4) }}
                         </dd>
                     </div>
                 </dl>

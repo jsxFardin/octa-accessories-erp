@@ -1,4 +1,5 @@
 <script setup>
+import { number } from '@/plugins/formatting';
 import { computed, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
 import Button from '@/Components/Ui/Button.vue';
@@ -48,7 +49,7 @@ const imported = computed(() => (result.value?.created ?? 0) + (result.value?.up
 const wouldImport = computed(() => (preview.value?.created ?? 0) + (preview.value?.updated ?? 0));
 /** What is on screen: the check's findings before the import, the import's own counts after. */
 const report = computed(() => result.value ?? preview.value);
-const rows = (count) => `${Number(count).toLocaleString()} ${count === 1 ? 'row' : 'rows'}`;
+const rows = (count) => `${number(count, 0)} ${count === 1 ? 'row' : 'rows'}`;
 
 async function show() {
     open.value = true;
@@ -199,7 +200,7 @@ async function confirmImport() {
                     {{ uploading ? 'Importing…' : checking ? 'Checking the file…' : pending ? 'Checked. Choose another file to check that one instead.' : 'Drop a file here, or choose one' }}
                 </p>
                 <p class="mt-0.5 text-xs text-ink-500">
-                    Up to {{ spec?.maxSize ?? '10MB' }} and {{ (spec?.maxRows ?? 1000).toLocaleString() }} rows ·
+                    Up to {{ spec?.maxSize ?? '10MB' }} and {{ number(spec?.maxRows ?? 1000, 0) }} rows ·
                     {{ (spec?.extensions ?? ['csv', 'xlsx']).map((e) => `.${e}`).join(' ') }}
                 </p>
 
@@ -303,7 +304,7 @@ async function confirmImport() {
                 <p class="field-label mb-1">General</p>
                 <ul class="list-disc space-y-1 pl-4 text-xs text-ink-700">
                     <li>The first row is the header. Column order does not matter, and extra columns are ignored.</li>
-                    <li>Up to {{ (spec?.maxRows ?? 1000).toLocaleString() }} rows and {{ spec?.maxSize ?? '10MB' }} per file.</li>
+                    <li>Up to {{ number(spec?.maxRows ?? 1000, 0) }} rows and {{ spec?.maxSize ?? '10MB' }} per file.</li>
                     <li>Formats: {{ (spec?.extensions ?? []).map((e) => `.${e}`).join(', ') }}.</li>
                     <li>Dates as YYYY-MM-DD. Amounts as plain numbers — no currency symbols.</li>
                     <li>Yes/no columns accept yes, no, true, false, 1 or 0.</li>

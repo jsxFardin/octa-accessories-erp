@@ -8,7 +8,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { datetime, titleCase } from '@/plugins/formatting';
+import { datetime, number, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useGuardedAction } from '@/composables/useGuardedAction';
@@ -146,7 +146,7 @@ const fileProblem = computed(() => {
 });
 
 function megabytes(bytes) {
-    return (bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0);
+    return number(bytes / 1024 / 1024, bytes < 10 * 1024 * 1024 ? 1 : 0);
 }
 
 function chooseFile(event) {

@@ -105,7 +105,7 @@ const columns = [
                     <template #cell:balance_qty="{ row, value }">
                         {{ qtyFor(value, row.uom_dimension) }}<span v-if="row.uom" class="ml-1 text-xs text-ink-400">{{ row.uom }}</span>
                     </template>
-                    <template #cell:value="{ value }">{{ money(value, '৳') }}</template>
+                    <template #cell:value="{ value }">{{ money(value) }}</template>
                     <template #cell:cert="{ row }">
                         <Badge v-if="row.cert_scheme" tone="success" :label="`${row.cert_scheme} ${row.cert_claim_pct}%`" />
                         <span v-else class="text-ink-400">—</span>

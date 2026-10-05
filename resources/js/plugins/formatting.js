@@ -17,7 +17,11 @@
  * page load — a test, a Storybook-style harness — still formats sensibly.
  */
 const settings = {
-    locale: 'en-GB',
+    /*
+     * Lakh and crore grouping (12,34,567) with ordinary digits — how amounts are written in
+     * the factory's own books — unless the organisation profile says otherwise.
+     */
+    locale: 'en-IN',
     timezone: 'Asia/Dhaka',
     dateFormat: 'd M Y',
     timeFormat: 'HH:mm',
@@ -231,6 +235,20 @@ export function pcs(value) {
     });
 }
 
+/**
+ * A plain figure: grouped the way every other number is, with only the decimals it has.
+ *
+ * For a count or a reading that is neither money nor a fixed-precision quantity — and for the
+ * places that used to call `toLocaleString()` or `toFixed()` themselves, which grouped by the
+ * browser's own locale (or not at all) while the rest of the screen followed the organisation's.
+ */
+export function number(value, maxDecimals = 3, minDecimals = 0) {
+    return toNumber(value).toLocaleString(locale(), {
+        minimumFractionDigits: Math.min(minDecimals, maxDecimals),
+        maximumFractionDigits: maxDecimals,
+    });
+}
+
 /** Metres and kilograms: fractional, because a roll is 1,847.325 m. */
 export function qty(value, decimals = 3) {
     return toNumber(value).toLocaleString(locale(), {
@@ -344,7 +362,7 @@ export function pct(value, decimals = null) {
     const number = toNumber(value);
     const places = decimals ?? (Number.isInteger(number) ? 0 : 2);
 
-    return `${number.toFixed(places)}%`;
+    return `${number.toLocaleString(locale(), { minimumFractionDigits: places, maximumFractionDigits: places })}%`;
 }
 
 export function mm(value) {
@@ -435,6 +453,7 @@ export default {
     install(app) {
         app.config.globalProperties.$fmt = {
             pcs,
+            number,
             qty,
             qtyFor,
             money,

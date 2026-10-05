@@ -651,7 +651,7 @@ class ReferenceDataSeeder extends Seeder
             ['date_format', 'd M Y', 'organisation', 'How dates render across the application'],
             ['time_format', 'HH:mm', 'organisation', '24-hour or 12-hour clock'],
             ['week_start', 'saturday', 'organisation', 'First day of the week in calendars and planning boards'],
-            ['number_locale', 'en-GB', 'organisation', 'Thousands and decimal separators'],
+            ['number_locale', 'en-IN', 'organisation', 'Thousands and decimal separators'],
             ['default_locale', 'en', 'organisation', 'Language for users who have not chosen one'],
         ];
 

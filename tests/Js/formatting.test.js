@@ -30,3 +30,57 @@ describe('calendar dates', () => {
         expect(todayIso()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
 });
+
+// UX audit M-51, decision of 5 Oct 2026: lakh grouping with ordinary digits, "BDT" for the taka.
+describe('default number format', () => {
+    it('groups in lakhs and crores unless the organisation says otherwise', async () => {
+        const { configureFormatting, money, number, pcs, pct } = await import('../../resources/js/plugins/formatting.js');
+
+        configureFormatting({ number_locale: 'en-IN', base_currency: 'BDT' });
+
+        expect(pcs(1234567)).toBe('12,34,567');
+        expect(money(1234567.5)).toBe('BDT 12,34,567.50');
+        expect(number(1234567.25)).toBe('12,34,567.25');
+        expect(number(40)).toBe('40');
+        expect(number(1.5, 4, 4)).toBe('1.5000');
+        expect(pct(12.5, 2)).toBe('12.50%');
+        // Ordinary digits, not Bangla ones.
+        expect(pcs(1234567)).toMatch(/^[0-9,]+$/);
+    });
+
+    it('still follows an organisation that chose another grouping', async () => {
+        const { configureFormatting, money } = await import('../../resources/js/plugins/formatting.js');
+
+        configureFormatting({ number_locale: 'en-GB' });
+        expect(money(1234567.5, 'USD')).toBe('USD 1,234,567.50');
+        configureFormatting({ number_locale: 'en-IN' });
+    });
+});
+
+describe('no figure formats itself', () => {
+    it('leaves grouping and decimals to the formatter on every screen', async () => {
+        const { readdirSync, readFileSync, statSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        const walk = (dir) => readdirSync(dir).flatMap((name) => {
+            const path = join(dir, name);
+
+            return statSync(path).isDirectory() ? walk(path) : /\.(vue|js)$/.test(path) ? [path] : [];
+        });
+
+        // Two list pages work an outstanding amount out to two places for an input's value —
+        // arithmetic, not display — and the allocation helper works in cents.
+        const allowed = ['plugins/formatting.js', 'plugins/allocation.js', 'Finance/Receipts/Index.vue', 'Finance/Payments/Index.vue'];
+        const offenders = [];
+
+        for (const file of walk('resources/js')) {
+            if (allowed.some((path) => file.endsWith(path))) continue;
+
+            const source = readFileSync(file, 'utf8');
+
+            if (/\.toLocaleString\(\)|\.toFixed\(/.test(source)) offenders.push(file);
+            if (source.includes('৳') && !/\/\/.*৳/.test(source)) offenders.push(`${file} (hard-coded ৳)`);
+        }
+
+        expect(offenders).toEqual([]);
+    });
+});

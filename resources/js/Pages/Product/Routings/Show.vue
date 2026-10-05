@@ -5,7 +5,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
-import { pcs, titleCase } from '@/plugins/formatting';
+import { number, pcs, pct, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 
 const props = defineProps({
@@ -44,7 +44,7 @@ const columns = [
             <div class="grid gap-3 sm:grid-cols-3">
                 <Card>
                     <p class="text-xs text-ink-500">Total wastage</p>
-                    <p class="text-2xl font-semibold tnum text-ink-900">{{ Number(totalWastagePct).toFixed(2) }}%</p>
+                    <p class="text-2xl font-semibold tnum text-ink-900">{{ pct(totalWastagePct, 2) }}</p>
                     <!-- BR-8 is additive, and only over the operations that actually run the web. -->
                     <p class="mt-1 text-xs text-ink-500">
                         Additive across web-consuming operations only
@@ -77,19 +77,19 @@ const columns = [
                     </template>
                     <template #cell:machine_group="{ value }">{{ value ?? '—' }}</template>
                     <template #cell:std_rate_per_hour="{ value }">
-                        <span class="tnum">{{ value ? Number(value).toLocaleString() : '—' }}</span>
+                        <span class="tnum">{{ value ? number(value) : '—' }}</span>
                     </template>
                     <template #cell:setup="{ row }">
-                        <span class="tnum">{{ Number(row.setup_minutes).toFixed(0) }} min</span>
+                        <span class="tnum">{{ number(row.setup_minutes, 0) }} min</span>
                         <span v-if="Number(row.setup_qty) > 0" class="text-ink-500"> · {{ pcs(row.setup_qty) }}</span>
                     </template>
                     <template #cell:wastage_pct="{ row, value }">
                         <span class="tnum" :class="row.consumes_web ? 'text-ink-900' : 'text-ink-400 line-through'">
-                            {{ Number(value).toFixed(2) }}%
+                            {{ pct(value, 2) }}
                         </span>
                     </template>
                     <template #cell:manning_level="{ value }">
-                        <span class="tnum">{{ Number(value).toFixed(2) }}</span>
+                        <span class="tnum">{{ number(value, 2, 2) }}</span>
                     </template>
                     <template #cell:flags="{ row }">
                         <div class="flex flex-wrap gap-1">

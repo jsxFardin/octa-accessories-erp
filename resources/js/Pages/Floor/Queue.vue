@@ -1,4 +1,5 @@
 <script setup>
+import { number } from '@/plugins/formatting';
 import { computed, onMounted, ref } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import FloorLayout from '@/Layouts/FloorLayout.vue';
@@ -298,8 +299,8 @@ onMounted(load);
                     <div class="mt-4">
                         <p class="flex flex-wrap items-baseline justify-between gap-x-4 text-xl">
                             <span>
-                                <span class="font-bold tnum">{{ Number(op.good_qty).toLocaleString() }}</span>
-                                <span class="text-slate-300"> / {{ Number(op.planned_qty).toLocaleString() }} {{ unitLabel(op.unit) }}</span>
+                                <span class="font-bold tnum">{{ number(op.good_qty) }}</span>
+                                <span class="text-slate-300"> / {{ number(op.planned_qty) }} {{ unitLabel(op.unit) }}</span>
                             </span>
                             <span class="font-bold tnum">{{ progress(op) }}%</span>
                         </p>

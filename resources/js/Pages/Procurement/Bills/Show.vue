@@ -4,7 +4,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
-import { date, money, titleCase } from '@/plugins/formatting';
+import { date, money, number, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -105,7 +105,7 @@ const lineColumns = [
         <div class="space-y-4">
             <Card title="Lines" :padded="false">
                 <DataTable :columns="lineColumns" :rows="lines" row-key="id" empty="No lines." dense>
-                    <template #cell:qty="{ value }">{{ Number(value).toFixed(2) }}</template>
+                    <template #cell:qty="{ value }">{{ number(value, 2, 2) }}</template>
                     <template #cell:rate="{ value }">{{ money(value, bill.currency) }}</template>
                     <template #cell:amount="{ value }">{{ money(value, bill.currency) }}</template>
                 </DataTable>
@@ -153,9 +153,9 @@ const lineColumns = [
                         <tbody class="divide-y divide-slate-100">
                             <tr v-for="row in matchData" :key="row.item_id">
                                 <td class="px-3 py-1.5">#{{ row.item_id }}</td>
-                                <td class="px-3 py-1.5 text-right tnum">{{ row.po_qty?.toFixed(2) ?? '—' }}</td>
-                                <td class="px-3 py-1.5 text-right tnum">{{ row.grn_qty?.toFixed(2) ?? '—' }}</td>
-                                <td class="px-3 py-1.5 text-right tnum">{{ row.bill_qty.toFixed(2) }}</td>
+                                <td class="px-3 py-1.5 text-right tnum">{{ row.po_qty == null ? '—' : number(row.po_qty, 2, 2) }}</td>
+                                <td class="px-3 py-1.5 text-right tnum">{{ row.grn_qty == null ? '—' : number(row.grn_qty, 2, 2) }}</td>
+                                <td class="px-3 py-1.5 text-right tnum">{{ number(row.bill_qty, 2, 2) }}</td>
                                 <td class="px-3 py-1.5 text-center">
                                     <span v-if="row.qty_ok === true" class="text-emerald-600">✓</span>
                                     <span v-else-if="row.qty_ok === false" class="text-rose-600">✗</span>

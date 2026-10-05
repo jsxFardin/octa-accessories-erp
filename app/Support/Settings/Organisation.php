@@ -33,7 +33,7 @@ class Organisation
         'date_format' => 'd M Y',
         'time_format' => 'HH:mm',
         'week_start' => 'saturday',
-        'number_locale' => 'en-GB',
+        'number_locale' => 'en-IN',
         'default_locale' => 'en',
     ];
 

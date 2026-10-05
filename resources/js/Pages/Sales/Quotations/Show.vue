@@ -9,7 +9,7 @@ import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { baseCurrency, date, inBaseCurrency, isoDate, money, pcs, pct, qty, ratePerM, titleCase, unitCost } from '@/plugins/formatting';
+import { baseCurrency, date, inBaseCurrency, isoDate, money, number, pcs, pct, qty, ratePerM, titleCase, unitCost } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { conversionAction } from '@/plugins/documentActions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -140,7 +140,7 @@ async function transition(to) {
                 Quoted in <span class="font-medium">{{ quotation.currency?.code ?? baseCurrency() }}</span><template
                     v-if="quotation.currency && quotation.currency.code !== baseCurrency()"
                 >, converted to {{ baseCurrency() }} at
-                    <span class="font-medium tnum">{{ Number(quotation.exchange_rate).toFixed(4) }}</span>
+                    <span class="font-medium tnum">{{ number(quotation.exchange_rate, 4, 4) }}</span>
                     — {{ money(quotation.total, quotation.currency) }} is
                     {{ inBaseCurrency(quotation.total, quotation.currency, quotation.exchange_rate) }} in the books</template>.
 
@@ -250,7 +250,7 @@ async function transition(to) {
                                             >*</span>
                                         </td>
                                         <td class="px-3 py-1.5 text-right tnum">
-                                            {{ Number(cl.rate).toFixed(4) }}
+                                            {{ number(cl.rate, 4, 4) }}
                                             <!--
                                                 Snapshotted before the calculator stored a
                                                 blended rate. The sheet is not rewritten (Q1);
@@ -317,7 +317,7 @@ async function transition(to) {
                             class="mt-2 text-xs text-ink-500"
                         >
                             Converted from {{ baseCurrency() }} at
-                            <span class="tnum">{{ Number(quotation.exchange_rate).toFixed(4) }}</span>
+                            <span class="tnum">{{ number(quotation.exchange_rate, 4, 4) }}</span>
                             (BR-22), snapshotted when the quotation was sent.
                         </p>
 

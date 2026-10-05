@@ -6,7 +6,7 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
-import { date, money, pcs, qty, ratePerM, titleCase } from '@/plugins/formatting';
+import { date, money, pcs, pct, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { useConfirm } from '@/composables/useConfirm';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -72,7 +72,7 @@ const columns = [
                 <template #cell:code="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
                 <template #cell:product_type="{ row, value }">{{ titleCase(value) }}</template>
                 <template #cell:operations_count="{ row, value }">{{ row.operations?.length ?? 0 }}</template>
-                <template #cell:wastage="{ row, value }"><span class="tnum">{{ (row.operations ?? []).filter((o) => o.consumes_web).reduce((sum, o) => sum + Number(o.wastage_pct), 0).toFixed(2) }}%</span></template>
+                <template #cell:wastage="{ row, value }"><span class="tnum">{{ pct((row.operations ?? []).filter((o) => o.consumes_web).reduce((sum, o) => sum + Number(o.wastage_pct), 0), 2) }}</span></template>
                 <template #cell:max_lot_size="{ row, value }">{{ value ? pcs(value) : "—" }}</template>
                 <template #empty>
                     <EmptyState

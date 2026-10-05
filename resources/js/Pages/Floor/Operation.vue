@@ -1,4 +1,5 @@
 <script setup>
+import { number } from '@/plugins/formatting';
 import { computed, reactive, ref } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import FloorLayout from '@/Layouts/FloorLayout.vue';
@@ -271,26 +272,26 @@ async function sendNow() {
                 -->
                 <div class="rounded-2xl bg-white/5 p-4">
                     <p class="text-sm text-slate-300">{{ label('planned') }}</p>
-                    <p class="text-3xl font-bold tnum">{{ Number(operation.planned_qty).toLocaleString() }}</p>
+                    <p class="text-3xl font-bold tnum">{{ number(operation.planned_qty) }}</p>
                     <p class="text-base text-slate-300">{{ unit }}</p>
                 </div>
                 <div class="rounded-2xl bg-white/5 p-4">
                     <p class="text-sm text-slate-300">{{ label('input') }}</p>
-                    <p class="text-3xl font-bold tnum">{{ (Number(operation.input_qty) + queued.input).toLocaleString() }}</p>
+                    <p class="text-3xl font-bold tnum">{{ number(Number(operation.input_qty) + queued.input) }}</p>
                     <p class="text-base text-slate-300">{{ unit }}</p>
-                    <p v-if="queued.input > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ queued.input.toLocaleString() }} {{ label('waiting_marker') }}</p>
+                    <p v-if="queued.input > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ number(queued.input) }} {{ label('waiting_marker') }}</p>
                 </div>
                 <div class="rounded-2xl bg-white/5 p-4">
                     <p class="text-sm text-slate-300">{{ label('good') }}</p>
-                    <p class="text-3xl font-bold tnum text-emerald-400">{{ (Number(operation.good_qty) + queued.good).toLocaleString() }}</p>
+                    <p class="text-3xl font-bold tnum text-emerald-400">{{ number(Number(operation.good_qty) + queued.good) }}</p>
                     <p class="text-base text-slate-300">{{ unit }}</p>
-                    <p v-if="queued.good > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ queued.good.toLocaleString() }} {{ label('waiting_marker') }}</p>
+                    <p v-if="queued.good > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ number(queued.good) }} {{ label('waiting_marker') }}</p>
                 </div>
                 <div class="rounded-2xl bg-white/5 p-4">
                     <p class="text-sm text-slate-300">{{ label('waste') }}</p>
-                    <p class="text-3xl font-bold tnum text-rose-400">{{ (Number(operation.waste_qty) + queued.waste).toLocaleString() }}</p>
+                    <p class="text-3xl font-bold tnum text-rose-400">{{ number(Number(operation.waste_qty) + queued.waste) }}</p>
                     <p class="text-base text-slate-300">{{ unit }}</p>
-                    <p v-if="queued.waste > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ queued.waste.toLocaleString() }} {{ label('waiting_marker') }}</p>
+                    <p v-if="queued.waste > 0" class="mt-1 text-base font-semibold text-amber-400">+{{ number(queued.waste) }} {{ label('waiting_marker') }}</p>
                 </div>
             </div>
 
@@ -335,9 +336,9 @@ async function sendNow() {
                         {{ operation.job_card.number }} · {{ operation.name }}
                     </p>
                     <p class="mt-2 text-xl">
-                        {{ label('good') }}: <span class="font-bold tnum">{{ (Number(operation.good_qty) + queued.good).toLocaleString() }} {{ unit }}</span>
+                        {{ label('good') }}: <span class="font-bold tnum">{{ number(Number(operation.good_qty) + queued.good) }} {{ unit }}</span>
                         &nbsp;·&nbsp;
-                        {{ label('waste') }}: <span class="font-bold tnum">{{ (Number(operation.waste_qty) + queued.waste).toLocaleString() }} {{ unit }}</span>
+                        {{ label('waste') }}: <span class="font-bold tnum">{{ number(Number(operation.waste_qty) + queued.waste) }} {{ unit }}</span>
                     </p>
                     <p class="mt-3 text-lg">{{ guide('finish_consequence') }}</p>
                 </div>
@@ -378,12 +379,12 @@ async function sendNow() {
                         </option>
                     </select>
                 </div>
-                <p class="text-lg text-slate-300">{{ guide('allowance', { qty: Number(operation.remaining_allowance).toLocaleString(), unit }) }}</p>
+                <p class="text-lg text-slate-300">{{ guide('allowance', { qty: number(operation.remaining_allowance), unit }) }}</p>
 
                 <!-- Input beyond the plan is allowed, but it has to be explained (J3). -->
                 <div v-if="Number(inputQty) > Number(operation.planned_qty) * 1.03">
                     <label for="floor-override" class="mb-1 block text-xl">
-                        {{ guide('why_more', { qty: Number(operation.planned_qty).toLocaleString(), unit }) }}
+                        {{ guide('why_more', { qty: number(operation.planned_qty), unit }) }}
                     </label>
                     <input id="floor-override" v-model="overrideReason" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
                 </div>

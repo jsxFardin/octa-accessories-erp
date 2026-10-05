@@ -1,3 +1,4 @@
+import { number } from '@/plugins/formatting';
 import { ref } from 'vue';
 
 /**
@@ -241,7 +242,7 @@ function fill(text, params) {
         if (value === undefined || value === null) return match;
 
         // A figure from the server is grouped like every other figure on the terminal.
-        return typeof value === 'number' ? value.toLocaleString() : value;
+        return typeof value === 'number' ? number(value) : value;
     });
 }
 

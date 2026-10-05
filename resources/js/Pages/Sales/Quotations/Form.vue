@@ -14,7 +14,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { addCalendarDays, baseCurrency, date, isoDate, money, pcs, qty, ratePerM, titleCase, todayIso, unitCost } from '@/plugins/formatting';
+import { addCalendarDays, baseCurrency, date, isoDate, money, number, pcs, qty, ratePerM, titleCase, todayIso, unitCost } from '@/plugins/formatting';
 
 const props = defineProps({
     quotation: { type: Object, default: null },
@@ -642,7 +642,7 @@ const columns = [
                                 <tr v-for="cl in sheet.sheet.lines" :key="cl.seq">
                                     <td class="px-3 py-1.5 font-medium text-ink-800">{{ titleCase(cl.cost_type) }}</td>
                                     <td class="px-3 py-1.5 text-right tnum">{{ qty(cl.qty) }}</td>
-                                    <td class="px-3 py-1.5 text-right tnum">{{ Number(cl.rate).toFixed(4) }}</td>
+                                    <td class="px-3 py-1.5 text-right tnum">{{ number(cl.rate, 4, 4) }}</td>
                                     <td class="px-3 py-1.5 text-right font-medium tnum">{{ money(cl.amount, false) }}</td>
                                     <td class="px-3 py-1.5">
                                         <span class="rounded bg-slate-100 px-1 font-mono text-xs text-ink-700">

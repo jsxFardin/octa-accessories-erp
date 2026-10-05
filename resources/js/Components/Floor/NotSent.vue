@@ -1,4 +1,5 @@
 <script setup>
+import { number } from '@/plugins/formatting';
 import { computed, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { rejectedRecords, removeRejected } from '@/Composables/useOfflineQueue';
@@ -68,7 +69,7 @@ function figures(record) {
         ['waste', payload.waste_qty],
     ]
         .filter(([, qty]) => Number(qty) > 0)
-        .map(([key, qty]) => `${label(key)}: ${Number(qty).toLocaleString()}${unit}`);
+        .map(([key, qty]) => `${label(key)}: ${number(qty)}${unit}`);
 }
 
 function remove() {
