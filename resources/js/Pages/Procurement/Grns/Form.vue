@@ -1,6 +1,6 @@
 <script setup>
-import { computed } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { computed, watch } from 'vue';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import Badge from '@/Components/Ui/Badge.vue';
@@ -94,6 +94,35 @@ const orderCurrency = computed(() => {
     const order = props.purchaseOrders.find((po) => po.id === Number(form.po_id));
 
     return order?.currency ?? undefined;
+});
+
+/**
+ * Choosing an order here loads what is still to come on it.
+ *
+ * Only arriving from the order's own "Receive goods" button did that. Starting from "New goods
+ * receipt" and picking the order in this form brought nothing, and every line was retyped
+ * from the paperwork. The server is asked for that order's lines; the rest of the page — the
+ * warehouse, the challan number, anything already typed — is kept.
+ */
+watch(() => form.po_id, (id) => {
+    if (!id || Number(id) === props.preselectPoId) return;
+
+    router.get('/grns/create', { po: id }, {
+        only: ['poLines', 'preselectPoId'],
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
+});
+
+watch(() => props.poLines, (lines) => {
+    if (!lines.length) return;
+
+    form.lines = lines.map(lineFromOrder);
+
+    const order = props.purchaseOrders.find((po) => po.id === Number(form.po_id));
+
+    if (order) form.supplier_id = order.supplier_id;
 });
 
 /** A PO narrows nothing structurally, but a receipt against the wrong supplier is a mess. */
@@ -352,6 +381,30 @@ const columns = [
                             </div>
                         </template>
 
+                        <template #footer>
+                                        <tr>
+                                            <td colspan="3" class="px-3 py-2 text-right text-xs text-ink-700">Goods value</td>
+                                            <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
+                                                {{ money(goodsValue, orderCurrency) }}
+                                            </td>
+                                            <td colspan="3" />
+                                        </tr>
+                                    </template>
+                    </LineItemsTable>
+
+                    <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
+
+                    <div class="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                        <span class="font-medium">On posting:</span> each line becomes a barcoded lot with a
+                        <code class="font-mono">grn_receipt</code> ledger row, the item's weighted average moves
+                       , and any certification claim is written to the chain-of-custody ledger as certified
+                        input. This is the only legitimate origin of a claim.
+                    </div>
+                </div>
+            </Card>
+
+            <!-- At the form's own level: nested inside the lines table it was passed to a
+                 component that has no such slot, and the panel never appeared. -->
                         <template #rail>
                 <Card title="Receipt" rule="BR-36">
                     <dl class="space-y-2.5 text-sm">
@@ -384,28 +437,6 @@ const columns = [
                     </p>
                 </Card>
             </template>
-
-            <template #footer>
-                            <tr>
-                                <td colspan="3" class="px-3 py-2 text-right text-xs text-ink-700">Goods value</td>
-                                <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
-                                    {{ money(goodsValue, orderCurrency) }}
-                                </td>
-                                <td colspan="3" />
-                            </tr>
-                        </template>
-                    </LineItemsTable>
-
-                    <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
-
-                    <div class="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-                        <span class="font-medium">On posting:</span> each line becomes a barcoded lot with a
-                        <code class="font-mono">grn_receipt</code> ledger row, the item's weighted average moves
-                       , and any certification claim is written to the chain-of-custody ledger as certified
-                        input. This is the only legitimate origin of a claim.
-                    </div>
-                </div>
-            </Card>
 
             <template #footer>
                 <FormFooter
