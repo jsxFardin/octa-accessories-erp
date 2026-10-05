@@ -2,6 +2,7 @@
 import { computed, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useConfirm } from '@/composables/useConfirm';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -133,7 +134,28 @@ function syncCountsFromDefects() {
     form.minor_found = totals.minor;
 }
 
-function submit() {
+const { confirm } = useConfirm();
+
+/**
+ * An inspection is a permanent record, and a rejection has consequences beyond this page: the
+ * lot is held and a non-conformance report is raised. A rejected verdict is read back before
+ * it is recorded; an accepted one is not interrupted.
+ */
+async function submit() {
+    if (form.processing) return;
+
+    if (verdict.value === 'rejected') {
+        const agreed = await confirm({
+            title: 'Record this lot as rejected?',
+            message: `${form.critical_found || 0} critical and ${form.major_found || 0} major defects found. The lot is put on hold and a non-conformance report (NCR) is raised. An inspection cannot be changed once it is recorded.`,
+            confirmLabel: 'Record rejection',
+            cancelLabel: 'Check the counts',
+            tone: 'danger',
+        });
+
+        if (!agreed) return;
+    }
+
     form.post('/qc-inspections');
 }
 
