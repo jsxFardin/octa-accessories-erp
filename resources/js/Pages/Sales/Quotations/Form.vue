@@ -474,18 +474,11 @@ const columns = [
                         <DateInput v-model="form.quotation_date" />
                     </FormField>
 
-                    <FormField label="Valid until" :error="form.errors.valid_until" hint="The offer expires after this date.">
+                    <FormField label="Valid until" :error="form.errors.valid_until">
                         <DateInput v-model="form.valid_until" :min="form.quotation_date" />
-                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
-                            <button
-                                v-for="days in VALIDITY_PRESETS"
-                                :key="days"
-                                type="button"
-                                class="min-h-6 rounded border border-slate-200 px-2 text-ink-700 transition hover:border-brand-300 hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                                @click="presetValidity(days)"
-                            >
-                                +{{ days }} days
-                            </button>
+                        <!-- One quiet row, not a hint and three buttons: the field already says what the date is. -->
+                        <div class="mt-1 flex items-center gap-0.5 text-xs text-ink-500">
+                            <button v-for="days in VALIDITY_PRESETS" :key="days" type="button" class="min-h-5 rounded px-1.5 text-brand-700 transition hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none" :title="`${days} days from the quotation date`" @click="presetValidity(days)">+{{ days }}d</button>
                         </div>
                     </FormField>
 

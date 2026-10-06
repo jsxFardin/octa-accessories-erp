@@ -277,19 +277,10 @@ const columns = [
                         <DateInput v-model="form.order_date" />
                     </FormField>
 
-                    <FormField label="Delivery date" :error="form.errors.delivery_date" hint="Promised dates on the lines count back from it.">
+                    <FormField label="Delivery date" :error="form.errors.delivery_date">
                         <DateInput v-model="form.delivery_date" :min="form.order_date" />
-                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
-                            <span class="text-ink-500">From the order date:</span>
-                            <button
-                                v-for="days in DELIVERY_PRESETS"
-                                :key="days"
-                                type="button"
-                                class="min-h-6 rounded border border-slate-200 px-2 text-ink-700 transition hover:border-brand-300 hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                                @click="presetDelivery(days)"
-                            >
-                                +{{ days }} days
-                            </button>
+                        <div class="mt-1 flex items-center gap-0.5 text-xs text-ink-500">
+                            <button v-for="days in DELIVERY_PRESETS" :key="days" type="button" class="min-h-5 rounded px-1.5 text-brand-700 transition hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none" :title="`${days} days from the order date`" @click="presetDelivery(days)">+{{ days }}d</button>
                         </div>
                     </FormField>
 

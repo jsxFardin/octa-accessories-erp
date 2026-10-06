@@ -235,21 +235,12 @@ const columns = [
                     <FormField
                         label="Required by"
                         rule="BR-29"
-                        :hint="requiredByPast ? null : 'Feeds the promised date once this becomes an order.'"
+                        :hint="null"
                         :error="form.errors.required_by"
                     >
                         <DateInput v-model="form.required_by" :min="form.inquiry_date" />
-                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
-                            <span class="text-ink-500">From the inquiry date:</span>
-                            <button
-                                v-for="days in PRESETS"
-                                :key="days"
-                                type="button"
-                                class="min-h-6 rounded border border-slate-200 px-2 text-ink-700 transition hover:border-brand-300 hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                                @click="presetRequiredBy(days)"
-                            >
-                                +{{ days }} days
-                            </button>
+                        <div class="mt-1 flex items-center gap-0.5 text-xs text-ink-500">
+                            <button v-for="days in PRESETS" :key="days" type="button" class="min-h-5 rounded px-1.5 text-brand-700 transition hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none" :title="`${days} days from the inquiry date`" @click="presetRequiredBy(days)">+{{ days }}d</button>
                         </div>
                         <p v-if="requiredByPast" class="mt-1 text-xs text-amber-700">This date has already passed.</p>
                     </FormField>

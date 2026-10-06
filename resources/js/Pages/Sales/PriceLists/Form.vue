@@ -59,9 +59,9 @@ const validToPresets = computed(() => {
     const yearEnd = `${from.slice(0, 4)}-12-31`;
 
     return [
-        { label: 'End of year', value: yearEnd > from ? yearEnd : `${Number(from.slice(0, 4)) + 1}-12-31` },
-        { label: '+6 months', value: addCalendarMonths(from, 6) },
-        { label: '+12 months', value: addCalendarMonths(from, 12) },
+        { label: 'Year end', value: yearEnd > from ? yearEnd : `${Number(from.slice(0, 4)) + 1}-12-31` },
+        { label: '+6m', value: addCalendarMonths(from, 6) },
+        { label: '+12m', value: addCalendarMonths(from, 12) },
     ];
 });
 
@@ -190,19 +190,11 @@ const columns = [
                         <DateInput v-model="form.valid_from" />
                     </FormField>
 
-                    <FormField label="Valid to" hint="Leave empty for open-ended." :error="form.errors.valid_to">
-                        <DateInput v-model="form.valid_to" :min="form.valid_from" />
-                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
-                            <button
-                                v-for="preset in validToPresets"
-                                :key="preset.label"
-                                type="button"
-                                class="min-h-6 rounded border border-slate-200 px-2 text-ink-700 transition hover:border-brand-300 hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                                @click="form.valid_to = preset.value"
-                            >
-                                {{ preset.label }}
-                            </button>
-                            <button v-if="form.valid_to" type="button" class="min-h-6 px-1 text-ink-500 underline-offset-2 hover:underline" @click="form.valid_to = ''">Open-ended</button>
+                    <FormField label="Valid to" :error="form.errors.valid_to">
+                        <DateInput v-model="form.valid_to" :min="form.valid_from" placeholder="Open-ended" />
+                        <div class="mt-1 flex items-center gap-0.5 text-xs text-ink-500">
+                            <button v-for="preset in validToPresets" :key="preset.label" type="button" class="min-h-5 rounded px-1.5 text-brand-700 transition hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none" @click="form.valid_to = preset.value">{{ preset.label }}</button>
+                            <button v-if="form.valid_to" type="button" class="min-h-5 rounded px-1.5 text-brand-700 transition hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none" @click="form.valid_to = ''">Open-ended</button>
                         </div>
                     </FormField>
                 </div>
