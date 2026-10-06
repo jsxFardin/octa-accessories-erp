@@ -9,7 +9,11 @@ import { Link } from '@inertiajs/vue3';
  * should. `only` keeps the visit partial where the page supports it.
  */
 defineProps({
-    /** `[{ key, label, href, count }]` */
+    /**
+     * `[{ key, label, href, count, state, tone }]`. `state` is a few words after the label that
+     * say where that section stands ("covered", "2 short"), so the strip reads without a click;
+     * `tone: 'warning'` colours it when it needs attention.
+     */
     tabs: { type: Array, required: true },
     current: { type: String, required: true },
 });
@@ -30,6 +34,13 @@ defineProps({
                 :aria-current="tab.key === current ? 'page' : undefined"
             >
                 {{ tab.label }}
+                <span
+                    v-if="tab.state"
+                    class="text-xs font-normal"
+                    :class="tab.tone === 'warning' ? 'text-amber-700' : tab.key === current ? 'text-brand-700/80' : 'text-ink-500'"
+                >
+                    {{ tab.state }}
+                </span>
                 <span
                     v-if="tab.count !== undefined"
                     class="rounded-full px-1.5 py-0.5 text-xs tnum"

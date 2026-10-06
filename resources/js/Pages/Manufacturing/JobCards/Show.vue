@@ -43,13 +43,78 @@ const props = defineProps({
 
 const count = (list) => (list === null ? undefined : list.length);
 
+/*
+ * Coverage, not a count. "Materials 2" counted issue documents; what a manager asks is whether
+ * the job has what it needs.
+ */
+const materialsState = computed(() => {
+    const rows = props.bomRequirement.filter((row) => !row.is_optional);
+
+    if (props.bomRequirement.length === 0) return 'no BOM';
+    if (rows.every((row) => Number(row.remaining) <= 0)) return 'covered';
+    if (rows.every((row) => Number(row.issued) <= 0)) return 'nothing issued';
+
+    const short = rows.filter((row) => Number(row.remaining) > 0);
+
+    return `${short.length === 1 ? `${short[0].item?.code} short` : `${short.length} short`}`;
+});
+
+const wasteRate = computed(() => (Number(props.jobCard.produced_qty) > 0
+    ? (Number(props.jobCard.waste_qty) / Number(props.jobCard.produced_qty)) * 100
+    : null));
+
+const outputState = computed(() => {
+    if (props.operationLogs === null) return null;
+    if (props.operationLogs.length === 0) return 'nothing booked';
+
+    const bookings = `${pcs(props.operationLogs.length)} ${props.operationLogs.length === 1 ? 'booking' : 'bookings'}`;
+
+    return wasteRate.value !== null && wasteRate.value > 0 ? `${bookings}, ${pct(wasteRate.value, 1)} waste` : bookings;
+});
+
+const finishedGoodsState = computed(() => (Number(props.fgPosition.received) > 0
+    ? `${pcs(props.fgPosition.received)} of ${pcs(props.jobCard.planned_qty)} received`
+    : 'none yet'));
+
+const openNcrs = computed(() => (props.ncrs ?? []).filter((ncr) => ncr.status !== 'closed').length);
+
+const qualityState = computed(() => {
+    if (props.ncrs === null) return null;
+    if (openNcrs.value > 0) return `${pcs(openNcrs.value)} NCR${openNcrs.value === 1 ? '' : 's'} open`;
+
+    return props.ncrs.length > 0 ? 'all NCRs closed' : 'clean';
+});
+
+/*
+ * In the order a job runs: what goes in, what the floor booked, what came out, what went
+ * wrong. Each label says the state, so the strip reads without opening anything. Waste is
+ * inside Output — every booking carries its waste, and the causes sit above the log.
+ */
+// A shortage is only a warning while the floor still needs the material.
+const materialsNeedAttention = computed(() => !['covered', 'no BOM'].includes(materialsState.value)
+    && !['draft', 'planned', 'qc_pending', 'completed', 'closed', 'cancelled'].includes(props.jobCard.status));
+
 const tabs = computed(() => [
-    { key: 'bookings', label: 'Shift bookings', count: count(props.operationLogs) },
-    { key: 'waste', label: 'Waste', count: count(props.wasteLogs) },
-    { key: 'materials', label: 'Materials', count: props.issues.length },
-    { key: 'finished-goods', label: 'Finished goods', count: props.fgReceipts.length },
-    { key: 'ncrs', label: 'NCRs', count: count(props.ncrs) },
+    { key: 'materials', label: 'Materials', state: materialsState.value, tone: materialsNeedAttention.value ? 'warning' : undefined },
+    { key: 'bookings', label: 'Output', state: outputState.value ?? undefined },
+    { key: 'finished-goods', label: 'Finished goods', state: finishedGoodsState.value },
+    { key: 'ncrs', label: 'Quality', state: qualityState.value ?? undefined, tone: openNcrs.value > 0 ? 'warning' : undefined },
 ].map((entry) => ({ ...entry, href: `/job-cards/${props.jobCard.id}?tab=${entry.key}` })));
+
+/** Waste by cause, from the booked waste rows: the half of the figure that can be acted on. */
+const wasteByCause = computed(() => {
+    const totals = new Map();
+
+    for (const row of props.wasteLogs ?? []) {
+        // Metres and pieces never add up; a cause booked in both shows twice.
+        const key = `${row.waste_type ?? 'unknown'}|${row.uom ?? ''}`;
+        const entry = totals.get(key) ?? { cause: row.waste_type ?? 'unknown', uom: row.uom ?? '', total: 0 };
+        entry.total += Number(row.qty) || 0;
+        totals.set(key, entry);
+    }
+
+    return [...totals.values()].sort((a, b) => b.total - a.total);
+});
 
 /*
  * Booking output from the desk.
@@ -157,10 +222,11 @@ function localNow() {
  * would make the common case — keying several steps off one shift sheet — three extra pickers
  * each time.
  */
-function openBooking() {
+function openBooking(operationId = null) {
     bookForm.clearErrors();
 
-    bookForm.job_card_operation_id = bookableOperations.value[0]?.value ?? null;
+    // From a row, that step; from the tab, the first that can take a booking.
+    bookForm.job_card_operation_id = operationId ?? bookableOperations.value[0]?.value ?? null;
     bookForm.occurred_at = localNow();
 
     // The figures. Never carried over.
@@ -688,14 +754,14 @@ const operationColumns = [
     { key: 'good_qty', label: 'Good', align: 'right' },
     { key: 'waste_qty', label: 'Waste', align: 'right' },
     { key: 'status', label: 'Status' },
-    { key: 'inspect', label: '', width: '5.5rem', align: 'right' },
+    { key: 'inspect', label: '', width: '9rem', align: 'right' },
 ];
 
 const bomColumns = [
     { key: 'item', label: 'Material' },
-    { key: 'qty_per_base', label: 'Per 1000', align: 'right' },
     { key: 'required', label: 'Required', align: 'right' },
-    { key: 'formula_ref', label: 'Quantity is' },
+    { key: 'issued', label: 'Issued', align: 'right' },
+    { key: 'remaining', label: 'Needed', align: 'right' },
 ];
 </script>
 
@@ -877,9 +943,10 @@ const bomColumns = [
                     </div>
 
                     <!-- The life of the card as six steps; a hold or a material wait sits on the step it interrupts. -->
-                    <ol class="flex items-start justify-between gap-1 border-t border-slate-100 pt-4 lg:col-span-2 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4" aria-label="Progress">
-                        <li v-for="(step, index) in steps" :key="step.key" class="relative flex min-w-0 flex-1 flex-col items-center text-center">
-                            <span v-if="index > 0" class="absolute top-2 right-1/2 left-[-50%] h-px" :class="step.state === 'pending' ? 'bg-slate-200' : 'bg-brand-300'" aria-hidden="true" />
+                    <ol class="grid grid-cols-3 gap-x-1 gap-y-3 border-t border-slate-100 pt-4 sm:flex sm:items-start sm:justify-between lg:col-span-2 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4" aria-label="Progress">
+                        <li v-for="(step, index) in steps" :key="step.key" class="relative flex min-w-0 flex-col items-center text-center sm:flex-1">
+                            <!-- Connectors join the dots only where the six sit on one line. -->
+                            <span v-if="index > 0" class="absolute top-2 right-1/2 left-[-50%] hidden h-px sm:block" :class="step.state === 'pending' ? 'bg-slate-200' : 'bg-brand-300'" aria-hidden="true" />
                             <span
                                 class="relative z-10 flex size-4 items-center justify-center rounded-full border-2"
                                 :class="step.state === 'done' ? 'border-brand-500 bg-brand-500' : step.state === 'current' ? (['on_hold', 'material_pending'].includes(jobCard.status) ? 'border-amber-500 bg-amber-500' : 'border-brand-500 bg-white') : 'border-slate-300 bg-white'"
@@ -1012,13 +1079,24 @@ const bomColumns = [
                         flat list of every QC step in the factory.
                     -->
                     <template #cell:inspect="{ row }">
-                        <Button
-                            v-if="canInspect && row.requires_qc && row.status !== 'pending'"
-                            size="sm"
-                            :href="inspectionHref(row)"
-                        >
-                            Inspect
-                        </Button>
+                        <span class="inline-flex gap-1">
+                            <!-- The step that can take output books from its own row; the tab is for the rare case. -->
+                            <Button
+                                v-if="mayBook && ['ready', 'in_progress', 'paused'].includes(row.status) && (operators ?? []).length > 0"
+                                size="sm"
+                                :variant="row.status === 'ready' || row.status === 'in_progress' ? 'primary' : 'secondary'"
+                                @click="openBooking(row.id)"
+                            >
+                                Book
+                            </Button>
+                            <Button
+                                v-if="canInspect && row.requires_qc && row.status !== 'pending'"
+                                size="sm"
+                                :href="inspectionHref(row)"
+                            >
+                                Inspect
+                            </Button>
+                        </span>
                     </template>
                 </DataTable>
             </Card>
@@ -1030,19 +1108,19 @@ const bomColumns = [
             -->
             <Tabs :tabs="tabs" :current="tab" />
 
-            <div v-if="tab === 'bookings'" data-tab="bookings">
+            <!-- `waste` stays a valid key for old links; it opens the same panel. -->
+            <div v-if="tab === 'bookings' || tab === 'waste'" data-tab="bookings">
                 <!--
-                    The shift bookings behind those totals, and the only way to correct one. The
+                    The shift bookings behind the totals, and the only way to correct one. The
                     card showed that a step held 5,000 with no way to see which shift booked it,
                     who booked it, or that it was one mis-keyed entry.
                 -->
-                <Card
-                    title="Shift bookings"
-                    rule="I1"
-                    subtitle="What the floor recorded, newest first. A correction is a reversing entry — the original row stays as booked."
-                    :padded="false"
-                >
-                    <template #actions>
+                <Card :padded="false">
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
+                        <p class="text-xs text-ink-600">
+                            What the floor booked, newest first. A correction is a reversing entry; the original row stays.
+                            <RuleHint rule="I1" />
+                        </p>
                         <!--
                             The way in when the kiosk is down. Not the normal path, and it does not
                             look like one: it asks which shift, which operator, and why.
@@ -1053,12 +1131,44 @@ const bomColumns = [
                             variant="secondary"
                             :disabled="nothingBookable"
                             :title="nothingBookable ? nothingBookableReason : 'Key a booking the terminal could not take'"
-                            @click="openBooking"
+                            @click="openBooking()"
                         >
                             Book output manually
                         </Button>
-                    </template>
-                    <DataTable :columns="logColumns" :rows="operationLogs ?? []" :empty="operationLogs === null ? 'Loading…' : 'Nothing has been booked from the floor yet.'" dense>
+                    </div>
+
+                    <!-- Waste by cause, above the log: setup, shade and a weave defect are three different problems. -->
+                    <dl v-if="wasteByCause.length" class="flex flex-wrap gap-x-6 gap-y-1 border-b border-slate-100 bg-slate-50/60 px-3 py-2 text-sm">
+                        <div v-for="row in wasteByCause" :key="`${row.cause}|${row.uom}`" class="flex items-baseline gap-1.5">
+                            <dt class="text-xs text-ink-500">{{ titleCase(row.cause) }}</dt>
+                            <dd class="font-medium tnum text-rose-600">{{ qty(row.total) }} <span class="font-normal text-ink-400">{{ row.uom }}</span></dd>
+                        </div>
+                        <div v-if="wasteRate !== null" class="flex items-baseline gap-1.5">
+                            <dt class="text-xs text-ink-500">Waste rate</dt>
+                            <dd class="font-medium tnum text-ink-900">{{ pct(wasteRate, 1) }}</dd>
+                        </div>
+                    </dl>
+
+                    <DataTable :columns="logColumns" :rows="operationLogs ?? []" :empty="operationLogs === null ? 'Loading…' : 'Nothing booked yet.'" dense>
+                        <template #empty>
+                            <!-- Empty for a reason this card can act on, with the way in beside it. -->
+                            <div class="px-3 py-8 text-center text-sm text-ink-600">
+                                <template v-if="operationLogs === null">Loading…</template>
+                                <template v-else-if="['draft', 'planned', 'material_pending'].includes(jobCard.status)">
+                                    Nothing booked yet. Output is booked once the card is released to the floor.
+                                </template>
+                                <template v-else-if="activeOperation && !nothingBookable">
+                                    Nothing booked yet. {{ activeOperation.name }} is {{ activeOperation.status === 'in_progress' ? 'running' : 'ready' }}<template v-if="activeOperation.machine?.code"> on {{ activeOperation.machine.code }}</template>.
+                                    Book it from the floor terminal, or
+                                    <button type="button" class="font-medium text-brand-700 underline" @click="openBooking(activeOperation.id)">book output manually</button>.
+                                </template>
+                                <template v-else-if="nothingBookable">
+                                    Nothing booked. {{ nothingBookableReason }}
+                                </template>
+                                <template v-else>Nothing booked yet.</template>
+                            </div>
+                        </template>
+
                         <template #cell:started_at="{ row, value }">
                             <div :class="row.is_reversed ? 'text-ink-400' : 'text-ink-700'">{{ datetime(value) }}</div>
                             <!--
@@ -1129,56 +1239,60 @@ const bomColumns = [
                             </Button>
                         </template>
                     </DataTable>
-                </Card>
-            </div>
 
-            <div v-if="tab === 'waste'" data-tab="waste">
-                <!--
-                    Where the waste went. The operation row carries a waste figure; this says what
-                    the waste was, which is the half that can be acted on.
-                -->
-                <Card
-                    title="Waste"
-                    rule="G4"
-                    subtitle="Booked from the floor with its cause. Setup, shade and a weave defect are three different problems."
-                    :padded="false"
-                >
-                    <DataTable :columns="wasteColumns" :rows="wasteLogs ?? []" :empty="wasteLogs === null ? 'Loading…' : 'No waste has been booked against this job card.'" dense>
-                        <template #cell:occurred_at="{ value }">{{ datetime(value) }}</template>
-                        <template #cell:operation="{ row }">
-                            <span class="text-ink-700">{{ row.sequence_no }} · {{ row.operation }}</span>
-                        </template>
-                        <template #cell:waste_type="{ value }"><Badge tone="warning" :label="titleCase(value)" /></template>
-                        <template #cell:qty="{ row, value }">
-                            <span class="tnum text-rose-600">{{ qty(value) }}</span>
-                            <span class="text-ink-400"> {{ row.uom ?? '' }}</span>
-                        </template>
-                        <template #cell:lot_no="{ value }">{{ value ?? '—' }}</template>
-                        <template #cell:reported_by="{ value }">{{ value ?? '—' }}</template>
-                    </DataTable>
+                    <div v-if="(wasteLogs ?? []).length" class="border-t border-slate-200">
+                        <p class="px-3 py-2 text-xs font-medium text-ink-700">Waste, with its cause <RuleHint rule="G4" /></p>
+                        <DataTable :columns="wasteColumns" :rows="wasteLogs ?? []" :empty="wasteLogs === null ? 'Loading…' : 'No waste has been booked against this job card.'" dense>
+                            <template #cell:occurred_at="{ value }">{{ datetime(value) }}</template>
+                            <template #cell:operation="{ row }">
+                                <span class="text-ink-700">{{ row.sequence_no }} · {{ row.operation }}</span>
+                            </template>
+                            <template #cell:waste_type="{ value }"><Badge tone="warning" :label="titleCase(value)" /></template>
+                            <template #cell:qty="{ row, value }">
+                                <span class="tnum text-rose-600">{{ qty(value) }}</span>
+                                <span class="text-ink-400">&nbsp;{{ row.uom ?? '' }}</span>
+                            </template>
+                            <template #cell:lot_no="{ value }">{{ value ?? '—' }}</template>
+                            <template #cell:reported_by="{ value }">{{ value ?? '—' }}</template>
+                        </DataTable>
+                    </div>
                 </Card>
             </div>
 
             <div v-if="tab === 'materials'" data-tab="materials">
-                <div class="grid gap-4 lg:grid-cols-2">
-                    <Card title="Material requirement" rule="BR-1" subtitle="BOM scaled from per-1000 to this job's quantity" :padded="false">
-                        <DataTable :columns="bomColumns" :rows="bomRequirement" empty="No BOM bound." dense>
+                <!-- The requirement has four figures a row; the issue list has one. -->
+                <div class="grid gap-4 lg:grid-cols-5">
+                    <Card class="lg:col-span-3" title="What the job needs" rule="BR-1" subtitle="The bill of materials at this job's quantity, against what has been issued" :padded="false">
+                        <DataTable :columns="bomColumns" :rows="bomRequirement" empty="No bill of materials is bound to this card." dense>
                             <template #cell:item="{ row }">
                                 <span class="font-medium">{{ row.item?.code }}</span>
-                                <span class="text-ink-500"> {{ row.item?.name }}</span>
+                                <Badge v-if="row.is_optional" tone="neutral" label="Optional" class="ml-1" />
+                                <span class="block text-xs text-ink-500">{{ row.item?.name }}</span>
                             </template>
-                            <template #cell:qty_per_base="{ value }">{{ qty(value) }}</template>
-                            <template #cell:required="{ value }">{{ qty(value) }}</template>
-                            <template #cell:formula_ref="{ value }">
-                                <span v-if="value" class="inline-flex items-center gap-1.5">Worked out <RuleHint :rule="value" /></span>
-                                <span v-else class="text-ink-600">Fixed</span>
+                            <template #cell:required="{ row, value }">
+                                <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                                    <span class="tnum">{{ qty(value) }}</span><span class="text-ink-400">{{ row.uom ?? '' }}</span>
+                                    <!-- A worked-out quantity carries its formula; a fixed one needs no note. -->
+                                    <RuleHint v-if="row.formula_ref" :rule="row.formula_ref" />
+                                </span>
+                            </template>
+                            <template #cell:issued="{ row, value }">
+                                <span class="whitespace-nowrap" :class="Number(value) > 0 ? '' : 'text-ink-400'">
+                                    <span class="tnum">{{ qty(value) }}</span> <span class="text-ink-400">{{ row.uom ?? '' }}</span>
+                                </span>
+                            </template>
+                            <template #cell:remaining="{ row, value }">
+                                <span v-if="Number(value) > 0" class="font-medium whitespace-nowrap" :class="row.is_optional ? 'text-ink-500' : 'text-amber-700'">
+                                    <span class="tnum">{{ qty(value) }}</span> <span class="font-normal text-ink-400">{{ row.uom ?? '' }}</span>
+                                </span>
+                                <span v-else class="text-emerald-700">Covered</span>
                             </template>
                         </DataTable>
                     </Card>
 
-                    <Card title="Material issued" :padded="false">
+                    <Card class="lg:col-span-2" title="Issues" subtitle="Each one opens to the lots it moved" :padded="false">
                         <template #actions>
-                            <Button v-if="canIssueMaterial" size="sm" :href="issueHref">Issue material</Button>
+                            <Button v-if="canIssueMaterial" size="sm" :variant="materialsState === 'covered' ? 'secondary' : 'primary'" :href="issueHref">Issue material</Button>
                         </template>
 
                         <ul class="divide-y divide-slate-100 text-sm">
@@ -1209,7 +1323,15 @@ const bomColumns = [
 
             <div v-if="tab === 'finished-goods'" data-tab="finished-goods">
                 <!-- P0-3: production output becomes stock here. The gap is stated, never smoothed. -->
-                <Card title="Finished goods" rule="P0-3" subtitle="Output enters FG stock through a receipt; quarantine until final QC accepts">
+                <Card
+                    title="Finished goods"
+                    rule="P0-3"
+                    :subtitle="Number(fgPosition.received) > 0
+                        ? 'Output enters stock through a receipt; it stays in quarantine until final QC accepts it'
+                        : fgPosition.remaining_receivable > 0
+                            ? `Nothing received yet. ${pcs(fgPosition.remaining_receivable)} from the final step can be received into stock below.`
+                            : 'Nothing received yet. Output is received into stock once the final step has booked it.'"
+                >
                     <dl class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
                         <div>
                             <dt class="text-xs text-ink-500">Produced (final op)</dt>
@@ -1354,9 +1476,11 @@ const bomColumns = [
             </div>
 
             <div v-if="tab === 'ncrs'" data-tab="ncrs">
-                <Card title="NCRs" subtitle="Non-conformance reports, raised when QC rejected output from this job">
+                <Card title="Quality" subtitle="Non-conformance reports (NCRs), raised when QC rejected output from this job">
                     <p v-if="ncrs === null" class="text-sm text-ink-600">Loading…</p>
-                    <p v-else-if="!ncrs.length" class="text-sm text-ink-600">No output from this job has been rejected.</p>
+                    <p v-else-if="!ncrs.length" class="text-sm text-ink-600">
+                        No output from this job has been rejected<template v-if="jobCard.status === 'qc_pending'"> yet; the final inspection is still to be recorded</template>.
+                    </p>
                     <ul v-else class="divide-y divide-slate-100 text-sm">
                         <li v-for="ncr in ncrs" :key="ncr.id" class="flex items-center justify-between py-2">
                             <Link :href="`/ncrs/${ncr.id}`" class="doc-link-quiet">{{ ncr.number }}</Link>

@@ -333,7 +333,7 @@ class JobCardController extends Controller
     public function show(Request $request, JobCard $jobCard): Response
     {
         $jobCard->load([
-            'product.customer', 'spec', 'artworkVersion.artwork', 'bom.lines.item', 'routing',
+            'product.customer', 'spec', 'artworkVersion.artwork', 'bom.lines.item', 'bom.lines.uom', 'routing',
             'operations.machine', 'operations.machineGroup', 'operations.tool', 'operations.routingOperation',
             'salesOrderLine.salesOrder:id,number,status',
         ]);
@@ -343,13 +343,22 @@ class JobCardController extends Controller
         // exactly what was planned.
         $output = $jobCard->finalOperationOutput();
 
+        $issuedByItem = DB::table('material_issue_lines as l')
+            ->join('material_issues as mi', 'mi.id', '=', 'l.material_issue_id')
+            ->where('mi.job_card_id', $jobCard->id)
+            ->where('mi.status', 'posted')
+            ->selectRaw("l.item_id, COALESCE(SUM(CASE WHEN mi.issue_type = 'return' THEN -l.qty ELSE l.qty END), 0) AS qty")
+            ->groupBy('l.item_id')
+            ->pluck('qty', 'item_id');
+
         // The section a person at this stage most likely came for; any other is one click away
         // and the choice rides in the URL, so it survives a save and can be sent to a colleague.
         $tab = in_array($request->query('tab'), self::TABS, true)
             ? (string) $request->query('tab')
             : match (true) {
-                in_array($jobCard->status, [JobCard::DRAFT, JobCard::PLANNED, JobCard::RELEASED], true) => 'materials',
-                in_array($jobCard->status, [JobCard::QC_PENDING, JobCard::COMPLETED, JobCard::CLOSED], true) => 'finished-goods',
+                in_array($jobCard->status, [JobCard::DRAFT, JobCard::PLANNED, JobCard::RELEASED, JobCard::MATERIAL_PENDING], true) => 'materials',
+                $jobCard->status === JobCard::QC_PENDING => 'ncrs',
+                in_array($jobCard->status, [JobCard::COMPLETED, JobCard::CLOSED], true) => 'finished-goods',
                 default => 'bookings',
             };
 
@@ -406,12 +415,23 @@ class JobCardController extends Controller
             // J1 — the four checks, always visible, not only when release fails.
             'releaseGate' => $this->gate->evaluate($jobCard),
             'availableTransitions' => $this->states->available($jobCard),
-            'bomRequirement' => $jobCard->bom?->lines->map(fn ($line): array => [
-                'item' => $line->item?->only(['id', 'code', 'name']),
-                'qty_per_base' => $line->qty_per_base,
-                'required' => $jobCard->bom->scaleTo((float) $line->qty_per_base, (float) $jobCard->planned_qty),
-                'formula_ref' => $line->formula_ref,
-            ]) ?? [],
+            // Each material with what has reached the job: required less issued (returns taken
+            // off) is what the Materials tab is for — "2 issues" said nothing about coverage.
+            'bomRequirement' => $jobCard->bom?->lines->map(function ($line) use ($jobCard, $issuedByItem): array {
+                $required = $jobCard->bom->scaleTo((float) $line->qty_per_base, (float) $jobCard->planned_qty);
+                $issued = (float) ($issuedByItem[$line->item_id] ?? 0);
+
+                return [
+                    'item' => $line->item?->only(['id', 'code', 'name']),
+                    'uom' => $line->uom?->code,
+                    'qty_per_base' => $line->qty_per_base,
+                    'required' => $required,
+                    'issued' => $issued,
+                    'remaining' => max(0.0, round($required - $issued, 6)),
+                    'is_optional' => (bool) $line->is_optional,
+                    'formula_ref' => $line->formula_ref,
+                ];
+            })->values()->all() ?? [],
             'issues' => DB::table('material_issues')->where('job_card_id', $jobCard->id)
                 ->orderByDesc('id')->get(['id', 'number', 'issued_on', 'status']),
             // P0-3 — produced vs received-to-FG vs available, gap stated, never smoothed over.
