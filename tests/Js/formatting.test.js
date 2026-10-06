@@ -48,6 +48,21 @@ describe('default number format', () => {
         expect(pcs(1234567)).toMatch(/^[0-9,]+$/);
     });
 
+    it('keeps ordinary digits and English dates when the grouping is Bengali', async () => {
+        const { configureFormatting, date, datetime, money, pcs } = await import('../../resources/js/plugins/formatting.js');
+
+        // bn-BD groups the same way as en-IN; it must not also switch the digits to Bengali
+        // script or the month names to Bangla — grouping is a number format, not a language.
+        configureFormatting({ number_locale: 'bn-BD', base_currency: 'BDT', date_format: 'd M Y', timezone: 'Asia/Dhaka', time_format: 'HH:mm' });
+
+        expect(pcs(1234567)).toBe('12,34,567');
+        expect(money(1234567.5)).toBe('BDT 12,34,567.50');
+        expect(date('2026-10-06')).toBe('06 Oct 2026');
+        expect(datetime('2026-10-06T05:59:00Z')).toBe('06 Oct 2026 11:59');
+
+        configureFormatting({ number_locale: 'en-IN' });
+    });
+
     it('still follows an organisation that chose another grouping', async () => {
         const { configureFormatting, money } = await import('../../resources/js/plugins/formatting.js');
 

@@ -12,7 +12,7 @@ defineOptions({ layout: null });
  * to carry one customer's name in its markup, which a rebrand in settings could not change.
  */
 const organisation = computed(() => usePage().props.app ?? {});
-const productName = computed(() => organisation.value.short_name || 'Octa ERP');
+const productName = computed(() => organisation.value.short_name || 'Trimflow');
 
 /** Who to ask, from the organisation profile — whichever of phone and email is filled in. */
 const contact = computed(() => [organisation.value.phone, organisation.value.email].filter(Boolean).join(' · '));
@@ -41,10 +41,10 @@ function submit() {
             <div class="mb-6 text-center">
                 <div
                     class="mx-auto mb-3 flex size-11 items-center justify-center overflow-hidden rounded-lg text-xl font-bold text-white"
-                    :class="organisation.icon_url ? 'bg-white' : 'bg-brand-500'"
+                    :class="organisation.icon_url ? 'bg-white' : ''"
                 >
-                    <img v-if="organisation.icon_url" :src="organisation.icon_url" alt="" class="size-full object-contain">
-                    <span v-else>{{ productName.charAt(0).toUpperCase() }}</span>
+                    <!-- The uploaded square mark, or the shipped Trimflow mark — the same file the favicon uses. -->
+                    <img :src="organisation.icon_url || '/favicon.svg'" alt="" class="size-full object-contain">
                 </div>
                 <h1 class="text-lg font-semibold text-white">{{ productName }}</h1>
                 <p v-if="organisation.name" class="text-xs text-slate-300">{{ organisation.name }}</p>

@@ -252,7 +252,7 @@ function offlinePage() {
        font-family:system-ui,sans-serif;text-align:center;padding:2rem}
   h1{font-size:2rem;margin:0 0 .75rem}
   p{font-size:1.25rem;color:#94a3b8;margin:0 0 2rem;line-height:1.6}
-  button{background:#0071be;color:#fff;border:0;border-radius:1rem;
+  button{background:#0F766E;color:#fff;border:0;border-radius:1rem;
          padding:1.25rem 2.5rem;font-size:1.5rem;font-weight:700}
 </style></head>
 <body><div>

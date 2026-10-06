@@ -120,7 +120,7 @@ class FloorTerminalController extends Controller
 
         return response()->json([
             'id' => '/floor',
-            'name' => trim(($names['short_name'] ?: 'Octa ERP').' — Shop floor'),
+            'name' => trim(($names['short_name'] ?: 'Trimflow').' — Shop floor'),
             'short_name' => 'Floor',
             'description' => 'Badge in, run the work queue, book output — at the machine.',
             'start_url' => '/floor',

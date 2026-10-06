@@ -106,10 +106,10 @@
         /* ---- Screen-only toolbar ------------------------------------------------------- */
         .toolbar { background: #eef1f6; padding: 3mm; text-align: center; font-size: 10pt;
                    border-bottom: 1px solid #d7dce6; margin-bottom: 6mm; }
-        .toolbar a, .toolbar button { font: inherit; padding: 1.5mm 4mm; border: 1px solid #0071be;
-                                      background: #0071be; color: #fff; border-radius: 3px;
+        .toolbar a, .toolbar button { font: inherit; padding: 1.5mm 4mm; border: 1px solid #0F766E;
+                                      background: #0F766E; color: #fff; border-radius: 3px;
                                       cursor: pointer; text-decoration: none; }
-        .toolbar a.secondary { background: #fff; color: #0071be; }
+        .toolbar a.secondary { background: #fff; color: #0F766E; }
         @media print { .toolbar { display: none; } }
     </style>
 </head>

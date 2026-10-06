@@ -305,7 +305,7 @@ systemd, `/etc/systemd/system/octa-queue.service`:
 
 ```ini
 [Unit]
-Description=Octa ERP queue worker
+Description=Trimflow queue worker
 After=network.target redis-server.service mysql.service
 
 [Service]

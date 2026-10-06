@@ -1,10 +1,10 @@
-# Octa ERP — end-to-end browser test prompt
+# Trimflow — end-to-end browser test prompt
 
 Paste the block below into Claude in Chrome with the app running at `http://localhost:8000`.
 
 ---
 
-You are testing **Octa ERP**, a label-manufacturing ERP (Laravel + Inertia + Vue) at
+You are testing **Trimflow**, a label-manufacturing ERP (Laravel + Inertia + Vue) at
 `http://localhost:8000`. Walk one order from customer creation to compliance reconciliation,
 verifying that each business gate fires. Report defects; do not fix anything.
 

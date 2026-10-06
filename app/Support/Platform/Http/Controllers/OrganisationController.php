@@ -63,11 +63,17 @@ class OrganisationController extends Controller
                 fn (string $day): array => ['value' => $day, 'label' => ucfirst($day)],
                 Organisation::WEEK_STARTS,
             ),
+            // A rendered sample per option, so the choice is between 12,34,567.89 and
+            // 1,234,567.89 rather than between locale codes. Latin digits throughout: the
+            // number locale sets grouping only, the way the formatter on the screen does.
             'number_locales' => array_map(
-                fn (string $locale): array => [
-                    'value' => $locale,
-                    'label' => $locale.'  —  '.number_format(1234567.89, 2),
-                ],
+                function (string $locale): array {
+                    $formatter = new \NumberFormatter(str_replace('-', '_', $locale).'@numbers=latn', \NumberFormatter::DECIMAL);
+                    $formatter->setAttribute(\NumberFormatter::MIN_FRACTION_DIGITS, 2);
+                    $formatter->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, 2);
+
+                    return ['value' => $locale, 'label' => $locale.'  —  '.$formatter->format(1234567.89)];
+                },
                 Organisation::NUMBER_LOCALES,
             ),
         ];

@@ -639,7 +639,7 @@ class ReferenceDataSeeder extends Seeder
             // than in the raw settings list, but seeded here so a fresh install has an identity.
             ['org_name', 'Maheen Label', 'organisation', 'Trading name, shown in the sidebar and on documents'],
             ['org_legal_name', 'Maheen Label Industries Ltd.', 'organisation', 'Legal entity name for printed documents'],
-            ['org_short_name', 'Octa ERP', 'organisation', 'Product name shown in the browser tab'],
+            ['org_short_name', 'Trimflow', 'organisation', 'Product name shown in the browser tab'],
             ['org_logo_path', null, 'organisation', 'Wordmark, shown in the sidebar header'],
             ['org_icon_path', null, 'organisation', 'Square mark, used as the favicon and the collapsed sidebar badge'],
             ['org_address', 'Plot 42, Sector 3, Savar EPZ, Dhaka', 'organisation', 'Printed on documents'],

@@ -199,7 +199,7 @@ function applyFormat(date, format, timeZone = null) {
 
             if (!options) return token;
 
-            return date.toLocaleDateString(settings.locale, timeZone ? { ...options, timeZone } : options);
+            return date.toLocaleDateString(DATE_LOCALE, timeZone ? { ...options, timeZone } : options);
         })
         .join('');
 }
@@ -209,7 +209,7 @@ function renderTime(value) {
 
     if (Number.isNaN(parsed.getTime())) return '';
 
-    return parsed.toLocaleTimeString(settings.locale, {
+    return parsed.toLocaleTimeString(DATE_LOCALE, {
         timeZone: settings.timezone,
         hour: '2-digit',
         minute: '2-digit',
@@ -217,9 +217,22 @@ function renderTime(value) {
     });
 }
 
+/**
+ * The number locale decides grouping and separators — 12,34,567 or 1,234,567 — and nothing
+ * else. `bn-BD` on its own would also switch the digits to Bengali script (১২,৩৪,৫৬৭), which
+ * nobody types into a form, a barcode or a ledger; pinning the numbering system keeps the
+ * factory's lakh-and-crore grouping with digits everybody can read and re-enter.
+ */
 function locale() {
-    return settings.locale;
+    return `${settings.locale}-u-nu-latn`;
 }
+
+/**
+ * Dates and times carry month names and "3 days ago", which are language, not number format.
+ * The language of the interface is its own setting; the number locale must not drag October
+ * into অক্টো just because amounts group in lakhs.
+ */
+const DATE_LOCALE = 'en-GB';
 
 function toNumber(value) {
     const n = typeof value === 'string' ? Number.parseFloat(value) : value;
@@ -422,7 +435,7 @@ export function relative(value) {
         ['day', 86400], ['hour', 3600], ['minute', 60],
     ];
 
-    const formatter = new Intl.RelativeTimeFormat(settings.locale, { numeric: 'auto' });
+    const formatter = new Intl.RelativeTimeFormat(DATE_LOCALE, { numeric: 'auto' });
 
     for (const [unit, size] of units) {
         if (Math.abs(seconds) >= size) {

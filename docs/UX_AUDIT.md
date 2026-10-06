@@ -1,8 +1,10 @@
-# UX audit — Octa ERP
+# UX audit — Trimflow (formerly Octa ERP)
 
 Audit date: 5 October 2026. Scope: the whole web application in this repository (desk shell, shop-floor terminal, administration). Investigation only; no source file was changed.
 
 > **Naming note.** The audit brief called the product "TrimFlow". This repository is Octa ERP (`octa-erp`) and contains no reference to TrimFlow. The audit was run against Octa ERP on the owner's confirmation. The product context in the brief was blank, so users, tasks and journeys below are inferred from `docs/00-overview.md`, `routes/`, `resources/js/navigation.js` and the seeded roles. Assumptions are listed in §2.3.
+>
+> **Resolved 2026-10-06.** The product is now Trimflow throughout: product-name fallbacks, the seeded `org_short_name`, favicon and PWA icons, and the brand palette follow octapussolution.com/products/trimflow.
 
 **How it was done**
 

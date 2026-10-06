@@ -11,7 +11,7 @@ import permissions from '@/plugins/permissions';
 import formatting, { configureFormatting } from '@/plugins/formatting';
 import { installRefusalGuard } from '@/plugins/refusals';
 
-const fallbackName = import.meta.env.VITE_APP_NAME || 'Octa ERP';
+const fallbackName = import.meta.env.VITE_APP_NAME || 'Trimflow';
 
 /** The tab title follows the organisation profile, so a rebrand needs no deploy. */
 let appName = fallbackName;
@@ -68,9 +68,9 @@ createInertiaApp({
             .mount(el);
     },
     progress: {
-        // The brand azure, not Tailwind's default indigo — the bar is the first thing that
+        // The brand teal, not Tailwind's default indigo — the bar is the first thing that
         // moves on every navigation and it should be the product's colour.
-        color: '#0071be',
+        color: '#0F766E',
         showSpinner: false,
         delay: 120,
     },

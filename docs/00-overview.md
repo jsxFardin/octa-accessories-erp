@@ -1,6 +1,6 @@
 # 00 — Overview
 
-**Product:** Octa ERP — Label & Garment-Accessory Manufacturing ERP
+**Product:** Trimflow — Label & Garment-Accessory Manufacturing ERP
 **Primary customer:** Maheen Label (Bangladesh) — garment accessories manufacturer
 **Document status:** Specification, v1.0. No application code exists yet.
 **Stack (locked):** Laravel 12 · Inertia 2 · Vue 3 · Tailwind 4 · MySQL 8.0 · Redis 7 · single-company deployment

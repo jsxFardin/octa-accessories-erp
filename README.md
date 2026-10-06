@@ -1,4 +1,4 @@
-# Octa ERP
+# Trimflow
 
 Label & garment-accessory manufacturing ERP for **Maheen Label** — woven labels, flexo/screen/heat-transfer/thermal printed labels, offset tags and tickets.
 

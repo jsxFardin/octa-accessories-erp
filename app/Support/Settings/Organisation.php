@@ -21,7 +21,7 @@ class Organisation
     public const DEFAULTS = [
         'org_name' => 'Maheen Label',
         'org_legal_name' => 'Maheen Label Industries Ltd.',
-        'org_short_name' => 'Octa ERP',
+        'org_short_name' => 'Trimflow',
         'org_logo_path' => null,
         'org_icon_path' => null,
         'org_address' => '',

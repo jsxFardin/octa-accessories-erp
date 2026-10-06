@@ -1,4 +1,4 @@
-# Octa ERP — Specification
+# Trimflow — Specification
 
 **Using the live system?** Start at the [User Guide](ug/README.md) — sign-in, roles, and the factory sequence (inquiry → invoice). This folder is the build specification.
 

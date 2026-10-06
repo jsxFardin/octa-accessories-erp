@@ -1,4 +1,4 @@
-# Octa ERP — User Guide
+# Trimflow — User Guide
 
 How to use the system on a working day. The specification in [`docs/`](../README.md) is for implementers; this folder is for the people who sell, plan, weave, inspect, dispatch and invoice.
 

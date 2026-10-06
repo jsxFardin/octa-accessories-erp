@@ -146,7 +146,9 @@ class ReportController extends Controller
         $rows = array_slice($rows, 0, self::PRINT_LIMIT);
 
         $dateFormat = (string) $organisation->get('date_format');
-        $numbers = new \NumberFormatter(str_replace('-', '_', (string) $organisation->get('number_locale')), \NumberFormatter::DECIMAL);
+        // `@numbers=latn`: the number locale sets the grouping (12,34,567 under bn-BD and en-IN),
+        // never the script — a printed report must read the same as the screen it came from.
+        $numbers = new \NumberFormatter(str_replace('-', '_', (string) $organisation->get('number_locale')).'@numbers=latn', \NumberFormatter::DECIMAL);
         $base = (string) $organisation->get('base_currency');
         $currencyColumn = $query->currencyColumn();
 

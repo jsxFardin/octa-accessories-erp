@@ -40,7 +40,7 @@ it('saves the organisation profile and serves it to every page', function (): vo
 it('refuses a timezone the server does not know', function (): void {
     $this->actingAs($this->admin)->put('/admin/organisation', [
         'org_name' => 'Maheen Label',
-        'org_short_name' => 'Octa ERP',
+        'org_short_name' => 'Trimflow',
         'timezone' => 'Mars/Olympus_Mons',
         'date_format' => 'd M Y',
         'time_format' => 'HH:mm',

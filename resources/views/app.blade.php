@@ -7,7 +7,7 @@
 
     @php($organisation = app(\App\Support\Settings\Organisation::class)->forFrontend())
 
-    <title inertia>{{ $organisation['short_name'] ?: config('app.name', 'Octa ERP') }}</title>
+    <title inertia>{{ $organisation['short_name'] ?: config('app.name', 'Trimflow') }}</title>
 
     {{-- The favicon follows the uploaded square mark, falling back to the shipped one. --}}
     @if ($organisation['icon_url'])
@@ -22,7 +22,7 @@
         accountant's browser prompting to install a machine terminal.
 
         The colours are the floor's own (`.floor-scope`, slate-950), so the splash screen and
-        the address bar match the application behind them instead of flashing brand azure in a
+        the address bar match the application behind them instead of flashing brand teal in a
         dark weaving shed.
     --}}
     @if (request()->is('floor', 'floor/*'))
@@ -34,7 +34,8 @@
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="apple-mobile-web-app-title" content="Floor">
     @else
-        <meta name="theme-color" content="#0071be">
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <meta name="theme-color" content="#0F766E">
     @endif
 
     @routes

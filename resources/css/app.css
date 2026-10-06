@@ -19,22 +19,25 @@
     --font-mono: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
 
     /*
-     * Brand: a deep azure. Deliberately not the violet-leaning indigo Tailwind ships as a
-     * default — this is a factory system that sits next to amber warnings and rose failures
-     * all day, and it should read as instrument panel, not as marketing site.
+     * Brand: Trimflow teal, the product's colour on octapussolution.com (#0F766E to #2DD4BF).
+     * Deliberately not the violet-leaning indigo Tailwind ships as a default — this is a
+     * factory system that sits next to amber warnings and rose failures all day, and it
+     * should read as instrument panel, not as marketing site.
      *
-     * 600 is the interactive colour and clears 4.5:1 on white; 700 is its hover.
+     * Each step keeps the lightness of the ramp it replaced, so every contrast pairing on
+     * every screen holds: 600 is the interactive colour and clears 4.5:1 on white; 700 is
+     * its hover. Chroma is lower than the old azure because teal runs out of gamut sooner.
      */
-    --color-brand-50: oklch(0.972 0.017 236);
-    --color-brand-100: oklch(0.938 0.036 236);
-    --color-brand-200: oklch(0.885 0.069 236);
-    --color-brand-300: oklch(0.807 0.112 237);
-    --color-brand-400: oklch(0.707 0.148 240);
-    --color-brand-500: oklch(0.618 0.158 243);
-    --color-brand-600: oklch(0.532 0.152 246);
-    --color-brand-700: oklch(0.448 0.130 248);
-    --color-brand-800: oklch(0.382 0.104 249);
-    --color-brand-900: oklch(0.331 0.083 250);
+    --color-brand-50: oklch(0.975 0.018 182);
+    --color-brand-100: oklch(0.940 0.045 182);
+    --color-brand-200: oklch(0.885 0.085 181);
+    --color-brand-300: oklch(0.810 0.125 181);
+    --color-brand-400: oklch(0.707 0.118 182);
+    --color-brand-500: oklch(0.618 0.104 184);
+    --color-brand-600: oklch(0.532 0.088 186);
+    --color-brand-700: oklch(0.448 0.082 187);
+    --color-brand-800: oklch(0.382 0.068 188);
+    --color-brand-900: oklch(0.331 0.055 188);
 
     /* Ink: the text ramp. Body copy is --color-ink-700, never lighter. */
     /* 300 is for decoration only — a chevron, a divider glyph. Never text that has to be read. */

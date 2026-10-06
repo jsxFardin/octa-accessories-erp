@@ -272,12 +272,10 @@ const paletteHint = computed(() =>
                 >
                     <span
                         class="flex size-8 items-center justify-center overflow-hidden rounded-lg transition group-hover:opacity-0"
-                        :class="organisation.icon_url ? 'bg-white ring-1 ring-slate-200' : 'bg-brand-600'"
+                        :class="organisation.icon_url ? 'bg-white ring-1 ring-slate-200' : ''"
                     >
-                        <img v-if="organisation.icon_url" :src="organisation.icon_url" alt="" class="size-full object-contain">
-                        <span v-else class="text-sm font-bold text-white">
-                            {{ (organisation.name ?? 'O').charAt(0).toUpperCase() }}
-                        </span>
+                        <!-- The uploaded square mark, or the shipped Trimflow mark — the same file the favicon uses. -->
+                        <img :src="organisation.icon_url || '/favicon.svg'" alt="" class="size-full object-contain">
                     </span>
 
                     <Icon
@@ -288,23 +286,21 @@ const paletteHint = computed(() =>
             </div>
 
             <div v-else class="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 px-3">
-                <!-- The square mark from the organisation profile, falling back to an initial. -->
+                <!-- The square mark from the organisation profile, falling back to the Trimflow mark. -->
                 <Link
                     href="/dashboard"
                     class="-mx-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-1 py-1 transition hover:bg-slate-50"
                 >
                     <span
                         class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-                        :class="organisation.icon_url ? 'bg-white ring-1 ring-slate-200' : 'bg-brand-600'"
+                        :class="organisation.icon_url ? 'bg-white ring-1 ring-slate-200' : ''"
                     >
-                        <img v-if="organisation.icon_url" :src="organisation.icon_url" alt="" class="size-full object-contain">
-                        <span v-else class="text-sm font-bold text-white">
-                            {{ (organisation.name ?? 'O').charAt(0).toUpperCase() }}
-                        </span>
+                        <!-- The uploaded square mark, or the shipped Trimflow mark — the same file the favicon uses. -->
+                        <img :src="organisation.icon_url || '/favicon.svg'" alt="" class="size-full object-contain">
                     </span>
 
                     <span class="min-w-0 flex-1">
-                        <span class="block truncate text-sm font-semibold text-ink-900">{{ organisation.short_name ?? 'Octa ERP' }}</span>
+                        <span class="block truncate text-sm font-semibold text-ink-900">{{ organisation.short_name ?? 'Trimflow' }}</span>
                         <span class="block truncate text-xs text-ink-500">{{ organisation.name }}</span>
                     </span>
                 </Link>
