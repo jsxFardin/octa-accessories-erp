@@ -123,7 +123,7 @@ function applyCellLabel(el, binding) {
                         <th
                             v-for="column in columns"
                             :key="column.key"
-                            class="px-1.5 pb-2 text-xs font-semibold tracking-wider text-ink-400 uppercase"
+                            class="px-1.5 pb-2 align-bottom text-xs font-semibold text-ink-600"
                             :class="column.align === 'right' ? 'text-right' : 'text-left'"
                             :style="column.width ? { width: column.width } : undefined"
                         >

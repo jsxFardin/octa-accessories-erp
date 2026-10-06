@@ -4,6 +4,7 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import RuleHint from '@/Components/Ui/RuleHint.vue';
 import Tabs from '@/Components/Ui/Tabs.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import DocumentActions from '@/Components/Ui/DocumentActions.vue';
@@ -563,7 +564,7 @@ const bomColumns = [
     { key: 'item', label: 'Material' },
     { key: 'qty_per_base', label: 'Per 1000', align: 'right' },
     { key: 'required', label: 'Required', align: 'right' },
-    { key: 'formula_ref', label: 'Rule' },
+    { key: 'formula_ref', label: 'Quantity is' },
 ];
 </script>
 
@@ -1002,8 +1003,8 @@ const bomColumns = [
                             <template #cell:qty_per_base="{ value }">{{ qty(value) }}</template>
                             <template #cell:required="{ value }">{{ qty(value) }}</template>
                             <template #cell:formula_ref="{ value }">
-                                <span v-if="value" class="rounded bg-slate-100 px-1 font-mono text-xs">{{ value }}</span>
-                                <span v-else class="text-ink-400">fixed</span>
+                                <span v-if="value" class="inline-flex items-center gap-1.5">Worked out <RuleHint :rule="value" /></span>
+                                <span v-else class="text-ink-600">Fixed</span>
                             </template>
                         </DataTable>
                     </Card>

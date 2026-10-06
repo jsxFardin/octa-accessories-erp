@@ -54,7 +54,7 @@
                 <th style="width:8mm">#</th>
                 <th>Product</th>
                 <th class="num" style="width:22mm">Quantity</th>
-                <th class="num" style="width:24mm">Rate per 1,000 pcs</th>
+                <th class="num" style="width:36mm; white-space:nowrap">Rate per 1,000 pcs</th>
                 <th class="num" style="width:20mm">Tooling</th>
                 <th style="width:22mm">Promised</th>
                 <th class="num" style="width:26mm">Amount</th>

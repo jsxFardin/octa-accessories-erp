@@ -7,6 +7,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import ContextNotice from '@/Components/Ui/ContextNotice.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import RuleHint from '@/Components/Ui/RuleHint.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import LineItemsTable from '@/Components/Ui/LineItemsTable.vue';
@@ -395,7 +396,7 @@ const columns = [
     { key: 'rate_per_m', label: 'Rate per 1,000 pcs', width: '9rem', align: 'right' },
     // In the line's state and in its total all along, with no box to type either into.
     { key: 'tooling_charge', label: 'Tooling charge', width: '8rem', align: 'right' },
-    { key: 'lead_time_days', label: 'Lead time, days', width: '7rem', align: 'right' },
+    { key: 'lead_time_days', label: 'Lead days', width: '7rem', align: 'right' },
     { key: 'line_total', label: 'Line value', width: '9rem', align: 'right' },
 ];
 </script>
@@ -633,9 +634,10 @@ const columns = [
                                 <tr>
                                     <th class="px-3 py-1.5 text-left">Cost type</th>
                                     <th class="px-3 py-1.5 text-right">Qty</th>
-                                    <th class="px-3 py-1.5 text-right">Rate ({{ baseCurrency() }})</th>
-                                    <th class="px-3 py-1.5 text-right">Amount ({{ baseCurrency() }})</th>
-                                    <th class="px-3 py-1.5 text-left">Rule</th>
+                                    <th class="px-3 py-1.5 text-right whitespace-nowrap">Rate ({{ baseCurrency() }})</th>
+                                    <th class="px-3 py-1.5 text-right whitespace-nowrap">Amount ({{ baseCurrency() }})</th>
+                                    <!-- Named for a screen reader; a hidden span here sat outside the scrolling table and widened the page. -->
+                                    <th class="w-10 px-3 py-1.5" aria-label="How it is worked out" />
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
@@ -645,9 +647,9 @@ const columns = [
                                     <td class="px-3 py-1.5 text-right tnum">{{ number(cl.rate, 4, 4) }}</td>
                                     <td class="px-3 py-1.5 text-right font-medium tnum">{{ money(cl.amount, false) }}</td>
                                     <td class="px-3 py-1.5">
-                                        <span class="rounded bg-slate-100 px-1 font-mono text-xs text-ink-700">
-                                            {{ cl.formula_ref }}
-                                        </span>
+<!-- How the figure is worked out, in words, behind the marker. The rule's code used
+                                             to be printed here as a badge, which reads as an error code. -->
+                                        <RuleHint v-if="cl.formula_ref" :rule="cl.formula_ref" />
                                     </td>
                                 </tr>
                             </tbody>

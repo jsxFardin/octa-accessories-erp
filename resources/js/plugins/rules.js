@@ -95,6 +95,9 @@ export const RULES = {
     'total = received + credited + outstanding': 'An invoice total always equals what has been received, plus what has been credited, plus what is still outstanding.',
     'billed = delivered': 'An invoice bills exactly the quantity that was delivered.',
     'computed, never typed': 'These figures are worked out by the system and cannot be typed.',
+    'BR-17': 'Labour cost is the hours each step takes, times the people on it, times the labour rate.',
+    'BR-19': 'Factory overhead is a percentage of material, tooling, machine, labour and energy cost; selling overhead is added on top.',
+    'local-catalogue': 'A fixed quantity typed on the bill of materials, not worked out from the specification.',
 };
 
 /**

@@ -163,7 +163,7 @@ const bomColumns = [
     { key: 'uom', label: 'Unit' },
     { key: 'wastage_pct', label: 'Wastage %', align: 'right' },
     { key: 'colour_index', label: 'Colour', align: 'center' },
-    { key: 'formula_ref', label: 'Rule' },
+    { key: 'formula_ref', label: 'Quantity is' },
 ];
 </script>
 
@@ -399,8 +399,8 @@ const bomColumns = [
                         <template #cell:qty_per_base="{ value }">{{ qty(value) }}</template>
                         <template #cell:colour_index="{ value }">{{ value ?? 'all' }}</template>
                         <template #cell:formula_ref="{ value }">
-                            <span v-if="value" class="rounded bg-slate-100 px-1 font-mono text-xs">{{ value }}</span>
-                            <span v-else class="text-ink-400">fixed</span>
+                            <span v-if="value" class="inline-flex items-center gap-1.5">Worked out <RuleHint :rule="value" /></span>
+                            <span v-else class="text-ink-600">Fixed</span>
                         </template>
                     </DataTable>
                 </div>

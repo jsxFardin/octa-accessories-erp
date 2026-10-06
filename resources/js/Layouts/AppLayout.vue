@@ -482,7 +482,8 @@ const paletteHint = computed(() =>
                             </template>
                         </nav>
 
-                        <h1 class="truncate text-base leading-tight font-semibold text-ink-900">
+                        <!-- Two lines on a phone before it is cut: a record's code and name did not fit in one. -->
+                        <h1 class="line-clamp-2 text-base leading-tight font-semibold break-words text-ink-900 sm:line-clamp-none sm:truncate">
                             <slot name="title" />
                         </h1>
                         <!--

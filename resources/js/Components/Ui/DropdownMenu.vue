@@ -68,7 +68,8 @@ function place() {
 
     position.value = {
         top: below < height ? rect.top - height - 4 : rect.bottom + 4,
-        left: props.align === 'right' ? rect.right - width : rect.left,
+        // Kept on the screen: on a phone the trigger can sit at the very edge of a scrolled table.
+        left: Math.min(Math.max(8, props.align === 'right' ? rect.right - width : rect.left), window.innerWidth - width - 8),
     };
 }
 

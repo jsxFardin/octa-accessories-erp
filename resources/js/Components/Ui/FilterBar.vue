@@ -133,7 +133,7 @@ function reset() {
                     v-else
                     v-model="state[field.key]"
                     :options="field.options"
-                    :placeholder="`All ${field.label.toLowerCase()}`"
+                    :placeholder="`Any ${field.label.toLowerCase()}`"
                     :aria-label="field.label"
                 />
             </div>

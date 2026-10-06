@@ -169,7 +169,7 @@ function accessPct(role) {
             <div
                 v-for="role in roles"
                 :key="role.id"
-                class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand-300"
+                class="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand-300"
             >
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex min-w-0 items-start gap-3">

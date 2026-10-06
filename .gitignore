@@ -28,3 +28,4 @@ Thumbs.db
 package-lock.json
 composer.lock
 .claude
+docs/ux-evidence

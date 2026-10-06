@@ -55,8 +55,8 @@ function raisePo() {
                 <table class="min-w-full text-sm">
                     <thead>
                         <tr class="border-b border-slate-200 bg-slate-50">
-                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-500">Material</th>
-                            <th v-for="quote in quotations" :key="quote.id" class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-ink-500">
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-ink-600">Material</th>
+                            <th v-for="quote in quotations" :key="quote.id" class="px-3 py-2 text-right text-xs font-semibold whitespace-nowrap text-ink-600">
                                 {{ quote.supplier?.name }}
                                 <Badge v-if="quote.is_selected" class="ml-1" tone="success" label="Winner" />
                             </th>
@@ -88,7 +88,7 @@ function raisePo() {
                                 <p class="text-xs font-normal text-ink-500">{{ quote.lead_time_days ?? '—' }} days</p>
                                 <Button
                                     v-if="rfq.status === 'issued' && !quote.is_selected && can('rfq.update')"
-                                    class="mt-2"
+                                    class="mt-2 whitespace-nowrap"
                                     size="sm"
                                     :loading="winner?.busy === quote.id"
                                     :disabled="winner?.busy != null"
