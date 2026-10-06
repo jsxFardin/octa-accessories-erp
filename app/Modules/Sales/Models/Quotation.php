@@ -130,6 +130,23 @@ class Quotation extends Model
         return $this->belongsTo(\App\Modules\MasterData\Models\Currency::class, 'currency_id');
     }
 
+    public function inquiry(): BelongsTo
+    {
+        return $this->belongsTo(Inquiry::class, 'inquiry_id');
+    }
+
+    /** Whoever raised it — the list and the page name them, and the list filters by them. */
+    public function merchandiser(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'merchandiser_id');
+    }
+
+    /** Every revision carrying this number, oldest first — the document's own history. */
+    public function revisions(): \Illuminate\Database\Eloquent\Builder
+    {
+        return static::query()->where('number', $this->number)->whereNotNull('number')->orderBy('revision_no');
+    }
+
     /** @return HasMany<QuotationLine, $this> */
     public function lines(): HasMany
     {

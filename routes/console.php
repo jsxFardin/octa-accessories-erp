@@ -37,3 +37,12 @@ Schedule::command('queue:health')
     ->hourly()
     ->timezone((string) config('app.display_timezone', 'Asia/Dhaka'))
     ->withoutOverlapping();
+
+/*
+ * A sent quotation past its valid-until date stops being an offer. The state machine allowed
+ * the move and nothing made it, so every unanswered quotation read "Sent" for ever.
+ */
+Schedule::command('quotations:expire')
+    ->dailyAt('00:30')
+    ->timezone((string) config('app.display_timezone', 'Asia/Dhaka'))
+    ->withoutOverlapping();

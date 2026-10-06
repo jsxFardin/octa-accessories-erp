@@ -9,7 +9,7 @@ import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { baseCurrency, date, inBaseCurrency, isoDate, money, number, pcs, pct, qty, rate, ratePerM, titleCase, unitCost } from '@/plugins/formatting';
+import { baseCurrency, date, inBaseCurrency, isoDate, money, number, pcs, pct, qty, rate, ratePerM, titleCase, todayIso, unitCost } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { conversionAction } from '@/plugins/documentActions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -30,7 +30,40 @@ const props = defineProps({
     conversion: { type: Object, default: () => ({ convertible: false, refusal: null, live_orders: [] }) },
     /** F-01/F-02 — this document's own history, oldest first. */
     trail: { type: Array, default: () => [] },
+    /** Every revision under this number, oldest first, with `current` on this one. */
+    revisions: { type: Array, default: () => [] },
 });
+
+/** Whole calendar days from today to a date, negative when it has passed. */
+function daysFromToday(value) {
+    const iso = isoDate(value);
+
+    if (!iso) return null;
+
+    const [y, m, d] = iso.split('-').map(Number);
+    const [ty, tm, td] = todayIso().split('-').map(Number);
+
+    return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86400000);
+}
+
+const plural = (n, word) => `${pcs(Math.abs(n))} ${Math.abs(n) === 1 ? word : `${word}s`}`;
+
+/*
+ * The offer's life, read against today. Only a sent quotation has one: a draft has not been
+ * offered yet, and a decided one is history.
+ */
+const validity = computed(() => {
+    const diff = daysFromToday(props.quotation.valid_until);
+
+    if (diff === null) return { text: 'Open', tone: 'text-ink-400', note: null };
+    if (props.quotation.status !== 'sent') return { text: date(props.quotation.valid_until), tone: 'text-ink-900', note: null };
+    if (diff < 0) return { text: date(props.quotation.valid_until), tone: 'text-rose-700', note: `expired ${plural(diff, 'day')} ago` };
+    if (diff === 0) return { text: date(props.quotation.valid_until), tone: 'text-amber-700', note: 'expires today' };
+
+    return { text: date(props.quotation.valid_until), tone: diff <= 7 ? 'text-amber-700' : 'text-ink-900', note: `${plural(diff, 'day')} left` };
+});
+
+const decidedLabel = computed(() => ({ accepted: 'Accepted', rejected: 'Rejected', revised: 'Revised', expired: 'Expired', cancelled: 'Cancelled' }[props.quotation.status] ?? 'Decided'));
 
 const rejectOpen = ref(false);
 
@@ -129,6 +162,74 @@ async function transition(to) {
                     class="font-medium underline"
                 >{{ order.number ?? `draft order #${order.id}` }}</Link> ({{ titleCase(order.status) }})</template>.
             </div>
+
+            <!-- BR-33 — the reason was recorded and shown nowhere; win/loss analysis starts here. -->
+            <div
+                v-if="quotation.reject_reason"
+                class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-900"
+            >
+                <span class="font-medium">Rejected:</span> {{ quotation.reject_reason }}
+            </div>
+
+            <!--
+                The dossier: who it is for and who raised it, when it went out, how long the
+                offer has left, what the customer asked for against what was quoted, and the
+                revisions under this number. These used to live in the subtitle or not at all.
+            -->
+            <Card>
+                <div class="grid gap-4 lg:grid-cols-3">
+                    <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 lg:col-span-2">
+                        <div>
+                            <dt class="text-xs text-ink-500">Customer</dt>
+                            <dd class="mt-0.5 font-medium text-ink-900">
+                                <Link v-if="quotation.customer" :href="`/customers/${quotation.customer.id}`" class="doc-link-quiet">{{ quotation.customer.name }}</Link>
+                                <span v-else>—</span>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Handled by</dt>
+                            <dd class="mt-0.5" :class="quotation.merchandiser ? 'text-ink-900' : 'text-ink-400'">{{ quotation.merchandiser?.name ?? 'Unassigned' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Sent</dt>
+                            <dd class="mt-0.5" :class="quotation.sent_at ? 'text-ink-900' : 'text-ink-400'">{{ quotation.sent_at ? date(quotation.sent_at) : 'Not yet' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Valid until</dt>
+                            <dd class="mt-0.5 font-medium" :class="validity.tone">
+                                {{ validity.text }}
+                                <span v-if="validity.note" class="text-xs font-normal"> · {{ validity.note }}</span>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">{{ decidedLabel }}</dt>
+                            <dd class="mt-0.5" :class="quotation.decided_at ? 'text-ink-900' : 'text-ink-400'">{{ quotation.decided_at ? date(quotation.decided_at) : 'Awaiting the customer' }}</dd>
+                        </div>
+                        <div v-if="inquiry">
+                            <dt class="text-xs text-ink-500">Asked for · quoted</dt>
+                            <dd class="mt-0.5 text-ink-900 tnum">
+                                {{ pcs(inquiry.requested_qty) }} pcs · {{ pcs(inquiry.quoted_qty) }} pcs
+                                <span v-if="inquiry.requested_qty && inquiry.quoted_qty !== inquiry.requested_qty" class="text-xs text-amber-700"> · differs</span>
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <div class="border-t border-slate-100 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
+                        <p class="text-xs text-ink-500">Revisions</p>
+                        <p v-if="revisions.length <= 1" class="mt-0.5 text-sm text-ink-400">{{ quotation.number ? 'None yet' : 'Numbered when sent' }}</p>
+                        <ol v-else class="mt-1 space-y-1 text-sm">
+                            <li v-for="revision in revisions" :key="revision.id" class="flex items-center justify-between gap-2">
+                                <span>
+                                    <span v-if="revision.current" class="font-medium text-ink-900">R{{ revision.revision_no }} · this one</span>
+                                    <Link v-else :href="`/quotations/${revision.id}`" class="doc-link-quiet">R{{ revision.revision_no }}</Link>
+                                    <span class="text-xs text-ink-500"> · {{ date(revision.quotation_date) }}</span>
+                                </span>
+                                <Badge :status="revision.status" />
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+            </Card>
 
             <!--
                 BR-22/Q1 — the cost sheet is computed in the factory's currency and the document

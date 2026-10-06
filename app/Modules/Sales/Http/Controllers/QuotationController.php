@@ -26,6 +26,7 @@ use App\Support\States\TransitionDenied;
 use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -51,31 +52,62 @@ class QuotationController extends Controller
         // BR-47 — a quotation in USD sits in the same list as one in BDT, and an unlabelled
         // 3,630,453.60 beside an unlabelled 52.33 reads as corrupted data rather than as two
         // currencies. Every amount on this list says which one it is.
-        $query = Quotation::query()->with(['customer:id,code,name', 'currency:id,code'])->withCount('lines');
+        $query = Quotation::query()
+            ->with(['customer:id,code,name', 'currency:id,code', 'merchandiser:id,name'])
+            ->withCount('lines')
+            ->withSum('lines', 'qty');
+
+        // Search reaches the customer: "Ananta" is how a merchandiser remembers a quotation.
+        $term = trim((string) $request->string('q'));
+
+        if ($term !== '') {
+            $query->where(fn ($where) => $where
+                ->where('number', 'like', "%{$term}%")
+                ->orWhereHas('customer', fn ($customer) => $customer
+                    ->where('name', 'like', "%{$term}%")
+                    ->orWhere('code', 'like', "%{$term}%")));
+        }
 
         $this->applyListing(
             $query,
             $request,
-            searchable: ['number'],
-            filters: ['status' => 'status', 'customer' => 'customer_id'],
+            filters: ['status' => 'status', 'customer' => 'customer_id', 'merchandiser' => 'merchandiser_id'],
             sortable: ['number', 'quotation_date', 'valid_until', 'total', 'status'],
             defaultSort: '-id',
         );
 
+        $today = now()->startOfDay();
+
         return Inertia::render('Sales/Quotations/Index', [
             'quotations' => $query->paginate($this->perPage($request))->withQueryString()->through(
-                fn (Quotation $quotation): array => [
-                    ...$quotation->only([
-                        'id', 'number', 'revision_no', 'quotation_date', 'valid_until',
-                        'subtotal', 'total', 'status', 'sent_at',
-                    ]),
-                    'customer' => $quotation->customer?->name,
-                    'currency' => $quotation->currency?->code,
-                    'lines_count' => $quotation->lines_count,
-                ],
+                function (Quotation $quotation) use ($today): array {
+                    $validUntil = $quotation->valid_until ? Carbon::parse($quotation->valid_until)->startOfDay() : null;
+
+                    return [
+                        ...$quotation->only([
+                            'id', 'number', 'revision_no', 'quotation_date', 'valid_until',
+                            'subtotal', 'total', 'status', 'sent_at', 'decided_at',
+                        ]),
+                        'customer' => $quotation->customer?->name,
+                        'currency' => $quotation->currency?->code,
+                        'merchandiser' => $quotation->merchandiser?->name,
+                        'lines_count' => $quotation->lines_count,
+                        'total_qty' => (float) ($quotation->lines_sum_qty ?? 0),
+                        // How long the offer has left — only meaningful while it is out with the customer.
+                        'days_to_expiry' => $validUntil === null || $quotation->status !== 'sent'
+                            ? null
+                            : (int) $today->diffInDays($validUntil, false),
+                    ];
+                },
             ),
-            'filters' => $this->listingFilters($request, ['status', 'customer']),
+            'filters' => $this->listingFilters($request, ['status', 'customer', 'merchandiser']),
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
+            'merchandisers' => \App\Models\User::query()
+                ->whereIn('id', Quotation::query()->whereNotNull('merchandiser_id')->distinct()->pluck('merchandiser_id'))
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            // The whole pipeline, unfiltered: the strip above the table is a map, not a result.
+            'counts' => Quotation::query()->selectRaw('status, COUNT(*) AS n')->groupBy('status')->pluck('n', 'status'),
         ]);
     }
 
@@ -271,7 +303,7 @@ class QuotationController extends Controller
 
     public function show(Request $request, Quotation $quotation): Response
     {
-        $quotation->load(['customer', 'currency:id,code,name,symbol', 'lines.product:id,code,name,product_type']);
+        $quotation->load(['customer', 'currency:id,code,name,symbol', 'merchandiser:id,name', 'lines.product:id,code,name,product_type']);
 
         $sheets = CostSheet::query()
             ->whereIn('quotation_line_id', $quotation->lines->pluck('id'))
@@ -310,7 +342,16 @@ class QuotationController extends Controller
                 // (BR-22/Q1 — snapshotted, so this is what it was quoted at, not today's).
                 'currency' => $quotation->currency?->only(['id', 'code', 'name', 'symbol']),
                 'customer' => $quotation->customer?->only(['id', 'code', 'name', 'min_order_value']),
+                'merchandiser' => $quotation->merchandiser?->only(['id', 'name']),
             ],
+            // Every revision under this number, so /R1 is a link to R0 and not only a suffix.
+            'revisions' => $quotation->number === null ? [] : $quotation->revisions()
+                ->get(['id', 'revision_no', 'status', 'quotation_date', 'total'])
+                ->map(fn (Quotation $revision): array => [
+                    ...$revision->only(['id', 'revision_no', 'status', 'quotation_date', 'total']),
+                    'current' => $revision->id === $quotation->id,
+                ])
+                ->all(),
             'lines' => $quotation->lines->map(fn ($line): array => [
                 ...$line->only(['id', 'line_no', 'description', 'qty', 'rate_per_m', 'tooling_charge', 'line_total', 'lead_time_days']),
                 // F-05 — what the customer actually asked for on the line this answers.
