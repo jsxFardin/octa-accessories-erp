@@ -32,31 +32,71 @@ class PriceListController extends Controller
 
     public function index(Request $request): Response
     {
-        $lists = DB::table('price_lists as pl')
+        $today = now()->toDateString();
+        $soon = now()->addDays(30)->toDateString();
+
+        // A list's standing today, from its dates and flag: what a merchandiser needs to know
+        // before quoting, and what the list never said. The CASE is reused by the counts.
+        $standing = "CASE
+            WHEN pl.is_active = 0 THEN 'inactive'
+            WHEN pl.valid_from > '{$today}' THEN 'upcoming'
+            WHEN pl.valid_to IS NOT NULL AND pl.valid_to < '{$today}' THEN 'lapsed'
+            WHEN pl.valid_to IS NOT NULL AND pl.valid_to <= '{$soon}' THEN 'ending'
+            ELSE 'current' END";
+
+        $base = fn () => DB::table('price_lists as pl')
             ->leftJoin('customers as c', 'c.id', '=', 'pl.customer_id')
-            ->leftJoin('currencies as cur', 'cur.id', '=', 'pl.currency_id')
-            ->when($request->string('q')->toString() !== '', function ($query) use ($request): void {
-                $term = '%'.$request->string('q')->toString().'%';
-                $query->where(fn ($sub) => $sub->where('pl.code', 'like', $term)->orWhere('pl.name', 'like', $term));
+            ->leftJoin('currencies as cur', 'cur.id', '=', 'pl.currency_id');
+
+        $term = $request->string('q')->toString();
+        $sort = (string) $request->query('sort', '-id');
+        $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
+        $column = ['code' => 'pl.code', 'name' => 'pl.name', 'customer' => 'c.name', 'valid_from' => 'pl.valid_from', 'valid_to' => 'pl.valid_to', 'id' => 'pl.id'][ltrim($sort, '-')] ?? 'pl.id';
+
+        $lists = $base()
+            ->when($term !== '', function ($query) use ($term): void {
+                $like = '%'.$term.'%';
+                $query->where(fn ($sub) => $sub
+                    ->where('pl.code', 'like', $like)
+                    ->orWhere('pl.name', 'like', $like)
+                    ->orWhere('c.name', 'like', $like)
+                    ->orWhere('c.code', 'like', $like));
             })
+            ->when($request->filled('customer'), fn ($query) => $query->where('pl.customer_id', (int) $request->query('customer')))
+            ->when($request->filled('standing'), fn ($query) => $query->whereRaw("({$standing}) = ?", [(string) $request->query('standing')]))
+            ->orderBy($column, $direction)
             ->orderByDesc('pl.id')
             ->select([
-                'pl.id', 'pl.code', 'pl.name', 'pl.valid_from', 'pl.valid_to', 'pl.is_active',
+                'pl.id', 'pl.code', 'pl.name', 'pl.valid_from', 'pl.valid_to', 'pl.is_active', 'pl.customer_id',
                 'c.name as customer', 'cur.code as currency',
                 DB::raw('(SELECT COUNT(*) FROM price_list_lines WHERE price_list_id = pl.id) as lines_count'),
+                DB::raw('(SELECT COUNT(DISTINCT product_id) FROM price_list_lines WHERE price_list_id = pl.id) as products_count'),
+                DB::raw("({$standing}) as standing"),
             ])
-            ->paginate(25)
+            ->paginate((int) $request->query('per_page', 25))
             ->withQueryString();
 
         return Inertia::render('Sales/PriceLists/Index', [
             'lists' => $lists,
-            'filters' => $request->only(['q', 'sort']),
+            'filters' => $request->only(['q', 'sort', 'customer', 'standing']),
+            'customers' => Customer::query()->orderBy('name')->get(['id', 'code', 'name']),
+            'counts' => DB::table('price_lists as pl')
+                ->selectRaw("({$standing}) AS standing, COUNT(*) AS n")
+                ->groupBy('standing')
+                ->pluck('n', 'standing'),
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
-        return Inertia::render('Sales/PriceLists/Form', ['list' => null, ...$this->options()]);
+        // Started from a customer's page: that customer is already chosen.
+        $requested = (int) $request->query('customer');
+
+        return Inertia::render('Sales/PriceLists/Form', [
+            'list' => null,
+            'preselectCustomerId' => $requested > 0 && Customer::query()->active()->whereKey($requested)->exists() ? $requested : null,
+            ...$this->options(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -85,8 +125,26 @@ class PriceListController extends Controller
             ->select(['pl.*', 'c.name as customer', 'cur.code as currency'])
             ->first() ?? abort(404);
 
+        $today = now()->toDateString();
+        $standing = match (true) {
+            ! $list->is_active => 'inactive',
+            $list->valid_from > $today => 'upcoming',
+            $list->valid_to !== null && $list->valid_to < $today => 'lapsed',
+            $list->valid_to !== null && $list->valid_to <= now()->addDays(30)->toDateString() => 'ending',
+            default => 'current',
+        };
+
         return Inertia::render('Sales/PriceLists/Show', [
-            'list' => $list,
+            'list' => [...(array) $list, 'standing' => $standing],
+            // Another list for the same customer that is live on the same days: a quotation
+            // raised on such a day could read either one.
+            'overlapping' => DB::table('price_lists')
+                ->where('customer_id', $list->customer_id)
+                ->where('id', '!=', $list->id)
+                ->where('is_active', true)
+                ->where(fn ($q) => $q->whereNull('valid_to')->orWhere('valid_to', '>=', $list->valid_from))
+                ->when($list->valid_to !== null, fn ($q) => $q->where('valid_from', '<=', $list->valid_to))
+                ->get(['id', 'code', 'name', 'valid_from', 'valid_to']),
             'lines' => DB::table('price_list_lines as l')
                 ->leftJoin('products as p', 'p.id', '=', 'l.product_id')
                 ->where('l.price_list_id', $priceList)
@@ -163,20 +221,46 @@ class PriceListController extends Controller
     /** @return array<string, mixed> */
     private function validated(Request $request, ?int $ignoreId): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'code' => ['required', 'string', 'max:20', Rule::unique('price_lists', 'code')->ignore($ignoreId)],
             'name' => ['required', 'string', 'max:120'],
             'customer_id' => ['required', 'integer', 'exists:customers,id'],
             'currency_id' => ['required', 'integer', 'exists:currencies,id'],
             'valid_from' => ['required', 'date'],
-            'valid_to' => ['nullable', 'date', 'after:valid_from'],
+            // A one-day list is a list; the check constraint allows equal dates and so does this.
+            'valid_to' => ['nullable', 'date', 'after_or_equal:valid_from'],
             'is_active' => ['boolean'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],
             'lines.*.description' => ['nullable', 'string', 'max:255'],
             'lines.*.min_qty' => ['required', 'numeric', 'min:0'],
             'lines.*.rate_per_m' => ['required', 'numeric', 'min:0'],
+        ], [
+            'lines.required' => 'Add at least one rate.',
+            'lines.min' => 'Add at least one rate.',
         ]);
+
+        // Two active lists live on the same day for one customer would make the quoted rate a
+        // matter of which row the query met first. Refused with the other list named.
+        if (($data['is_active'] ?? true) !== false) {
+            $overlap = DB::table('price_lists')
+                ->where('customer_id', $data['customer_id'])
+                ->where('is_active', true)
+                ->when($ignoreId !== null, fn ($q) => $q->where('id', '!=', $ignoreId))
+                ->where(fn ($q) => $q->whereNull('valid_to')->orWhere('valid_to', '>=', $data['valid_from']))
+                ->when(! empty($data['valid_to']), fn ($q) => $q->where('valid_from', '<=', $data['valid_to']))
+                ->first(['code', 'valid_from', 'valid_to']);
+
+            if ($overlap !== null) {
+                $until = $overlap->valid_to === null ? 'open-ended' : 'until '.$overlap->valid_to;
+
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'valid_from' => "These dates overlap {$overlap->code}, which is active from {$overlap->valid_from} ({$until}) for the same customer. End one list before the other starts, or deactivate it.",
+                ]);
+            }
+        }
+
+        return $data;
     }
 
     /** @param list<array<string, mixed>> $lines */
@@ -199,7 +283,8 @@ class PriceListController extends Controller
     private function options(): array
     {
         return [
-            'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
+            // The customer's trading currency rides along so the form can default to it.
+            'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name', 'currency_id']),
             'currencies' => Currency::query()->orderBy('code')->get(['id', 'code', 'is_base']),
             'products' => DB::table('products')->where('status', '!=', 'obsolete')
                 ->orderBy('code')->get(['id', 'code', 'name', 'customer_id']),
