@@ -558,3 +558,22 @@ export default {
         };
     },
 };
+
+/**
+ * A span of machine time, the way a planner says it: "41 min", "2.7 h", "52,501 h".
+ *
+ * The board printed raw `planned_minutes` — "3150030 min" — which nobody can place against a
+ * shift. Under an hour stays in minutes; an hour or more is hours, with one decimal while the
+ * figure is small enough for the decimal to matter.
+ */
+export function minutes(value) {
+    const total = Number(value);
+
+    if (!Number.isFinite(total) || total <= 0) return '0 min';
+    if (total < 60) return `${Math.round(total)} min`;
+
+    const hours = total / 60;
+    const digits = hours < 100 ? 1 : 0;
+
+    return `${number(hours, digits, digits)} h`;
+}

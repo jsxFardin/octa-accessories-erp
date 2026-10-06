@@ -95,6 +95,7 @@ class PlanningBoardController extends Controller
             // minutes say whether the day it is dropped on can hold it.
             'unscheduled' => $this->unscheduled()
                 ->leftJoin('machine_groups as mg', 'mg.id', '=', 'jco.machine_group_id')
+                ->leftJoin('routing_operations as ro', 'ro.id', '=', 'jco.routing_operation_id')
                 ->orderBy('jc.due_date')
                 ->orderBy('jc.id')
                 ->orderBy('jco.sequence_no')
@@ -102,18 +103,17 @@ class PlanningBoardController extends Controller
                 ->get([
                     'jco.id', 'jco.code', 'jco.name', 'jco.sequence_no', 'jco.planned_qty',
                     'jco.planned_minutes', 'jco.machine_group_id', 'mg.name as machine_group',
-                    'jc.id as job_card_id', 'jc.number', 'jc.due_date',
+                    'jc.id as job_card_id', 'jc.number', 'jc.due_date', 'jc.status as job_card_status',
+                    // Metres or pieces: a quantity without its unit is the misreading the
+                    // job card page already had to fix.
+                    DB::raw("CASE WHEN COALESCE(ro.consumes_web, 1) THEN 'm' ELSE 'pcs' END as unit"),
                 ]),
             // The list above stops at fifty, soonest due first. Without the full count it
             // read as "this is everything", and the fifty-first step was simply not there.
             'unscheduledTotal' => $this->unscheduled()->count(),
             // What is already on the board, so a plan can be moved or taken off it. Without
             // this list the only way to correct a placement was to have never made it.
-            'scheduled' => DB::table('job_card_operations as jco')
-                ->join('job_cards as jc', 'jc.id', '=', 'jco.job_card_id')
-                ->join('machines as m', 'm.id', '=', 'jco.machine_id')
-                ->whereNotNull('jco.scheduled_start')
-                ->whereIn('jco.status', ['pending', 'ready'])
+            'scheduled' => $this->scheduled()
                 ->whereIn(DB::raw('DATE(jco.scheduled_start)'), $dates)
                 ->orderBy('jco.scheduled_start')
                 ->get([
@@ -121,7 +121,30 @@ class PlanningBoardController extends Controller
                     'jco.machine_id', 'jco.scheduled_start', 'm.code as machine',
                     'jc.id as job_card_id', 'jc.number', 'jc.due_date',
                 ]),
+            // Where the plan is when this window has none of it. A board of empty cells
+            // with "nothing scheduled" under it read as "nothing is planned anywhere".
+            'summary' => [
+                'scheduled_total' => $this->scheduled()->count(),
+                'next_scheduled_on' => $this->scheduled()
+                    ->whereDate('jco.scheduled_start', '>', $dates->last())
+                    ->min(DB::raw('DATE(jco.scheduled_start)')),
+                'previous_scheduled_on' => $this->scheduled()
+                    ->whereDate('jco.scheduled_start', '<', $dates->first())
+                    ->max(DB::raw('DATE(jco.scheduled_start)')),
+                'waiting_cards' => $this->unscheduled()->distinct()->count('jc.id'),
+                'waiting_late' => $this->unscheduled()->whereDate('jc.due_date', '<', now()->toDateString())->distinct()->count('jc.id'),
+            ],
         ]);
+    }
+
+    /** Steps that are on the board and can still be moved: pending or ready, with a machine and a day. */
+    private function scheduled(): \Illuminate\Database\Query\Builder
+    {
+        return DB::table('job_card_operations as jco')
+            ->join('job_cards as jc', 'jc.id', '=', 'jco.job_card_id')
+            ->join('machines as m', 'm.id', '=', 'jco.machine_id')
+            ->whereNotNull('jco.scheduled_start')
+            ->whereIn('jco.status', ['pending', 'ready']);
     }
 
     /** Open steps of live job cards that have no machine and day yet. */
