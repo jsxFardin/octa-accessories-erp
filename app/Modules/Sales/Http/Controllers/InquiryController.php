@@ -5,8 +5,13 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Modules\MasterData\Models\Brand;
 use App\Modules\MasterData\Models\Customer;
+use App\Modules\MasterData\Models\CustomerContact;
 use App\Modules\Sales\Models\Inquiry;
+use App\Modules\Sales\Models\InquiryLine;
+use App\Support\Audit\AuditLog;
 use App\Support\Audit\DocumentTrail;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
@@ -15,6 +20,7 @@ use App\Support\Reference\Vocabulary;
 use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -36,31 +42,72 @@ class InquiryController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = Inquiry::query()->with('customer:id,code,name')->withCount('lines');
+        $query = Inquiry::query()
+            ->with(['customer:id,code,name,currency_id', 'customer.currency:id,code', 'merchandiser:id,name'])
+            ->withCount('lines')
+            ->withSum('lines', 'qty')
+            // BR-1 — the customer's target × quantity ÷ 1,000 per line: what they hope to
+            // pay, so the list can be read as a pipeline and not only as a register.
+            ->addSelect(['indicative_value' => InquiryLine::query()
+                ->selectRaw('COALESCE(SUM(qty / 1000 * COALESCE(target_rate_per_m, 0)), 0)')
+                ->whereColumn('inquiry_id', 'inquiries.id')]);
+
+        // Search reaches the customer too: "Fakir" is how a merchandiser remembers an
+        // inquiry, not INQ-26-00066. Done here because the shared listing searches columns.
+        $term = trim((string) $request->string('q'));
+
+        if ($term !== '') {
+            $query->where(fn ($where) => $where
+                ->where('number', 'like', "%{$term}%")
+                ->orWhere('notes', 'like', "%{$term}%")
+                ->orWhereHas('customer', fn ($customer) => $customer
+                    ->where('name', 'like', "%{$term}%")
+                    ->orWhere('code', 'like', "%{$term}%")));
+        }
 
         $this->applyListing(
             $query,
             $request,
-            searchable: ['number', 'notes'],
-            filters: ['status' => 'status', 'customer' => 'customer_id'],
+            filters: ['status' => 'status', 'customer' => 'customer_id', 'merchandiser' => 'merchandiser_id'],
             sortable: ['number', 'inquiry_date', 'required_by', 'status'],
             defaultSort: '-id',
         );
 
+        $today = now()->startOfDay();
+
         return Inertia::render('Sales/Inquiries/Index', [
             'inquiries' => $query->paginate($this->perPage($request))->withQueryString()->through(
-                fn (Inquiry $inquiry): array => [
-                    ...$inquiry->only(['id', 'number', 'inquiry_date', 'required_by', 'status', 'source', 'lost_reason']),
-                    'customer' => $inquiry->customer?->name,
-                    'lines_count' => $inquiry->lines_count,
-                ],
+                function (Inquiry $inquiry) use ($today): array {
+                    $requiredBy = $inquiry->required_by ? Carbon::parse($inquiry->required_by)->startOfDay() : null;
+                    $daysToRequired = $requiredBy === null ? null : (int) $today->diffInDays($requiredBy, false);
+
+                    return [
+                        ...$inquiry->only(['id', 'number', 'inquiry_date', 'required_by', 'status', 'source', 'lost_reason']),
+                        'customer' => $inquiry->customer?->name,
+                        'currency' => $inquiry->customer?->currency?->code,
+                        'merchandiser' => $inquiry->merchandiser?->name,
+                        'lines_count' => $inquiry->lines_count,
+                        'total_qty' => (float) ($inquiry->lines_sum_qty ?? 0),
+                        'value' => round((float) ($inquiry->indicative_value ?? 0), 2),
+                        'age_days' => (int) Carbon::parse($inquiry->inquiry_date)->startOfDay()->diffInDays($today),
+                        'days_to_required' => $daysToRequired,
+                        // Past its date while still in play. A won or lost inquiry is history.
+                        'overdue' => $daysToRequired !== null && $daysToRequired < 0
+                            && in_array($inquiry->status, ['draft', 'open', 'quoted'], true),
+                    ];
+                },
             ),
-            'filters' => $this->listingFilters($request, ['status', 'customer']),
+            'filters' => $this->listingFilters($request, ['status', 'customer', 'merchandiser']),
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
+            'merchandisers' => User::query()
+                ->whereIn('id', Inquiry::query()->whereNotNull('merchandiser_id')->distinct()->pluck('merchandiser_id'))
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            // The whole pipeline, unfiltered: the strip above the table is a map, not a result.
+            'counts' => Inquiry::query()->selectRaw('status, COUNT(*) AS n')->groupBy('status')->pluck('n', 'status'),
         ]);
     }
 
-    /** `?customer=` carries the customer whose page the inquiry was started from. */
     public function create(Request $request): Response
     {
         // BR-55 — an inquiry names no currency of its own, but the target rate on it is
@@ -85,6 +132,9 @@ class InquiryController extends Controller
             'products' => \App\Modules\Product\Models\Product::query()->active()->orderBy('code')
                 ->get(['id', 'code', 'name', 'customer_id', 'product_type']),
             'sources' => Vocabulary::options('inquiry_source'),
+            // Who asked and for which label: both filtered by the chosen customer on the form.
+            'contacts' => CustomerContact::query()->orderBy('name')->get(['id', 'customer_id', 'name', 'designation']),
+            'brands' => Brand::query()->where('is_active', true)->orderBy('name')->get(['id', 'customer_id', 'code', 'name']),
         ]);
     }
 
@@ -110,7 +160,7 @@ class InquiryController extends Controller
 
     public function show(Request $request, Inquiry $inquiry): Response
     {
-        $inquiry->load(['customer.currency:id,code,name,symbol', 'lines.product:id,code,name']);
+        $inquiry->load(['customer.currency:id,code,name,symbol', 'lines.product:id,code,name', 'contact:id,name,designation,email,phone', 'brand:id,code,name', 'merchandiser:id,name']);
 
         // F-06 — a Won inquiry listed its quotations and stopped there, so the order it was
         // won with was reachable only by searching for it. The chain is walked in one query:
@@ -138,10 +188,30 @@ class InquiryController extends Controller
                 'q.number as quotation_number',
             ]);
 
+        // When it moved: the dossier's milestone strip reads these, so "quoted" has a date
+        // even when the quotation that caused it was later revised away. A submit is an
+        // ordinary update that changes `status`, so those rows count too.
+        $statusChanges = AuditLog::query()
+            ->whereIn('auditable_type', [Inquiry::class, $inquiry->getTable()])
+            ->where('auditable_id', $inquiry->id)
+            ->whereIn('event', ['status_changed', 'updated'])
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn (AuditLog $row): array => ['status' => $row->new_values['status'] ?? null, 'at' => $row->created_at])
+            ->filter(fn (array $change): bool => $change['status'] !== null)
+            ->values()
+            ->all();
+
         return Inertia::render('Sales/Inquiries/Show', [
             'inquiry' => [
                 ...$inquiry->only(['id', 'number', 'inquiry_date', 'required_by', 'source', 'status', 'lost_reason', 'notes']),
                 'customer' => $inquiry->customer?->only(['id', 'code', 'name']),
+                'contact' => $inquiry->contact?->only(['id', 'name', 'designation', 'email', 'phone']),
+                'brand' => $inquiry->brand?->only(['id', 'code', 'name']),
+                'merchandiser' => $inquiry->merchandiser?->only(['id', 'name']),
+                'total_qty' => (float) $inquiry->lines->sum('qty'),
+                // BR-1 — the customer's target × quantity ÷ 1,000, in their currency.
+                'indicative_value' => round((float) $inquiry->lines->sum(fn ($line): float => (float) $line->qty / 1000 * (float) ($line->target_rate_per_m ?? 0)), 2),
                 // An inquiry names no currency of its own; a target rate is understood in the
                 // currency the customer trades in, and saying so is the difference between a
                 // target of 100 and a target of 100 of *something*.
@@ -153,6 +223,7 @@ class InquiryController extends Controller
             ]),
             'quotations' => $quotations,
             'orders' => $orders,
+            'statusChanges' => $statusChanges,
             // F-01/F-02 — when it came in, when it was quoted, when it was won or lost.
             'trail' => $this->trail->for($inquiry, $request->user()),
         ]);
@@ -191,6 +262,9 @@ class InquiryController extends Controller
             'products' => \App\Modules\Product\Models\Product::query()->active()->orderBy('code')
                 ->get(['id', 'code', 'name', 'customer_id', 'product_type']),
             'sources' => Vocabulary::options('inquiry_source'),
+            // Who asked and for which label: both filtered by the chosen customer on the form.
+            'contacts' => CustomerContact::query()->orderBy('name')->get(['id', 'customer_id', 'name', 'designation']),
+            'brands' => Brand::query()->where('is_active', true)->orderBy('name')->get(['id', 'customer_id', 'code', 'name']),
         ]);
     }
 
@@ -256,6 +330,10 @@ class InquiryController extends Controller
             'lines.*.qty' => ['required', 'numeric', 'gt:0'],
             'lines.*.target_rate_per_m' => ['nullable', 'numeric', 'min:0'],
             'lines.*.notes' => ['nullable', 'string', 'max:255'],
+        ], [
+            // "The lines field is required" names a request key; this names the thing to do.
+            'lines.required' => 'Add at least one line.',
+            'lines.min' => 'Add at least one line.',
         ]);
     }
 

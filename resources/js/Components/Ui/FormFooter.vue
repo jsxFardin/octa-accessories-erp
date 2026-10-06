@@ -137,7 +137,8 @@ onUnmounted(() => {
 <template>
     <!-- `mt-auto` inside the form column's flex layout: docked to the foot of the window on a
          short form, and still sticky while a long one scrolls past. -->
-    <div class="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-slate-200 bg-white/95 px-4 pt-2.5 pb-2.5 backdrop-blur print:hidden">
+    <!-- `data-form-footer` tells the global error handler this page already shows its errors. -->
+    <div data-form-footer class="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-slate-200 bg-white/95 px-4 pt-2.5 pb-2.5 backdrop-blur print:hidden">
         <div
             v-if="errorMessages.length"
             role="alert"

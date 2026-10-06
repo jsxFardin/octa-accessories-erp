@@ -28,6 +28,10 @@ router.on('error', (event) => {
 
     if (messages.length === 0) return;
 
+    // A page with a FormFooter lists every refused field beside the save button and beside
+    // the fields themselves; a toast on top of that said the same thing a third time.
+    if (document.querySelector('[data-form-footer]')) return;
+
     // Every message, not "the first and 3 more": on a form that renders no inline errors this
     // toast is the whole explanation, and a count tells nobody which fields to fix.
     pushToast('error', messages.length === 1

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -10,13 +10,16 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { date, isoDate, money, pcs, todayIso } from '@/plugins/formatting';
+import { addCalendarDays, date, isoDate, money, pcs, todayIso } from '@/plugins/formatting';
 
 const props = defineProps({
     inquiry: { type: Object, default: null },
     /** The customer whose page this inquiry was started from, resolved server-side. */
     preselectCustomerId: { type: Number, default: null },
     customers: { type: Array, default: () => [] },
+    /** Every customer's contacts and brands; the form shows the chosen customer's. */
+    contacts: { type: Array, default: () => [] },
+    brands: { type: Array, default: () => [] },
     productTypes: { type: Array, default: () => [] },
     /** Active products, for a line that asks for something already made before. */
     products: { type: Array, default: () => [] },
@@ -27,12 +30,19 @@ const isEdit = computed(() => Boolean(props.inquiry));
 
 const form = useForm({
     customer_id: props.inquiry?.customer_id ?? props.preselectCustomerId ?? '',
+    customer_contact_id: props.inquiry?.customer_contact_id ?? '',
+    brand_id: props.inquiry?.brand_id ?? '',
     inquiry_date: isoDate(props.inquiry?.inquiry_date) || todayIso(),
     required_by: isoDate(props.inquiry?.required_by),
     source: props.inquiry?.source ?? '',
     notes: props.inquiry?.notes ?? '',
+    // Stored as decimals; typed as numbers. "12000.00" in a quantity cell is the database talking.
     lines: props.inquiry?.lines?.length
-        ? props.inquiry.lines.map((line) => ({ ...line }))
+        ? props.inquiry.lines.map((line) => ({
+            ...line,
+            qty: line.qty === null || line.qty === '' ? '' : String(Number(line.qty)),
+            target_rate_per_m: line.target_rate_per_m === null || line.target_rate_per_m === '' ? '' : String(Number(line.target_rate_per_m)),
+        }))
         : [blankLine()],
 });
 
@@ -42,6 +52,17 @@ function blankLine() {
 
 function addLine() {
     form.lines = [...form.lines, blankLine()];
+}
+
+/**
+ * Enter in the last cell of the last line starts the next one, with the cursor already in
+ * its description. Line entry is keyboard work; reaching for "Add line" every row is not.
+ */
+function addLineFromKeyboard(index) {
+    if (index !== form.lines.length - 1) return;
+
+    addLine();
+    nextTick(() => document.querySelector(`[aria-label="Description, line ${form.lines.length}"]`)?.focus());
 }
 
 function removeLine(index) {
@@ -73,6 +94,10 @@ const selectedCustomer = computed(
  */
 const customerCurrency = computed(() => selectedCustomer.value?.currency ?? undefined);
 
+const forCustomer = (rows) => (form.customer_id ? rows.filter((row) => row.customer_id === Number(form.customer_id)) : []);
+const availableContacts = computed(() => forCustomer(props.contacts).map((c) => ({ ...c, label: c.designation ? `${c.name} · ${c.designation}` : c.name })));
+const availableBrands = computed(() => forCustomer(props.brands));
+
 /** Products belong to one customer, so the picker follows the customer chosen above. */
 const availableProducts = computed(() => (form.customer_id
     ? props.products.filter((product) => product.customer_id === Number(form.customer_id))
@@ -92,13 +117,20 @@ function onProductChange(line) {
     if (!line.product_type) line.product_type = product.product_type ?? '';
 }
 
-/** A change of customer leaves the previous customer's products behind. */
+/** A change of customer leaves the previous customer's products, contact and brand behind. */
 const droppedProducts = ref(0);
 
 watch(() => form.customer_id, (customer) => {
     droppedProducts.value = 0;
 
+    if (!props.contacts.some((c) => String(c.id) === String(form.customer_contact_id) && c.customer_id === Number(customer))) form.customer_contact_id = '';
+    if (!props.brands.some((b) => String(b.id) === String(form.brand_id) && b.customer_id === Number(customer))) form.brand_id = '';
+
     if (!customer) return;
+
+    // One contact or one brand is not a choice: fill it in.
+    if (!form.customer_contact_id && availableContacts.value.length === 1) form.customer_contact_id = availableContacts.value[0].id;
+    if (!form.brand_id && availableBrands.value.length === 1) form.brand_id = availableBrands.value[0].id;
 
     form.lines.forEach((line) => {
         const product = props.products.find((row) => row.id === Number(line.product_id));
@@ -109,6 +141,18 @@ watch(() => form.customer_id, (customer) => {
         }
     });
 });
+
+/*
+ * Required-by is usually "four to eight weeks from now"; typing the date is the slow way.
+ * Counted from the inquiry date, because that is what the customer's lead time runs from.
+ */
+const PRESETS = [30, 45, 60];
+
+function presetRequiredBy(days) {
+    form.required_by = addCalendarDays(form.inquiry_date || todayIso(), days);
+}
+
+const requiredByPast = computed(() => form.required_by && form.required_by < todayIso());
 
 /** A row nobody typed into: the blank one a new form starts with, or a stray "Add line". */
 function isBlank(line) {
@@ -124,13 +168,17 @@ function submit() {
         : form.post('/inquiries');
 }
 
+/*
+ * Description is the widest column: it is the one thing every line must carry, and every
+ * other column is a pick-list or a number. The widths on the rest are ceilings, not shares.
+ */
 const columns = [
-    { key: 'product_id', label: 'Existing product (if any)', width: '14rem' },
+    { key: 'product_id', label: 'Existing product', width: '12rem' },
     { key: 'description', label: 'Description', required: true },
-    { key: 'product_type', label: 'Product type', width: '13rem' },
-    { key: 'qty', label: 'Quantity (pcs)', width: '10rem', align: 'right' },
-    { key: 'target_rate_per_m', label: 'Target rate per 1,000 pcs', width: '10rem', align: 'right' },
-    { key: 'value', label: 'Indicative value', width: '11rem', align: 'right' },
+    { key: 'product_type', label: 'Type', width: '10rem' },
+    { key: 'qty', label: 'Quantity (pcs)', width: '7.5rem', align: 'right' },
+    { key: 'target_rate_per_m', label: 'Target rate per 1,000 pcs', width: '8.5rem', align: 'right' },
+    { key: 'value', label: 'Indicative value', width: '8rem', align: 'right' },
 ];
 </script>
 
@@ -144,117 +192,165 @@ const columns = [
         </template>
 
         <FormLayout @submit="submit">
-                <Card title="Customer and dates">
-                    <div class="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <FormField label="Customer" :error="form.errors.customer_id" required>
+            <Card title="Who is asking">
+                <div class="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <FormField label="Customer" :error="form.errors.customer_id" required>
+                        <SelectInput
+                            v-model="form.customer_id"
+                            placeholder="— select —"
+                            :options="customers"
+                            value-key="id"
+                            label-key="name"
+                            hint-key="code"
+                        />
+                    </FormField>
+
+                    <FormField label="Contact" :error="form.errors.customer_contact_id" :hint="form.customer_id && !availableContacts.length ? 'No contacts on this customer yet.' : null">
+                        <SelectInput
+                            v-model="form.customer_contact_id"
+                            placeholder="— none —"
+                            :options="availableContacts"
+                            value-key="id"
+                            label-key="label"
+                            :disabled="!form.customer_id || !availableContacts.length"
+                        />
+                    </FormField>
+
+                    <FormField label="Brand" :error="form.errors.brand_id" :hint="form.customer_id && !availableBrands.length ? 'No brands on this customer yet.' : null">
+                        <SelectInput
+                            v-model="form.brand_id"
+                            placeholder="— none —"
+                            :options="availableBrands"
+                            value-key="id"
+                            label-key="name"
+                            hint-key="code"
+                            :disabled="!form.customer_id || !availableBrands.length"
+                        />
+                    </FormField>
+
+                    <FormField label="Inquiry date" :error="form.errors.inquiry_date" required>
+                        <DateInput v-model="form.inquiry_date" />
+                    </FormField>
+
+                    <FormField
+                        label="Required by"
+                        rule="BR-29"
+                        :hint="requiredByPast ? null : 'Feeds the promised date once this becomes an order.'"
+                        :error="form.errors.required_by"
+                    >
+                        <DateInput v-model="form.required_by" :min="form.inquiry_date" />
+                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                            <span class="text-ink-500">From the inquiry date:</span>
+                            <button
+                                v-for="days in PRESETS"
+                                :key="days"
+                                type="button"
+                                class="min-h-6 rounded border border-slate-200 px-2 text-ink-700 transition hover:border-brand-300 hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                @click="presetRequiredBy(days)"
+                            >
+                                +{{ days }} days
+                            </button>
+                        </div>
+                        <p v-if="requiredByPast" class="mt-1 text-xs text-amber-700">This date has already passed.</p>
+                    </FormField>
+
+                    <FormField label="Source" :error="form.errors.source">
+                        <!-- Editable in Setup → Vocabularies, like every other list. -->
+                        <SelectInput v-model="form.source" :options="sources" />
+                    </FormField>
+                </div>
+            </Card>
+
+            <Card
+                title="What they are asking for"
+                subtitle="One line per label or tag. A quantity is enough to start; the spec comes later."
+                :padded="false"
+            >
+                <template #actions>
+                    <span class="text-xs text-ink-500">{{ filledLines }} {{ filledLines === 1 ? 'line' : 'lines' }}</span>
+                </template>
+
+                <div class="px-4 py-3">
+                    <LineItemsTable
+                        :columns="columns"
+                        :lines="form.lines"
+                        :errors="form.errors"
+                        add-label="Add line"
+                        empty="No lines yet"
+                        empty-hint="What the customer asked for, in their words — a product record is not needed yet."
+                        @add="addLine"
+                        @remove="removeLine"
+                    >
+                        <template #cell:product_id="{ line }">
                             <SelectInput
-                                v-model="form.customer_id"
-                                placeholder="— select —"
-                                :options="customers"
+                                v-model="line.product_id"
+                                class="min-w-36"
+                                placeholder="— new —"
+                                :options="availableProducts"
                                 value-key="id"
-                                label-key="name"
-                                hint-key="code"
+                                label-key="code"
+                                hint-key="name"
+                                @update:model-value="onProductChange(line)"
                             />
-                        </FormField>
+                        </template>
 
-                        <FormField label="Inquiry date" :error="form.errors.inquiry_date" required>
-                            <DateInput v-model="form.inquiry_date" />
-                        </FormField>
+                        <template #cell:description="{ line }">
+                            <TextInput cell v-model="line.description" class="min-w-48" placeholder="Centre-fold satin care label, 40 × 20 mm" />
+                        </template>
 
-                        <FormField
-                            label="Required by"
-                            rule="BR-29"
-                            hint="Feeds the promised date once this becomes an order."
-                            :error="form.errors.required_by"
-                        >
-                            <DateInput v-model="form.required_by" />
-                        </FormField>
+                        <template #cell:product_type="{ line }">
+                            <SelectInput v-model="line.product_type" :options="productTypes" />
+                        </template>
 
-                        <FormField label="Source" :error="form.errors.source">
-                            <!-- Editable in Setup → Vocabularies, like every other list. -->
-                            <SelectInput v-model="form.source" :options="sources" />
-                        </FormField>
-                    </div>
-                </Card>
+                        <template #cell:qty="{ line }">
+                            <TextInput cell v-model="line.qty" type="number" numeric min="1" placeholder="0" class="min-w-20" />
+                        </template>
 
-                <Card
-                    title="What they are asking for"
-                    subtitle="One line per label or tag. A quantity is enough to start; the spec comes later."
-                    :padded="false"
-                >
-                        <template #actions>
-                        <span class="text-xs text-ink-500">{{ filledLines }} {{ filledLines === 1 ? 'line' : 'lines' }}</span>
-                    </template>
+                        <template #cell:target_rate_per_m="{ line, index }">
+                            <!-- BR-1: everything in this business is priced per 1000 pieces. -->
+                            <TextInput
+                                cell
+                                v-model="line.target_rate_per_m"
+                                type="number"
+                                step="0.0001"
+                                numeric
+                                placeholder="0.0000"
+                                class="min-w-20"
+                                @keydown.enter.prevent="addLineFromKeyboard(index)"
+                            />
+                        </template>
 
-                    <div class="px-4 py-3">
-                        <LineItemsTable
-                            :columns="columns"
-                            :lines="form.lines"
-                            :errors="form.errors"
-                            add-label="Add line"
-                            empty="No lines yet"
-                            empty-hint="What the customer asked for, in their words — a product record is not needed yet."
-                            @add="addLine"
-                            @remove="removeLine"
-                        >
-                                <template #cell:product_id="{ line }">
-                                <SelectInput
-                                    v-model="line.product_id"
-                                    placeholder="— new, not made before —"
-                                    :options="availableProducts"
-                                    value-key="id"
-                                    label-key="code"
-                                    hint-key="name"
-                                    @update:model-value="onProductChange(line)"
-                                />
-                            </template>
+                        <!-- Read-only: what the customer's own target implies, so an unrealistic
+                             ask is visible on the line rather than after the cost sheet. -->
+                        <template #cell:value="{ line }">
+                            <div class="px-1.5 py-1 text-right text-sm tnum" :class="lineValue(line) ? 'text-ink-800' : 'text-ink-300'">
+                                {{ lineValue(line) ? money(lineValue(line), customerCurrency) : '—' }}
+                            </div>
+                        </template>
 
-                                <template #cell:description="{ line }">
-                                <TextInput cell v-model="line.description" placeholder="Centre-fold satin care label, 40 × 20 mm" />
-                            </template>
+                        <template #footer>
+                            <tr>
+                                <td colspan="4" class="px-1.5 py-2 text-right text-xs text-ink-600">Total</td>
+                                <td class="px-1.5 py-2 text-right text-sm font-semibold tnum text-ink-900">
+                                    {{ pcs(totalQty) }}
+                                </td>
+                                <td class="px-1.5 py-2" />
+                                <td class="px-1.5 py-2 text-right text-sm font-semibold tnum text-ink-900">
+                                    {{ totalValue ? money(totalValue, customerCurrency) : '—' }}
+                                </td>
+                                <td />
+                            </tr>
+                        </template>
+                    </LineItemsTable>
 
-                                <template #cell:product_type="{ line }">
-                                <SelectInput v-model="line.product_type" :options="productTypes" />
-                            </template>
+                    <p class="mt-2 text-xs text-ink-500">Enter in the last cell starts the next line.</p>
 
-                                <template #cell:qty="{ line }">
-                                <TextInput cell v-model="line.qty" type="number" numeric min="1" placeholder="0" />
-                            </template>
-
-                                <template #cell:target_rate_per_m="{ line }">
-                                <!-- BR-1: everything in this business is priced per 1000 pieces. -->
-                                <TextInput cell v-model="line.target_rate_per_m" type="number" step="0.0001" numeric placeholder="0.0000" />
-                            </template>
-
-                            <!-- Read-only: what the customer's own target implies, so an unrealistic
-                                 ask is visible on the line rather than after the cost sheet. -->
-                                <template #cell:value="{ line }">
-                                <div class="px-1.5 py-1 text-right text-sm tnum" :class="lineValue(line) ? 'text-ink-800' : 'text-ink-300'">
-                                    {{ lineValue(line) ? money(lineValue(line), customerCurrency) : '—' }}
-                                </div>
-                            </template>
-
-                                <template #footer>
-                                <tr>
-                                    <td colspan="4" class="px-1.5 py-2 text-right text-xs text-ink-600">Total</td>
-                                    <td class="px-1.5 py-2 text-right text-sm font-semibold tnum text-ink-900">
-                                        {{ pcs(totalQty) }}
-                                    </td>
-                                    <td class="px-1.5 py-2" />
-                                    <td class="px-1.5 py-2 text-right text-sm font-semibold tnum text-ink-900">
-                                        {{ totalValue ? money(totalValue, customerCurrency) : '—' }}
-                                    </td>
-                                    <td />
-                                </tr>
-                            </template>
-                        </LineItemsTable>
-
-                        <p v-if="droppedProducts" role="status" class="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                            {{ droppedProducts }} {{ droppedProducts === 1 ? 'line named a product' : 'lines named products' }}
-                            belonging to the previous customer. {{ droppedProducts === 1 ? 'It has' : 'They have' }} been cleared.
-                        </p>
-                    </div>
-                </Card>
+                    <p v-if="droppedProducts" role="status" class="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        {{ droppedProducts }} {{ droppedProducts === 1 ? 'line named a product' : 'lines named products' }}
+                        belonging to the previous customer. {{ droppedProducts === 1 ? 'It has' : 'They have' }} been cleared.
+                    </p>
+                </div>
+            </Card>
 
             <template #rail>
                 <Card title="Summary">
@@ -301,7 +397,7 @@ const columns = [
                     <FormField label="Inquiry notes" :error="form.errors.notes">
                         <textarea
                             v-model="form.notes"
-                            rows="8"
+                            rows="6"
                             class="form-textarea"
                             placeholder="Anything the merchandiser needs to remember."
                         />
@@ -310,13 +406,13 @@ const columns = [
             </template>
 
             <template #footer>
-            <FormFooter
-                :form="form"
-                cancel-href="/inquiries"
-                :summary="`${filledLines} ${filledLines === 1 ? 'line' : 'lines'} · ${pcs(totalQty)} pcs`"
-                :label="isEdit ? 'Save changes' : 'Save draft'"
-                @save="submit"
-            />
+                <FormFooter
+                    :form="form"
+                    cancel-href="/inquiries"
+                    :summary="`${filledLines} ${filledLines === 1 ? 'line' : 'lines'} · ${pcs(totalQty)} pcs`"
+                    :label="isEdit ? 'Save changes' : 'Save draft'"
+                    @save="submit"
+                />
             </template>
         </FormLayout>
     </AppLayout>
