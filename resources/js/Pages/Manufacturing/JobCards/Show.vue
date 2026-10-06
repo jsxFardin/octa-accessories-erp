@@ -13,8 +13,10 @@ import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import Modal from '@/Components/Ui/Modal.vue';
-import { date, datetime, money, pcs, qty, titleCase } from '@/plugins/formatting';
+import { date, datetime, isoDate, money, pcs, pct, qty, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
+import DropdownMenu from '@/Components/Ui/DropdownMenu.vue';
+import Icon from '@/Components/Ui/Icon.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
@@ -542,6 +544,135 @@ const canIssueMaterial = computed(
 
 const issueHref = computed(() => `/material-issues/create?job_card=${props.jobCard.id}`);
 
+// --- The card's life, said in words ------------------------------------------------------
+
+/** Whole calendar days from today to a date, negative when it has passed. */
+function daysFromToday(value) {
+    const iso = isoDate(value);
+
+    if (!iso) return null;
+
+    const [y, m, d] = iso.split('-').map(Number);
+    const [ty, tm, td] = todayIso().split('-').map(Number);
+
+    return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86400000);
+}
+
+const plural = (n, word) => `${pcs(Math.abs(n))} ${Math.abs(n) === 1 ? word : `${word}s`}`;
+
+const STEPS = [
+    { key: 'planned', label: 'Planned' },
+    { key: 'released', label: 'Released' },
+    { key: 'in_production', label: 'Running' },
+    { key: 'qc_pending', label: 'QC' },
+    { key: 'completed', label: 'Done' },
+    { key: 'closed', label: 'Closed' },
+];
+
+/** Where the card is on the strip; a hold or a material wait sits on the step it interrupts. */
+const stepIndex = computed(() => ({
+    draft: -1, planned: 0, material_pending: 0, released: 1, in_production: 2, on_hold: 2,
+    qc_pending: 3, completed: 4, closed: 5, cancelled: -1,
+}[props.jobCard.status] ?? -1));
+
+const steps = computed(() => STEPS.map((step, index) => ({
+    ...step,
+    state: index < stepIndex.value ? 'done' : index === stepIndex.value ? 'current' : 'pending',
+})));
+
+const FINISHED = ['completed', 'closed', 'cancelled'];
+
+/** The due date read against today, while the card is still running. */
+const dueView = computed(() => {
+    const diff = daysFromToday(props.jobCard.due_date);
+
+    if (diff === null) return { text: 'No due date', tone: 'text-ink-400', note: null };
+    if (FINISHED.includes(props.jobCard.status)) return { text: date(props.jobCard.due_date), tone: 'text-ink-900', note: null };
+    if (diff < 0) return { text: date(props.jobCard.due_date), tone: 'text-rose-700', note: `${plural(diff, 'day')} late` };
+    if (diff === 0) return { text: date(props.jobCard.due_date), tone: 'text-amber-700', note: 'due today' };
+
+    return { text: date(props.jobCard.due_date), tone: diff <= 3 ? 'text-amber-700' : 'text-ink-900', note: `in ${plural(diff, 'day')}` };
+});
+
+const activeOperation = computed(() => props.operations.find((op) => op.status === 'in_progress')
+    ?? props.operations.find((op) => op.status === 'ready')
+    ?? null);
+
+const failingChecks = computed(() => checks.value.filter((check) => !check.ok));
+
+/**
+ * One sentence: what is happening and what to do next. The status badge says "Released";
+ * this says "nothing has started, plate making is ready on Design & pre-press".
+ */
+const nextStep = computed(() => {
+    const card = props.jobCard;
+    const op = activeOperation.value;
+    const machine = op ? (op.machine?.code ? `${op.machine.code}${op.machine.name ? ` · ${op.machine.name}` : ''}` : op.machine_group) : null;
+    const where = machine ? ` on ${machine}` : '';
+
+    switch (card.status) {
+        case 'draft':
+            return { tone: 'neutral', text: 'A draft. Schedule it on the planning board, then mark it planned.' };
+        case 'planned':
+            return props.releaseGate.ready
+                ? { tone: 'good', text: 'Ready to release: artwork, BOM, tools and material are all in place.' }
+                : { tone: 'warn', text: `Release is blocked: ${failingChecks.value.map((c) => c.label.toLowerCase()).join(', ')}.` };
+        case 'material_pending':
+            return { tone: 'warn', text: props.releaseGate.shortages.length
+                ? `Waiting on material: ${props.releaseGate.shortages.map((x) => `${x.item_code} short ${qty(x.short)}`).join(', ')}.`
+                : 'Waiting on material.' };
+        case 'released':
+            return op
+                ? { tone: 'good', text: `Nothing has started yet. ${op.name} is ready${where}.` }
+                : { tone: 'good', text: 'Released; nothing has started yet.' };
+        case 'in_production':
+            return op
+                ? { tone: 'good', text: `${op.name}${op.status === 'in_progress' ? ' is running' : ' is next'}${where} · ${pcs(card.good_qty)} of ${pcs(card.planned_qty)} pcs good so far.` }
+                : { tone: 'good', text: `Every operation is closed · ${pcs(card.good_qty)} of ${pcs(card.planned_qty)} pcs good. Send it to QC.` };
+        case 'on_hold':
+            return { tone: 'warn', text: `On hold${card.hold_reason ? `: ${card.hold_reason}` : ''}. Resume it when the reason is cleared.` };
+        case 'qc_pending':
+            return { tone: 'warn', text: 'Waiting for the final inspection. Record it to complete the card.' };
+        case 'completed':
+            return Number(props.fgPosition.remaining_receivable) > 0
+                ? { tone: 'warn', text: `${pcs(props.fgPosition.remaining_receivable)} pcs still to receive into finished goods. Receive them, then close the card.` }
+                : { tone: 'good', text: 'All output is in finished goods. Close the card.' };
+        case 'closed':
+            return Number(props.fgPosition.remaining_receivable) > 0
+                ? { tone: 'warn', text: `Closed with ${pcs(props.fgPosition.remaining_receivable)} pcs never received. Reopen it to receive them.` }
+                : { tone: 'neutral', text: 'Closed. Everything made has been received.' };
+        case 'cancelled':
+            return { tone: 'neutral', text: 'Cancelled.' };
+        default:
+            return { tone: 'neutral', text: titleCase(card.status) };
+    }
+});
+
+/** The gate as a question is only open before release; afterwards it is one line of history. */
+const gateOpen = computed(() => ['draft', 'planned', 'material_pending'].includes(props.jobCard.status));
+
+/** Pieces are whole; metres carry decimals. "12,600.00 pcs" claims a precision that does not exist. */
+const opQty = (value, row) => (row.unit === 'pcs' ? pcs(value) : qty(value));
+
+/** Overrun headroom, in words: how much more may be booked before the limit refuses it. */
+const overrunView = computed(() => {
+    const ceiling = Number(props.jobCard.overrun_ceiling) || 0;
+    const produced = Number(props.jobCard.produced_qty) || 0;
+    const room = ceiling - produced;
+
+    const limit = pct(props.jobCard.overrun_tolerance_pct, 0);
+
+    if (room < 0) return { tone: 'bad', text: `Over the ${limit} overrun limit by ${pcs(-room)} pcs.` };
+
+    return { tone: 'ok', text: `${pcs(room)} pcs headroom to the ${limit} overrun limit of ${pcs(ceiling)} pcs.` };
+});
+
+/** Hold, cancel and the like: real actions, but never the thing a card is waiting for. */
+const moreActions = computed(() => [
+    { label: 'Hold', tone: 'danger', hidden: !props.availableTransitions.includes('on_hold'), onSelect: () => (holdOpen.value = true) },
+    { label: 'Cancel card', tone: 'danger', hidden: !props.availableTransitions.includes('cancelled'), onSelect: cancelCard },
+].filter((item) => !item.hidden));
+
 function inspectionHref(operation = null) {
     const base = `/qc-inspections/create?job_card=${props.jobCard.id}`;
 
@@ -613,8 +744,14 @@ const bomColumns = [
             >
                 Release
             </Button>
-            <Button v-if="availableTransitions.includes('in_production')" size="sm" @click="transition('in_production')">
-                Resume
+            <!-- From released it is the first move; from a hold it is a return. -->
+            <Button
+                v-if="availableTransitions.includes('in_production')"
+                size="sm"
+                :variant="jobCard.status === 'released' ? 'primary' : 'secondary'"
+                @click="transition('in_production')"
+            >
+                {{ jobCard.status === 'on_hold' ? 'Resume' : 'Start production' }}
             </Button>
             <!--
                 What a card in production is actually waiting for. Never primary at the same
@@ -666,78 +803,153 @@ const bomColumns = [
 
             <DocumentActions document="job-cards" :id="jobCard.id" :status="jobCard.status" />
 
-            <!-- Destructive last, after everything that moves the card forward. -->
-            <Button v-if="availableTransitions.includes('on_hold')" size="sm" variant="danger" @click="holdOpen = true">
-                Hold
-            </Button>
-            <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" @click="cancelCard">
-                Cancel card
-            </Button>
+            <!-- Destructive last, and behind a menu: real actions, never the thing the card is waiting for. -->
+            <DropdownMenu v-if="moreActions.length" :items="moreActions" label="More actions" />
         </template>
 
         <div class="space-y-4">
-            <!-- J1: the four conditions, always visible -->
-            <Card
-                title="Release gate"
-                rule="J1"
-                subtitle="All four must hold before production may run. Shown whether or not you are about to release."
-            >
-                <ul class="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                    <li
-                        v-for="check in checks"
-                        :key="check.label"
-                        class="rounded-md border px-3 py-2"
-                        :class="check.ok ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'"
-                    >
-                        <div class="flex items-center justify-between gap-2">
-                            <span class="text-sm font-medium" :class="check.ok ? 'text-emerald-900' : 'text-rose-900'">
-                                {{ check.label }}
-                            </span>
-                            <span class="font-mono text-xs" :class="check.ok ? 'text-emerald-700' : 'text-rose-700'">
-                                {{ check.rule }}
-                            </span>
-                        </div>
-                        <p class="mt-1 text-xs" :class="check.ok ? 'text-emerald-800' : 'text-rose-800'">
-                            {{ check.detail }}
+            <!--
+                Where the card is and what happens next, before any figures. The badge said
+                "Released"; nothing said that nothing had started, which operation was ready, or
+                that the due date was three days away. The release gate lived here as four boxes
+                whether or not release was the question; it is now the body of this card until
+                the card is released, and one line of history after.
+            -->
+            <Card>
+                <div class="grid gap-4 lg:grid-cols-5">
+                    <div class="lg:col-span-3">
+                        <p
+                            class="text-base font-medium"
+                            :class="{ 'text-ink-900': nextStep.tone === 'good', 'text-amber-800': nextStep.tone === 'warn', 'text-ink-700': nextStep.tone === 'neutral' }"
+                        >
+                            {{ nextStep.text }}
                         </p>
-                    </li>
-                </ul>
+                        <p class="mt-1 text-sm text-ink-600">
+                            Due <span class="font-medium" :class="dueView.tone">{{ dueView.text }}</span><span v-if="dueView.note" :class="dueView.tone"> · {{ dueView.note }}</span>
+                            <!-- A planning weight, not a word: only a named priority is worth saying. -->
+                            <template v-if="jobCard.priority && Number.isNaN(Number(jobCard.priority)) && jobCard.priority !== 'normal'"> · {{ titleCase(jobCard.priority) }} priority</template>
+                            <template v-if="jobCard.actual_start"> · started {{ date(jobCard.actual_start) }}</template>
+                            <template v-if="jobCard.actual_finish"> · finished {{ date(jobCard.actual_finish) }}</template>
+                        </p>
 
-                <div v-if="releaseGate.shortages.length" class="mt-3">
-                    <p class="mb-1 text-xs font-medium text-ink-700">Shortages</p>
-                    <table class="min-w-full text-xs">
-                        <thead class="text-ink-500">
-                            <tr>
-                                <th class="py-1 text-left">Material</th>
-                                <th class="py-1 text-right">Required</th>
-                                <th class="py-1 text-right">Available</th>
-                                <th class="py-1 text-right">On order</th>
-                                <th class="py-1 text-right">Short</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="shortage in releaseGate.shortages" :key="shortage.item_id" class="border-t border-slate-100">
-                                <td class="py-1">{{ shortage.item_code }} — {{ shortage.item_name }}</td>
-                                <td class="py-1 text-right tnum">{{ qty(shortage.required) }}</td>
-                                <td class="py-1 text-right tnum">{{ qty(shortage.available) }}</td>
-                                <td class="py-1 text-right tnum">{{ qty(shortage.on_order) }}</td>
-                                <td class="py-1 text-right font-medium tnum text-rose-600">{{ qty(shortage.short) }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                        <!-- Before release: the four checks, failing ones first, with their fix. -->
+                        <ul v-if="gateOpen" class="mt-3 grid gap-2 sm:grid-cols-2">
+                            <li
+                                v-for="check in [...checks].sort((a, b) => Number(a.ok) - Number(b.ok))"
+                                :key="check.label"
+                                class="flex items-start gap-2 rounded-md border px-3 py-2"
+                                :class="check.ok ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'"
+                            >
+                                <Icon :name="check.ok ? 'check' : 'close'" size="size-4" class="mt-0.5 shrink-0" :class="check.ok ? 'text-emerald-600' : 'text-rose-600'" aria-hidden="true" />
+                                <span class="min-w-0">
+                                    <span class="block text-sm font-medium" :class="check.ok ? 'text-emerald-900' : 'text-rose-900'">{{ check.label }}</span>
+                                    <span class="block text-xs" :class="check.ok ? 'text-emerald-800' : 'text-rose-800'">{{ check.detail }}</span>
+                                </span>
+                            </li>
+                        </ul>
+                        <p v-else-if="releaseGate.ready && !['cancelled'].includes(jobCard.status)" class="mt-2 text-xs text-ink-500">
+                            Released with artwork {{ jobCard.artwork?.code }} v{{ jobCard.artwork?.version_no }} approved, an active bill of materials, tools available and material in stock<template v-if="jobCard.material_waiver_reason"> (material waived: {{ jobCard.material_waiver_reason }})</template>.
+                        </p>
+
+                        <div v-if="gateOpen && releaseGate.shortages.length" class="mt-3">
+                            <p class="mb-1 text-xs font-medium text-ink-700">Short</p>
+                            <table class="min-w-full text-xs">
+                                <thead class="text-ink-500">
+                                    <tr>
+                                        <th class="py-1 text-left">Material</th>
+                                        <th class="py-1 text-right">Required</th>
+                                        <th class="py-1 text-right">Available</th>
+                                        <th class="py-1 text-right">On order</th>
+                                        <th class="py-1 text-right">Short</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="shortage in releaseGate.shortages" :key="shortage.item_id" class="border-t border-slate-100">
+                                        <td class="py-1">{{ shortage.item_code }} — {{ shortage.item_name }}</td>
+                                        <td class="py-1 text-right tnum">{{ qty(shortage.required) }}</td>
+                                        <td class="py-1 text-right tnum">{{ qty(shortage.available) }}</td>
+                                        <td class="py-1 text-right tnum">{{ qty(shortage.on_order) }}</td>
+                                        <td class="py-1 text-right font-medium tnum text-rose-600">{{ qty(shortage.short) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- The life of the card as six steps; a hold or a material wait sits on the step it interrupts. -->
+                    <ol class="flex items-start justify-between gap-1 border-t border-slate-100 pt-4 lg:col-span-2 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4" aria-label="Progress">
+                        <li v-for="(step, index) in steps" :key="step.key" class="relative flex min-w-0 flex-1 flex-col items-center text-center">
+                            <span v-if="index > 0" class="absolute top-2 right-1/2 left-[-50%] h-px" :class="step.state === 'pending' ? 'bg-slate-200' : 'bg-brand-300'" aria-hidden="true" />
+                            <span
+                                class="relative z-10 flex size-4 items-center justify-center rounded-full border-2"
+                                :class="step.state === 'done' ? 'border-brand-500 bg-brand-500' : step.state === 'current' ? (['on_hold', 'material_pending'].includes(jobCard.status) ? 'border-amber-500 bg-amber-500' : 'border-brand-500 bg-white') : 'border-slate-300 bg-white'"
+                                aria-hidden="true"
+                            >
+                                <Icon v-if="step.state === 'done'" name="check" size="size-2.5" class="text-white" />
+                            </span>
+                            <span class="mt-1.5 text-xs leading-tight font-medium" :class="step.state === 'pending' ? 'text-ink-400' : 'text-ink-800'">{{ step.label }}</span>
+                            <span v-if="step.state === 'current' && ['on_hold', 'material_pending'].includes(jobCard.status)" class="mt-0.5 text-xs leading-tight text-amber-700">{{ jobCard.status === 'on_hold' ? 'on hold' : 'waiting on material' }}</span>
+                        </li>
+                    </ol>
                 </div>
             </Card>
 
             <div class="grid gap-4 xl:grid-cols-3">
-                <!-- Consumption snapshot -->
-                <Card
-                    title="Consumption plan"
-                    rule="BR-4 … BR-13"
-                    subtitle="Fixed when the card was planned. A later change to the specification does not alter what the floor makes."
-                >
-                    <dl class="grid grid-cols-2 gap-3 text-sm">
+                <!-- Output first: the one card on this row that changes while the job runs. -->
+                <Card class="xl:col-span-2" title="Output" rule="J3 · J5">
+                    <div class="mb-3">
+                        <div class="mb-1 flex items-center justify-between text-xs text-ink-500">
+                            <span>Good against planned</span>
+                            <span class="tnum">{{ pcs(jobCard.good_qty) }} / {{ pcs(jobCard.planned_qty) }} pcs · {{ pct(progressPct, 0) }}</span>
+                        </div>
+                        <div class="h-2 overflow-hidden rounded-full bg-slate-100">
+                            <div class="h-full rounded-full bg-emerald-500" :style="{ width: `${progressPct}%` }" />
+                        </div>
+                    </div>
+
+                    <dl class="grid grid-cols-3 gap-3 sm:grid-cols-6">
                         <div>
-                            <dt class="text-xs text-ink-500">Planned quantity</dt>
+                            <dt class="text-xs text-ink-500">Produced</dt>
+                            <dd class="text-xl font-semibold tnum text-ink-900">{{ pcs(jobCard.produced_qty) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Good</dt>
+                            <dd class="text-xl font-semibold tnum text-emerald-700">{{ pcs(jobCard.good_qty) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Waste</dt>
+                            <dd class="text-xl font-semibold tnum" :class="Number(jobCard.waste_qty) > 0 ? 'text-rose-600' : 'text-ink-400'">{{ pcs(jobCard.waste_qty) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Received to FG</dt>
+                            <dd class="text-xl font-semibold tnum" :class="Number(fgPosition.received) > 0 ? 'text-ink-900' : 'text-ink-400'">{{ pcs(fgPosition.received) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Still to make</dt>
+                            <dd class="text-xl font-semibold tnum" :class="Number(jobCard.planned_qty) - Number(jobCard.good_qty) > 0 ? 'text-ink-900' : 'text-ink-400'">{{ pcs(Math.max(0, Number(jobCard.planned_qty) - Number(jobCard.good_qty))) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Waste rate</dt>
+                            <dd class="text-xl font-semibold tnum" :class="Number(jobCard.produced_qty) > 0 ? 'text-ink-900' : 'text-ink-400'">
+                                {{ Number(jobCard.produced_qty) > 0 ? pct((Number(jobCard.waste_qty) / Number(jobCard.produced_qty)) * 100, 1) : '—' }}
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <!-- The overrun limit in words: how much more may be booked, not a code and a ceiling. -->
+                    <p
+                        class="mt-3 rounded px-2 py-1 text-xs"
+                        :class="overrunView.tone === 'bad' ? 'bg-rose-50 text-rose-800' : 'bg-slate-50 text-ink-700'"
+                    >
+                        {{ overrunView.text }}
+                    </p>
+                </Card>
+
+                <!-- The plan the floor runs to: fixed when the card was planned. -->
+                <Card title="Plan" rule="BR-4 … BR-13" subtitle="Fixed when the card was planned">
+                    <dl class="grid grid-cols-2 gap-x-3 gap-y-2.5 text-sm">
+                        <div>
+                            <dt class="text-xs text-ink-500">Planned</dt>
                             <dd class="font-medium tnum text-ink-900">{{ pcs(jobCard.planned_qty) }} pcs</dd>
                         </div>
                         <div>
@@ -749,78 +961,33 @@ const bomColumns = [
                             <dd class="font-medium tnum text-ink-900">{{ jobCard.ends ?? '—' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-ink-500">Labels / metre</dt>
-                            <dd class="font-medium tnum text-ink-900">{{ qty(jobCard.labels_per_metre, 4) }}</dd>
+                            <dt class="text-xs text-ink-500">Labels per metre</dt>
+                            <dd class="font-medium tnum text-ink-900">{{ qty(jobCard.labels_per_metre) }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-ink-500">Spec version</dt>
+                            <dt class="text-xs text-ink-500">Specification</dt>
                             <dd class="font-medium text-ink-900">v{{ jobCard.spec_version }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-ink-500">Due</dt>
-                            <dd class="font-medium text-ink-900">{{ date(jobCard.due_date) }}</dd>
+                            <dt class="text-xs text-ink-500">Artwork</dt>
+                            <dd class="font-medium">
+                                <!-- Bound to this version: superseding it upstream does not change what this run prints (Gate 1 · A2). -->
+                                <Link
+                                    v-if="jobCard.artwork?.id"
+                                    :href="`/artworks/${jobCard.artwork.id}`"
+                                    class="doc-link-quiet"
+                                    :title="jobCard.artwork.checksum ? `Bound to this version. File checksum sha256 ${jobCard.artwork.checksum}` : 'Bound to this version.'"
+                                >{{ jobCard.artwork.code }} v{{ jobCard.artwork.version_no }}</Link>
+                                <span v-else class="text-ink-400">—</span>
+                                <Badge v-if="jobCard.artwork?.status" :status="jobCard.artwork.status" class="ml-1" />
+                            </dd>
                         </div>
                     </dl>
-                </Card>
-
-                <!-- Gate 1 binding -->
-                <Card title="Bound artwork" rule="Gate 1 · A2">
-                    <div class="space-y-2 text-sm">
-                        <div class="flex items-center gap-2">
-                            <Link :href="`/artworks/${jobCard.artwork.id}`" class="doc-link-quiet">
-                                {{ jobCard.artwork.code }} v{{ jobCard.artwork.version_no }}
-                            </Link>
-                            <Badge :status="jobCard.artwork.status" />
-                        </div>
-                        <p class="font-mono text-xs break-all text-ink-400">
-                            sha256 {{ jobCard.artwork.checksum }}
-                        </p>
-                        <p class="text-xs text-ink-500">
-                            This job card is welded to this version. Superseding it upstream does not
-                            change what this run prints.
-                        </p>
-                    </div>
-                </Card>
-
-                <!-- Output -->
-                <Card title="Output" rule="J3 · J5">
-                    <div class="mb-3">
-                        <div class="mb-1 flex items-center justify-between text-xs text-ink-500">
-                            <span>Good against planned</span>
-                            <span class="tnum">{{ pcs(jobCard.good_qty) }} / {{ pcs(jobCard.planned_qty) }}</span>
-                        </div>
-                        <div class="h-2 overflow-hidden rounded-full bg-slate-100">
-                            <div class="h-full rounded-full bg-emerald-500" :style="{ width: `${progressPct}%` }" />
-                        </div>
-                    </div>
-
-                    <dl class="grid grid-cols-3 gap-2 text-sm">
-                        <div>
-                            <dt class="text-xs text-ink-500">Produced</dt>
-                            <dd class="font-medium tnum">{{ pcs(jobCard.produced_qty) }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs text-ink-500">Good</dt>
-                            <dd class="font-medium tnum text-emerald-700">{{ pcs(jobCard.good_qty) }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs text-ink-500">Waste</dt>
-                            <dd class="font-medium tnum text-rose-600">{{ pcs(jobCard.waste_qty) }}</dd>
-                        </div>
-                    </dl>
-
-                    <p
-                        class="mt-3 rounded px-2 py-1 text-xs"
-                        :class="overrunBreached ? 'bg-rose-50 text-rose-800' : 'bg-slate-50 text-ink-700'"
-                    >
-                        J5 ceiling: {{ pcs(jobCard.overrun_ceiling) }} pcs
-                        ({{ jobCard.overrun_tolerance_pct }}% overrun tolerance)
-                    </p>
                 </Card>
             </div>
 
             <!-- Operations -->
-            <Card title="Operations" rule="J2" subtitle="Execute in sequence; a step cannot start before its predecessor closes" :padded="false">
+            <Card title="Operations" rule="J2" subtitle="In routing order; a step is ready once the one before it closes" :padded="false">
                 <DataTable :columns="operationColumns" :rows="operations" empty="No operations scheduled." dense>
                     <template #cell:name="{ row }">
                         <span class="font-medium text-ink-800">{{ row.name }}</span>
@@ -834,10 +1001,10 @@ const bomColumns = [
                         to add them up — which is how "60,457 good against 30,000 planned"
                         was ever printed for a job that made exactly 30,000 labels.
                     -->
-                    <template #cell:planned_qty="{ row, value }">{{ qty(value) }} <span class="text-ink-400">{{ row.unit }}</span></template>
-                    <template #cell:input_qty="{ row, value }">{{ qty(value) }} <span class="text-ink-400">{{ row.unit }}</span></template>
-                    <template #cell:good_qty="{ row, value }">{{ qty(value) }} <span class="text-ink-400">{{ row.unit }}</span></template>
-                    <template #cell:waste_qty="{ row, value }">{{ qty(value) }} <span class="text-ink-400">{{ row.unit }}</span></template>
+                    <template #cell:planned_qty="{ row, value }">{{ opQty(value, row) }} <span class="text-ink-400">{{ row.unit }}</span></template>
+                    <template #cell:input_qty="{ row, value }">{{ opQty(value, row) }} <span class="text-ink-400">{{ row.unit }}</span></template>
+                    <template #cell:good_qty="{ row, value }">{{ opQty(value, row) }} <span class="text-ink-400">{{ row.unit }}</span></template>
+                    <template #cell:waste_qty="{ row, value }">{{ opQty(value, row) }} <span class="text-ink-400">{{ row.unit }}</span></template>
                     <template #cell:status="{ value }"><Badge :status="value" /></template>
                     <!--
                         QC1 — an in-process verdict releases exactly one operation, so the
