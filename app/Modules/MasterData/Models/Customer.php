@@ -97,6 +97,16 @@ class Customer extends Model
     }
 
     /** @return HasMany<CustomerAddress, $this> */
+    public function paymentTerm(): BelongsTo
+    {
+        return $this->belongsTo(PaymentTerm::class, 'payment_term_id');
+    }
+
+    public function brands(): HasMany
+    {
+        return $this->hasMany(Brand::class, 'customer_id');
+    }
+
     public function addresses(): HasMany
     {
         return $this->hasMany(CustomerAddress::class);

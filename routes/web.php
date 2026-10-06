@@ -23,6 +23,7 @@ use App\Modules\Manufacturing\Http\Controllers\FgReceiptController;
 use App\Modules\Manufacturing\Http\Controllers\JobCardController;
 use App\Modules\MasterData\Http\Controllers\BrandController;
 use App\Modules\MasterData\Http\Controllers\CustomerAddressController;
+use App\Modules\MasterData\Http\Controllers\CustomerContactController;
 use App\Modules\MasterData\Http\Controllers\CustomerController;
 use App\Modules\MasterData\Http\Controllers\ItemController;
 use App\Modules\MasterData\Http\Controllers\MachineController;
@@ -137,6 +138,14 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:customer.update')->name('customers.addresses.update');
     Route::delete('customers/{customer}/addresses/{address}', [CustomerAddressController::class, 'destroy'])
         ->middleware('can:customer.update')->name('customers.addresses.destroy');
+
+    // Contacts: the people an inquiry names. Same gate as addresses and brands.
+    Route::post('customers/{customer}/contacts', [CustomerContactController::class, 'store'])
+        ->middleware('can:customer.update')->name('customers.contacts.store');
+    Route::put('customers/{customer}/contacts/{contact}', [CustomerContactController::class, 'update'])
+        ->middleware('can:customer.update')->name('customers.contacts.update');
+    Route::delete('customers/{customer}/contacts/{contact}', [CustomerContactController::class, 'destroy'])
+        ->middleware('can:customer.update')->name('customers.contacts.destroy');
 
     Route::post('customers/{customer}/brands', [BrandController::class, 'store'])
         ->middleware('can:customer.update')->name('customers.brands.store');

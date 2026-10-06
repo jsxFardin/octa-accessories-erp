@@ -29,20 +29,67 @@ class CustomerController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = Customer::query()->withCount('contacts');
+        $inFlight = ['confirmed', 'in_production', 'partially_delivered'];
+        $today = now()->toDateString();
+
+        // What a salesperson scans a customer list for: what is on order, what is owed, when
+        // they last ordered and what is out for quotation. The limits that used to fill the
+        // row are settings, and live on the page.
+        $query = Customer::query()
+            ->with('currency:id,code')
+            ->withCount('contacts')
+            ->addSelect([
+                'open_order_value' => DB::table('sales_orders')
+                    ->selectRaw('COALESCE(SUM(total * exchange_rate), 0)')
+                    ->whereColumn('sales_orders.customer_id', 'customers.id')
+                    ->whereIn('status', $inFlight),
+                'open_order_count' => DB::table('sales_orders')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('sales_orders.customer_id', 'customers.id')
+                    ->whereIn('status', $inFlight),
+                'outstanding' => DB::table('sales_invoices')
+                    ->selectRaw('COALESCE(SUM((total - received_amount) * exchange_rate), 0)')
+                    ->whereColumn('sales_invoices.customer_id', 'customers.id')
+                    ->whereNotIn('status', ['draft', 'cancelled', 'paid']),
+                'overdue' => DB::table('sales_invoices')
+                    ->selectRaw('COALESCE(SUM((total - received_amount) * exchange_rate), 0)')
+                    ->whereColumn('sales_invoices.customer_id', 'customers.id')
+                    ->whereNotIn('status', ['draft', 'cancelled', 'paid'])
+                    ->whereDate('due_date', '<', $today),
+                'last_order_on' => DB::table('sales_orders')
+                    ->selectRaw('MAX(order_date)')
+                    ->whereColumn('sales_orders.customer_id', 'customers.id')
+                    ->whereNotIn('status', ['draft', 'cancelled']),
+                'quotations_out' => DB::table('quotations')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('quotations.customer_id', 'customers.id')
+                    ->where('status', 'sent'),
+            ]);
 
         $this->applyListing(
             $query,
             $request,
-            searchable: ['code', 'name', 'email'],
+            searchable: ['code', 'name', 'email', 'phone'],
             filters: ['active' => 'is_active', 'kind' => 'kind'],
-            sortable: ['code', 'name', 'credit_limit'],
+            sortable: ['code', 'name', 'credit_limit', 'open_order_value', 'outstanding', 'last_order_on'],
             defaultSort: 'name',
         );
 
         return Inertia::render('MasterData/Customers/Index', [
-            'customers' => $query->paginate($this->perPage($request))->withQueryString(),
+            'customers' => $query->paginate($this->perPage($request))->withQueryString()->through(
+                fn (Customer $customer): array => [
+                    ...$customer->only(['id', 'code', 'name', 'kind', 'email', 'phone', 'credit_limit', 'is_active', 'contacts_count']),
+                    'currency' => $customer->currency?->code,
+                    'open_order_value' => round((float) $customer->open_order_value, 2),
+                    'open_order_count' => (int) $customer->open_order_count,
+                    'outstanding' => round((float) $customer->outstanding, 2),
+                    'overdue' => round((float) $customer->overdue, 2),
+                    'last_order_on' => $customer->last_order_on,
+                    'quotations_out' => (int) $customer->quotations_out,
+                ],
+            ),
             'filters' => $this->listingFilters($request, ['active', 'kind']),
+            'kinds' => Vocabulary::options('customer_kind'),
         ]);
     }
 
@@ -67,10 +114,62 @@ class CustomerController extends Controller
 
     public function show(Customer $customer): Response
     {
-        $customer->load(['contacts', 'addresses']);
+        $customer->load(['contacts', 'addresses', 'currency:id,code,name', 'paymentTerm:id,code,name,net_days']);
+
+        $inFlight = ['confirmed', 'in_production', 'partially_delivered'];
+        $today = now()->toDateString();
+
+        // BR-46 — what the customer owes and what they have on order, both in the base
+        // currency, because the limit is stated in it. "Outstanding" alone understated the
+        // exposure: a customer with nothing invoiced and a million pieces confirmed read as
+        // zero against the limit.
+        $outstanding = (float) DB::table('sales_invoices')
+            ->where('customer_id', $customer->id)
+            ->whereNotIn('status', ['draft', 'cancelled', 'paid'])
+            ->sum(DB::raw('(total - received_amount) * exchange_rate'));
+        $overdue = (float) DB::table('sales_invoices')
+            ->where('customer_id', $customer->id)
+            ->whereNotIn('status', ['draft', 'cancelled', 'paid'])
+            ->whereDate('due_date', '<', $today)
+            ->sum(DB::raw('(total - received_amount) * exchange_rate'));
+        $openOrders = DB::table('sales_orders')
+            ->where('customer_id', $customer->id)
+            ->whereIn('status', $inFlight)
+            ->selectRaw('COUNT(*) AS n, COALESCE(SUM(total * exchange_rate), 0) AS value')
+            ->first();
+        $lifetime = DB::table('sales_invoices')
+            ->where('customer_id', $customer->id)
+            ->whereNotIn('status', ['draft', 'cancelled'])
+            ->selectRaw('COUNT(*) AS n, COALESCE(SUM(total * exchange_rate), 0) AS value')
+            ->first();
 
         return Inertia::render('MasterData/Customers/Show', [
-            'customer' => $customer,
+            'customer' => [
+                ...$customer->only([
+                    'id', 'code', 'name', 'kind', 'email', 'phone', 'bin_no', 'tin_no', 'credit_limit',
+                    'min_order_value', 'over_tolerance_pct', 'under_tolerance_pct', 'is_active',
+                ]),
+                'currency' => $customer->currency?->only(['id', 'code', 'name']),
+                'payment_term' => $customer->paymentTerm?->only(['id', 'code', 'name', 'net_days']),
+                // The country is the default address's, not a column of the customer's.
+                'country' => $customer->addresses->sortByDesc('is_default')->first()?->country,
+            ],
+            'contacts' => $customer->contacts->sortByDesc('is_primary')->values()
+                ->map(fn ($contact) => $contact->only(['id', 'name', 'designation', 'email', 'phone', 'is_primary'])),
+            'stats' => [
+                'open_order_count' => (int) ($openOrders->n ?? 0),
+                'open_order_value' => round((float) ($openOrders->value ?? 0), 2),
+                'outstanding' => round($outstanding, 2),
+                'overdue' => round($overdue, 2),
+                'exposure' => round($outstanding + (float) ($openOrders->value ?? 0), 2),
+                'credit_limit' => (float) $customer->credit_limit,
+                'last_order_on' => DB::table('sales_orders')->where('customer_id', $customer->id)
+                    ->whereNotIn('status', ['draft', 'cancelled'])->max('order_date'),
+                'quotations_out' => (int) DB::table('quotations')->where('customer_id', $customer->id)->where('status', 'sent')->count(),
+                'inquiries_open' => (int) DB::table('inquiries')->where('customer_id', $customer->id)->whereIn('status', ['open', 'quoted'])->count(),
+                'lifetime_invoiced' => round((float) ($lifetime->value ?? 0), 2),
+                'invoice_count' => (int) ($lifetime->n ?? 0),
+            ],
             // Addresses and brands are maintained here rather than in Setup: both belong to
             // exactly this account, and a delivery address is what a packing list resolves
             // its destination through.
@@ -82,10 +181,23 @@ class CustomerController extends Controller
                 ->orderBy('code')->get(['id', 'code', 'name', 'product_type', 'status']),
             'openOrders' => DB::table('v_order_book')->where('customer_id', $customer->id)
                 ->orderBy('promised_date')->limit(20)->get(),
-            'outstanding' => (float) DB::table('sales_invoices')
-                ->where('customer_id', $customer->id)
-                ->whereIn('status', ['issued', 'partially_paid', 'overdue'])
-                ->sum(DB::raw('total - received_amount')),
+            // The relationship, not only the settings: what they asked for, what was offered,
+            // what is unpaid, and the rates agreed with them.
+            'inquiries' => DB::table('inquiries')->where('customer_id', $customer->id)
+                ->orderByDesc('id')->limit(8)->get(['id', 'number', 'inquiry_date', 'required_by', 'status']),
+            'quotations' => DB::table('quotations as q')->leftJoin('currencies as cur', 'cur.id', '=', 'q.currency_id')
+                ->where('q.customer_id', $customer->id)
+                ->orderByDesc('q.id')->limit(8)
+                ->get(['q.id', 'q.number', 'q.revision_no', 'q.quotation_date', 'q.valid_until', 'q.total', 'q.status', 'cur.code as currency']),
+            'invoices' => DB::table('sales_invoices as si')->leftJoin('currencies as cur', 'cur.id', '=', 'si.currency_id')
+                ->where('si.customer_id', $customer->id)
+                ->whereNotIn('si.status', ['draft', 'cancelled', 'paid'])
+                ->orderBy('si.due_date')->limit(10)
+                ->get(['si.id', 'si.number', 'si.invoice_date', 'si.due_date', 'si.total', 'si.received_amount', 'si.status', 'cur.code as currency']),
+            'priceLists' => DB::table('price_lists as pl')->leftJoin('currencies as cur', 'cur.id', '=', 'pl.currency_id')
+                ->where('pl.customer_id', $customer->id)
+                ->orderByDesc('pl.valid_from')
+                ->get(['pl.id', 'pl.code', 'pl.name', 'pl.valid_from', 'pl.valid_to', 'pl.is_active', 'cur.code as currency']),
         ]);
     }
 
