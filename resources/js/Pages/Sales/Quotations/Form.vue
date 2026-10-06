@@ -402,16 +402,18 @@ watch(() => form.customer_id, (customer) => {
     });
 });
 
+// Description is the widest column: it is what the customer reads on the document, and every
+// other column is a pick-list or a number. The widths on the rest are ceilings, not shares.
 const columns = [
-    { key: 'product_id', label: 'Product', width: '15rem', errorKeys: ['product_id', 'product_spec_id'] },
+    { key: 'product_id', label: 'Product', width: '13rem', errorKeys: ['product_id', 'product_spec_id'] },
     { key: 'description', label: 'Description' },
-    { key: 'qty', label: 'Quantity', width: '8rem', align: 'right' },
-    { key: 'margin_pct', label: 'Margin %', width: '7rem', align: 'right' },
-    { key: 'rate_per_m', label: 'Rate per 1,000 pcs', width: '9rem', align: 'right' },
+    { key: 'qty', label: 'Quantity', width: '7rem', align: 'right' },
+    { key: 'margin_pct', label: 'Margin %', width: '6rem', align: 'right' },
+    { key: 'rate_per_m', label: 'Rate per 1,000 pcs', width: '8rem', align: 'right' },
     // In the line's state and in its total all along, with no box to type either into.
-    { key: 'tooling_charge', label: 'Tooling charge', width: '8rem', align: 'right' },
-    { key: 'lead_time_days', label: 'Lead days', width: '7rem', align: 'right' },
-    { key: 'line_total', label: 'Line value', width: '9rem', align: 'right' },
+    { key: 'tooling_charge', label: 'Tooling charge', width: '7rem', align: 'right' },
+    { key: 'lead_time_days', label: 'Lead days', width: '5.5rem', align: 'right' },
+    { key: 'line_total', label: 'Line value', width: '8rem', align: 'right' },
 ];
 </script>
 
@@ -542,7 +544,7 @@ const columns = [
                         </template>
 
                         <template #cell:description="{ line }">
-                            <TextInput cell v-model="line.description" placeholder="As it should read on the quotation" />
+                            <TextInput cell v-model="line.description" class="min-w-56" placeholder="As it should read on the quotation" />
                         </template>
 
                         <template #cell:qty="{ line }">
