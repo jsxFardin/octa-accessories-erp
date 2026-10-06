@@ -73,8 +73,8 @@ class SupplierController extends Controller
                 ->leftJoin('currencies as cur', 'cur.id', '=', 'si.currency_id')
                 ->where('si.supplier_id', $supplier->id)
                 ->orderBy('i.code')
-                ->get(['si.id', 'i.code', 'i.name', 'si.supplier_code', 'si.last_rate',
-                    'si.lead_time_days', 'si.moq', 'cur.code as currency']),
+                ->get(['si.id', 'i.id as item_id', 'i.code', 'i.name', 'si.supplier_code', 'si.last_rate',
+                    'si.lead_time_days', 'si.moq', 'si.currency_id', 'cur.code as currency']),
             // BR-50 — the order's own currency travels with its value. Selecting the total
             // without it left the screen to fall back to the factory's currency, so a
             // USD 365,000 purchase order read as BDT 365,000 here and USD 365,000 on the order
@@ -83,8 +83,67 @@ class SupplierController extends Controller
                 ->leftJoin('currencies as cur', 'cur.id', '=', 'po.currency_id')
                 ->where('po.supplier_id', $supplier->id)
                 ->orderByDesc('po.id')->limit(20)
-                ->get(['po.id', 'po.number', 'po.order_date', 'po.status', 'po.total', 'cur.code as currency']),
+                ->get(['po.id', 'po.number', 'po.order_date', 'po.expected_date', 'po.status', 'po.total', 'cur.code as currency']),
+            // Who to ring, and what was agreed — on the record but, until now, only on the edit form.
+            'contacts' => $supplier->contacts()->orderByDesc('is_primary')->orderBy('name')
+                ->get(['id', 'name', 'designation', 'email', 'phone', 'is_primary']),
+            'terms' => [
+                'currency' => DB::table('currencies')->where('id', $supplier->currency_id)->value('code'),
+                'payment_term' => DB::table('payment_terms')->where('id', $supplier->payment_term_id)->value('name'),
+            ],
+            'stats' => $this->stats($supplier),
+            // For adding a material here: what can be bought, and what a rate can be quoted in.
+            'materials' => DB::table('items')->where('is_active', true)->whereNull('deleted_at')
+                ->orderBy('code')->get(['id', 'code', 'name']),
+            'currencies' => Currency::query()->orderBy('code')->get(['id', 'code', 'name']),
         ]);
+    }
+
+    /**
+     * The account at a glance. Orders and bills are in their own currencies, so the sums are
+     * taken in the factory's, at each document's own rate — adding USD to BDT is not a figure.
+     *
+     * @return array<string, mixed>
+     */
+    private function stats(Supplier $supplier): array
+    {
+        $open = DB::table('purchase_orders')
+            ->where('supplier_id', $supplier->id)
+            ->whereIn('status', ['approved', 'sent', 'partially_received']);
+
+        $unpaid = DB::table('supplier_bills')
+            ->where('supplier_id', $supplier->id)
+            ->whereIn('status', ['approved', 'partially_paid']);
+
+        return [
+            'open_order_count' => (clone $open)->count(),
+            'open_order_value' => (float) (clone $open)->sum(DB::raw('total * exchange_rate')),
+            'next_expected_on' => (clone $open)->whereNotNull('expected_date')->min('expected_date'),
+            'last_order_on' => DB::table('purchase_orders')
+                ->where('supplier_id', $supplier->id)
+                ->where('status', '!=', 'cancelled')
+                ->max('order_date'),
+            'unpaid_bill_count' => (clone $unpaid)->count(),
+            'outstanding' => (float) (clone $unpaid)->sum(DB::raw('(total - paid_amount) * exchange_rate')),
+            'overdue' => (float) (clone $unpaid)
+                ->whereDate('due_date', '<', now()->toDateString())
+                ->sum(DB::raw('(total - paid_amount) * exchange_rate')),
+        ];
+    }
+
+    /**
+     * Email, phone and address, changed from the supplier's page. The full edit form asks for
+     * the code and name again; a buyer correcting a phone number should not have to pass them.
+     */
+    public function updateReach(Request $request, Supplier $supplier): RedirectResponse
+    {
+        $supplier->update($request->validate([
+            'email' => ['nullable', 'email', 'max:190'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'address' => ['nullable', 'string', 'max:255'],
+        ]));
+
+        return back()->with('success', "{$supplier->code} contact details updated.");
     }
 
     public function edit(Supplier $supplier): Response

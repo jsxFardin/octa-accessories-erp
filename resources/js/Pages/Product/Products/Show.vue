@@ -10,7 +10,8 @@ import Modal from '@/Components/Ui/Modal.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import Icon from '@/Components/Ui/Icon.vue';
-import { mm, money, pcs, pct, qty, ratePerM, titleCase } from '@/plugins/formatting';
+import CodeName from '@/Components/Ui/CodeName.vue';
+import { mm, money, number, pcs, pct, qty, ratePerM, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useGuardedAction } from '@/composables/useGuardedAction';
@@ -108,6 +109,24 @@ const setupSummary = computed(() => {
     return `${done} of ${steps.value.length} done. Next: ${outstanding.value[0].label.toLowerCase()}.`;
 });
 
+/*
+ * A finished setup is a status, not a to-do list. Five ticked rows took a third of the screen
+ * to say "nothing to do here" and pushed the specification — what people open this page for —
+ * below the fold. Once every step is done the list folds to one line of ticks beside the trial
+ * price; the full steps are one click away, for the routing's "Change" and the price breakdown.
+ */
+const setupReady = computed(() => steps.value.length > 0 && outstanding.value.length === 0);
+const stepsShown = ref(false);
+const setupFolded = computed(() => setupReady.value && !stepsShown.value);
+const priceStep = computed(() => steps.value.find((step) => step.key === 'price' && step.state === 'done') ?? null);
+/** A price built on no material or no machine time is wrong, and has to say so even when folded. */
+const priceSuspect = computed(() => priceStep.value && !(priceStep.value.parts.material > 0 && priceStep.value.parts.conversion > 0));
+
+/** "v1 is current." under its own heading; "v1 is current" in a line of them. */
+function brief(detail) {
+    return String(detail ?? '').replace(/\.$/, '');
+}
+
 /* Routing is one field on the product, so it is chosen in the row rather than on the edit page. */
 const routingOpen = ref(false);
 
@@ -117,6 +136,7 @@ function openRouting() {
     routingForm.clearErrors();
     routingForm.routing_id = props.product.routing?.id ?? props.routings.find((r) => r.is_default)?.id ?? '';
     routingOpen.value = true;
+    stepsShown.value = true;
 }
 
 function saveRouting() {
@@ -161,7 +181,7 @@ const bomColumns = [
     { key: 'item', label: 'Material' },
     { key: 'qty_per_base', label: 'Qty / base', align: 'right' },
     { key: 'uom', label: 'Unit' },
-    { key: 'wastage_pct', label: 'Wastage %', align: 'right' },
+    { key: 'wastage_pct', label: 'Wastage', align: 'right' },
     { key: 'colour_index', label: 'Colour', align: 'center' },
     { key: 'formula_ref', label: 'Quantity is' },
 ];
@@ -187,16 +207,41 @@ const bomColumns = [
 
         <div class="space-y-4">
             <!-- What this product still needs, in working order, and the one thing to do next. -->
-            <Card title="Setup" :subtitle="setupSummary" :padded="false">
+            <!-- Done, the title says so and the ticks say the rest; a sentence beside two buttons had no room on a phone. -->
+            <Card :title="setupReady ? 'Setup complete' : 'Setup'" :subtitle="setupReady ? null : setupSummary" :padded="false">
                 <!-- Setup used to end on a trial price and nothing else. Once everything is in
                      place, the next thing anyone does with a product is quote it. -->
-                <template v-if="outstanding.length === 0 && can('quotation.create')" #actions>
-                    <Button size="sm" variant="primary" :href="`/quotations/create?product=${product.id}`">
+                <template v-if="setupReady" #actions>
+                    <Button size="sm" variant="ghost" :aria-expanded="stepsShown" aria-controls="setup-steps" data-setup-toggle @click="stepsShown = !stepsShown">
+                        {{ stepsShown ? 'Hide steps' : 'Show steps' }}
+                    </Button>
+                    <Button v-if="can('quotation.create')" size="sm" variant="primary" :href="`/quotations/create?product=${product.id}`">
                         Create a quotation
                     </Button>
                 </template>
-                <ol class="divide-y divide-slate-100">
-                    <li v-for="step in steps" :key="step.key" class="px-4 py-3">
+
+                <!-- Everything done: one line of ticks, and the figure they add up to. -->
+                <div v-if="setupFolded" class="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5" data-setup-folded>
+                    <ul class="flex min-w-0 flex-1 flex-wrap gap-x-5 gap-y-1 text-xs">
+                        <li v-for="step in steps.filter((s) => s.key !== 'price')" :key="step.key" class="inline-flex items-baseline gap-1.5">
+                            <Icon name="check" class="size-3.5 shrink-0 self-center text-emerald-600" />
+                            <span class="font-medium text-ink-900">{{ step.label }}</span>
+                            <span class="text-ink-600">{{ brief(step.detail) }}</span>
+                            <span class="sr-only">— done</span>
+                        </li>
+                    </ul>
+                    <p v-if="priceStep" class="text-xs text-ink-600 sm:text-right">
+                        <span class="text-ink-500">{{ priceStep.label }}</span>
+                        <span class="ml-1.5 text-sm font-semibold tnum text-ink-900">{{ ratePerM(priceStep.rate_per_m, priceStep.currency) }}</span>
+                        <span class="ml-1.5">at {{ pcs(priceStep.qty) }} pcs, {{ pct(priceStep.margin_pct) }} margin</span>
+                        <button v-if="priceSuspect" type="button" class="ml-1.5 inline-flex min-h-6 items-center gap-1 font-medium text-amber-900 underline underline-offset-2" @click="stepsShown = true">
+                            <Icon name="warning" class="size-3.5" /> check the breakdown
+                        </button>
+                    </p>
+                </div>
+
+                <ol v-else id="setup-steps" class="divide-y divide-slate-100">
+                    <li v-for="step in steps" :key="step.key" class="px-4" :class="step.state === 'done' ? 'py-2' : 'py-3'">
                         <div class="flex flex-wrap items-start gap-x-4 gap-y-2">
                             <span
                                 class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold tnum"
@@ -212,7 +257,7 @@ const bomColumns = [
                                 <template v-else>{{ step.no }}</template>
                             </span>
 
-                            <div class="min-w-0 flex-1 basis-64">
+                            <div class="min-w-0 flex-1 basis-64" :class="step.state === 'done' ? 'flex flex-wrap items-baseline gap-x-2' : ''">
                                 <p class="text-sm font-medium text-ink-900">
                                     {{ step.label }}
                                     <span class="sr-only">
@@ -307,16 +352,16 @@ const bomColumns = [
                                         <div><dt class="text-ink-500">Fold</dt><dd>{{ titleCase(spec.fold_type) || '—' }}</dd></div>
                                         <div><dt class="text-ink-500">Colours</dt><dd class="tnum">{{ spec.colours }}</dd></div>
                                         <div><dt class="text-ink-500">Bundle</dt><dd class="tnum">{{ spec.bundle_size }} / {{ spec.bundles_per_carton }}</dd></div>
-                                        <div><dt class="text-ink-500">GSM</dt><dd class="tnum">{{ spec.fabric_gsm ?? '—' }}</dd></div>
-                                        <div><dt class="text-ink-500">Coverage</dt><dd class="tnum">{{ spec.coverage_pct }}%</dd></div>
+                                        <div><dt class="text-ink-500">GSM</dt><dd class="tnum">{{ spec.fabric_gsm != null ? number(spec.fabric_gsm) : '—' }}</dd></div>
+                                        <div><dt class="text-ink-500">Coverage</dt><dd class="tnum">{{ pct(spec.coverage_pct) }}</dd></div>
                                     </dl>
 
                                     <!-- BR-4/5/6 shown beside the inputs that produced them -->
                                     <div class="mt-2 flex flex-wrap gap-3 rounded bg-slate-50 px-2 py-1.5 text-xs">
-                                        <span><span class="text-ink-500">pitch</span> <span class="tnum font-medium">{{ spec.derived.pitch_mm }} mm</span> <RuleHint rule="BR-4" size="size-3" /></span>
-                                        <span><span class="text-ink-500">labels/m</span> <span class="tnum font-medium">{{ spec.derived.labels_per_metre }}</span> <RuleHint rule="BR-4" size="size-3" /></span>
+                                        <span><span class="text-ink-500">pitch</span> <span class="tnum font-medium">{{ number(spec.derived.pitch_mm) }} mm</span> <RuleHint rule="BR-4" size="size-3" /></span>
+                                        <span><span class="text-ink-500">labels/m</span> <span class="tnum font-medium">{{ number(spec.derived.labels_per_metre, 1) }}</span> <RuleHint rule="BR-4" size="size-3" /></span>
                                         <span><span class="text-ink-500">ends</span> <span class="tnum font-medium">{{ spec.ends ?? spec.derived.suggested_ends }}</span> <RuleHint rule="BR-5" size="size-3" /></span>
-                                        <span><span class="text-ink-500">labels/web m</span> <span class="tnum font-medium">{{ spec.derived.labels_per_web_metre }}</span> <RuleHint rule="BR-6" size="size-3" /></span>
+                                        <span><span class="text-ink-500">labels/web m</span> <span class="tnum font-medium">{{ number(spec.derived.labels_per_web_metre, 1) }}</span> <RuleHint rule="BR-6" size="size-3" /></span>
                                     </div>
                                 </div>
 
@@ -393,10 +438,10 @@ const bomColumns = [
 
                     <DataTable :columns="bomColumns" :rows="bom.lines" row-key="id" dense empty="No lines.">
                         <template #cell:item="{ row }">
-                            <span class="font-medium">{{ row.item?.code }}</span>
-                            <span class="text-ink-500"> {{ row.item?.name }}</span>
+                            <CodeName :code="row.item?.code" :name="row.item?.name" />
                         </template>
                         <template #cell:qty_per_base="{ value }">{{ qty(value) }}</template>
+                        <template #cell:wastage_pct="{ value }">{{ pct(value) }}</template>
                         <template #cell:colour_index="{ value }">{{ value ?? 'all' }}</template>
                         <template #cell:formula_ref="{ value }">
                             <span v-if="value" class="inline-flex items-center gap-1.5">Worked out <RuleHint :rule="value" /></span>

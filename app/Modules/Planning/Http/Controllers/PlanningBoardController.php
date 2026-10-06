@@ -107,6 +107,16 @@ class PlanningBoardController extends Controller
                     // Metres or pieces: a quantity without its unit is the misreading the
                     // job card page already had to fix.
                     DB::raw("CASE WHEN COALESCE(ro.consumes_web, 1) THEN 'm' ELSE 'pcs' END as unit"),
+                    // The day the step ahead of it is planned to finish. The scheduler refuses
+                    // anything earlier (`assertNotBeforePredecessor`), so the board must not
+                    // suggest it; a step that may run in parallel has no such day.
+                    DB::raw("CASE WHEN COALESCE(ro.allow_parallel, 0) THEN NULL ELSE (
+                        SELECT DATE(MAX(p.scheduled_finish)) FROM job_card_operations p
+                        WHERE p.job_card_id = jco.job_card_id
+                          AND p.sequence_no < jco.sequence_no
+                          AND p.status NOT IN ('skipped', 'cancelled')
+                          AND p.scheduled_finish IS NOT NULL
+                    ) END as not_before"),
                 ]),
             // The list above stops at fifty, soonest due first. Without the full count it
             // read as "this is everything", and the fifty-first step was simply not there.

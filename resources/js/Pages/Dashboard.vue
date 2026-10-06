@@ -335,15 +335,6 @@ const showArtworkQueue = computed(() => can('artwork.view_any') && props.artwork
 const showMachineLoad = computed(() => canAny('production_plan.view_any', 'job_card.view_any') && loadByMachine.value.length > 0);
 const showCertificates = computed(() => canAny('certification.view_any', 'coc.view_any') && props.expiringCertificates.length > 0);
 
-const allClear = computed(() => [
-    can('artwork.view_any') && props.artworkQueue.length === 0
-        && { key: 'artwork', text: 'No artwork is waiting on a customer signature.', href: '/artworks' },
-    canAny('production_plan.view_any', 'job_card.view_any') && loadByMachine.value.length === 0
-        && { key: 'load', text: 'Nothing is scheduled on any machine in the next 7 days.', href: can('production_plan.view_any') ? '/planning' : null },
-    canAny('certification.view_any', 'coc.view_any') && props.expiringCertificates.length === 0
-        && { key: 'certificates', text: 'Every certificate is current.', href: null },
-].filter(Boolean));
-
 /**
  * The list can be put away. Some reference lists are legitimately left empty, and a factory
  * that has been running for a year should not have "getting ready" above its work queue. The
@@ -709,19 +700,6 @@ const nextStep = computed(() => props.setup?.steps.find((step) => !step.done) ??
                 </Card>
             </div>
 
-            <!-- What is fine, in one line each, instead of three cards saying nothing. -->
-            <section v-if="allClear.length" class="rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-3" aria-labelledby="all-clear-heading">
-                <h2 id="all-clear-heading" class="text-sm font-semibold text-emerald-900">All clear</h2>
-                <ul class="mt-1.5 space-y-1 text-sm text-emerald-900/80">
-                    <li v-for="item in allClear" :key="item.key" class="flex items-start gap-2">
-                        <Icon name="check" size="size-4" class="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
-                        <span>
-                            {{ item.text }}
-                            <Link v-if="item.href" :href="item.href" class="ml-1 font-medium text-emerald-800 underline decoration-emerald-300 underline-offset-2 hover:decoration-emerald-600">Open</Link>
-                        </span>
-                    </li>
-                </ul>
-            </section>
         </div>
     </AppLayout>
 </template>

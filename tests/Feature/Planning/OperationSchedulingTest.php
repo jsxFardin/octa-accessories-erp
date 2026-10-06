@@ -244,3 +244,42 @@ it('moves the board window, and says how many steps are waiting in all', functio
             ->where('unscheduledTotal', $waiting)
             ->where('unscheduled', fn ($rows) => count($rows) === min(50, $waiting)));
 });
+
+/*
+ * "Suggest earliest slot" must not offer a day the scheduler would refuse. The board is told,
+ * with each waiting step, the day the step ahead of it is planned to finish.
+ */
+it('tells the board the earliest day a waiting step may start', function (): void {
+    $successor = JobCardOperation::query()
+        ->where('job_card_id', $this->operation->job_card_id)
+        ->where('sequence_no', '>', $this->operation->sequence_no)
+        ->whereIn('status', [JobCardOperation::PENDING, JobCardOperation::READY])
+        ->orderBy('sequence_no')
+        ->first();
+
+    if ($successor === null) {
+        $this->markTestSkipped('The chosen job card has a single open operation.');
+    }
+
+    if ($successor->routingOperation?->allow_parallel) {
+        $this->markTestSkipped('This step is marked parallel; nothing holds it back.');
+    }
+
+    // Nothing later on the card is planned, so the step scheduled here is the latest finish before it.
+    JobCardOperation::query()
+        ->where('job_card_id', $this->operation->job_card_id)
+        ->where('id', '!=', $this->operation->id)
+        ->update(['machine_id' => null, 'scheduled_start' => null, 'scheduled_finish' => null]);
+
+    ($this->schedule)()->assertSessionHasNoErrors();
+
+    $this->actingAs($this->planner)->get('/planning')
+        ->assertOk()
+        ->assertInertia(fn (Inertia\Testing\AssertableInertia $page) => $page
+            ->where('unscheduled', function ($rows) use ($successor): bool {
+                $row = collect($rows)->firstWhere('id', $successor->id);
+
+                // Beyond the first fifty the step is simply not on the page; nothing to assert.
+                return $row === null || $row['not_before'] === $this->day;
+            }));
+});

@@ -328,6 +328,23 @@ export function qty(value, places = null) {
 }
 
 /**
+ * A measured quantity where it is read, not reckoned: "11,611 m", not "11,611.25 m".
+ *
+ * On a planning board or a queue the quarter-metre is noise beside eleven thousand of them. A
+ * large figure is whole; a small one keeps the decimal that still means something, and never
+ * a trailing zero. Documents and anything that is added up use `qty`.
+ */
+export function qtyRound(value) {
+    const n = Math.abs(toNumber(value));
+    const digits = n >= 100 ? 0 : n >= 10 ? 1 : settings.decimals;
+
+    return toNumber(value).toLocaleString(locale(), {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: digits,
+    });
+}
+
+/**
  * Money, always labelled with its currency.
  *
  * `currency` may be a code (`'USD'`), a currency object (`{ code: 'USD' }`), or omitted — in

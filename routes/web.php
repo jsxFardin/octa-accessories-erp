@@ -27,7 +27,9 @@ use App\Modules\MasterData\Http\Controllers\CustomerContactController;
 use App\Modules\MasterData\Http\Controllers\CustomerController;
 use App\Modules\MasterData\Http\Controllers\ItemController;
 use App\Modules\MasterData\Http\Controllers\MachineController;
+use App\Modules\MasterData\Http\Controllers\SupplierContactController;
 use App\Modules\MasterData\Http\Controllers\SupplierController;
+use App\Modules\MasterData\Http\Controllers\SupplierItemController;
 use App\Modules\Planning\Http\Controllers\MrpController;
 use App\Modules\Planning\Http\Controllers\PlanningBoardController;
 use App\Modules\Procurement\Http\Controllers\GrnController;
@@ -159,6 +161,25 @@ Route::middleware('auth')->group(function (): void {
         ->middlewareFor(['create', 'store'], 'can:supplier.create')
         ->middlewareFor(['edit', 'update'], 'can:supplier.update')
         ->middlewareFor('destroy', 'can:supplier.delete');
+
+    // A supplier's people, the materials they sell and how to reach them are kept on the
+    // supplier's own page, as a customer's are. `supplier.update` is the gate throughout.
+    Route::post('suppliers/{supplier}/contacts', [SupplierContactController::class, 'store'])
+        ->middleware('can:supplier.update')->name('suppliers.contacts.store');
+    Route::put('suppliers/{supplier}/contacts/{contact}', [SupplierContactController::class, 'update'])
+        ->middleware('can:supplier.update')->name('suppliers.contacts.update');
+    Route::delete('suppliers/{supplier}/contacts/{contact}', [SupplierContactController::class, 'destroy'])
+        ->middleware('can:supplier.update')->name('suppliers.contacts.destroy');
+
+    Route::post('suppliers/{supplier}/items', [SupplierItemController::class, 'store'])
+        ->middleware('can:supplier.update')->name('suppliers.items.store');
+    Route::put('suppliers/{supplier}/items/{item}', [SupplierItemController::class, 'update'])
+        ->middleware('can:supplier.update')->name('suppliers.items.update');
+    Route::delete('suppliers/{supplier}/items/{item}', [SupplierItemController::class, 'destroy'])
+        ->middleware('can:supplier.update')->name('suppliers.items.destroy');
+
+    Route::put('suppliers/{supplier}/reach', [SupplierController::class, 'updateReach'])
+        ->middleware('can:supplier.update')->name('suppliers.reach.update');
 
     Route::resource('machines', MachineController::class)
         ->middlewareFor(['index', 'show'], 'can:machine.view_any')

@@ -112,3 +112,31 @@ describe('stored decimals as typed numbers', () => {
             .toEqual({ id: 7, qty: '8000', rate_per_m: '12.5', description: 'Care label 40.5', code: 'PRD-01' });
     });
 });
+
+// Planning board: "11,611.25 m" beside a machine's hours is a figure nobody reads to the quarter-metre.
+describe('rounded quantities', () => {
+    it('drops the decimals a large figure does not need and keeps the ones a small figure does', async () => {
+        const { configureFormatting, qtyRound } = await import('../../resources/js/plugins/formatting.js');
+
+        configureFormatting({ number_locale: 'en-GB', decimal_places: 2 });
+
+        expect(qtyRound(11611.25)).toBe('11,611');
+        expect(qtyRound('1050000.000000')).toBe('1,050,000');
+        expect(qtyRound(100)).toBe('100');
+        expect(qtyRound(42.26)).toBe('42.3');
+        expect(qtyRound(42)).toBe('42');
+        expect(qtyRound(7.255)).toBe('7.26');
+        expect(qtyRound(0.5)).toBe('0.5');
+        expect(qtyRound(null)).toBe('0');
+    });
+
+    it('groups the way the organisation groups', async () => {
+        const { configureFormatting, qtyRound } = await import('../../resources/js/plugins/formatting.js');
+
+        configureFormatting({ number_locale: 'en-IN' });
+
+        expect(qtyRound(1050000)).toBe('10,50,000');
+
+        configureFormatting({ number_locale: 'en-GB' });
+    });
+});

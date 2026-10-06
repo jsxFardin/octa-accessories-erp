@@ -23,6 +23,11 @@ const VARIANTS = {
     danger: 'bg-rose-600 text-white shadow-sm hover:bg-rose-700 focus-visible:outline-rose-600',
     success: 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 focus-visible:outline-emerald-600',
     ghost: 'text-ink-700 hover:bg-slate-100 focus-visible:outline-slate-400',
+    /*
+     * Remove, beside the thing it removes. A solid red button on every row of a list made the
+     * one destructive act the loudest thing on the page; the confirm dialog carries the weight.
+     */
+    'danger-quiet': 'text-rose-700 hover:bg-rose-50 focus-visible:outline-rose-600',
 };
 
 const SIZES = {
