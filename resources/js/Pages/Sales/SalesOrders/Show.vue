@@ -113,6 +113,41 @@ const withoutBom = computed(() => props.readiness.filter((r) => r.bom === false)
 
 const PRIORITY_LABELS = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
 
+/*
+ * An amendment names the column it changed — "line 3 ordered_qty" — which is the database
+ * talking. The same change in the words the form uses.
+ */
+const FIELD_LABELS = {
+    ordered_qty: 'ordered quantity',
+    rate_per_m: 'rate per 1,000 pcs',
+    tooling_charge: 'tooling charge',
+    over_tolerance_pct: 'over-delivery tolerance',
+    under_tolerance_pct: 'under-delivery tolerance',
+    promised_date: 'promised date',
+    delivery_date: 'delivery date',
+    order_date: 'order date',
+    customer_po_no: 'customer PO',
+    product_id: 'product',
+    product_spec_id: 'specification',
+    priority: 'priority',
+    notes: 'notes',
+    currency_id: 'currency',
+    exchange_rate: 'exchange rate',
+    payment_term_id: 'payment terms',
+    delivery_address_id: 'delivery address',
+    billing_address_id: 'billing address',
+    lines: 'lines',
+};
+
+function amendmentLabel(field) {
+    const text = String(field ?? '');
+    const match = text.match(/^(line \d+)\s+(.+)$/i);
+    const column = match ? match[2] : text;
+    const label = FIELD_LABELS[column] ?? titleCase(column).toLowerCase();
+
+    return match ? `${titleCase(match[1])} · ${label}` : titleCase(label);
+}
+
 /**
  * What can happen next, from this order.
  *
@@ -510,7 +545,7 @@ const lineColumns = [
                     <ul class="divide-y divide-slate-100 text-sm">
                         <li v-for="amendment in amendments" :key="amendment.id" class="px-3 py-2">
                             <p class="font-medium text-ink-800">
-                                R{{ amendment.revision_no }} · {{ titleCase(amendment.changed_field) }}
+                                R{{ amendment.revision_no }} · {{ amendmentLabel(amendment.changed_field) }}
                             </p>
                             <!-- Both sides formatted the same way: `2026-08-31 00:00:00 → 2026-08-31`
                                  read like a database diff, not a change to an order. -->

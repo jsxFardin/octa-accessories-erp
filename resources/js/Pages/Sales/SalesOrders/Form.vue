@@ -189,7 +189,7 @@ const columns = [
             {{ isEdit ? `Order ${order.number ?? '(unnumbered)'}` : 'New sales order' }}
         </template>
         <template #subtitle>
-            A draft is not a commitment — confirmation is where Gate 1 and the credit check apply.
+            A draft is not a commitment — confirmation is where the artwork, specification and credit checks apply.
         </template>
 
         <FormLayout @submit="submit">

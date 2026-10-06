@@ -348,7 +348,7 @@ class SalesOrderController extends Controller
         $isConfirmed = ! in_array($salesOrder->status, ['draft', 'credit_hold'], true);
 
         if ($isConfirmed && blank($request->input('amendment_reason'))) {
-            return back()->with('error', 'S2: changing a confirmed order requires an amendment reason.');
+            return back()->with('error', 'Changing a confirmed order needs an amendment reason.');
         }
 
         // S1 — documented since the domain model and commented in `recordAmendments()`, but
@@ -412,7 +412,7 @@ class SalesOrderController extends Controller
                 return back()->with(
                     'warning',
                     sprintf(
-                        'BR-46: this order takes %s past their credit limit by %s %s. Held for Accounts or the MD to release.',
+                        'This order takes %s past their credit limit by %s %s. Held for Accounts or the MD to release.',
                         $salesOrder->customer?->name,
                         // The decision is made in the factory's currency (BR-51), so the figure
                         // that explains it says which currency it is in.
@@ -493,7 +493,7 @@ class SalesOrderController extends Controller
         }
 
         StateMachine::asSystem(fn () => $this->states->transition($order, 'credit_hold', [
-            'amendment_reason' => 'BR-46: amendment took the order past the credit limit.',
+            'amendment_reason' => 'The amendment took the order past the credit limit, so it is held for Accounts or the MD to release.',
         ]));
     }
 

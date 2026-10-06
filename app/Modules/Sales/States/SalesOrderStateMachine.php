@@ -125,11 +125,11 @@ class SalesOrderStateMachine extends StateMachine
                 ->exists();
 
             if (! $specCurrent) {
-                $blocked[] = "Line {$line->line_no} ({$line->product->code}): the referenced spec is not the current version (P2).";
+                $blocked[] = "Line {$line->line_no} ({$line->product->code}): its specification is not the current version.";
             }
 
             if (! $approved) {
-                $blocked[] = "Line {$line->line_no} ({$line->product->code}): no approved artwork version (Gate 1 / A2).";
+                $blocked[] = "Line {$line->line_no} ({$line->product->code}): no approved artwork.";
             }
         }
 
