@@ -142,14 +142,25 @@ class MaterialIssueController extends Controller
             ->get(['id', 'number', 'status', 'product_id', 'planned_qty', 'bom_id']);
 
         $requested = $this->contextualId($request, 'job_card', ['job_card.view_any', 'job_card.view']);
+        $preselected = $jobCards->contains(fn ($card): bool => (int) $card->id === $requested) ? $requested : null;
+        $requirement = $preselected === null ? [] : $this->requirementFor($preselected);
+
+        // The one store that holds everything the job still needs, when there is exactly one.
+        // Two stores stay an explicit choice: yarn and ink from different stores means two issues.
+        $stores = collect($requirement)
+            ->filter(fn (array $row): bool => $row['remaining'] > 0)
+            ->flatMap(fn (array $row): array => array_column($row['warehouses'], 'id'))
+            ->unique();
 
         return Inertia::render('Inventory/Issues/Form', [
             'jobCards' => $jobCards,
             // Only a card material may actually move against; anything else would tick a row
             // the form's own status filter then hides.
-            'preselectJobCardId' => $jobCards->contains(fn ($card): bool => (int) $card->id === $requested)
-                ? $requested
-                : null,
+            'preselectJobCardId' => $preselected,
+            // What the card's bill of materials says it needs, less what has been issued: the
+            // store keeper came from the job card and should not have to look it up again.
+            'requirement' => $requirement,
+            'suggestedWarehouseId' => $stores->count() === 1 ? (int) $stores->first() : null,
             // `kind` travels with the row so the picker can say "Raw material" beside "RM"
             // rather than leaving the store keeper to know the codes. The header warehouse is
             // what filters the candidate lots (`suggest`), so choosing the wrong one returns
@@ -161,6 +172,60 @@ class MaterialIssueController extends Controller
             'items' => Item::query()->where('is_active', true)->orderBy('code')
                 ->get(['id', 'code', 'name', 'base_uom_id', 'is_shade_critical']),
         ]);
+    }
+
+    /**
+     * A job's bill of materials scaled to its planned quantity, less what posted issues have
+     * already moved (returns subtracted), with the stores that hold each material.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function requirementFor(int $jobCardId): array
+    {
+        $card = JobCard::query()->with(['bom.lines.item', 'bom.lines.uom'])->find($jobCardId);
+
+        if ($card === null || $card->bom === null) {
+            return [];
+        }
+
+        $issued = DB::table('material_issue_lines as l')
+            ->join('material_issues as mi', 'mi.id', '=', 'l.material_issue_id')
+            ->where('mi.job_card_id', $jobCardId)
+            ->where('mi.status', 'posted')
+            ->selectRaw("l.item_id, COALESCE(SUM(CASE WHEN mi.issue_type = 'return' THEN -l.qty ELSE l.qty END), 0) AS qty")
+            ->groupBy('l.item_id')
+            ->pluck('qty', 'item_id');
+
+        $itemIds = $card->bom->lines->pluck('item_id')->all();
+
+        $stock = DB::table('stock_lots as sl')
+            ->join('warehouses as w', 'w.id', '=', 'sl.warehouse_id')
+            ->whereIn('sl.item_id', $itemIds)
+            ->where('sl.status', 'available')
+            ->where('sl.balance_qty', '>', 0)
+            ->where('w.is_active', true)
+            ->selectRaw('sl.item_id, w.id, w.code, w.name, SUM(sl.balance_qty) AS on_hand')
+            ->groupBy('sl.item_id', 'w.id', 'w.code', 'w.name')
+            ->get()
+            ->groupBy('item_id');
+
+        return $card->bom->lines->map(function ($line) use ($card, $issued, $stock): array {
+            $required = $card->bom->scaleTo((float) $line->qty_per_base, (float) $card->planned_qty);
+            $done = (float) ($issued[$line->item_id] ?? 0);
+
+            return [
+                'item' => $line->item?->only(['id', 'code', 'name', 'base_uom_id', 'is_shade_critical']),
+                'uom' => $line->uom?->code,
+                'required' => $required,
+                'issued' => $done,
+                'remaining' => max(0.0, round($required - $done, 6)),
+                'is_optional' => (bool) $line->is_optional,
+                'warehouses' => ($stock[$line->item_id] ?? collect())
+                    ->map(fn ($row): array => ['id' => (int) $row->id, 'code' => $row->code, 'name' => $row->name, 'on_hand' => (float) $row->on_hand])
+                    ->values()
+                    ->all(),
+            ];
+        })->values()->all();
     }
 
     /**

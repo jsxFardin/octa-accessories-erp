@@ -1098,7 +1098,8 @@ const bomColumns = [
                             <dd v-if="!fgPosition.material_issued_any" class="text-xs text-rose-600">
                                 No material has been issued to this job, so finished goods cannot be
                                 received from it and would value at zero.
-                                <Link :href="`/material-issues/create?job_card=${jobCard.id}`" class="underline">Issue material</Link>.
+                                <!-- Only where the issue form would accept this card; a draft is not issuable. -->
+                                <Link v-if="canIssueMaterial" :href="issueHref" class="underline">Issue material</Link><template v-else>Release the card, then issue material</template>.
                             </dd>
                         </div>
                     </dl>

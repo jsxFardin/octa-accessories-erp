@@ -23,6 +23,13 @@ const props = defineProps({
     items: { type: Array, default: () => [] },
     /** The job card the store came from, resolved server-side. */
     preselectJobCardId: { type: Number, default: null },
+    /**
+     * `[{ item, uom, required, issued, remaining, warehouses: [{ id, code, name, on_hand }] }]`
+     * for that card: its bill of materials scaled to the planned quantity, less what is issued.
+     */
+    requirement: { type: Array, default: () => [] },
+    /** The one store holding everything still needed, when there is exactly one. */
+    suggestedWarehouseId: { type: Number, default: null },
 });
 
 /** Only honoured for an issue: a card must also be in a returnable status to take a return. */
@@ -36,7 +43,8 @@ const form = useForm({
     // returned an empty pick list for every raw-material issue. The ledger posts against the
     // lot, not this field, so the wrong choice never moved the wrong stock; it just silently
     // offered nothing. Making it an explicit choice is the honest fix.
-    warehouse_id: '',
+    // Chosen for the user only when every material the job still needs sits in one store.
+    warehouse_id: props.suggestedWarehouseId ?? '',
     issue_type: 'issue',
     remarks: '',
     lines: [],
@@ -92,28 +100,96 @@ const selectedItem = computed(() =>
  * The system suggests; the store keeper decides. Shade-first for shade-critical items with a
  * FIFO fallback — and every pick that breaks FIFO is flagged so a reason can be recorded.
  */
+async function fetchSuggestion(itemId, quantity, { shade = '', claim = '' } = {}) {
+    const params = new URLSearchParams({ item_id: String(itemId), qty: String(quantity) });
+
+    if (form.warehouse_id) params.set('warehouse_id', String(form.warehouse_id));
+    if (shade) params.set('preferred_shade', shade);
+    if (claim) params.set('required_claim_pct', String(claim));
+
+    const response = await fetch(`/material-issues/suggest?${params}`, { headers: { Accept: 'application/json' } });
+
+    return response.ok ? await response.json() : null;
+}
+
 async function suggest() {
     if (!requestItemId.value || !requestQty.value) return;
 
     busy.value = true;
 
     try {
-        const params = new URLSearchParams({
-            item_id: String(requestItemId.value),
-            qty: String(requestQty.value),
-        });
-
-        if (form.warehouse_id) params.set('warehouse_id', String(form.warehouse_id));
-        if (requestShade.value) params.set('preferred_shade', requestShade.value);
-        if (requestClaim.value) params.set('required_claim_pct', String(requestClaim.value));
-
-        const response = await fetch(`/material-issues/suggest?${params}`, {
-            headers: { Accept: 'application/json' },
-        });
-
-        suggestion.value = response.ok ? await response.json() : null;
+        suggestion.value = await fetchSuggestion(requestItemId.value, requestQty.value, { shade: requestShade.value, claim: requestClaim.value });
     } finally {
         busy.value = false;
+    }
+}
+
+/*
+ * What the job still needs, read off its bill of materials. Coming from the job card, the
+ * store keeper should not have to type what the card already knows: each row picks its own
+ * lots, and "Pick lots for everything" does the whole list in one go.
+ */
+const needed = computed(() => props.requirement.map((row) => ({
+    ...row,
+    added: form.lines.filter((line) => Number(line.item_id) === Number(row.item?.id)).reduce((sum, line) => sum + (Number(line.qty) || 0), 0),
+    in_store: form.warehouse_id ? row.warehouses.find((w) => Number(w.id) === Number(form.warehouse_id)) ?? null : null,
+})));
+
+const outstanding = computed(() => needed.value.filter((row) => row.remaining > 0 && row.added <= 0 && row.in_store));
+
+const pickNote = ref(null);
+
+function pickLotsFor(row) {
+    if (!row.item) return;
+
+    requestItemId.value = row.item.id;
+    requestQty.value = String(Math.max(0, row.remaining - row.added) || row.remaining);
+    requestShade.value = '';
+
+    return suggest();
+}
+
+/** One pass over every outstanding material: suggest and add, say what could not be covered. */
+async function pickAll() {
+    if (!form.warehouse_id || outstanding.value.length === 0) return;
+
+    busy.value = true;
+    const short = [];
+
+    try {
+        for (const row of outstanding.value) {
+            const result = await fetchSuggestion(row.item.id, row.remaining);
+
+            if (!result || result.picks.length === 0) {
+                short.push(`${row.item.code}: nothing on hand in this store`);
+                continue;
+            }
+
+            addPicks(row.item, result.picks);
+
+            if (result.shortfall > 0) short.push(`${row.item.code}: ${qty(result.shortfall)} short`);
+        }
+    } finally {
+        busy.value = false;
+    }
+
+    pickNote.value = short.length ? short.join(' · ') : null;
+}
+
+function addPicks(item, picks) {
+    for (const pick of picks) {
+        form.lines = [...form.lines, {
+            item_id: item.id,
+            item_code: item.code,
+            lot_id: pick.id,
+            lot_no: pick.lot_no,
+            shade_code: pick.shade_code,
+            uom_id: item.base_uom_id,
+            qty: pick.qty,
+            unit_cost: pick.unit_cost,
+            breaks_fifo: pick.breaks_fifo,
+            fifo_override_reason: '',
+        }];
     }
 }
 
@@ -353,8 +429,80 @@ function submit() {
             </Card>
 
             <Card
+                v-if="!isReturn && requirement.length"
+                title="What this job needs"
+                subtitle="From the card's bill of materials at its planned quantity, less what has already been issued"
+                :padded="false"
+            >
+                <template #actions>
+                    <Button
+                        size="sm"
+                        variant="primary"
+                        :loading="busy"
+                        :disabled="!form.warehouse_id || outstanding.length === 0"
+                        :title="!form.warehouse_id ? 'Choose the store first.' : outstanding.length === 0 ? 'Nothing outstanding in this store.' : null"
+                        @click="pickAll"
+                    >
+                        Pick lots for everything still needed
+                    </Button>
+                </template>
+
+                <table class="min-w-full text-sm">
+                    <thead class="text-xs text-ink-700">
+                        <tr class="border-b border-slate-200 bg-slate-50">
+                            <th class="px-3 py-2 text-left">Material</th>
+                            <th class="px-3 py-2 text-right">Required</th>
+                            <th class="px-3 py-2 text-right">Issued</th>
+                            <th class="px-3 py-2 text-right">Still needed</th>
+                            <th class="px-3 py-2 text-left">In store</th>
+                            <th class="px-3 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <tr v-for="row in needed" :key="row.item?.id ?? row.uom">
+                            <td class="px-3 py-2">
+                                <span class="font-medium text-ink-900">{{ row.item?.code ?? '—' }}</span>
+                                <span class="ml-1 text-ink-600">{{ row.item?.name }}</span>
+                                <Badge v-if="row.is_optional" tone="neutral" label="Optional" class="ml-1" />
+                            </td>
+                            <td class="px-3 py-2 text-right tnum">{{ qty(row.required) }} {{ row.uom }}</td>
+                            <td class="px-3 py-2 text-right tnum" :class="row.issued > 0 ? 'text-ink-900' : 'text-ink-400'">{{ qty(row.issued) }}</td>
+                            <td class="px-3 py-2 text-right tnum font-medium" :class="row.remaining > 0 ? 'text-amber-700' : 'text-emerald-700'">
+                                {{ row.remaining > 0 ? qty(row.remaining) : 'Covered' }}
+                            </td>
+                            <td class="px-3 py-2 text-xs">
+                                <template v-if="!form.warehouse_id">
+                                    <span v-if="row.warehouses.length" class="text-ink-600">{{ row.warehouses.map((w) => `${w.name} (${qty(w.on_hand)})`).join(', ') }}</span>
+                                    <span v-else class="text-rose-700">Nothing on hand anywhere</span>
+                                </template>
+                                <template v-else-if="row.in_store">
+                                    <span class="text-ink-700">{{ qty(row.in_store.on_hand) }} on hand</span>
+                                </template>
+                                <span v-else class="text-rose-700">Not in this store<template v-if="row.warehouses.length"> — try {{ row.warehouses.map((w) => w.name).join(' or ') }}</template></span>
+                            </td>
+                            <td class="px-3 py-2 text-right">
+                                <span v-if="row.added > 0" class="text-xs text-emerald-700">{{ qty(row.added) }} added</span>
+                                <Button
+                                    v-else-if="row.remaining > 0"
+                                    size="sm"
+                                    :disabled="!form.warehouse_id || !row.in_store || busy"
+                                    @click="pickLotsFor(row)"
+                                >
+                                    Pick lots
+                                </Button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <p v-if="pickNote" role="status" class="border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    Could not fully cover: {{ pickNote }}. The rest of the lines were added.
+                </p>
+            </Card>
+
+            <Card
                 v-if="!isReturn"
-                title="Ask for material"
+                :title="requirement.length ? 'Ask for something else' : 'Ask for material'"
                 rule="BR-37"
                 subtitle="Enter what the job needs; the system picks the lots"
             >
@@ -369,7 +517,8 @@ function submit() {
                     role="status"
                 >
                     Choose the store this material comes out of first — it decides which lots are offered.
-                    A job card usually draws yarn and ink from different stores, so there is no sensible default.
+                    <template v-if="requirement.length">The table above says which store holds each material.</template>
+                    <template v-else>A job card usually draws yarn and ink from different stores, so there is no sensible default.</template>
                 </p>
 
                 <!-- items-start, not items-end: two of these fields carry a hint and two do
