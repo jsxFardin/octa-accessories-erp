@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -13,6 +13,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import Modal from '@/Components/Ui/Modal.vue';
+import DateInput from '@/Components/Ui/DateInput.vue';
 import { date, datetime, isoDate, money, pcs, pct, qty, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import DropdownMenu from '@/Components/Ui/DropdownMenu.vue';
@@ -143,7 +144,78 @@ const bookForm = useForm({
     remarks: '',
     input_override_reason: '',
     manual_reason: '',
+    finish: false,
 });
+
+/*
+ * When, as a day and a time rather than one browser-drawn `datetime-local`. The native control
+ * wrote the month first and looked like nothing else on the page; the kit calendar and a time
+ * box write the way the shift sheet does, and the shift picks itself from the time.
+ */
+const bookDate = ref('');
+const bookTime = ref('');
+/** The shift the form chose from the time, so a hand-picked one is never overwritten. */
+let shiftPickedFromTime = null;
+
+function nowParts() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+
+    return { date: todayIso(), time: `${pad(now.getHours())}:${pad(now.getMinutes())}` };
+}
+
+function setBookNow() {
+    const { date: today, time: now } = nowParts();
+    bookDate.value = today;
+    bookTime.value = now;
+}
+
+/** The shift whose hours hold this time; a night shift wraps midnight. */
+function shiftAt(time) {
+    if (!time) return null;
+
+    return props.shifts.find((sh) => {
+        const start = String(sh.starts_at ?? '').slice(0, 5);
+        const end = String(sh.ends_at ?? '').slice(0, 5);
+
+        if (!start || !end) return false;
+
+        return start < end ? time >= start && time < end : time >= start || time < end;
+    }) ?? null;
+}
+
+watch([bookDate, bookTime], ([day, time]) => {
+    bookForm.occurred_at = day && time ? `${day} ${time}:00` : '';
+
+    const shift = shiftAt(time);
+
+    if (shift && (bookForm.shift_id === null || bookForm.shift_id === shiftPickedFromTime)) {
+        bookForm.shift_id = shift.id;
+        shiftPickedFromTime = shift.id;
+    }
+});
+
+/** The step being booked, for the figures beside the picker and the consequence of finishing it. */
+const bookedOperation = computed(() => props.operations.find((op) => op.id === bookForm.job_card_operation_id) ?? null);
+
+const bookedUnit = computed(() => bookedOperation.value?.unit ?? '');
+
+/** What finishing this step does to the card — said before the box is ticked, not after. */
+const finishConsequence = computed(() => {
+    const op = bookedOperation.value;
+
+    if (!op) return '';
+
+    const next = props.operations.find((o) => o.sequence_no > op.sequence_no && o.status === 'pending');
+    const othersOpen = props.operations.some((o) => o.id !== op.id && !['completed', 'skipped', 'cancelled'].includes(o.status));
+
+    if (next) return `${next.name} becomes ready to start.`;
+    if (!othersOpen) return 'This is the last open step: the card moves to QC pending.';
+
+    return 'The step closes; its figures stay as booked.';
+});
+
+const bookedFigures = computed(() => (Number(bookForm.good_qty) || 0) + (Number(bookForm.waste_qty) || 0));
 
 const WASTE_TYPES = [
     { value: 'setup', label: 'Setup' },
@@ -203,11 +275,6 @@ const operatorOptions = computed(() => (props.operators ?? []).map((e) => ({
     hint: e.card_no,
 })));
 
-/** Now, to the minute, in the browser's own zone — `datetime-local` wants no offset. */
-function localNow() {
-    return new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-}
-
 /*
  * Every field set explicitly, and the figures always cleared.
  *
@@ -227,7 +294,8 @@ function openBooking(operationId = null) {
 
     // From a row, that step; from the tab, the first that can take a booking.
     bookForm.job_card_operation_id = operationId ?? bookableOperations.value[0]?.value ?? null;
-    bookForm.occurred_at = localNow();
+    setBookNow();
+    bookForm.finish = false;
 
     // The figures. Never carried over.
     bookForm.good_qty = null;
@@ -250,7 +318,11 @@ function openBooking(operationId = null) {
 const bookBlockedBy = computed(() => {
     if (!bookForm.job_card_operation_id) return 'Choose the operation.';
     if (!bookForm.operator_id) return 'Choose the operator.';
+    if (!bookDate.value || !bookTime.value) return 'Say when it was made.';
     if ((bookForm.manual_reason ?? '').length < 5) return 'Say why this is booked at the desk (at least 5 characters).';
+    if (bookForm.finish && bookedFigures.value <= 0 && Number(bookedOperation.value?.good_qty ?? 0) + Number(bookedOperation.value?.waste_qty ?? 0) <= 0) {
+        return 'A step cannot finish with nothing booked against it. Enter a figure, or untick finishing.';
+    }
 
     return null;
 });
@@ -269,6 +341,7 @@ function submitBooking() {
             bookForm.remarks = '';
             bookForm.manual_reason = '';
             bookForm.input_override_reason = '';
+            bookForm.finish = false;
         },
     });
 }
@@ -1697,88 +1770,124 @@ const bomColumns = [
         <Modal
             v-model:open="bookOpen"
             title="Book output manually"
-            subtitle="For when the terminal could not take it. The same input and over-run limits apply, and this booking is marked as entered at a desk."
+            subtitle="For when the terminal could not take it. The same input and over-run limits apply, and the booking is marked as entered at a desk."
             width="max-w-2xl"
+            :dirty="bookedFigures > 0 || bookForm.manual_reason.length > 0"
         >
             <div v-if="nothingBookable" class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 {{ nothingBookableReason }}
             </div>
 
-            <div v-else class="space-y-3">
-                <FormField label="Operation" :error="bookForm.errors.job_card_operation_id" required>
-                    <SelectInput v-model="bookForm.job_card_operation_id" :options="bookableOperations" hint-key="hint" />
-                </FormField>
-
-                <div class="grid grid-cols-3 gap-3">
-                    <FormField label="Input received" :error="bookForm.errors.input_qty">
-                        <TextInput v-model="bookForm.input_qty" inputmode="decimal" />
+            <div v-else class="space-y-4">
+                <!-- What was made -->
+                <section class="space-y-3">
+                    <FormField label="Step" :error="bookForm.errors.job_card_operation_id" required>
+                        <SelectInput v-model="bookForm.job_card_operation_id" :options="bookableOperations" hint-key="hint" />
+                        <!-- The step's figures beside the picker: what was planned and what is already on it. -->
+                        <p v-if="bookedOperation" class="mt-1 text-xs text-ink-500">
+                            Planned {{ opQty(bookedOperation.planned_qty, bookedOperation) }} {{ bookedUnit }}
+                            · {{ opQty(bookedOperation.good_qty, bookedOperation) }} {{ bookedUnit }} good so far
+                            <template v-if="Number(bookedOperation.waste_qty) > 0"> · {{ opQty(bookedOperation.waste_qty, bookedOperation) }} {{ bookedUnit }} waste</template>
+                            <template v-if="bookedOperation.started_at"> · running since {{ datetime(bookedOperation.started_at) }}</template>
+                        </p>
                     </FormField>
-                    <FormField label="Good" :error="bookForm.errors.good_qty" required>
-                        <TextInput v-model="bookForm.good_qty" inputmode="decimal" />
-                    </FormField>
-                    <FormField label="Waste" :error="bookForm.errors.waste_qty">
-                        <TextInput v-model="bookForm.waste_qty" inputmode="decimal" />
-                    </FormField>
-                </div>
 
-                <!-- G4 — waste with a cause, asked only when there is waste to explain. -->
-                <FormField v-if="Number(bookForm.waste_qty) > 0" label="What was the waste?" :error="bookForm.errors.waste_type" required>
-                    <SelectInput v-model="bookForm.waste_type" :options="WASTE_TYPES" />
-                </FormField>
+                    <div class="grid grid-cols-3 gap-3">
+                        <FormField :label="`Input received${bookedUnit ? ` (${bookedUnit})` : ''}`" :error="bookForm.errors.input_qty">
+                            <TextInput v-model="bookForm.input_qty" inputmode="decimal" numeric placeholder="0" />
+                        </FormField>
+                        <FormField :label="`Good${bookedUnit ? ` (${bookedUnit})` : ''}`" :error="bookForm.errors.good_qty" required>
+                            <TextInput v-model="bookForm.good_qty" inputmode="decimal" numeric placeholder="0" />
+                        </FormField>
+                        <FormField :label="`Waste${bookedUnit ? ` (${bookedUnit})` : ''}`" :error="bookForm.errors.waste_qty">
+                            <TextInput v-model="bookForm.waste_qty" inputmode="decimal" numeric placeholder="0" />
+                        </FormField>
+                    </div>
 
-                <div class="grid grid-cols-3 gap-3">
+                    <!-- G4 — waste with a cause, asked only when there is waste to explain. -->
+                    <FormField v-if="Number(bookForm.waste_qty) > 0" label="What was the waste?" :error="bookForm.errors.waste_type" required>
+                        <SelectInput v-model="bookForm.waste_type" :options="WASTE_TYPES" />
+                    </FormField>
+
                     <FormField
-                        label="Operator"
-                        hint="Whoever ran it, not whoever is typing. From Configuration → Lists → Employees."
-                        :error="bookForm.errors.operator_id"
+                        v-if="bookForm.errors.input_override_reason || bookForm.input_override_reason"
+                        label="Why more than planned?"
+                        :error="bookForm.errors.input_override_reason"
+                    >
+                        <TextInput v-model="bookForm.input_override_reason" />
+                    </FormField>
+                </section>
+
+                <!-- Who and when -->
+                <section class="space-y-3 border-t border-slate-100 pt-4">
+                    <div class="grid gap-3 sm:grid-cols-3">
+                        <FormField label="Operator" hint="Whoever ran it, not whoever is typing." :error="bookForm.errors.operator_id" required>
+                            <SelectInput v-model="bookForm.operator_id" :options="operatorOptions" hint-key="hint" />
+                        </FormField>
+                        <FormField label="Machine" :error="bookForm.errors.machine_id">
+                            <SelectInput
+                                v-model="bookForm.machine_id"
+                                :options="(machines ?? []).map((m) => ({ value: m.id, label: m.code, hint: m.name }))"
+                                hint-key="hint"
+                            />
+                        </FormField>
+                        <FormField label="Shift" hint="Chosen from the time; change it if the sheet says otherwise." :error="bookForm.errors.shift_id">
+                            <SelectInput
+                                v-model="bookForm.shift_id"
+                                :options="shifts.map((sh) => ({ value: sh.id, label: sh.name }))"
+                            />
+                        </FormField>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                        <FormField label="Made on" :error="bookForm.errors.occurred_at" required>
+                            <DateInput v-model="bookDate" :max="todayIso()" :clearable="false" />
+                        </FormField>
+                        <FormField label="At" required>
+                            <TextInput v-model="bookTime" type="time" step="60" />
+                        </FormField>
+                        <div class="col-span-2 flex items-end pb-px sm:col-span-1">
+                            <Button size="sm" variant="secondary" class="min-h-9" @click="setBookNow">Now</Button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-ink-500">
+                        The shift this output belongs to, not the moment you are typing it. Utilisation is measured from this.
+                    </p>
+                </section>
+
+                <!-- Why it is keyed here -->
+                <section class="space-y-3 border-t border-slate-100 pt-4">
+                    <FormField
+                        label="Why is this being keyed here?"
+                        hint="Kept on the row. A booking that did not come off the machine has to say so."
+                        :error="bookForm.errors.manual_reason"
                         required
                     >
-                        <SelectInput v-model="bookForm.operator_id" :options="operatorOptions" hint-key="hint" />
+                        <TextInput v-model="bookForm.manual_reason" placeholder="Terminal at loom 3 would not start; figures taken from the shift sheet" />
                     </FormField>
-                    <FormField label="Machine" :error="bookForm.errors.machine_id">
-                        <SelectInput
-                            v-model="bookForm.machine_id"
-                            :options="(machines ?? []).map((m) => ({ value: m.id, label: m.code, hint: m.name }))"
-                            hint-key="hint"
-                        />
+
+                    <FormField label="Remarks" :error="bookForm.errors.remarks">
+                        <TextInput v-model="bookForm.remarks" />
                     </FormField>
-                    <FormField label="Shift" :error="bookForm.errors.shift_id">
-                        <SelectInput
-                            v-model="bookForm.shift_id"
-                            :options="shifts.map((sh) => ({ value: sh.id, label: sh.name }))"
-                        />
-                    </FormField>
-                </div>
+                </section>
 
-                <FormField
-                    label="When was it made?"
-                    hint="The shift this output belongs to, not the moment you are typing it. Utilisation is measured from this."
-                    :error="bookForm.errors.occurred_at"
-                    required
-                >
-                    <input v-model="bookForm.occurred_at" type="datetime-local" class="form-input">
-                </FormField>
-
-                <FormField
-                    label="Why is this being keyed here?"
-                    hint="Kept on the row. A booking that did not come off the machine has to say so."
-                    :error="bookForm.errors.manual_reason"
-                    required
-                >
-                    <TextInput v-model="bookForm.manual_reason" placeholder="Terminal at loom 3 would not start; figures taken from the shift sheet" />
-                </FormField>
-
-                <FormField
-                    v-if="bookForm.errors.input_override_reason || bookForm.input_override_reason"
-                    label="Why more than planned?"
-                    :error="bookForm.errors.input_override_reason"
-                >
-                    <TextInput v-model="bookForm.input_override_reason" />
-                </FormField>
-
-                <FormField label="Remarks" :error="bookForm.errors.remarks">
-                    <TextInput v-model="bookForm.remarks" />
-                </FormField>
+                <!--
+                    The shift sheet usually says the step ended too. Without this, the desk
+                    could book the output but not close the step: a trip to the terminal that
+                    is down, which is why the form was opened.
+                -->
+                <section v-if="bookedOperation" class="rounded-md border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                    <label class="flex items-start gap-2 text-sm text-ink-800">
+                        <input v-model="bookForm.finish" type="checkbox" class="form-checkbox mt-0.5">
+                        <span>
+                            <span class="font-medium">Finish {{ bookedOperation.name }} with this booking</span>
+                            <span class="block text-xs text-ink-600">{{ finishConsequence }}</span>
+                        </span>
+                    </label>
+                    <p v-if="bookForm.errors.finish || bookForm.errors.operation" class="mt-1 text-xs text-rose-600">
+                        {{ bookForm.errors.finish ?? bookForm.errors.operation }}
+                    </p>
+                </section>
             </div>
 
             <template #footer="{ close }">
@@ -1791,7 +1900,7 @@ const bomColumns = [
                     :aria-describedby="bookBlockedBy ? 'book-blocked' : null"
                     @click="submitBooking"
                 >
-                    Book output
+                    {{ bookForm.finish ? 'Book and finish step' : 'Book output' }}
                 </Button>
             </template>
         </Modal>

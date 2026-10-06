@@ -503,7 +503,8 @@ class JobCardController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name', 'card_no']), 'pickers'),
-            'shifts' => DB::table('shifts')->orderBy('code')->get(['id', 'code', 'name']),
+            // With their hours, so a time typed on the desk form can find its shift.
+            'shifts' => DB::table('shifts')->orderBy('code')->get(['id', 'code', 'name', 'starts_at', 'ends_at']),
             'machines' => Inertia::defer(fn () => DB::table('machines')
                 ->where('is_active', true)
                 ->orderBy('code')
@@ -550,6 +551,8 @@ class JobCardController extends Controller
             // happening after the fact, so when it happened is the one thing it must state.
             'occurred_at' => ['required', 'date', 'before_or_equal:now'],
             'manual_reason' => ['required', 'string', 'min:5', 'max:255'],
+            // The shift sheet usually says the step ended too; one form, not a trip to the terminal.
+            'finish' => ['sometimes', 'boolean'],
         ]);
 
         if ((float) ($data['waste_qty'] ?? 0) > 0 && blank($data['waste_type'] ?? null)) {
@@ -571,6 +574,12 @@ class JobCardController extends Controller
             enteredBy: $request->user()?->id,
             manualReason: (string) $data['manual_reason'],
         );
+
+        if ($request->boolean('finish')) {
+            $this->bookings->finish($operation->fresh(['jobCard']), CarbonImmutable::parse($data['occurred_at']));
+
+            return back()->with('success', "Output booked and {$operation->name} finished.");
+        }
 
         return back()->with('success', "Output booked against {$operation->name}.");
     }

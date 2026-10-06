@@ -10,7 +10,6 @@ use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\Services\OperationBookingService;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
-use App\Support\States\StateMachine;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -149,52 +148,8 @@ class OperationEventController extends Controller
         $this->assertWithinUnit($request, $operation);
 
         return $this->idempotent($request, $operation, 'finish', function () use ($request, $operation): array {
-            $occurredAt = $this->occurredAt($request);
-
-            // An operation that closes with nothing booked reports a machine that ran a shift
-            // and made nothing: BR-27 utilisation is understated for good, and the operation
-            // that follows inherits an input of zero. Closing empty is a real thing — a job
-            // pulled off the machine — so it is allowed, but only when said out loud.
-            $booked = (float) $operation->good_qty + (float) $operation->waste_qty;
-
-            if ($booked <= 0 && blank($request->input('no_output_reason'))) {
-                throw OperationRefused::because('nothing_booked', 'operation', 'J3: nothing has been booked against this operation. Record the output, or finish with a reason.', []);
-            }
-
-            DB::transaction(function () use ($operation, $occurredAt): void {
-                $operation->forceFill([
-                    'status' => JobCardOperation::COMPLETED,
-                    'finished_at' => $occurredAt,
-                    'actual_minutes' => $operation->started_at
-                        ? round($operation->started_at->diffInMinutes($occurredAt), 2)
-                        : $operation->actual_minutes,
-                ])->save();
-
-                // The next operation joins the queue as soon as this one closes — the floor
-                // should not need the planner to advance it.
-                JobCardOperation::query()
-                    ->where('job_card_id', $operation->job_card_id)
-                    ->where('sequence_no', '>', $operation->sequence_no)
-                    ->where('status', JobCardOperation::PENDING)
-                    ->orderBy('sequence_no')
-                    ->limit(1)
-                    ->update(['status' => JobCardOperation::READY]);
-
-                $jobCard = $operation->jobCard;
-
-                $stillOpen = JobCardOperation::query()
-                    ->where('job_card_id', $operation->job_card_id)
-                    ->whereNotIn('status', [JobCardOperation::COMPLETED, JobCardOperation::SKIPPED, JobCardOperation::CANCELLED])
-                    ->exists();
-
-                if (! $stillOpen && $jobCard !== null && $jobCard->status === JobCard::IN_PRODUCTION) {
-                    // The operator finished their operation; the card moving to QC is the
-                    // system's consequence, not their action. `qc_pending` demands
-                    // `job_card.update`, which no operator holds, so charging them for it
-                    // made the last operation of every job unfinishable.
-                    StateMachine::asSystem(fn () => $this->jobCards->transition($jobCard, JobCard::QC_PENDING));
-                }
-            });
+            // The consequences of closing a step live in the service, shared with the desk form.
+            $this->bookings->finish($operation, $this->occurredAt($request), $request->input('no_output_reason'));
 
             return ['operation_id' => $operation->id, 'status' => JobCardOperation::COMPLETED];
         });

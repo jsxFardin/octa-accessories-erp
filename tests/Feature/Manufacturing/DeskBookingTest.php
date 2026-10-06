@@ -257,3 +257,30 @@ it('terminal: refuses the same unreleased card, so neither door is the softer on
 
     expect((float) $this->operation->refresh()->good_qty)->toEqualWithDelta(0.0, 0.0001);
 });
+
+/*
+ * The shift sheet usually says the step ended too. Finishing from the desk form has the
+ * terminal's consequences: the step closes, the next joins the queue, and the last step
+ * closing sends the card to QC — without a trip to the terminal that is down.
+ */
+it('finishes the step with the booking when asked, and moves the last step\'s card to QC', function (): void {
+    ($this->book)(['finish' => true])->assertSessionHasNoErrors()->assertRedirect();
+
+    expect($this->operation->fresh()->status)->toBe(JobCardOperation::COMPLETED)
+        ->and($this->operation->fresh()->finished_at)->not->toBeNull()
+        ->and($this->jobCard->fresh()->status)->toBe(JobCard::QC_PENDING);
+});
+
+it('refuses to finish a step with nothing booked against it', function (): void {
+    ($this->book)(['good_qty' => 0, 'waste_qty' => 0, 'input_qty' => 0, 'finish' => true])
+        ->assertSessionHasErrors('operation');
+
+    expect($this->operation->fresh()->status)->not->toBe(JobCardOperation::COMPLETED);
+});
+
+it('books without finishing when the flag is off', function (): void {
+    ($this->book)()->assertSessionHasNoErrors();
+
+    expect($this->operation->fresh()->status)->toBe(JobCardOperation::IN_PROGRESS)
+        ->and($this->jobCard->fresh()->status)->toBe(JobCard::IN_PRODUCTION);
+});

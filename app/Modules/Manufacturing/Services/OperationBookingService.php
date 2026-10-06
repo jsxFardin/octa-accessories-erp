@@ -203,6 +203,60 @@ class OperationBookingService
     }
 
     /**
+     * Close a step. The same consequences whichever door it comes through: the next step joins
+     * the queue, and the last step closing sends the card to QC without charging the operator
+     * for a transition they have no permission to make.
+     *
+     * A step that closes with nothing booked reports a machine that ran a shift and made
+     * nothing: BR-27 utilisation is understated for good, and the step that follows inherits
+     * an input of zero. Closing empty is a real thing — a job pulled off the machine — so it
+     * is allowed, but only when said out loud.
+     */
+    public function finish(JobCardOperation $operation, CarbonImmutable $occurredAt, ?string $noOutputReason = null): void
+    {
+        $booked = (float) $operation->good_qty + (float) $operation->waste_qty;
+
+        if ($booked <= 0 && blank($noOutputReason)) {
+            $this->refuse('operation', 'J3: nothing has been booked against this operation. Record the output, or finish with a reason.', 'nothing_booked');
+        }
+
+        DB::transaction(function () use ($operation, $occurredAt): void {
+            $operation->forceFill([
+                'status' => JobCardOperation::COMPLETED,
+                'finished_at' => $occurredAt,
+                'actual_minutes' => $operation->started_at
+                    ? round($operation->started_at->diffInMinutes($occurredAt), 2)
+                    : $operation->actual_minutes,
+            ])->save();
+
+            // The next operation joins the queue as soon as this one closes — the floor
+            // should not need the planner to advance it.
+            JobCardOperation::query()
+                ->where('job_card_id', $operation->job_card_id)
+                ->where('sequence_no', '>', $operation->sequence_no)
+                ->where('status', JobCardOperation::PENDING)
+                ->orderBy('sequence_no')
+                ->limit(1)
+                ->update(['status' => JobCardOperation::READY]);
+
+            $jobCard = $operation->jobCard;
+
+            $stillOpen = JobCardOperation::query()
+                ->where('job_card_id', $operation->job_card_id)
+                ->whereNotIn('status', [JobCardOperation::COMPLETED, JobCardOperation::SKIPPED, JobCardOperation::CANCELLED])
+                ->exists();
+
+            if (! $stillOpen && $jobCard !== null && $jobCard->status === JobCard::IN_PRODUCTION) {
+                // The operator finished their operation; the card moving to QC is the
+                // system's consequence, not their action. `qc_pending` demands
+                // `job_card.update`, which no operator holds, so charging them for it
+                // made the last operation of every job unfinishable.
+                StateMachine::asSystem(fn () => $this->jobCards->transition($jobCard, JobCard::QC_PENDING));
+            }
+        });
+    }
+
+    /**
      * G4 — the waste, with its cause, in the table built to hold it. Written in the same
      * transaction as the booking that produced it, so the two can never disagree.
      */
