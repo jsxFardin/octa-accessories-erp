@@ -94,6 +94,7 @@ class SettingCatalogue
         'time_format' => ['organisation', 'Time format', null, '24-hour or 12-hour clock.'],
         'week_start' => ['organisation', 'Week starts on', null, 'First day of the week in calendars and planning boards.'],
         'number_locale' => ['organisation', 'Number format', null, 'Thousands and decimal separators.'],
+        'decimal_places' => ['organisation', 'Decimals', null, 'Decimals shown on rates, costs and measured quantities. Money always shows two.'],
         'default_locale' => ['organisation', 'Default language', null, 'Applied to users who have not chosen one.'],
     ];
 

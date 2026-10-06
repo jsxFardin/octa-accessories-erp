@@ -73,7 +73,7 @@
                         @if ($line->tax_name)<br><span class="muted">{{ $line->tax_name }}</span>@endif
                     </td>
                     <td class="num">{{ $qty($line->qty) }}</td>
-                    <td class="num">{{ number_format((float) $line->rate_per_m, 4) }}</td>
+                    <td class="num">{{ number_format((float) $line->rate_per_m, (int) ($organisation['decimal_places'] ?? 2)) }}</td>
                     <td class="num">{{ $money($line->tax_amount) }}</td>
                     <td class="num">{{ $money($line->amount) }}</td>
                 </tr>

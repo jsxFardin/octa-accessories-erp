@@ -26,42 +26,42 @@ beforeEach(() => {
  */
 describe('ratePerM carries its currency and its unit', () => {
     it('labels an unqualified rate with the factory currency', () => {
-        expect(ratePerM(270.2066)).toBe('BDT 270.2066 per 1,000 pcs');
+        expect(ratePerM(270.2066)).toBe('BDT 270.21 per 1,000 pcs');
     });
 
     it('labels a document rate with that document\'s currency', () => {
         // The reported case: a USD quotation whose rate read as a bare 270.2066.
-        expect(ratePerM(270.2066, 'USD')).toBe('USD 270.2066 per 1,000 pcs');
-        expect(ratePerM(17.4429, { code: 'USD' })).toBe('USD 17.4429 per 1,000 pcs');
+        expect(ratePerM(270.2066, 'USD')).toBe('USD 270.21 per 1,000 pcs');
+        expect(ratePerM(17.4429, { code: 'USD' })).toBe('USD 17.44 per 1,000 pcs');
     });
 
     it('keeps four decimals, because the fourth is real money at volume', () => {
-        expect(ratePerM(3.25, 'BDT')).toBe('BDT 3.2500 per 1,000 pcs');
-        expect(ratePerM(3.2512, 'BDT')).toBe('BDT 3.2512 per 1,000 pcs');
+        expect(ratePerM(3.25, 'BDT')).toBe('BDT 3.25 per 1,000 pcs');
+        expect(ratePerM(3.2512, 'BDT')).toBe('BDT 3.25 per 1,000 pcs');
     });
 
     it('drops the currency but keeps the unit where a block states it once', () => {
-        expect(ratePerM(270.2066, false)).toBe('270.2066 per 1,000 pcs');
+        expect(ratePerM(270.2066, false)).toBe('270.21 per 1,000 pcs');
     });
 
     it('does not render a missing rate as a currency-labelled zero by accident', () => {
-        expect(ratePerM(0, 'USD')).toBe('USD 0.0000 per 1,000 pcs');
+        expect(ratePerM(0, 'USD')).toBe('USD 0.00 per 1,000 pcs');
     });
 });
 
 describe('unitCost is recognisable as money', () => {
     it('labels a per-piece cost with the factory currency', () => {
         // `0.216165` on its own is not obviously money at all.
-        expect(unitCost(0.216165)).toBe('BDT 0.216165');
+        expect(unitCost(0.216165)).toBe('BDT 0.2162');
     });
 
     it('keeps six decimals, because a label costs fractions of a taka', () => {
-        expect(unitCost(0.2)).toBe('BDT 0.200000');
+        expect(unitCost(0.2)).toBe('BDT 0.2000');
     });
 
     it('can be told the currency, or told to stay bare inside a labelled block', () => {
-        expect(unitCost(0.216165, 'USD')).toBe('USD 0.216165');
-        expect(unitCost(0.216165, false)).toBe('0.216165');
+        expect(unitCost(0.216165, 'USD')).toBe('USD 0.2162');
+        expect(unitCost(0.216165, false)).toBe('0.2162');
     });
 });
 
@@ -71,8 +71,26 @@ describe('rate', () => {
     it('leaves the unit to the heading above it', async () => {
         const { rate } = await import('../../resources/js/plugins/formatting.js');
 
-        expect(rate(270.2066, 'USD')).toBe('USD 270.2066');
-        expect(rate(270.2066, false)).toBe('270.2066');
+        expect(rate(270.2066, 'USD')).toBe('USD 270.21');
+        expect(rate(270.2066, false)).toBe('270.21');
         expect(rate(3.25)).not.toContain('/M');
+    });
+});
+
+
+// The organisation decides how many decimals a rate shows; the default is two.
+describe('decimals follow the organisation profile', () => {
+    it('shows four decimals on rates and six on unit costs when the profile says four', async () => {
+        const { configureFormatting, qty, rate, ratePerM, unitCost } = await import('../../resources/js/plugins/formatting.js');
+
+        configureFormatting({ decimal_places: 4 });
+        expect(ratePerM(3.2512, 'BDT')).toBe('BDT 3.2512 per 1,000 pcs');
+        expect(rate(270.2066, 'USD')).toBe('USD 270.2066');
+        expect(unitCost(0.216165)).toBe('BDT 0.216165');
+        expect(qty(1847.325)).toBe('1,847.3250');
+
+        configureFormatting({ decimal_places: 2 });
+        expect(ratePerM(3.2512, 'BDT')).toBe('BDT 3.25 per 1,000 pcs');
+        expect(qty(1847.325)).toBe('1,847.33');
     });
 });

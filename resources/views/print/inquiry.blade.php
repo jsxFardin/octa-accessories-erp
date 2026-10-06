@@ -63,7 +63,7 @@
                     <td>{{ $line->product_type_name ?? '—' }}</td>
                     <td class="num">{{ $qty($line->qty) }}</td>
                     {{-- The customer's number, not ours. Blank where they did not name one. --}}
-                    <td class="num">{{ $line->target_rate_per_m === null ? '—' : number_format((float) $line->target_rate_per_m, 4) }}</td>
+                    <td class="num">{{ $line->target_rate_per_m === null ? '—' : number_format((float) $line->target_rate_per_m, (int) ($organisation['decimal_places'] ?? 2)) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="5" class="empty">No lines recorded against this enquiry.</td></tr>

@@ -95,12 +95,13 @@ class Settings
         $updated = DB::table('settings')->where('key', $key)->update($attributes);
 
         if ($updated === 0) {
+            // The table has no created_at: a key set for the first time used to fail here, so
+            // every new setting had to be seeded before the profile could save it.
             DB::table('settings')->insert([
                 'key' => $key,
                 'value' => $attributes['value'],
                 'group_name' => $group ?? 'general',
                 'description' => $description,
-                'created_at' => now(),
                 'updated_at' => now(),
             ]);
         }

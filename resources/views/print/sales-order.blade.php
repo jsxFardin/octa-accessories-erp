@@ -76,7 +76,7 @@
                         <br><span class="muted">Tolerance +{{ rtrim(rtrim(number_format((float) $line->over_tolerance_pct, 2), '0'), '.') }}% / −{{ rtrim(rtrim(number_format((float) $line->under_tolerance_pct, 2), '0'), '.') }}%</span>
                     </td>
                     <td class="num">{{ $qty($line->ordered_qty) }}</td>
-                    <td class="num">{{ number_format((float) $line->rate_per_m, 4) }}</td>
+                    <td class="num">{{ number_format((float) $line->rate_per_m, (int) ($organisation['decimal_places'] ?? 2)) }}</td>
                     <td class="num">{{ $money($line->tooling_charge) }}</td>
                     <td>{{ $fmtDate($line->promised_date) }}</td>
                     <td class="num">{{ $money($line->line_total) }}</td>

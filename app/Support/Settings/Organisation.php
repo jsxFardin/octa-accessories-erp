@@ -34,8 +34,13 @@ class Organisation
         'time_format' => 'HH:mm',
         'week_start' => 'saturday',
         'number_locale' => 'en-IN',
+        // Decimals shown on rates, costs and measured quantities. Money always shows two;
+        // a unit cost shows two more than this, because a label costs fractions of a taka.
+        'decimal_places' => 2,
         'default_locale' => 'en',
     ];
+
+    public const DECIMAL_PLACES = [2, 3, 4];
 
     /** Formats offered by the settings screen, with a rendered sample so the choice is obvious. */
     public const DATE_FORMATS = ['d M Y', 'd/m/Y', 'Y-m-d', 'M d, Y', 'd.m.Y'];
@@ -105,6 +110,7 @@ class Organisation
             'time_format' => $values['time_format'],
             'week_start' => $values['week_start'],
             'number_locale' => $values['number_locale'],
+            'decimal_places' => (int) $values['decimal_places'],
         ];
     }
 

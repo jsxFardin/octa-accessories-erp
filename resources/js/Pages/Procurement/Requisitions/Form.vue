@@ -11,7 +11,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { date, isoDate, qty, todayIso } from '@/plugins/formatting';
+import { date, isoDate, qty, todayIso, typedRecord } from '@/plugins/formatting';
 
 const props = defineProps({
     requisition: { type: Object, default: null },
@@ -36,9 +36,9 @@ const form = useForm({
     required_by: isoDate(props.requisition?.required_by),
     remarks: props.requisition?.remarks ?? props.prefill?.remarks ?? '',
     lines: props.requisition?.lines?.length
-        ? props.requisition.lines.map((line) => ({ ...line }))
+        ? props.requisition.lines.map((line) => typedRecord(line))
         : props.prefill?.lines?.length
-            ? props.prefill.lines.map((line) => ({ ...blankLine(), ...line, required_by: isoDate(line.required_by) }))
+            ? props.prefill.lines.map((line) => ({ ...blankLine(), ...typedRecord(line), required_by: isoDate(line.required_by) }))
             : [blankLine()],
 });
 

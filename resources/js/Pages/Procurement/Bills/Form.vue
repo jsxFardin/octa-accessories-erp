@@ -11,7 +11,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { money, todayIso } from '@/plugins/formatting';
+import { money, todayIso, typedRecord } from '@/plugins/formatting';
 
 const props = defineProps({
     suppliers: { type: Array, default: () => [] },
@@ -38,7 +38,7 @@ const form = useForm({
     due_date: props.bill?.due_date ?? '',
     currency_id: props.bill?.currency_id ?? props.prefill?.currency_id ?? null,
     exchange_rate: props.bill?.exchange_rate ?? 1,
-    lines: props.bill?.lines?.length ? props.bill.lines.map((line) => ({ ...line })) : (props.prefill?.lines ?? [emptyLine()]),
+    lines: props.bill?.lines?.length ? props.bill.lines.map((line) => typedRecord(line)) : (props.prefill?.lines ?? [emptyLine()]),
 });
 
 /** The rate follows the currency: filled from the rate on file, and no field at all for base. */

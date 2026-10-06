@@ -48,6 +48,7 @@ const profile = useForm({
     time_format: props.organisation.time_format,
     week_start: props.organisation.week_start,
     number_locale: props.organisation.number_locale,
+    decimal_places: props.organisation.decimal_places ?? 2,
 });
 
 const uploading = ref(null);
@@ -214,6 +215,10 @@ function save() {
 
                             <FormField label="Number format" hint="Thousands and decimal separators." :error="profile.errors.number_locale" required>
                                 <SelectInput v-model="profile.number_locale" :placeholder="null" :options="options.number_locales" />
+                            </FormField>
+
+                            <FormField label="Decimals" hint="On rates, costs and measured quantities. Money always shows two." :error="profile.errors.decimal_places" required>
+                                <SelectInput v-model="profile.decimal_places" :placeholder="null" :options="options.decimal_places" />
                             </FormField>
                         </div>
 

@@ -15,7 +15,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { addCalendarDays, baseCurrency, date, isoDate, money, number, pcs, qty, rate, titleCase, todayIso, typed, unitCost } from '@/plugins/formatting';
+import { addCalendarDays, baseCurrency, date, decimals, isoDate, money, number, pcs, qty, rate, titleCase, todayIso, typed, unitCost } from '@/plugins/formatting';
 
 const props = defineProps({
     quotation: { type: Object, default: null },
@@ -64,7 +64,7 @@ function lineFromInquiry(line) {
         inquiry_line_id: line.id ?? null,
         product_id: line.product_id ?? '',
         description: line.description ?? '',
-        qty: line.qty ?? '',
+        qty: typed(line.qty),
     };
 }
 
@@ -666,7 +666,7 @@ const columns = [
                                 <tr v-for="cl in sheet.sheet.lines" :key="cl.seq">
                                     <td class="px-3 py-1.5 font-medium text-ink-800">{{ titleCase(cl.cost_type) }}</td>
                                     <td class="px-3 py-1.5 text-right tnum">{{ qty(cl.qty) }}</td>
-                                    <td class="px-3 py-1.5 text-right tnum">{{ number(cl.rate, 4, 4) }}</td>
+                                    <td class="px-3 py-1.5 text-right tnum">{{ number(cl.rate, decimals(), decimals()) }}</td>
                                     <td class="px-3 py-1.5 text-right font-medium tnum">{{ money(cl.amount, false) }}</td>
                                     <td class="px-3 py-1.5">
 <!-- How the figure is worked out, in words, behind the marker. The rule's code used

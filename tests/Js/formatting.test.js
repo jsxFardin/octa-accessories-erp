@@ -99,3 +99,16 @@ describe('no figure formats itself', () => {
         expect(offenders).toEqual([]);
     });
 });
+
+
+describe('stored decimals as typed numbers', () => {
+    it('turns "12000.000000" into "12000" and leaves ids and text alone', async () => {
+        const { typed, typedRecord } = await import('../../resources/js/plugins/formatting.js');
+
+        expect(typed('12000.000000')).toBe('12000');
+        expect(typed('520.8333')).toBe('520.8333');
+        expect(typed(null)).toBe('');
+        expect(typedRecord({ id: 7, qty: '8000.000000', rate_per_m: '12.5000', description: 'Care label 40.5', code: 'PRD-01' }))
+            .toEqual({ id: 7, qty: '8000', rate_per_m: '12.5', description: 'Care label 40.5', code: 'PRD-01' });
+    });
+});

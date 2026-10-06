@@ -5,8 +5,8 @@
  * | Value              | Displayed                                     |
  * |--------------------|-----------------------------------------------|
  * | Quantity (pcs)     | thousands separated, no decimals              |
- * | Quantity (m, kg)   | 3 decimals                                    |
- * | Rate per M         | 4 decimals                                    |
+ * | Quantity (m, kg)   | the organisation's decimals (2 by default)    |
+ * | Rate per M         | the organisation's decimals (2 by default)    |
  * | Line/document money| 2 decimals                                    |
  * | Percentage         | 2 decimals with %                             |
  */
@@ -35,6 +35,12 @@ const settings = {
     baseCurrency: 'BDT',
     /** First column of every calendar: 'saturday', 'sunday' or 'monday'. */
     weekStart: 'saturday',
+    /**
+     * Decimals on rates, costs and measured quantities — a display choice, set on the
+     * organisation profile beside the date format. Money always shows two; a unit cost
+     * shows two more than this, because a label costs fractions of a taka.
+     */
+    decimals: 2,
 };
 
 export function configureFormatting(values = {}) {
@@ -44,6 +50,12 @@ export function configureFormatting(values = {}) {
     if (values.time_format) settings.timeFormat = values.time_format;
     if (values.base_currency) settings.baseCurrency = values.base_currency;
     if (values.week_start) settings.weekStart = values.week_start;
+    if (values.decimal_places !== undefined && values.decimal_places !== null) settings.decimals = Number(values.decimal_places);
+}
+
+/** The organisation's decimals for rates, costs and measured quantities. */
+export function decimals() {
+    return settings.decimals;
 }
 
 export function formattingSettings() {
@@ -184,6 +196,20 @@ export function typed(value) {
     return Number.isFinite(n) ? String(n) : String(value);
 }
 
+/**
+ * A record from the server with every stored decimal made typeable: "12000.000000" becomes
+ * "12000" on the quantity, ids and text are left alone. For the line a form opens with.
+ */
+export function typedRecord(record) {
+    const out = { ...record };
+
+    for (const [key, value] of Object.entries(out)) {
+        if (typeof value === 'string' && /^-?\d+\.\d+$/.test(value)) out[key] = typed(value);
+    }
+
+    return out;
+}
+
 /** A calendar date some whole months on, clamped to the month's last day. */
 export function addCalendarMonths(value, months) {
     const parsed = parseCalendarDate(value);
@@ -282,18 +308,22 @@ export function pcs(value) {
  * places that used to call `toLocaleString()` or `toFixed()` themselves, which grouped by the
  * browser's own locale (or not at all) while the rest of the screen followed the organisation's.
  */
-export function number(value, maxDecimals = 3, minDecimals = 0) {
+export function number(value, maxDecimals = null, minDecimals = 0) {
+    const max = maxDecimals ?? settings.decimals;
+
     return toNumber(value).toLocaleString(locale(), {
-        minimumFractionDigits: Math.min(minDecimals, maxDecimals),
-        maximumFractionDigits: maxDecimals,
+        minimumFractionDigits: Math.min(minDecimals, max),
+        maximumFractionDigits: max,
     });
 }
 
-/** Metres and kilograms: fractional, because a roll is 1,847.325 m. */
-export function qty(value, decimals = 3) {
+/** Metres and kilograms: fractional, to the organisation's decimals. */
+export function qty(value, places = null) {
+    const digits = places ?? settings.decimals;
+
     return toNumber(value).toLocaleString(locale(), {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
     });
 }
 
@@ -357,16 +387,16 @@ export function qtyFor(value, dimension) {
 /**
  * The per-1000 rate, labelled with its currency and its unit.
  *
- * Four decimals, because the difference between 3.2500 and 3.2512 is real money at 500,000
- * pieces — and a currency, because `Rate /M 270.2066` beside `Rate /M 17.4429` said nothing
- * about which document was in USD. Same contract as `money()`: pass a code or a currency row,
- * omit it for the factory's own currency, or pass `false` where the block already states it
- * once.
+ * To the organisation's decimals — two by default; a factory that negotiates to the fourth
+ * decimal sets four on its profile — and a currency, because `Rate /M 270.2066` beside
+ * `Rate /M 17.4429` said nothing about which document was in USD. Same contract as `money()`:
+ * pass a code or a currency row, omit it for the factory's own currency, or pass `false`
+ * where the block already states it once.
  */
 export function ratePerM(value, currency = undefined, { unit = true } = {}) {
     const formatted = toNumber(value).toLocaleString(locale(), {
-        minimumFractionDigits: 4,
-        maximumFractionDigits: 4,
+        minimumFractionDigits: settings.decimals,
+        maximumFractionDigits: settings.decimals,
     });
 
     // Said in full. "/M" is the trade's shorthand for "per thousand", and in a factory that
@@ -389,14 +419,14 @@ export function rate(value, currency = undefined) {
 }
 
 /**
- * Cost per single piece. Six decimals, because a label costs fractions of a taka and the
- * fourth decimal is the difference between winning and losing an order — and a currency,
- * because `0.216165` on its own is not obviously money at all.
+ * Cost per single piece. Two decimals more than a rate, because a label costs fractions of a
+ * taka and the fourth decimal is the difference between winning and losing an order — and a
+ * currency, because `0.2162` on its own is not obviously money at all.
  */
 export function unitCost(value, currency = undefined) {
     const formatted = toNumber(value).toLocaleString(locale(), {
-        minimumFractionDigits: 6,
-        maximumFractionDigits: 6,
+        minimumFractionDigits: settings.decimals + 2,
+        maximumFractionDigits: settings.decimals + 2,
     });
 
     if (currency === false) return formatted;

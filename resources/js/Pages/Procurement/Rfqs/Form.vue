@@ -10,7 +10,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { todayIso, isoDate } from '@/plugins/formatting';
+import { isoDate, todayIso, typedRecord } from '@/plugins/formatting';
 
 const props = defineProps({
     rfq: { type: Object, default: null },
@@ -34,7 +34,7 @@ const form = useForm({
     lines: (props.rfq?.lines?.length
         ? props.rfq.lines
         : (props.lines?.length ? props.lines : [blankLine()])
-    ).map((line) => ({ ...line })),
+    ).map((line) => typedRecord(line)),
 });
 
 function itemFor(line) {

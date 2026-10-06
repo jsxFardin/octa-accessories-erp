@@ -53,7 +53,7 @@
                     </td>
                     <td class="num">{{ $qty($line->qty) }}</td>
                     {{-- Four decimals: the difference between 3.2500 and 3.2512 is real money at 500,000 pieces (BR-47). --}}
-                    <td class="num">{{ number_format((float) $line->rate_per_m, 4) }}</td>
+                    <td class="num">{{ number_format((float) $line->rate_per_m, (int) ($organisation['decimal_places'] ?? 2)) }}</td>
                     <td class="num">{{ $money($line->tooling_charge) }}</td>
                     <td class="num">{{ $money($line->line_total) }}</td>
                 </tr>

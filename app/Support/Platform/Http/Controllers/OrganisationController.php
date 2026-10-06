@@ -66,6 +66,14 @@ class OrganisationController extends Controller
             // A rendered sample per option, so the choice is between 12,34,567.89 and
             // 1,234,567.89 rather than between locale codes. Latin digits throughout: the
             // number locale sets grouping only, the way the formatter on the screen does.
+            // Rendered samples again: the choice is between 520.83 and 520.8333, not between digits.
+            'decimal_places' => array_map(
+                fn (int $places): array => [
+                    'value' => $places,
+                    'label' => $places.' decimals  —  '.number_format(520.83333, $places, '.', ''),
+                ],
+                Organisation::DECIMAL_PLACES,
+            ),
             'number_locales' => array_map(
                 function (string $locale): array {
                     $formatter = new \NumberFormatter(str_replace('-', '_', $locale).'@numbers=latn', \NumberFormatter::DECIMAL);
@@ -95,6 +103,7 @@ class OrganisationController extends Controller
             'time_format' => ['required', Rule::in(Organisation::TIME_FORMATS)],
             'week_start' => ['required', Rule::in(Organisation::WEEK_STARTS)],
             'number_locale' => ['required', Rule::in(Organisation::NUMBER_LOCALES)],
+            'decimal_places' => ['sometimes', 'integer', Rule::in(Organisation::DECIMAL_PLACES)],
         ]);
 
         foreach ($data as $key => $value) {

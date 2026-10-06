@@ -9,7 +9,7 @@ import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { baseCurrency, date, inBaseCurrency, isoDate, money, number, pcs, pct, qty, rate, ratePerM, titleCase, todayIso, unitCost } from '@/plugins/formatting';
+import { baseCurrency, date, decimals, inBaseCurrency, isoDate, money, number, pcs, pct, qty, rate, ratePerM, titleCase, todayIso, unitCost } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { conversionAction } from '@/plugins/documentActions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -352,7 +352,7 @@ async function transition(to) {
                                             >*</span>
                                         </td>
                                         <td class="px-3 py-1.5 text-right tnum">
-                                            {{ number(cl.rate, 4, 4) }}
+                                            {{ number(cl.rate, decimals(), decimals()) }}
                                             <!--
                                                 Snapshotted before the calculator stored a
                                                 blended rate. The sheet is not rewritten (Q1);

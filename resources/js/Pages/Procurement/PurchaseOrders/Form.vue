@@ -13,7 +13,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { addCalendarDays, date, isoDate, money, qty, todayIso } from '@/plugins/formatting';
+import { addCalendarDays, date, isoDate, money, qty, todayIso, typedRecord } from '@/plugins/formatting';
 
 const props = defineProps({
     order: { type: Object, default: null },
@@ -68,7 +68,7 @@ const form = useForm({
     freight_amount: props.order?.freight_amount ?? 0,
     remarks: props.order?.remarks ?? '',
     lines: props.order?.lines?.length
-        ? props.order.lines.map((line) => ({ ...line, cert_claim: line.cert_claim ?? '' }))
+        ? props.order.lines.map((line) => ({ ...typedRecord(line), cert_claim: line.cert_claim ?? '' }))
         : [blankLine()],
 });
 

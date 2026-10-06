@@ -9,7 +9,7 @@ import FormLayout from '@/Components/Ui/FormLayout.vue';
 import LineItemsTable from '@/Components/Ui/LineItemsTable.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
-import { qty } from '@/plugins/formatting';
+import { qty, typedRecord } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 
 const props = defineProps({
@@ -38,7 +38,7 @@ const form = useForm({
     base_qty: Number(props.bom?.base_qty ?? props.basedOn?.base_qty ?? 1000),
     notes: props.bom?.notes ?? '',
     lines: props.activeLines.length
-        ? props.activeLines.map((line) => ({ ...line }))
+        ? props.activeLines.map((line) => typedRecord(line))
         : [blankLine()],
     // PD-3 — activating supersedes whatever is active now, in the same transaction. Off by
     // default: a BOM drafted to price an option should not replace the one production runs.
