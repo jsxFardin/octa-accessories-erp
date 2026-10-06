@@ -3,9 +3,12 @@ import { computed, ref } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Card from '@/Components/Ui/Card.vue';
+import Chart from '@/Components/Ui/Chart.vue';
 import Icon from '@/Components/Ui/Icon.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
-import { date, isoDate, money, pcs, pct, titleCase, todayIso } from '@/plugins/formatting';
+import StatTile from '@/Components/Ui/StatTile.vue';
+import { date, isoDate, money, number, pcs, pct, titleCase, todayIso } from '@/plugins/formatting';
+import { CHART } from '@/plugins/chartTheme';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Button from '@/Components/Ui/Button.vue';
 import { can, canAny } from '@/plugins/permissions';
@@ -15,6 +18,8 @@ const props = defineProps({
     /** What a new installation still has to do, or null once it is all done. */
     setup: { type: Object, default: null },
     tiles: { type: Object, required: true },
+    /** The last month as flow, against the month before; sections the user may not see are null. */
+    analytics: { type: Object, default: () => ({}) },
     orderBook: { type: Array, default: () => [] },
     /** Late, due this week and open — over every open line, not only the rows shown. */
     orderBookSummary: { type: Object, default: null },
@@ -24,95 +29,210 @@ const props = defineProps({
     machineLoad: { type: Array, default: () => [] },
 });
 
-/*
- * Two tiers, not eight equal boxes. The three figures that mean somebody has to act today
- * get a large tile with a tone and a sentence; the rest describe the size of the business
- * and sit in one compact strip. When an attention figure is zero the tile goes quiet — grey,
- * a check mark, and the sentence says what is fine — so the eye lands on the live problem,
- * not on a row of bold zeros.
- *
- * Each href lands on the list *already narrowed to the number on the tile* — "Late orders: 14"
- * opening 400 unfiltered rows made the tile a decoration. Tiles whose count spans several
- * statuses (open orders, on the floor) link to the bare list because the filter bar is
- * single-status; the WorkQueue above stays the precise surface.
- *
- * A tile is shown only to someone who may open the list behind it. Everyone used to get all
- * eight, so a store keeper's first screen led with quotations out and artwork awaiting approval
- * — numbers they could do nothing about, on links that ended in "not allowed".
- */
 const days = (n) => `${pcs(n)} ${Number(n) === 1 ? 'day' : 'days'}`;
+const windowLabel = computed(() => `last ${props.analytics.window_days ?? 30} days`);
+const previousLabel = computed(() => `previous ${props.analytics.window_days ?? 30} days`);
 
-const attention = computed(() => [
-    {
-        permission: 'sales_order.view_any',
-        label: 'Late orders',
-        count: props.tiles.late_orders,
-        href: '/sales-orders?late=1',
-        tone: 'danger',
-        detail: props.tiles.late_orders > 0
-            ? `Oldest is ${days(props.tiles.late_oldest_days)} past its delivery date.`
-            : 'Every open order is inside its delivery date.',
-    },
-    {
-        permission: 'job_card.view_any',
-        label: 'Waiting on material',
-        count: props.tiles.material_pending,
-        href: '/job-cards?status=material_pending',
-        tone: 'warning',
-        detail: props.tiles.material_pending > 0
-            ? 'Job cards that cannot start until stock is issued.'
-            : 'Every released job card has its stock.',
-    },
-    {
-        permission: 'artwork.view_any',
-        label: 'Artwork awaiting approval',
-        count: props.tiles.artwork_pending,
-        href: '/artworks?state=awaiting_approval',
-        tone: 'warning',
-        detail: props.tiles.artwork_pending > 0
-            ? 'Nothing downstream may run until the customer signs.'
-            : 'No customer signature is outstanding.',
-    },
-].filter((tile) => can(tile.permission)));
+/* Short calendar labels for axis ticks: "22 Sep". The organisation's full date format is for documents, not a 40 px tick. */
+const tick = (iso) => {
+    const [y, m, d] = isoDate(iso).split('-').map(Number);
 
-const ATTENTION_TONES = {
-    danger: {
-        card: 'border-rose-200 bg-rose-50/60 hover:border-rose-300',
-        label: 'text-rose-900',
-        value: 'text-rose-700',
-        detail: 'text-rose-800/80',
-    },
-    warning: {
-        card: 'border-amber-200 bg-amber-50/60 hover:border-amber-300',
-        label: 'text-amber-900',
-        value: 'text-amber-700',
-        detail: 'text-amber-900/70',
-    },
-    quiet: {
-        card: 'border-slate-200 bg-white hover:border-brand-300',
-        label: 'text-ink-600',
-        value: 'text-ink-500',
-        detail: 'text-ink-500',
-    },
+    return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 };
 
-function attentionTone(tile) {
-    return ATTENTION_TONES[tile.count > 0 ? tile.tone : 'quiet'];
-}
+/* Compact figures for a tile: 12,34,567 is honest but 12.3 lakh reads at a glance. */
+const compact = (value) => {
+    const n = Number(value) || 0;
+    const abs = Math.abs(n);
+
+    if (abs >= 10_000_000) return `${number(n / 10_000_000, 1)} cr`;
+    if (abs >= 100_000) return `${number(n / 100_000, 1)} lakh`;
+
+    return pcs(n);
+};
+
+/*
+ * The figures, in two groups. The first row answers "how is the month going": in, out, on
+ * time, won, paid. Late orders leads it because it is the one figure that is a problem by
+ * itself; the rest are rates and flows with a direction. Every tile is shown only to someone
+ * who may open the list behind it, and every one opens that list already filtered.
+ */
+const kpis = computed(() => {
+    const a = props.analytics;
+    const tiles = [];
+
+    if (can('sales_order.view_any')) {
+        tiles.push({
+            key: 'late',
+            label: 'Late orders',
+            value: pcs(props.tiles.late_orders),
+            sub: props.tiles.late_orders > 0
+                ? `Oldest is ${days(props.tiles.late_oldest_days)} past its delivery date`
+                : 'Every open order is inside its delivery date',
+            tone: props.tiles.late_orders > 0 ? 'danger' : 'neutral',
+            href: '/sales-orders?late=1',
+        });
+    }
+
+    if (a.on_time) {
+        tiles.push({
+            key: 'on_time',
+            label: `On-time delivery, ${windowLabel.value}`,
+            value: a.on_time.pct === null ? '—' : pct(a.on_time.pct, 0),
+            sub: a.on_time.pct === null
+                ? 'No pieces delivered in the window'
+                : `of ${compact(a.on_time.pieces)} pcs delivered on or before the promised date`,
+            delta: { value: a.on_time.delta_pts, unit: ' pts', vs: previousLabel.value, upIsGood: true },
+            tone: a.on_time.pct !== null && a.on_time.pct < 80 ? 'warning' : 'neutral',
+            href: '/delivery-challans',
+        });
+    }
+
+    if (a.orders) {
+        tiles.push({
+            key: 'orders',
+            label: `Orders received, ${windowLabel.value}`,
+            value: pcs(a.orders.count),
+            sub: `${money(a.orders.value)} in order value`,
+            delta: { value: a.orders.delta_pct, unit: '%', vs: previousLabel.value, upIsGood: true },
+            trend: a.orders.weekly.map((w) => w.count),
+            href: '/sales-orders',
+        });
+    }
+
+    if (a.delivered) {
+        tiles.push({
+            key: 'delivered',
+            label: `Pieces delivered, ${windowLabel.value}`,
+            value: compact(a.delivered.pieces),
+            sub: a.delivered.pieces > 0 ? `${pcs(a.delivered.pieces)} pcs on issued delivery notes` : 'Nothing left the factory in the window',
+            delta: { value: a.delivered.delta_pct, unit: '%', vs: previousLabel.value, upIsGood: true },
+            trend: a.delivered.weekly.map((w) => w.pieces),
+            href: '/delivery-challans',
+        });
+    }
+
+    if (a.quotations) {
+        const decided = a.quotations.won + a.quotations.lost;
+
+        tiles.push({
+            key: 'quotations',
+            label: `Quotation win rate, last ${a.quotation_window_days} days`,
+            value: a.quotations.win_rate === null ? '—' : pct(a.quotations.win_rate, 0),
+            sub: decided > 0
+                ? `${pcs(a.quotations.won)} won · ${pcs(a.quotations.lost)} lost · ${pcs(a.quotations.awaiting)} awaiting`
+                : `No decisions yet · ${pcs(a.quotations.awaiting)} awaiting`,
+            delta: { value: a.quotations.delta_pts, unit: ' pts', vs: `previous ${a.quotation_window_days} days`, upIsGood: true },
+            href: '/quotations?status=sent',
+        });
+    }
+
+    if (a.receivables) {
+        tiles.push({
+            key: 'receivables',
+            label: 'Overdue receivables',
+            value: money(a.receivables.overdue_amount),
+            sub: a.receivables.overdue_count > 0
+                ? `${pcs(a.receivables.overdue_count)} ${a.receivables.overdue_count === 1 ? 'invoice' : 'invoices'} past due · ${money(a.receivables.outstanding)} outstanding in all`
+                : `Nothing past due · ${money(a.receivables.outstanding)} outstanding in all`,
+            tone: a.receivables.overdue_amount > 0 ? 'warning' : 'neutral',
+            href: '/sales-invoices?overdue=1',
+        });
+    }
+
+    return tiles;
+});
 
 const position = computed(() => [
     { permission: 'sales_order.view_any', label: 'Open orders', value: pcs(props.tiles.open_orders), href: '/sales-orders' },
     { permission: 'job_card.view_any', label: 'Job cards on the floor', value: pcs(props.tiles.on_floor), href: '/job-cards' },
+    // Waiting on material and artwork awaiting approval are not here: when either is above
+    // zero it is a Needs-you chip, and a zero in a strip is a label with nothing to say.
     { permission: 'quotation.view_any', label: 'Quotations out', value: pcs(props.tiles.quotations_open), href: '/quotations?status=sent' },
     // F-12 — "Open job cards" read as "cards in production", so the two `completed` cards
     // inside it looked like a counting error. They are not: a completed card still has to be
-    // closed, and closing it is somebody's job. The tile is named after what it counts, and
+    // closed, and closing it is somebody's job. The figure is named after what it counts, and
     // the status card below spells out the population.
     { permission: 'job_card.view_any', label: 'Job cards not yet closed', value: pcs(props.tiles.open_job_cards), href: '/job-cards?open=1' },
     // BR-47 — every other amount on this dashboard is labelled with a currency code; this one
     // passed the taka symbol, so the same figure read `৳ 1,234` here and `BDT 1,234` elsewhere.
     { permission: 'stock_lot.view_any', label: 'Stock value', value: money(props.tiles.stock_value), href: '/stock' },
 ].filter((tile) => can(tile.permission)));
+
+/*
+ * Orders in against pieces out, week by week. Two series that are the subject, so two
+ * categorical hues from the validated order; a legend and a tooltip that reads both at
+ * once; bars capped thin with a surface gap so neighbours separate without a stroke.
+ */
+const flowOption = computed(() => {
+    const weeks = props.analytics.orders?.weekly ?? [];
+    const delivered = props.analytics.delivered?.weekly ?? [];
+
+    return {
+        xAxis: { type: 'category', data: weeks.map((w) => tick(w.starts_on)) },
+        yAxis: { type: 'value', axisLabel: { formatter: (v) => compact(v) } },
+        grid: { bottom: 28 },
+        tooltip: {
+            formatter: (params) => {
+                const week = weeks[params[0]?.dataIndex];
+                const head = week ? `${date(week.starts_on)} to ${date(week.ends_on)}` : '';
+                const rows = params.map((p) => `<div style="display:flex;justify-content:space-between;gap:16px"><span>${p.marker} ${p.seriesName}</span><strong>${pcs(p.value)} pcs</strong></div>`);
+
+                return `<div style="color:${CHART.muted};margin-bottom:4px">${head}</div>${rows.join('')}`;
+            },
+        },
+        series: [
+            { name: 'Ordered', type: 'bar', data: weeks.map((w) => w.pieces), barMaxWidth: 18, barGap: '15%', itemStyle: { borderRadius: [4, 4, 0, 0] } },
+            { name: 'Delivered', type: 'bar', data: delivered.map((w) => w.pieces), barMaxWidth: 18, itemStyle: { borderRadius: [4, 4, 0, 0] } },
+        ],
+    };
+});
+
+const flowTotals = computed(() => ({
+    ordered: (props.analytics.orders?.weekly ?? []).reduce((s, w) => s + w.pieces, 0),
+    delivered: (props.analytics.delivered?.weekly ?? []).reduce((s, w) => s + w.pieces, 0),
+}));
+
+/*
+ * Pieces still owed, by the week they were promised for. One measure, so one hue; the
+ * overdue bucket wears the status red because it is a state, not a week. Only the two
+ * buckets that mean something today carry a label; the rest live in the tooltip.
+ */
+const outlook = computed(() => (props.analytics.outlook ?? []).map((b) => ({
+    ...b,
+    label: b.label ?? tick(b.starts_on),
+})));
+
+// Horizontal: eight named buckets do not fit as ticks across a third of the screen, and
+// "Overdue" has to be read, not guessed. Inverse so the overdue bucket is the first row.
+const outlookOption = computed(() => ({
+    yAxis: { type: 'category', inverse: true, data: outlook.value.map((b) => b.label), axisLabel: { interval: 0, fontSize: 11 } },
+    xAxis: { type: 'value', splitNumber: 2, axisLabel: { formatter: (v) => compact(v) } },
+    grid: { left: 4, right: 36, top: 8, bottom: 4 },
+    legend: { show: false },
+    tooltip: {
+        formatter: (params) => {
+            const bucket = outlook.value[params[0]?.dataIndex];
+
+            if (!bucket) return '';
+
+            return `<div style="color:${CHART.muted};margin-bottom:4px">${bucket.label}${bucket.starts_on && bucket.label !== 'This week' ? ` · week of ${date(bucket.starts_on)}` : ''}</div>`
+                + `<div><strong>${pcs(bucket.pieces)} pcs</strong> on ${pcs(bucket.lines)} ${bucket.lines === 1 ? 'line' : 'lines'}</div>`;
+        },
+    },
+    series: [{
+        name: 'Pieces owed',
+        type: 'bar',
+        barMaxWidth: 18,
+        data: outlook.value.map((b, index) => ({
+            value: b.pieces,
+            itemStyle: { color: b.key === 'overdue' ? CHART.critical : CHART.series[0], borderRadius: [0, 4, 4, 0] },
+            label: index < 2 && b.pieces > 0 ? { show: true, position: 'right', formatter: () => compact(b.pieces), color: CHART.ink, fontSize: 11 } : { show: false },
+        })),
+    }],
+}));
+
+const outlookSummary = computed(() => outlook.value.map((b) => `${b.label}: ${pcs(b.pieces)} pcs`).join(', '));
 
 const orderBookColumns = [
     { key: 'so_number', label: 'Order' },
@@ -130,8 +250,8 @@ const orderBookSubtitle = computed(() => {
 
     if (!summary) return 'Open lines with delivery progress';
 
-    // "Lines", said out loud: the late-orders tile counts orders by their delivery date, this
-    // counts order lines by their promised date, and the two can legitimately differ.
+    // "Lines", said out loud: the late-orders figure counts orders by their delivery date,
+    // this counts order lines by their promised date, and the two can legitimately differ.
     return [
         summary.late > 0 ? `${pcs(summary.late)} ${summary.late === 1 ? 'line' : 'lines'} late` : 'no line late',
         `${pcs(summary.due_this_week)} due this week`,
@@ -148,10 +268,8 @@ function daysFromToday(iso) {
 }
 
 /*
- * The promised date says how late or how soon, not only when. Twelve rows that each read
- * "Open · 0 delivered · 23 Sept" hid that most of them were already past their date; the
- * only place lateness showed was a tile two sections up. A line that has been delivered in
- * full keeps a plain date — being past it is history, not a problem.
+ * The promised date says how late or how soon, not only when. A line that has been
+ * delivered in full keeps a plain date — being past it is history, not a problem.
  */
 function promise(row) {
     const iso = isoDate(row.promised_date);
@@ -169,9 +287,8 @@ function promise(row) {
 }
 
 /*
- * One stacked bar, because the proportion is the information: "10 of 17 in production" is
- * read from a bar at a glance and from a list of four pills not at all. The colours follow
- * the status badges used everywhere else, so indigo is still "in production" here.
+ * One stacked bar, because the proportion is the information. The colours follow the
+ * status badges used everywhere else, so indigo is still "in production" here.
  */
 const STATUS_BARS = {
     in_production: 'bg-indigo-500',
@@ -195,6 +312,8 @@ const jobCardSegments = computed(() => props.jobCardsByStatus.map((row) => ({
 
 const jobCardSummary = computed(() => jobCardSegments.value.map((s) => `${s.label} ${pcs(s.count)}`).join(', '));
 
+const quality = computed(() => props.analytics.quality ?? null);
+
 const loadByMachine = computed(() => {
     const grouped = {};
 
@@ -209,9 +328,8 @@ const loadByMachine = computed(() => {
 
 /*
  * Good news is small. A card whose only content is "Nothing scheduled." used to keep the
- * full height of its neighbours, so a factory with nothing wrong scrolled past three empty
- * boxes. Each empty card folds into one line here; the card itself appears only when it has
- * rows to show.
+ * full height of its neighbours. Each empty card folds into one line here; the card itself
+ * appears only when it has rows to show.
  */
 const showArtworkQueue = computed(() => can('artwork.view_any') && props.artworkQueue.length > 0);
 const showMachineLoad = computed(() => canAny('production_plan.view_any', 'job_card.view_any') && loadByMachine.value.length > 0);
@@ -262,13 +380,8 @@ const nextStep = computed(() => props.setup?.steps.find((step) => !step.done) ??
         <Head title="Dashboard" />
 
         <template #title>Dashboard</template>
-        <template #subtitle>What is waiting on you, and where orders and the floor stand</template>
+        <template #subtitle>What is waiting on you, and how the month is going</template>
 
-        <!--
-            What is waiting on this user, above what is happening in the factory. Every entry
-            is gated by the permission that would let them act on it, and an empty queue is
-            hidden rather than shown as a row of zeros.
-        -->
         <!--
             A new installation: the order to set things up in, judged from what is in the
             database. It is a sequence, so it is numbered; done steps stay visible, ticked, so
@@ -331,71 +444,52 @@ const nextStep = computed(() => props.setup?.steps.find((step) => !step.done) ??
             </ol>
         </section>
 
-        <section v-if="queue.length" class="mb-4">
-            <h2 class="mb-2 text-xs font-semibold tracking-wider text-ink-400 uppercase">
-                Needs you
-            </h2>
-
-            <!-- auto-fit: one entry takes the row; the most urgent thing on the page is not a third of it. -->
-            <div class="grid grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] gap-2">
-                <Link
-                    v-for="entry in queue"
-                    :key="entry.key"
-                    :href="entry.href"
-                    class="group flex items-start gap-3 rounded-lg border bg-white p-3 transition hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                    :class="entry.tone === 'danger'
-                        ? 'border-rose-200 hover:border-rose-300'
-                        : 'border-amber-200 hover:border-amber-300'"
+        <!--
+            What is waiting on this user, as one row of chips: a count and a name each. Every
+            entry is gated by the permission that would let them act on it, and an empty queue
+            is hidden rather than shown as a row of zeros. It used to be a row of cards that
+            gave one item the whole width and the figures below a third of the screen.
+        -->
+        <section v-if="queue.length" class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-2" aria-label="Needs you">
+            <h2 class="mr-1 text-xs font-semibold tracking-wider text-ink-400 uppercase">Needs you</h2>
+            <Link
+                v-for="entry in queue"
+                :key="entry.key"
+                :href="entry.href"
+                :title="entry.hint"
+                class="group inline-flex min-h-9 items-center gap-2 rounded-full border bg-white py-1 pr-3 pl-1.5 text-sm font-medium transition hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                :class="entry.tone === 'danger'
+                    ? 'border-rose-200 text-rose-900 hover:border-rose-300'
+                    : 'border-amber-200 text-amber-950 hover:border-amber-300'"
+            >
+                <span
+                    class="flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-semibold tnum"
+                    :class="entry.tone === 'danger' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-900'"
                 >
-                    <span
-                        class="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold tnum"
-                        :class="entry.tone === 'danger' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-800'"
-                    >
-                        {{ entry.count }}
-                    </span>
-
-                    <span class="min-w-0 flex-1">
-                        <span class="block text-sm font-medium text-ink-900">{{ entry.label }}</span>
-                        <span class="mt-0.5 block text-xs leading-relaxed text-ink-500">{{ entry.hint }}</span>
-                    </span>
-
-                    <Icon name="right" size="size-4" class="mt-1 shrink-0 text-ink-300 transition group-hover:text-ink-500" />
-                </Link>
-            </div>
+                    {{ pcs(entry.count) }}
+                </span>
+                {{ entry.label }}
+                <Icon name="right" size="size-3.5" class="text-ink-400 transition group-hover:translate-x-0.5 group-hover:text-ink-600" />
+            </Link>
         </section>
 
         <div class="space-y-4">
-            <!-- Tier 1: the figures that mean somebody has to act. -->
-            <section v-if="attention.length" aria-label="Needs attention">
-                <!-- auto-fit, so a role that sees one tile gets it at full width, not a third. -->
-                <div class="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-3">
-                    <Link
-                        v-for="tile in attention"
-                        :key="tile.label"
-                        :href="tile.href"
-                        class="group flex min-h-28 flex-col rounded-lg border p-4 shadow-sm transition hover:-translate-y-px hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                        :class="attentionTone(tile).card"
-                    >
-                        <p class="flex items-start justify-between gap-2 text-sm font-medium" :class="attentionTone(tile).label">
-                            <span>{{ tile.label }}</span>
-                            <!-- The chevron is the promise: this number opens the filtered list behind it. -->
-                            <Icon name="right" size="size-4" class="mt-0.5 shrink-0 text-ink-400 transition group-hover:translate-x-0.5 group-hover:text-brand-500" />
-                        </p>
-
-                        <p class="mt-2 flex items-center gap-2 text-3xl font-semibold tnum" :class="attentionTone(tile).value">
-                            <template v-if="tile.count > 0">{{ pcs(tile.count) }}</template>
-                            <template v-else>
-                                <Icon name="check" size="size-5" class="text-emerald-600" aria-hidden="true" />
-                                <span class="text-lg font-medium">None</span>
-                            </template>
-                        </p>
-
-                        <p class="mt-1 text-xs leading-snug" :class="attentionTone(tile).detail">{{ tile.detail }}</p>
-                    </Link>
-                </div>
+            <!-- The month in figures. -->
+            <section v-if="kpis.length" aria-label="How the month is going" class="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
+                <StatTile
+                    v-for="tile in kpis"
+                    :key="tile.key"
+                    :label="tile.label"
+                    :value="tile.value"
+                    :sub="tile.sub"
+                    :delta="tile.delta"
+                    :trend="tile.trend"
+                    :tone="tile.tone"
+                    :href="tile.href"
+                />
             </section>
 
-            <!-- Tier 2: how big the book is. One strip, still links, still filtered. -->
+            <!-- Where the book stands right now. One strip, still links, still filtered. -->
             <nav v-if="position.length" aria-label="Where the business stands" class="flex flex-wrap overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 <Link
                     v-for="tile in position"
@@ -411,9 +505,46 @@ const nextStep = computed(() => props.setup?.steps.find((step) => !step.done) ??
                 </Link>
             </nav>
 
+            <!-- The two charts: what came in against what went out, and what is owed by week. -->
+            <div v-if="analytics.orders || analytics.outlook" class="grid gap-4 lg:grid-cols-3">
+                <Card
+                    v-if="analytics.orders && analytics.delivered"
+                    class="lg:col-span-2"
+                    title="Orders in, pieces out"
+                    :subtitle="`Pieces ordered against pieces delivered, by week, last ${analytics.weeks} weeks`"
+                >
+                    <Chart
+                        :option="flowOption"
+                        :height="240"
+                        :label="`Pieces ordered against pieces delivered by week over the last ${analytics.weeks} weeks: ${pcs(flowTotals.ordered)} ordered, ${pcs(flowTotals.delivered)} delivered`"
+                    />
+                    <p class="mt-2 text-xs text-ink-500">
+                        Over the period: <span class="font-medium tnum text-ink-700">{{ pcs(flowTotals.ordered) }} pcs</span> ordered,
+                        <span class="font-medium tnum text-ink-700">{{ pcs(flowTotals.delivered) }} pcs</span> delivered.
+                    </p>
+                </Card>
+
+                <Card
+                    v-if="analytics.outlook"
+                    title="Delivery outlook"
+                    subtitle="Pieces still owed, by the week they were promised for"
+                >
+                    <Chart :option="outlookOption" :height="248" :label="`Pieces owed by promised week: ${outlookSummary}`" />
+                    <p class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-500">
+                        <span v-if="outlook[0]?.pieces > 0" class="flex items-center gap-1.5">
+                            <span class="size-2.5 rounded-sm bg-rose-600" aria-hidden="true" />
+                            <span class="font-medium tnum text-ink-700">{{ pcs(outlook[0].pieces) }} pcs</span> already overdue
+                        </span>
+                        <span v-if="outlook[1]" class="flex items-center gap-1.5">
+                            <span class="size-2.5 rounded-sm bg-teal-600" aria-hidden="true" />
+                            <span class="font-medium tnum text-ink-700">{{ pcs(outlook[1].pieces) }} pcs</span> due this week
+                        </span>
+                    </p>
+                </Card>
+            </div>
+
             <!-- Side by side only from 1536 px: at 1280 the order book lost its last two columns. -->
             <div class="grid gap-4 2xl:grid-cols-3">
-                <!-- Order book -->
                 <Card
                     v-if="can('sales_order.view_any')"
                     class="2xl:col-span-2"
@@ -486,6 +617,31 @@ const nextStep = computed(() => props.setup?.steps.find((step) => !step.done) ??
                                 </li>
                             </ul>
                         </template>
+                    </Card>
+
+                    <!-- Quality, as three figures: how much was inspected, how much passed first time, how dirty it was. -->
+                    <Card v-if="quality" title="Quality" :subtitle="`Inspections in the ${windowLabel}`">
+                        <p v-if="quality.inspections === 0" class="text-sm text-ink-500">No inspection was recorded in the window.</p>
+                        <dl v-else class="grid grid-cols-3 gap-3">
+                            <div>
+                                <dt class="text-xs text-ink-600">Inspected</dt>
+                                <dd class="mt-0.5 text-xl font-semibold text-ink-900">{{ pcs(quality.inspections) }}</dd>
+                                <dd class="text-xs text-ink-500">{{ quality.inspections === 1 ? 'lot' : 'lots' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-xs text-ink-600">Accepted first time</dt>
+                                <dd class="mt-0.5 text-xl font-semibold" :class="quality.accepted_pct < 90 ? 'text-amber-700' : 'text-ink-900'">{{ pct(quality.accepted_pct, 0) }}</dd>
+                                <dd v-if="quality.delta_pts !== null" class="text-xs" :class="quality.delta_pts >= 0 ? 'text-emerald-700' : 'text-rose-700'">
+                                    {{ quality.delta_pts > 0 ? '+' : '' }}{{ number(quality.delta_pts, 1) }} pts vs {{ previousLabel }}
+                                </dd>
+                                <dd v-else class="text-xs text-ink-500">No earlier period</dd>
+                            </div>
+                            <div>
+                                <dt class="text-xs text-ink-600">Defects per 100 (DHU)</dt>
+                                <dd class="mt-0.5 text-xl font-semibold text-ink-900">{{ quality.avg_dhu === null ? '—' : number(quality.avg_dhu, 2) }}</dd>
+                                <dd class="text-xs text-ink-500">average across lots</dd>
+                            </div>
+                        </dl>
                     </Card>
 
                     <!-- Gate 1 queue -->

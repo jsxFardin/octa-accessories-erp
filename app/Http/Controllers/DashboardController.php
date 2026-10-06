@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Product\Models\ArtworkVersion;
+use App\Support\Platform\DashboardAnalytics;
 use App\Support\Platform\SetupChecklist;
 use App\Support\Platform\WorkQueue;
 use App\Support\Scoping\FactoryUnitFilter;
@@ -28,6 +29,7 @@ class DashboardController extends Controller
         private readonly WorkQueue $queue,
         private readonly FactoryUnitFilter $units,
         private readonly SetupChecklist $setup,
+        private readonly DashboardAnalytics $analytics,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -39,6 +41,8 @@ class DashboardController extends Controller
             // What a new installation still has to do, for whoever may do it; null once done.
             'setup' => $this->setup->for($request->user()),
             'tiles' => $this->tiles(),
+            // The last month as flow — in, out, on time, won — against the month before it.
+            'analytics' => $this->analytics->for($request->user()),
             'orderBook' => $this->orderBook(),
             'orderBookSummary' => $this->orderBookSummary(),
             'jobCardsByStatus' => $this->jobCardsByStatus(),
