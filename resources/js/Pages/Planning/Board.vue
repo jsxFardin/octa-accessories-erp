@@ -111,18 +111,76 @@ function describe(machine, day) {
 }
 
 /*
+ * Placing a step. "Schedule" used to open a form with two pickers; the board itself was
+ * decoration. Now picking a waiting step turns the board into the chooser: only the machines
+ * that can take it stay, each day says how many hours it has free, and one click places it.
+ */
+const placing = ref(null);
+const slot = ref(null);
+const slotOpen = ref(false);
+
+function startPlacing(operation) {
+    placing.value = operation;
+    slotOpen.value = false;
+}
+
+function stopPlacing() {
+    placing.value = null;
+}
+
+function machineCanTake(machine, operation) {
+    return !operation?.machine_group_id || machine.machine_group_id === operation.machine_group_id;
+}
+
+/** What a cell would be with the step on it, for the placing view. */
+function fit(machine, day) {
+    const c = cell(machine.id, day);
+    const wanted = Number(placing.value?.planned_minutes ?? 0);
+
+    if (!c) return { free: 0, fits: false, holiday: false };
+
+    const free = Math.max(0, c.available - c.load);
+
+    return { free, fits: !c.is_holiday && wanted <= free + 0.0001, holiday: c.is_holiday };
+}
+
+/** The job cards on a machine on a day — what a planner actually reads off a board. */
+const stepsByCell = computed(() => {
+    const map = {};
+
+    for (const op of props.scheduled) {
+        const key = `${op.machine_id}|${String(op.scheduled_start).slice(0, 10)}`;
+        (map[key] ??= []).push(op);
+    }
+
+    return map;
+});
+
+function stepsIn(machineId, day) {
+    return stepsByCell.value[`${machineId}|${day}`] ?? [];
+}
+
+/*
  * Machines by group, because a routing names a group: the planner looking for somewhere to put
  * a cutting step wants the cutting machines together, with the number waiting for them.
+ *
+ * A group with nothing on it and nothing waiting for it folds to one line. Twenty-three rows
+ * of free machines were the wall the board hid behind.
  */
-const collapsed = ref(new Set());
+const toggled = ref(new Map());
+const showAll = ref(false);
 
-function toggleGroup(id) {
-    const next = new Set(collapsed.value);
+function toggleGroup(group) {
+    const next = new Map(toggled.value);
+    next.set(group.id, !isOpen(group));
+    toggled.value = next;
+}
 
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+function isOpen(group) {
+    if (placing.value) return machineCanTake(group.machines[0], placing.value);
+    if (toggled.value.has(group.id)) return toggled.value.get(group.id);
 
-    collapsed.value = next;
+    return showAll.value || group.loaded || group.waiting > 0;
 }
 
 const machineGroups = computed(() => {
@@ -136,14 +194,29 @@ const machineGroups = computed(() => {
                 name: machine.group_name,
                 machines: [],
                 waiting: props.unscheduled.filter((op) => op.machine_group_id === machine.machine_group_id).length,
+                loaded: false,
+                steps: 0,
             });
         }
 
-        byGroup.get(machine.machine_group_id).machines.push(machine);
+        const group = byGroup.get(machine.machine_group_id);
+        group.machines.push(machine);
+
+        for (const day of props.dates) {
+            const c = cell(machine.id, day);
+
+            if ((c?.load ?? 0) > 0) group.loaded = true;
+            group.steps += c?.operations ?? 0;
+        }
     }
 
-    return [...byGroup.values()];
+    const groups = [...byGroup.values()];
+
+    // While placing, only the groups that can take the step are on the board at all.
+    return placing.value ? groups.filter((g) => machineCanTake(g.machines[0], placing.value)) : groups;
 });
+
+const foldedGroups = computed(() => machineGroups.value.filter((g) => !isOpen(g)).length);
 
 /** One row for the whole floor: which day of the window is the tight one. */
 const dayTotals = computed(() => props.dates.map((day) => {
@@ -222,6 +295,30 @@ const preview = computed(() => {
     return { ...c, wanted, after: c.load + wanted, wouldOverrun: c.load + wanted > c.available + 0.0001 };
 });
 
+/** Place by click: the step fits, so it goes on without a form; a refusal opens the form with its reason. */
+function placeInto(machine, day) {
+    const operation = placing.value;
+
+    chosen.value = operation;
+    form.defaults({ operation_id: operation.id, machine_id: machine.id, date: day, override_reason: '' });
+    form.reset();
+    form.clearErrors();
+
+    const { fits, holiday } = fit(machine, day);
+
+    if (!fits || holiday) {
+        panelOpen.value = true;
+
+        return;
+    }
+
+    form.post('/planning/schedule', {
+        preserveScroll: true,
+        onSuccess: () => { placing.value = null; chosen.value = null; },
+        onError: () => { panelOpen.value = true; },
+    });
+}
+
 function plan(operation, slot = null) {
     chosen.value = operation;
     form.defaults({
@@ -241,9 +338,6 @@ function plan(operation, slot = null) {
  * detail in a hover tooltip — nothing to click, nothing at all on a touch screen. Selecting
  * one now shows what the tooltip did, the steps planned there, and the steps that could go there.
  */
-const slot = ref(null);
-const slotOpen = ref(false);
-
 function openSlot(machine, day) {
     slot.value = { machine, day };
     slotOpen.value = true;
@@ -266,7 +360,7 @@ const { busy: takingOff, run: guarded } = useGuardedAction();
 function submit() {
     form.post('/planning/schedule', {
         preserveScroll: true,
-        onSuccess: () => { panelOpen.value = false; chosen.value = null; },
+        onSuccess: () => { panelOpen.value = false; chosen.value = null; placing.value = null; },
     });
 }
 
@@ -319,10 +413,10 @@ function unschedule(operation) {
             The work first, then the capacity. The waiting steps were under a grid that scrolled
             for a screen and a half; a planner's job is to get them onto it, so they sit beside it.
         -->
-        <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
+        <div class="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_21rem] 2xl:items-start">
             <!-- The queue of work with no machine and no day, the card as the unit. -->
             <Card
-                class="xl:sticky xl:top-4 xl:order-2"
+                class="2xl:sticky 2xl:top-4 2xl:order-2"
                 title="Waiting for a slot"
                 :subtitle="unscheduledTotal > unscheduled.length
                     ? `The ${unscheduled.length} steps due soonest of ${unscheduledTotal}. Schedule these and the rest appear.`
@@ -331,8 +425,8 @@ function unschedule(operation) {
                         : 'Every open step has a machine and a day'"
                 :padded="false"
             >
-                <ul class="divide-y divide-slate-100 text-sm">
-                    <li v-for="card in waitingByCard" :key="card.id" class="px-3 py-2.5">
+                <ul class="divide-y divide-slate-100 text-sm 2xl:block" :class="waitingByCard.length > 1 ? 'grid md:grid-cols-2 md:divide-y-0' : ''">
+                    <li v-for="card in waitingByCard" :key="card.id" class="min-w-0 px-3 py-2.5">
                         <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                             <Link :href="`/job-cards/${card.id}`" class="doc-link-quiet font-medium">{{ card.number ?? 'Draft card' }}</Link>
                             <Badge v-if="card.status === 'draft'" tone="neutral" label="Draft" />
@@ -340,27 +434,55 @@ function unschedule(operation) {
                                 due {{ date(card.due_date) }}{{ card.late ? ' · past due' : '' }}
                             </span>
                         </div>
-                        <ul class="mt-1.5 space-y-1.5">
-                            <li v-for="op in card.steps" :key="op.id" class="flex items-center gap-2">
+                        <ul class="mt-1.5 space-y-1">
+                            <li
+                                v-for="op in card.steps"
+                                :key="op.id"
+                                class="-mx-1 flex items-center gap-2 rounded px-1 py-0.5"
+                                :class="placing?.id === op.id ? 'bg-brand-50 ring-1 ring-brand-300' : ''"
+                            >
                                 <div class="min-w-0 flex-1">
                                     <div class="truncate text-ink-800">{{ op.sequence_no }} · {{ op.name }}</div>
                                     <div class="truncate text-xs text-ink-500">
                                         {{ op.machine_group ?? 'Any machine' }} · {{ minutes(op.planned_minutes) }} · {{ stepQty(op) }}
                                     </div>
                                 </div>
-                                <Button v-if="mayPlan" size="sm" variant="secondary" @click="plan(op)">Schedule</Button>
+                                <Button
+                                    v-if="mayPlan"
+                                    size="sm"
+                                    :variant="placing?.id === op.id ? 'primary' : 'secondary'"
+                                    data-place
+                                    @click="placing?.id === op.id ? stopPlacing() : startPlacing(op)"
+                                >
+                                    {{ placing?.id === op.id ? 'Placing…' : 'Place' }}
+                                </Button>
                             </li>
                         </ul>
                     </li>
-                    <li v-if="unscheduled.length === 0" class="px-3 py-8 text-center text-ink-500">
+                    <li v-if="unscheduled.length === 0" class="px-3 py-8 text-center text-ink-500 md:col-span-2">
                         Everything open is scheduled.
                     </li>
                 </ul>
             </Card>
-            <div class="min-w-0 space-y-4 xl:order-1">
+
+            <div class="min-w-0 space-y-4 2xl:order-1">
                 <Card :padded="false">
+                    <!--
+                        While a step is being placed, the board says so where the eye is: what is
+                        being placed, what it needs, and how to stop.
+                    -->
+                    <div v-if="placing" class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900" data-placing>
+                        <Icon name="planning" size="size-4" class="shrink-0 text-brand-700" />
+                        <span>
+                            Placing <span class="font-medium">{{ placing.number ?? 'Draft card' }} · {{ placing.sequence_no }} · {{ placing.name }}</span>
+                            ({{ minutes(placing.planned_minutes) }}{{ placing.machine_group ? `, ${placing.machine_group}` : '' }}).
+                            Pick a day on a machine below; a green day has the hours.
+                        </span>
+                        <Button size="sm" variant="ghost" class="ml-auto" @click="stopPlacing">Cancel</Button>
+                    </div>
+
                     <!-- Where the plan stands, in one line, before any cell. -->
-                    <div class="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-slate-100 px-3 py-2 text-sm">
+                    <div v-else class="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-slate-100 px-3 py-2 text-sm">
                         <span class="text-ink-600">
                             <span class="font-medium text-ink-900">{{ pcs(scheduled.length) }}</span>&nbsp;{{ scheduled.length === 1 ? 'step' : 'steps' }} planned in these {{ filters.days }} days
                         </span>
@@ -374,15 +496,14 @@ function unschedule(operation) {
                                 {{ date(summary.next_scheduled_on) }}
                             </button>
                         </span>
-                    </div>
-
-                    <!-- The colour ramp, named. Four tones with no key made the board a guess. -->
-                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-slate-100 px-3 py-1.5 text-xs text-ink-600">
-                        <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-emerald-50 ring-1 ring-emerald-200" /> Loaded</span>
-                        <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-amber-100 ring-1 ring-amber-300" /> 85%+ full</span>
-                        <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-rose-100 ring-1 ring-rose-300" /> Over capacity</span>
-                        <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-slate-100 ring-1 ring-slate-200" /> Holiday</span>
-                        <span>A blank day is free. Select a cell for its minutes and steps{{ mayPlan ? ', and to schedule into it' : '' }}.</span>
+                        <button
+                            v-if="foldedGroups > 0 || showAll"
+                            type="button"
+                            class="ml-auto text-xs font-medium text-brand-700 hover:underline"
+                            @click="showAll = !showAll; toggled = new Map()"
+                        >
+                            {{ showAll ? 'Fold free groups' : `Show all machines (${foldedGroups} free ${foldedGroups === 1 ? 'group' : 'groups'} folded)` }}
+                        </button>
                     </div>
 
                     <div class="overflow-x-auto">
@@ -412,13 +533,17 @@ function unschedule(operation) {
                                         <td :colspan="dates.length + 1" class="px-2 py-1">
                                             <button
                                                 type="button"
-                                                class="inline-flex min-h-6 items-center gap-1.5 rounded px-1 text-left text-xs font-semibold text-ink-800 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                                                :aria-expanded="!collapsed.has(group.id)"
-                                                @click="toggleGroup(group.id)"
+                                                class="inline-flex min-h-6 max-w-full items-center gap-1.5 rounded px-1 text-left text-xs font-semibold text-ink-800 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                                :aria-expanded="isOpen(group)"
+                                                :disabled="Boolean(placing)"
+                                                @click="toggleGroup(group)"
                                             >
-                                                <Icon :name="collapsed.has(group.id) ? 'right' : 'down'" size="size-3.5" class="text-ink-500" />
+                                                <Icon :name="isOpen(group) ? 'down' : 'right'" size="size-3.5" class="text-ink-500" />
                                                 {{ group.name }}
-                                                <span class="font-normal text-ink-500">· {{ group.machines.length }} {{ group.machines.length === 1 ? 'machine' : 'machines' }}</span>
+                                                <span class="font-normal text-ink-500">
+                                                    · {{ group.machines.length }} {{ group.machines.length === 1 ? 'machine' : 'machines' }}
+                                                    <template v-if="!isOpen(group)"> · {{ group.loaded ? `${group.steps} ${group.steps === 1 ? 'step' : 'steps'} planned` : 'all free' }}</template>
+                                                </span>
                                                 <!-- The cue a planner scans for: this group has work waiting for it. -->
                                                 <span v-if="group.waiting > 0" class="rounded-full bg-amber-100 px-1.5 text-xs font-medium text-amber-800">
                                                     {{ group.waiting }} waiting
@@ -427,50 +552,89 @@ function unschedule(operation) {
                                         </td>
                                     </tr>
 
-                                    <tr v-for="machine in group.machines" v-show="!collapsed.has(group.id)" :key="machine.id">
-                                        <td class="sticky left-0 z-10 bg-white px-3 py-1 whitespace-nowrap">
+                                    <tr v-for="machine in group.machines" v-show="isOpen(group)" :key="machine.id">
+                                        <td class="sticky left-0 z-10 bg-white px-3 py-1 whitespace-nowrap align-top">
                                             <span class="font-medium text-ink-800">{{ machine.code }}</span>
                                             <span class="ml-1.5 text-ink-500">{{ Math.round(machine.efficiency_pct) }}% eff</span>
                                         </td>
 
-                                        <td v-for="d in dates" :key="d" class="p-0.5">
+                                        <td v-for="d in dates" :key="d" class="p-0.5 align-top">
+                                            <!-- Placing: every day is an answer — the hours it has free, and whether that is enough. -->
                                             <button
+                                                v-if="placing"
                                                 type="button"
-                                                class="relative block min-h-8 w-full min-w-11 rounded px-1 pt-1 pb-2 text-center tnum transition hover:ring-2 hover:ring-brand-500/50 focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:outline-none"
-                                                :class="[tone(cell(machine.id, d)), slotOpen && slot?.machine.id === machine.id && slot?.day === d ? 'ring-2 ring-brand-600' : '']"
+                                                class="block min-h-10 w-full min-w-16 rounded px-1 py-1 text-center transition focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:outline-none"
+                                                :class="fit(machine, d).holiday
+                                                    ? 'bg-slate-100 text-ink-400'
+                                                    : fit(machine, d).fits
+                                                        ? 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-300 hover:bg-emerald-100 hover:ring-2'
+                                                        : 'bg-rose-50 text-rose-800 ring-1 ring-rose-200 hover:ring-2 hover:ring-rose-300'"
+                                                :aria-label="`${machine.code}, ${date(d)}: ${fit(machine, d).holiday ? 'holiday' : `${minutes(fit(machine, d).free)} free${fit(machine, d).fits ? '' : ', not enough'}`}`"
+                                                :disabled="form.processing"
+                                                data-place-cell
+                                                @click="placeInto(machine, d)"
+                                            >
+                                                <template v-if="fit(machine, d).holiday">
+                                                    <span class="block text-xs">Holiday</span>
+                                                </template>
+                                                <template v-else>
+                                                    <span class="block text-xs font-semibold tnum">{{ minutes(fit(machine, d).free) }}</span>
+                                                    <span class="block text-xs">{{ fit(machine, d).fits ? 'free' : 'too little' }}</span>
+                                                </template>
+                                            </button>
+
+                                            <!-- Reading: the job cards on the machine that day, and how full it is. -->
+                                            <button
+                                                v-else
+                                                type="button"
+                                                class="relative block w-full min-w-16 rounded px-1 pt-1 text-left transition hover:ring-2 hover:ring-brand-500/50 focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:outline-none"
+                                                :class="[
+                                                    tone(cell(machine.id, d)),
+                                                    (cell(machine.id, d)?.load ?? 0) > 0 ? 'min-h-10 pb-2.5' : 'min-h-8 pb-1',
+                                                    slotOpen && slot?.machine.id === machine.id && slot?.day === d ? 'ring-2 ring-brand-600' : '',
+                                                ]"
                                                 :aria-label="describe(machine, d)"
                                                 data-cell
                                                 @click="openSlot(machine, d)"
                                             >
                                                 <template v-if="cell(machine.id, d)?.is_holiday">
-                                                    <span class="block text-xs">—</span>
+                                                    <span class="block text-center text-xs">—</span>
                                                 </template>
                                                 <template v-else-if="(cell(machine.id, d)?.load ?? 0) > 0">
-                                                    <!-- Capped: 5781% in the same visual language as 11% reads as noise, not
-                                                         as an alarm. Over 100 becomes a flat "over"; the exact figure is in
-                                                         the panel the cell opens. -->
-                                                    <span class="block text-xs font-semibold">
+                                                    <span
+                                                        v-for="op in stepsIn(machine.id, d).slice(0, 2)"
+                                                        :key="op.id"
+                                                        class="block truncate rounded bg-white/70 px-1 text-xs leading-5 text-ink-800"
+                                                        :title="`${op.number ?? 'Draft card'} · ${op.name} · ${minutes(op.planned_minutes)}`"
+                                                    >
+                                                        <span class="font-medium">{{ op.number ? op.number.replace(/^JC-\d{2}-0*/, '#') : 'Draft' }}</span> {{ op.name }}
+                                                    </span>
+                                                    <span v-if="(cell(machine.id, d)?.operations ?? 0) > Math.min(2, stepsIn(machine.id, d).length)" class="block px-1 text-xs text-ink-600">
+                                                        +{{ (cell(machine.id, d)?.operations ?? 0) - Math.min(2, stepsIn(machine.id, d).length) }} more
+                                                    </span>
+                                                    <!-- Capped: over 100 becomes a flat "over"; the exact figure is in the panel the cell opens. -->
+                                                    <span class="absolute right-1.5 bottom-0.5 text-xs font-semibold tnum">
                                                         {{ (cell(machine.id, d)?.utilisation_pct ?? 0) > 100 ? '>100%' : `${Math.round(cell(machine.id, d)?.utilisation_pct ?? 0)}%` }}
                                                     </span>
-                                                    <span class="absolute inset-x-1.5 bottom-1 h-1 rounded-full bg-black/5" aria-hidden="true">
+                                                    <span class="absolute inset-x-1.5 bottom-1 h-1 w-1/2 rounded-full bg-black/5" aria-hidden="true">
                                                         <span class="block h-full rounded-full" :class="barTone(cell(machine.id, d))" :style="{ width: `${Math.min(100, cell(machine.id, d)?.utilisation_pct ?? 0)}%` }" />
                                                     </span>
                                                 </template>
-                                                <span v-else class="block text-xs text-slate-300" aria-hidden="true">·</span>
+                                                <span v-else class="block text-center text-xs text-slate-300" aria-hidden="true">·</span>
                                             </button>
                                         </td>
                                     </tr>
                                 </template>
 
-                                <tr v-if="machines.length === 0">
+                                <tr v-if="machineGroups.length === 0">
                                     <td :colspan="dates.length + 1" class="px-3 py-10 text-center text-ink-500">
-                                        No active machines in this group.
+                                        {{ placing ? `No active machine in ${placing.machine_group} — the step cannot be placed until one is.` : 'No active machines in this group.' }}
                                     </td>
                                 </tr>
                             </tbody>
 
                             <!-- The floor as a whole, so the tight day shows without reading every row. -->
-                            <tfoot v-if="machines.length > 0">
+                            <tfoot v-if="machines.length > 0 && !placing">
                                 <tr class="border-t border-slate-200 bg-slate-50">
                                     <td class="sticky left-0 z-10 bg-slate-50 px-3 py-1.5 font-semibold whitespace-nowrap text-ink-700">
                                         All machines
@@ -487,13 +651,29 @@ function unschedule(operation) {
                             </tfoot>
                         </table>
                     </div>
+
+                    <!-- The colour ramp, named, under the grid it describes. -->
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 px-3 py-1.5 text-xs text-ink-600">
+                        <template v-if="placing">
+                            <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-emerald-50 ring-1 ring-emerald-300" /> Has the hours</span>
+                            <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-rose-50 ring-1 ring-rose-200" /> Not enough — placing there asks for a reason</span>
+                            <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-slate-100 ring-1 ring-slate-200" /> Holiday</span>
+                        </template>
+                        <template v-else>
+                            <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-emerald-50 ring-1 ring-emerald-200" /> Loaded</span>
+                            <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-amber-100 ring-1 ring-amber-300" /> 85%+ full</span>
+                            <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-rose-100 ring-1 ring-rose-300" /> Over capacity</span>
+                            <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded bg-slate-100 ring-1 ring-slate-200" /> Holiday</span>
+                            <span>A blank day is free. Select a cell for its minutes and steps{{ mayPlan ? ', and to schedule into it' : '' }}.</span>
+                        </template>
+                    </div>
                 </Card>
 
                 <!--
                     What is on the board, and the way back off it. A placement with no way to
                     correct it is a placement a planner will not make.
                 -->
-                <Card title="Scheduled in this window" subtitle="Move a step by scheduling it again; take it off to free the slot" :padded="false">
+                <Card title="Scheduled in this window" subtitle="Move a step by placing it again; take it off to free the slot" :padded="false">
                     <ul class="divide-y divide-slate-100 text-sm">
                         <li v-for="op in scheduled" :key="op.id" class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
                             <span class="text-ink-700">{{ weekday(op.scheduled_start.slice(0, 10)) }} {{ date(op.scheduled_start) }}</span>
@@ -517,14 +697,13 @@ function unschedule(operation) {
                                 </template>
                             </template>
                             <template v-else-if="unscheduledTotal > 0">
-                                Nothing is planned yet. Schedule a waiting step and it appears here and on the board.
+                                Nothing is planned yet. Place a waiting step and it appears here and on the board.
                             </template>
                             <template v-else>Nothing is planned, and nothing is waiting.</template>
                         </li>
                     </ul>
                 </Card>
             </div>
-
         </div>
 
         <SlideOver
