@@ -10,6 +10,7 @@ use App\Support\Platform\SetupChecklist;
 use App\Support\Platform\WorkQueue;
 use App\Support\Scoping\FactoryUnitFilter;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -39,6 +40,7 @@ class DashboardController extends Controller
             'setup' => $this->setup->for($request->user()),
             'tiles' => $this->tiles(),
             'orderBook' => $this->orderBook(),
+            'orderBookSummary' => $this->orderBookSummary(),
             'jobCardsByStatus' => $this->jobCardsByStatus(),
             'artworkQueue' => $this->artworkQueue(),
             'expiringCertificates' => $this->expiringCertificates(),
@@ -63,9 +65,20 @@ class DashboardController extends Controller
                 ->whereDate('delivery_date', '<', now()),
         )->count();
 
+        // How long the worst one has been late. A count says there is a problem; the age says
+        // whether it is this morning's or last month's.
+        $oldestLate = $lateOrders === 0 ? null : $this->units->apply(
+            DB::table('sales_orders')
+                ->whereIn('status', ['confirmed', 'in_production', 'partially_delivered'])
+                ->whereDate('delivery_date', '<', now()),
+        )->min('delivery_date');
+
         return [
             'open_orders' => $openOrders,
             'late_orders' => $lateOrders,
+            'late_oldest_days' => $oldestLate === null
+                ? 0
+                : (int) Carbon::parse((string) $oldestLate)->startOfDay()->diffInDays(now()->startOfDay()),
             'open_job_cards' => JobCard::query()->open()->count(),
             'on_floor' => JobCard::query()->onFloor()->count(),
             // Gate 1 as a number: how much work is waiting on a customer signature.
@@ -89,7 +102,32 @@ class DashboardController extends Controller
             ->all();
     }
 
-    /** @return list<array{status: string, count: int}> */
+    /**
+     * The order book in three numbers, over every open line rather than the twelve shown:
+     * the table is a window, the header says how big the room is. A line counts as late or
+     * due only while something is still owed on it — a delivered line past its date is history.
+     *
+     * @return array{late: int, due_this_week: int, open: int}
+     */
+    private function orderBookSummary(): array
+    {
+        $today = now()->toDateString();
+        $weekEnd = now()->addDays(6)->toDateString();
+
+        $row = DB::table('v_order_book')->selectRaw(
+            'COUNT(*) AS open_lines,'
+            .' COALESCE(SUM(delivered_qty < ordered_qty AND promised_date < ?), 0) AS late,'
+            .' COALESCE(SUM(delivered_qty < ordered_qty AND promised_date BETWEEN ? AND ?), 0) AS due_this_week',
+            [$today, $today, $weekEnd],
+        )->first();
+
+        return [
+            'late' => (int) ($row->late ?? 0),
+            'due_this_week' => (int) ($row->due_this_week ?? 0),
+            'open' => (int) ($row->open_lines ?? 0),
+        ];
+    }
+
     /**
      * F-12 — the status breakdown, scoped to the same cards the "not yet closed" tile counts.
      *

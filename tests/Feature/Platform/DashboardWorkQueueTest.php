@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use App\Modules\Manufacturing\Models\JobCard;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 
@@ -176,4 +177,75 @@ it('refuses the job-card form to a user without permission to raise one', functi
     expect($blind->hasPermission('job_card.create'))->toBeFalse();
 
     $this->actingAs($blind)->get('/job-cards/create')->assertForbidden();
+});
+
+/*
+ * The order book header and the late-orders tile. The table shows twelve lines; the header
+ * counts every open line, and a count of late orders is paired with how old the worst one is.
+ */
+it('summarises the whole order book, not only the rows shown', function (): void {
+    $this->actingAs($this->admin)
+        ->get('/dashboard')
+        ->assertOk()
+        ->assertInertia(function (AssertableInertia $page): void {
+            $props = $page->toArray()['props'];
+            $summary = $props['orderBookSummary'];
+
+            $today = now()->toDateString();
+            $expectedOpen = DB::table('v_order_book')->count();
+            $expectedLate = DB::table('v_order_book')
+                ->whereColumn('delivered_qty', '<', 'ordered_qty')
+                ->where('promised_date', '<', $today)
+                ->count();
+
+            expect($summary['open'])->toBe($expectedOpen)
+                ->and($summary['late'])->toBe($expectedLate)
+                ->and($summary['late'] + $summary['due_this_week'])->toBeLessThanOrEqual($summary['open'])
+                ->and(count($props['orderBook']))->toBeLessThanOrEqual(12);
+        });
+});
+
+it('does not count a delivered line as late because its date has passed', function (): void {
+    $line = DB::table('v_order_book')->whereColumn('delivered_qty', '<', 'ordered_qty')->firstOrFail();
+
+    // Make it late, whatever the seed says today.
+    DB::table('sales_order_lines')
+        ->where('id', $line->sales_order_line_id)
+        ->update(['promised_date' => now()->subDays(3)->toDateString()]);
+
+    $late = fn (): int => (int) $this->actingAs($this->admin)
+        ->get('/dashboard')
+        ->viewData('page')['props']['orderBookSummary']['late'];
+
+    $before = $late();
+
+    DB::table('sales_order_lines')
+        ->where('id', $line->sales_order_line_id)
+        ->update(['delivered_qty' => $line->ordered_qty]);
+
+    expect($late())->toBe($before - 1);
+});
+
+it('reports how old the oldest late order is', function (): void {
+    $this->actingAs($this->admin)
+        ->get('/dashboard')
+        ->assertOk()
+        ->assertInertia(function (AssertableInertia $page): void {
+            $tiles = $page->toArray()['props']['tiles'];
+
+            $oldest = DB::table('sales_orders')
+                ->whereIn('status', ['confirmed', 'in_production', 'partially_delivered'])
+                ->whereDate('delivery_date', '<', now())
+                ->min('delivery_date');
+
+            if ($tiles['late_orders'] === 0) {
+                expect($tiles['late_oldest_days'])->toBe(0);
+
+                return;
+            }
+
+            expect($tiles['late_oldest_days'])
+                ->toBe((int) Carbon::parse($oldest)->startOfDay()->diffInDays(now()->startOfDay()))
+                ->toBeGreaterThanOrEqual(1);
+        });
 });
