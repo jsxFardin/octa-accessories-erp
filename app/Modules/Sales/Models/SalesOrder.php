@@ -113,6 +113,32 @@ class SalesOrder extends Model
     }
 
     /** @return HasMany<SalesOrderLine, $this> */
+    public function quotation(): BelongsTo
+    {
+        return $this->belongsTo(Quotation::class, 'quotation_id');
+    }
+
+    /** Whoever is handling it — set when the order is raised, reassignable later. */
+    public function merchandiser(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'merchandiser_id');
+    }
+
+    public function paymentTerm(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\PaymentTerm::class, 'payment_term_id');
+    }
+
+    public function billingAddress(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\CustomerAddress::class, 'billing_address_id');
+    }
+
+    public function deliveryAddress(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\CustomerAddress::class, 'delivery_address_id');
+    }
+
     public function lines(): HasMany
     {
         return $this->hasMany(SalesOrderLine::class, 'sales_order_id')->orderBy('line_no');

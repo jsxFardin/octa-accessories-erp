@@ -47,14 +47,30 @@ class SalesOrderController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = SalesOrder::query()->with(['customer:id,code,name', 'currency:id,code'])->withCount('lines');
+        $query = SalesOrder::query()
+            ->with(['customer:id,code,name', 'currency:id,code', 'merchandiser:id,name'])
+            ->withCount('lines')
+            ->withSum('lines', 'ordered_qty')
+            ->withSum('lines', 'delivered_qty');
+
+        // Search reaches the customer: a PO number is how the customer remembers an order,
+        // the customer's name is how the merchandiser does.
+        $term = trim((string) $request->string('q'));
+
+        if ($term !== '') {
+            $query->where(fn ($where) => $where
+                ->where('number', 'like', "%{$term}%")
+                ->orWhere('customer_po_no', 'like', "%{$term}%")
+                ->orWhereHas('customer', fn ($customer) => $customer
+                    ->where('name', 'like', "%{$term}%")
+                    ->orWhere('code', 'like', "%{$term}%")));
+        }
 
         $this->applyListing(
             $query,
             $request,
-            searchable: ['number', 'customer_po_no'],
-            filters: ['status' => 'status', 'customer' => 'customer_id'],
-            sortable: ['number', 'order_date', 'delivery_date', 'total', 'status'],
+            filters: ['status' => 'status', 'customer' => 'customer_id', 'merchandiser' => 'merchandiser_id', 'priority' => 'priority'],
+            sortable: ['number', 'order_date', 'delivery_date', 'total', 'status', 'priority'],
             defaultSort: '-id',
         );
 
@@ -84,32 +100,60 @@ class SalesOrderController extends Controller
                 ->whereHas('lines', $awaitingJobCard);
         }
 
+        $today = now()->startOfDay();
+        $inFlight = ['confirmed', 'in_production', 'partially_delivered'];
+
         return Inertia::render('Sales/SalesOrders/Index', [
             'orders' => $query->paginate($this->perPage($request))->withQueryString()->through(
-                fn (SalesOrder $order): array => [
-                    'id' => $order->id,
-                    'number' => $order->number,
-                    'revision_no' => $order->revision_no,
-                    'customer' => $order->customer?->name,
-                    'customer_po_no' => $order->customer_po_no,
-                    'order_date' => $order->order_date,
-                    'delivery_date' => $order->delivery_date,
-                    'total' => $order->total,
-                    // The list mixes BDT and USD orders; a bare 52.33 beside a 27,020.66
-                    // says nothing about which is which.
-                    'currency' => $order->currency?->code,
-                    'status' => $order->status,
-                    'lines_count' => $order->lines_count,
-                    // F-08 — a queue that only names the work is half a queue. This is what
-                    // lets the row offer "Create job card" instead of Open and Edit.
-                    'awaits_job_card' => in_array($order->status, ['confirmed', 'in_production'], true)
-                        // Set by the `withExists()` above, so it is an attribute rather than a
-                        // declared property on the model.
-                        && (bool) $order->getAttribute('awaits_job_card'),
-                ],
+                function (SalesOrder $order) use ($today, $inFlight): array {
+                    $due = $order->delivery_date ? \Illuminate\Support\Carbon::parse($order->delivery_date)->startOfDay() : null;
+                    $daysToDue = $due === null ? null : (int) $today->diffInDays($due, false);
+                    $ordered = (float) ($order->lines_sum_ordered_qty ?? 0);
+                    $delivered = (float) ($order->lines_sum_delivered_qty ?? 0);
+
+                    return [
+                        'id' => $order->id,
+                        'number' => $order->number,
+                        'revision_no' => $order->revision_no,
+                        'customer' => $order->customer?->name,
+                        'customer_po_no' => $order->customer_po_no,
+                        'merchandiser' => $order->merchandiser?->name,
+                        'priority' => $order->priority,
+                        'order_date' => $order->order_date,
+                        'delivery_date' => $order->delivery_date,
+                        'total' => $order->total,
+                        // The list mixes BDT and USD orders; a bare 52.33 beside a 27,020.66
+                        // says nothing about which is which.
+                        'currency' => $order->currency?->code,
+                        'status' => $order->status,
+                        'lines_count' => $order->lines_count,
+                        'ordered_qty' => $ordered,
+                        'delivered_qty' => $delivered,
+                        'delivered_pct' => $ordered > 0 ? round($delivered / $ordered * 100, 1) : 0.0,
+                        'days_to_due' => $daysToDue,
+                        // Past its date with something still to deliver. A closed order is history.
+                        'overdue' => $daysToDue !== null && $daysToDue < 0 && in_array($order->status, $inFlight, true),
+                        // F-08 — a queue that only names the work is half a queue. This is what
+                        // lets the row offer "Create job card" instead of Open and Edit.
+                        'awaits_job_card' => in_array($order->status, ['confirmed', 'in_production'], true)
+                            // Set by the `withExists()` above, so it is an attribute rather than a
+                            // declared property on the model.
+                            && (bool) $order->getAttribute('awaits_job_card'),
+                    ];
+                },
             ),
-            'filters' => $this->listingFilters($request, ['status', 'customer', 'late', 'awaiting']),
+            'filters' => $this->listingFilters($request, ['status', 'customer', 'merchandiser', 'priority', 'late', 'awaiting']),
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
+            'merchandisers' => \App\Models\User::query()
+                ->whereIn('id', SalesOrder::query()->whereNotNull('merchandiser_id')->distinct()->pluck('merchandiser_id'))
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'priorities' => Vocabulary::options('order_priority'),
+            // The whole book, unfiltered: the strip above the table is a map, not a result.
+            'counts' => [
+                ...SalesOrder::query()->selectRaw('status, COUNT(*) AS n')->groupBy('status')->pluck('n', 'status')->all(),
+                'late' => SalesOrder::query()->whereIn('status', $inFlight)->whereDate('delivery_date', '<', $today)->count(),
+            ],
         ]);
     }
 
@@ -130,6 +174,8 @@ class SalesOrderController extends Controller
             $order = SalesOrder::query()->create([
                 ...collect($data)->except('lines')->all(),
                 'status' => 'draft',
+                // Whoever raises it handles it, until somebody says otherwise.
+                'merchandiser_id' => $request->user()->id,
                 'created_by' => $request->user()->id,
             ]);
 
@@ -149,10 +195,24 @@ class SalesOrderController extends Controller
         $salesOrder->load([
             'customer',
             'currency:id,code',
+            'merchandiser:id,name',
+            'quotation:id,number,revision_no,status',
+            'paymentTerm:id,code,name,net_days',
+            'billingAddress:id,label,line1,city,country',
+            'deliveryAddress:id,label,line1,city,country,transit_days',
             'lines.product.artworks.versions',
             'lines.product.customer',
             'lines.spec',
         ]);
+
+        // Money against this order: what has been invoiced and what has come in, so the page
+        // says where the order stands commercially, not only on the floor.
+        $invoices = DB::table('sales_invoices as si')
+            ->leftJoin('currencies as cur', 'cur.id', '=', 'si.currency_id')
+            ->where('si.sales_order_id', $salesOrder->id)
+            ->whereNotIn('si.status', ['cancelled'])
+            ->orderByDesc('si.id')
+            ->get(['si.id', 'si.number', 'si.status', 'si.invoice_date', 'si.due_date', 'si.total', 'si.received_amount', 'cur.code as currency']);
 
         return Inertia::render('Sales/SalesOrders/Show', [
             'order' => [
@@ -163,6 +223,16 @@ class SalesOrderController extends Controller
                 ]),
                 'currency' => $salesOrder->currency?->code,
                 'customer' => $salesOrder->customer?->only(['id', 'code', 'name', 'credit_limit', 'min_order_value']),
+                'merchandiser' => $salesOrder->merchandiser?->only(['id', 'name']),
+                'quotation' => $salesOrder->quotation?->only(['id', 'number', 'revision_no', 'status']),
+                'payment_term' => $salesOrder->paymentTerm?->only(['id', 'code', 'name', 'net_days']),
+                'billing_address' => $salesOrder->billingAddress?->only(['id', 'label', 'line1', 'city', 'country']),
+                'delivery_address' => $salesOrder->deliveryAddress?->only(['id', 'label', 'line1', 'city', 'country', 'transit_days']),
+            ],
+            'billing' => [
+                'invoiced' => round((float) $invoices->where('status', '!=', 'draft')->sum('total'), 2),
+                'received' => round((float) $invoices->sum('received_amount'), 2),
+                'invoices' => $invoices->all(),
             ],
             'lines' => $salesOrder->lines->map(fn (SalesOrderLine $line): array => [
                 ...$line->only([

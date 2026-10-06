@@ -10,7 +10,7 @@ import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import ActivityTrail from '@/Components/Ui/ActivityTrail.vue';
-import { baseCurrency, date, isoDate, money, pcs, rate, relative, titleCase } from '@/plugins/formatting';
+import { baseCurrency, date, isoDate, money, pcs, rate, relative, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -34,7 +34,37 @@ const props = defineProps({
     jobCards: { type: Array, default: () => [] },
     fulfilment: { type: Object, default: null },
     challans: { type: Array, default: () => [] },
+    /** What has been invoiced and received against this order, and the invoices themselves. */
+    billing: { type: Object, default: () => ({ invoiced: 0, received: 0, invoices: [] }) },
 });
+
+/** Whole calendar days from today to a date, negative when it has passed. */
+function daysFromToday(value) {
+    const iso = isoDate(value);
+
+    if (!iso) return null;
+
+    const [y, m, d] = iso.split('-').map(Number);
+    const [ty, tm, td] = todayIso().split('-').map(Number);
+
+    return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86400000);
+}
+
+const plural = (n, word) => `${pcs(Math.abs(n))} ${Math.abs(n) === 1 ? word : `${word}s`}`;
+
+/** The delivery date as a deadline, read against today while the order is still in flight. */
+const dueView = computed(() => {
+    const diff = daysFromToday(props.order.delivery_date);
+
+    if (diff === null) return { text: 'Not set', tone: 'text-ink-400', note: null };
+    if (!IN_FLIGHT.includes(props.order.status)) return { text: date(props.order.delivery_date), tone: 'text-ink-900', note: null };
+    if (diff < 0) return { text: date(props.order.delivery_date), tone: 'text-rose-700', note: `${plural(diff, 'day')} overdue` };
+    if (diff === 0) return { text: date(props.order.delivery_date), tone: 'text-amber-700', note: 'today' };
+
+    return { text: date(props.order.delivery_date), tone: diff <= 7 ? 'text-amber-700' : 'text-ink-900', note: `in ${plural(diff, 'day')}` };
+});
+
+const address = (a) => (a ? [a.label, a.line1, a.city, a.country].filter(Boolean).join(', ') : null);
 
 const releaseOpen = ref(false);
 const releaseForm = useForm({ to: 'confirmed', release_reason: '' });
@@ -130,7 +160,7 @@ const lineColumns = [
     { key: 'band', label: 'Acceptable band', align: 'right' },
     { key: 'rate_per_m', label: 'Rate per 1,000 pcs', align: 'right' },
     { key: 'line_total', label: 'Value', align: 'right' },
-    { key: 'gate', label: 'Artwork approved' },
+    { key: 'gate', label: 'Spec · artwork' },
     { key: 'promised_date', label: 'Promised' },
     { key: 'make', label: '', width: '5.5rem', align: 'right' },
 ];
@@ -144,7 +174,7 @@ const lineColumns = [
         <template #subtitle>
             <Link :href="`/customers/${order.customer?.id}`" class="doc-link">{{ order.customer?.name }}</Link>
             <span v-if="order.customer_po_no"> · PO {{ order.customer_po_no }}</span>
-            · due {{ date(order.delivery_date) }}
+            <span v-if="order.delivery_date"> · due {{ date(order.delivery_date) }}<span v-if="dueView.note" :class="dueView.tone"> ({{ dueView.note }})</span></span>
         </template>
 
         <!--
@@ -164,6 +194,15 @@ const lineColumns = [
             <!-- A confirmed order's next document is a job card; it opens with this order on it. -->
             <Button v-if="canRaiseJobCard" size="sm" variant="primary" :href="jobCardHref()">
                 Create job card
+            </Button>
+
+            <!--
+                The state machine always allowed `confirmed → in_production`; nothing ever made
+                the move, so every order read "Confirmed" until a delivery note changed it.
+                Whoever releases the first job card says so here.
+            -->
+            <Button v-if="availableTransitions.includes('in_production')" size="sm" @click="transition('in_production')">
+                Start production
             </Button>
 
             <Button v-if="canPack" size="sm" :href="`/packing-lists/create?sales_order=${order.id}`">
@@ -213,20 +252,6 @@ const lineColumns = [
                 </template>.
                 A job card cannot be released without it.
             </div>
-
-            <!-- Typed on the form and then shown nowhere but the edit screen. -->
-            <Card v-if="order.notes || order.priority" title="For the planner and packer">
-                <dl class="grid gap-3 text-sm sm:grid-cols-4">
-                    <div>
-                        <dt class="text-xs text-ink-500">Priority</dt>
-                        <dd class="font-medium text-ink-900">{{ PRIORITY_LABELS[order.priority] ?? order.priority ?? '—' }}</dd>
-                    </div>
-                    <div class="sm:col-span-3">
-                        <dt class="text-xs text-ink-500">Order notes</dt>
-                        <dd class="whitespace-pre-line text-ink-800">{{ order.notes || 'None.' }}</dd>
-                    </div>
-                </dl>
-            </Card>
 
             <!-- BR-46 -->
             <div
@@ -300,8 +325,8 @@ const lineColumns = [
                     <template #cell:line_total="{ value }">{{ money(value, order.currency) }}</template>
                     <template #cell:gate="{ row }">
                         <span class="flex gap-1">
-                            <Badge :tone="row.spec_is_current ? 'success' : 'danger'" :label="`v${row.spec_version ?? '?'}`" />
-                            <Badge :tone="row.artwork_approved ? 'success' : 'danger'" :label="row.artwork_approved ? 'art' : 'no art'" />
+                            <Badge :tone="row.spec_is_current ? 'success' : 'danger'" :label="row.spec_version ? `Spec v${row.spec_version}` : 'No spec'" />
+                            <Badge :tone="row.artwork_approved ? 'success' : 'danger'" :label="row.artwork_approved ? 'Approved' : 'No artwork'" />
                         </span>
                     </template>
                     <template #cell:promised_date="{ value }">{{ date(value) }}</template>
@@ -333,6 +358,110 @@ const lineColumns = [
                         </tr>
                     </template>
                 </DataTable>
+            </Card>
+
+            <!-- BR-45 — the reason a closed or cancelled order ended was recorded and shown nowhere. -->
+            <div
+                v-if="order.close_reason"
+                class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-ink-800"
+            >
+                <span class="font-medium">{{ order.status === 'cancelled' ? 'Cancelled' : 'Closed' }}<template v-if="order.closed_at"> {{ date(order.closed_at) }}</template>:</span>
+                {{ order.close_reason }}
+            </div>
+
+            <!--
+                The dossier: who it is for and who handles it, where it came from, when it was
+                raised and confirmed, when it is due read against today, how it will be paid
+                and where it goes, and the money so far. All of it was stored; most of it was
+                shown nowhere, and the priority and notes had a card of their own that led the
+                page while the fulfilment strip sat below it.
+            -->
+            <Card title="Order">
+                <div class="grid gap-4 lg:grid-cols-3">
+                    <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 lg:col-span-2">
+                        <div>
+                            <dt class="text-xs text-ink-500">Customer</dt>
+                            <dd class="mt-0.5 font-medium text-ink-900">
+                                <Link v-if="order.customer" :href="`/customers/${order.customer.id}`" class="doc-link-quiet">{{ order.customer.name }}</Link>
+                                <span v-if="order.customer_po_no" class="block text-xs font-normal text-ink-500">PO {{ order.customer_po_no }}</span>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Handled by</dt>
+                            <dd class="mt-0.5" :class="order.merchandiser ? 'text-ink-900' : 'text-ink-400'">{{ order.merchandiser?.name ?? 'Unassigned' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">From quotation</dt>
+                            <dd class="mt-0.5">
+                                <Link v-if="order.quotation" :href="`/quotations/${order.quotation.id}`" class="doc-link-quiet">
+                                    {{ order.quotation.number ?? '(unnumbered)' }}<span v-if="order.quotation.revision_no" class="text-ink-400">/R{{ order.quotation.revision_no }}</span>
+                                </Link>
+                                <span v-else class="text-ink-400">Raised directly</span>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Ordered</dt>
+                            <dd class="mt-0.5 text-ink-900">{{ date(order.order_date) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Confirmed</dt>
+                            <dd class="mt-0.5" :class="order.confirmed_at ? 'text-ink-900' : 'text-ink-400'">{{ order.confirmed_at ? date(order.confirmed_at) : 'Not yet' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Due</dt>
+                            <dd class="mt-0.5 font-medium" :class="dueView.tone">
+                                {{ dueView.text }}
+                                <span v-if="dueView.note" class="text-xs font-normal"> · {{ dueView.note }}</span>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Priority</dt>
+                            <dd class="mt-0.5">
+                                <Badge v-if="order.priority && order.priority !== 'normal'" :tone="order.priority === 'urgent' ? 'danger' : order.priority === 'high' ? 'warning' : 'neutral'" :label="PRIORITY_LABELS[order.priority] ?? titleCase(order.priority)" />
+                                <span v-else class="text-ink-900">{{ PRIORITY_LABELS[order.priority] ?? '—' }}</span>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Payment terms</dt>
+                            <dd class="mt-0.5" :class="order.payment_term ? 'text-ink-900' : 'text-ink-400'">{{ order.payment_term?.name ?? 'Not set' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-ink-500">Deliver to</dt>
+                            <dd class="mt-0.5" :class="order.delivery_address ? 'text-ink-900' : 'text-ink-400'">
+                                {{ address(order.delivery_address) ?? 'Customer default address' }}
+                            </dd>
+                        </div>
+                        <div v-if="order.notes" class="col-span-2 sm:col-span-3">
+                            <dt class="text-xs text-ink-500">Notes for the planner and packer</dt>
+                            <dd class="mt-0.5 whitespace-pre-line text-ink-800">{{ order.notes }}</dd>
+                        </div>
+                    </dl>
+
+                    <!-- Money so far: the order is not done when it is delivered, it is done when it is paid. -->
+                    <div class="border-t border-slate-100 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
+                        <dl class="space-y-2 text-sm">
+                            <div class="flex items-baseline justify-between gap-3">
+                                <dt class="text-xs text-ink-500">Order value</dt>
+                                <dd class="font-semibold tnum text-ink-900">{{ money(order.total, order.currency) }}</dd>
+                            </div>
+                            <div class="flex items-baseline justify-between gap-3">
+                                <dt class="text-xs text-ink-500">Invoiced</dt>
+                                <dd class="tnum" :class="billing.invoiced > 0 ? 'text-ink-900' : 'text-ink-400'">{{ billing.invoiced > 0 ? money(billing.invoiced, order.currency) : 'Nothing yet' }}</dd>
+                            </div>
+                            <div class="flex items-baseline justify-between gap-3">
+                                <dt class="text-xs text-ink-500">Received</dt>
+                                <dd class="tnum" :class="billing.received > 0 ? 'text-emerald-700' : 'text-ink-400'">{{ billing.received > 0 ? money(billing.received, order.currency) : 'Nothing yet' }}</dd>
+                            </div>
+                        </dl>
+                        <ul v-if="billing.invoices.length" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">
+                            <li v-for="invoice in billing.invoices" :key="invoice.id" class="flex items-center justify-between gap-2 py-1.5">
+                                <Link :href="`/sales-invoices/${invoice.id}`" class="doc-link-quiet">{{ invoice.number ?? '(draft invoice)' }}</Link>
+                                <span class="tnum text-xs text-ink-500">{{ money(invoice.total, invoice.currency) }}</span>
+                                <Badge :status="invoice.status" />
+                            </li>
+                        </ul>
+                    </div>
+                </div>
             </Card>
 
             <div class="grid gap-4 lg:grid-cols-2">
