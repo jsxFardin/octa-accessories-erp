@@ -136,3 +136,24 @@ it('lets a confirmed order be started into production from the page', function (
 
     expect($order->fresh()->status)->toBe('in_production');
 });
+
+it('hands the order form the contract rates from the lists current today', function (): void {
+    $this->actingAs($this->admin)
+        ->get('/sales-orders/create')
+        ->assertOk()
+        ->assertInertia(function (AssertableInertia $page): void {
+            $rates = $page->toArray()['props']['listRates'];
+            $expected = DB::table('price_list_lines as l')
+                ->join('price_lists as pl', 'pl.id', '=', 'l.price_list_id')
+                ->where('pl.is_active', true)
+                ->whereDate('pl.valid_from', '<=', now()->toDateString())
+                ->where(fn ($q) => $q->whereNull('pl.valid_to')->orWhereDate('pl.valid_to', '>=', now()->toDateString()))
+                ->distinct()->count('l.product_id');
+
+            expect(count($rates))->toBe($expected);
+
+            foreach ($rates as $breaks) {
+                expect($breaks[0])->toHaveKeys(['min_qty', 'rate_per_m', 'list_code', 'currency']);
+            }
+        });
+});

@@ -5,7 +5,13 @@ import ResourceForm from '@/Components/Ui/ResourceForm.vue';
 import { baseCurrency } from '@/plugins/formatting';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
-const props = defineProps({ customer: Object, paymentTerms: Array, currencies: Array, kinds: Array });
+const props = defineProps({
+    customer: Object,
+    paymentTerms: Array,
+    currencies: Array,
+    kinds: Array,
+    countries: { type: Array, default: () => [] },
+});
 
 const isEdit = computed(() => Boolean(props.customer));
 
@@ -17,7 +23,7 @@ const sections = computed(() => [
             { key: 'name', label: 'Name', required: true },
             // The kinds come from the server's vocabulary registry — they were written out
             // here and worded differently on the list screen.
-            { key: 'kind', label: 'Kind', type: 'select', default: 'manufacturer', options: props.kinds },
+            { key: 'kind', label: 'Type of customer', type: 'select', default: 'manufacturer', options: props.kinds },
             { key: 'email', label: 'Email', type: 'email' },
             { key: 'phone', label: 'Phone' },
             { key: 'bin_no', label: 'BIN' },
@@ -44,6 +50,35 @@ const sections = computed(() => [
             },
         ],
     },
+    /*
+     * A customer created with nobody to call and nowhere to ship is a record that cannot be
+     * worked: the inquiry form has no contact to name and dispatch has nowhere to send the
+     * cartons. Both can be added later on the customer's page; asking once here means the
+     * record is ready to quote and ship the moment it is saved.
+     */
+    ...(isEdit.value ? [] : [
+        {
+            title: 'First contact',
+            description: 'Optional. The person an inquiry names; more can be added on the customer page.',
+            fields: [
+                { key: 'contact_name', label: 'Name' },
+                { key: 'contact_designation', label: 'Designation', placeholder: 'Merchandising manager' },
+                { key: 'contact_email', label: 'Email', type: 'email' },
+                { key: 'contact_phone', label: 'Phone' },
+            ],
+        },
+        {
+            title: 'Delivery address',
+            description: 'Optional. Where cartons go; a packing list falls back to it. Leave empty to add later.',
+            fields: [
+                { key: 'address_label', label: 'Label', default: 'Factory', placeholder: 'Factory, Head office' },
+                { key: 'address_line1', label: 'Address', placeholder: 'Plot 42, Ashulia EPZ' },
+                { key: 'address_city', label: 'City' },
+                { key: 'address_country', label: 'Country', type: 'select', options: props.countries, default: 'Bangladesh' },
+                { key: 'address_transit_days', label: 'Transit days', type: 'number', step: '1', default: 1, rule: 'BR-29', hint: 'Added to the promised date for a delivery here.' },
+            ],
+        },
+    ]),
 ]);
 </script>
 

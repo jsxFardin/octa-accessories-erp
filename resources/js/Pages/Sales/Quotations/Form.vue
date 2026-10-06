@@ -15,7 +15,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { addCalendarDays, baseCurrency, date, isoDate, money, number, pcs, qty, rate, titleCase, todayIso, unitCost } from '@/plugins/formatting';
+import { addCalendarDays, baseCurrency, date, isoDate, money, number, pcs, qty, rate, titleCase, todayIso, typed, unitCost } from '@/plugins/formatting';
 
 const props = defineProps({
     quotation: { type: Object, default: null },
@@ -83,12 +83,26 @@ const form = useForm({
         ?? '',
     exchange_rate: props.quotation?.exchange_rate ?? 1,
     terms: props.quotation?.terms ?? '',
+    // Stored decimals load as typed numbers: "8000.0000" in a quantity cell is the database talking.
     lines: props.quotation?.lines?.length
-        ? props.quotation.lines.map((line) => ({ ...line }))
+        ? props.quotation.lines.map((line) => ({
+            ...line,
+            qty: typed(line.qty),
+            margin_pct: typed(line.margin_pct),
+            tooling_charge: typed(line.tooling_charge) || 0,
+            lead_time_days: typed(line.lead_time_days),
+        }))
         : prefill?.lines?.length
             ? prefill.lines.map(lineFromInquiry)
             : [blankLine()],
 });
+
+/* An offer usually stands for one, two or three months; counted from the quotation date. */
+const VALIDITY_PRESETS = [30, 60, 90];
+
+function presetValidity(days) {
+    form.valid_until = addCalendarDays(form.quotation_date || todayIso(), days);
+}
 
 /** The rate follows the currency: filled from the rate on file, and no field at all for base. */
 const { isBase: baseCurrencyDocument, rateHint } = useBookedRate(form, () => props.currencies, { existing: Boolean(props.quotation) });
@@ -443,8 +457,10 @@ const columns = [
 
             <Card title="Customer and dates">
                 <!-- Three across until 1536 px: five across at 1280 cut the date to "05 Oct 202". -->
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-                    <FormField label="Customer" :error="form.errors.customer_id" required>
+                <!-- Four across until 1536 px: five at 1280 cut the dates to "05 Oct 202". -->
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6">
+                    <!-- Two columns: a code and a name do not fit in one, and the name is what is read. -->
+                    <FormField label="Customer" class="sm:col-span-2" :error="form.errors.customer_id" required>
                         <SelectInput
                             v-model="form.customer_id"
                             placeholder="— select —"
@@ -458,8 +474,19 @@ const columns = [
                         <DateInput v-model="form.quotation_date" />
                     </FormField>
 
-                    <FormField label="Valid until" :error="form.errors.valid_until">
-                        <DateInput v-model="form.valid_until" />
+                    <FormField label="Valid until" :error="form.errors.valid_until" hint="The offer expires after this date.">
+                        <DateInput v-model="form.valid_until" :min="form.quotation_date" />
+                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                            <button
+                                v-for="days in VALIDITY_PRESETS"
+                                :key="days"
+                                type="button"
+                                class="min-h-6 rounded border border-slate-200 px-2 text-ink-700 transition hover:border-brand-300 hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                @click="presetValidity(days)"
+                            >
+                                +{{ days }} days
+                            </button>
+                        </div>
                     </FormField>
 
                     <FormField label="Currency" :error="form.errors.currency_id" required>
@@ -526,11 +553,11 @@ const columns = [
                         </template>
 
                         <template #cell:qty="{ line }">
-                            <TextInput cell v-model="line.qty" type="number" numeric min="1" />
+                            <TextInput cell v-model="line.qty" type="number" numeric min="1" placeholder="0" class="min-w-24" />
                         </template>
 
                         <template #cell:margin_pct="{ line }">
-                            <TextInput cell v-model="line.margin_pct" type="number" step="0.01" numeric />
+                            <TextInput cell v-model="line.margin_pct" type="number" step="0.01" numeric placeholder="0" class="min-w-16" />
                             <p
                                 v-if="Number(line.margin_pct) < Number(marginFloorPct)"
                                 class="mt-1 text-xs text-amber-700"
@@ -550,11 +577,11 @@ const columns = [
                         </template>
 
                         <template #cell:tooling_charge="{ line }">
-                            <TextInput cell v-model="line.tooling_charge" type="number" step="0.01" min="0" numeric />
+                            <TextInput cell v-model="line.tooling_charge" type="number" step="0.01" min="0" numeric placeholder="0.00" class="min-w-20" />
                         </template>
 
                         <template #cell:lead_time_days="{ line }">
-                            <TextInput cell v-model="line.lead_time_days" type="number" step="1" min="0" numeric />
+                            <TextInput cell v-model="line.lead_time_days" type="number" step="1" min="0" numeric placeholder="days" class="min-w-16" />
                         </template>
 
                         <template #cell:line_total="{ line }">

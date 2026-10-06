@@ -745,6 +745,19 @@ class SalesOrderController extends Controller
                 'over_tolerance_pct' => $this->settings->decimal('over_tolerance_pct', 5),
                 'under_tolerance_pct' => $this->settings->decimal('under_tolerance_pct', 5),
             ],
+            // The rates agreed on the lists that are current today, by product, so the form can
+            // offer the contract rate instead of leaving the merchandiser to look it up.
+            'listRates' => DB::table('price_list_lines as l')
+                ->join('price_lists as pl', 'pl.id', '=', 'l.price_list_id')
+                ->join('currencies as cur', 'cur.id', '=', 'pl.currency_id')
+                ->where('pl.is_active', true)
+                ->whereDate('pl.valid_from', '<=', now()->toDateString())
+                ->where(fn ($q) => $q->whereNull('pl.valid_to')->orWhereDate('pl.valid_to', '>=', now()->toDateString()))
+                ->orderBy('l.product_id')->orderBy('l.min_qty')
+                ->get(['l.product_id', 'l.min_qty', 'l.rate_per_m', 'pl.code as list_code', 'cur.code as currency'])
+                ->groupBy('product_id')
+                ->map(fn ($rows) => $rows->values()->all())
+                ->all(),
         ];
     }
 }

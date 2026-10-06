@@ -100,7 +100,49 @@ class CustomerController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $customer = Customer::query()->create($this->validated($request));
+        $data = $this->validated($request);
+
+        // The first contact and the delivery address, when the form gave them: a customer with
+        // nobody to call and nowhere to ship is a record that cannot be worked yet.
+        $extras = $request->validate([
+            'contact_name' => ['nullable', 'string', 'max:120'],
+            'contact_designation' => ['nullable', 'string', 'max:80'],
+            'contact_email' => ['nullable', 'email', 'max:190'],
+            'contact_phone' => ['nullable', 'string', 'max:30'],
+            'address_label' => ['nullable', 'string', 'max:80'],
+            'address_line1' => ['nullable', 'string', 'max:255'],
+            'address_city' => ['nullable', 'string', 'max:80'],
+            'address_country' => ['nullable', 'string', 'max:60', Rule::in(Countries::names())],
+            'address_transit_days' => ['nullable', 'integer', 'min:0', 'max:365'],
+        ]);
+
+        $customer = DB::transaction(function () use ($data, $extras): Customer {
+            $customer = Customer::query()->create($data);
+
+            if (trim((string) ($extras['contact_name'] ?? '')) !== '') {
+                $customer->contacts()->create([
+                    'name' => $extras['contact_name'],
+                    'designation' => $extras['contact_designation'] ?? null,
+                    'email' => $extras['contact_email'] ?? null,
+                    'phone' => $extras['contact_phone'] ?? null,
+                    'is_primary' => true,
+                ]);
+            }
+
+            if (trim((string) ($extras['address_line1'] ?? '')) !== '') {
+                $customer->addresses()->create([
+                    'label' => $extras['address_label'] ?: 'Factory',
+                    'kind' => 'both',
+                    'line1' => $extras['address_line1'],
+                    'city' => $extras['address_city'] ?? null,
+                    'country' => $extras['address_country'] ?? 'Bangladesh',
+                    'transit_days' => (int) ($extras['address_transit_days'] ?? 1),
+                    'is_default' => true,
+                ]);
+            }
+
+            return $customer;
+        });
 
         // "Created." was true and useless: an inactive customer is created just as
         // successfully and then cannot be found in any picker, which reads as a lost save.
@@ -256,6 +298,7 @@ class CustomerController extends Controller
             // From the vocabulary registry rather than typed into the page: the same four
             // kinds were written out by hand on the form and worded differently in the list.
             'kinds' => Vocabulary::options('customer_kind'),
+            'countries' => Countries::options(),
         ];
     }
 }

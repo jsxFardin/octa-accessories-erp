@@ -113,3 +113,53 @@ it('lists what is on order and owed for every customer, and filters by kind', fu
             }
         });
 });
+
+it('creates the first contact and the delivery address with the customer when the form gives them', function (): void {
+    $this->actingAs($this->admin)->post('/customers', [
+        'code' => 'CUST-T-NEW',
+        'name' => 'New Apparel Ltd',
+        'kind' => $this->customer->kind,
+        'credit_limit' => 0,
+        'min_order_value' => 0,
+        'over_tolerance_pct' => 5,
+        'under_tolerance_pct' => 5,
+        'is_active' => true,
+        'contact_name' => 'Nasrin Akter',
+        'contact_designation' => 'Sourcing head',
+        'contact_email' => 'nasrin@example.com',
+        'address_label' => 'Factory',
+        'address_line1' => 'Plot 7, Gazipur',
+        'address_city' => 'Gazipur',
+        'address_country' => 'Bangladesh',
+        'address_transit_days' => 2,
+    ])->assertSessionHasNoErrors();
+
+    $customer = Customer::query()->where('code', 'CUST-T-NEW')->firstOrFail();
+
+    expect($customer->contacts()->where('is_primary', true)->value('name'))->toBe('Nasrin Akter')
+        ->and($customer->addresses()->where('is_default', true)->value('line1'))->toBe('Plot 7, Gazipur')
+        ->and($customer->addresses()->value('transit_days'))->toBe(2);
+});
+
+it('creates a customer without contact or address when the optional fields are left empty', function (): void {
+    $this->actingAs($this->admin)->post('/customers', [
+        'code' => 'CUST-T-BARE',
+        'name' => 'Bare Apparel',
+        'kind' => $this->customer->kind,
+        'credit_limit' => 0,
+        'min_order_value' => 0,
+        'over_tolerance_pct' => 5,
+        'under_tolerance_pct' => 5,
+        'is_active' => true,
+        'contact_name' => '',
+        'address_label' => 'Factory',
+        'address_line1' => '',
+        'address_country' => 'Bangladesh',
+        'address_transit_days' => 1,
+    ])->assertSessionHasNoErrors();
+
+    $customer = Customer::query()->where('code', 'CUST-T-BARE')->firstOrFail();
+
+    expect($customer->contacts()->count())->toBe(0)
+        ->and($customer->addresses()->count())->toBe(0);
+});

@@ -76,6 +76,10 @@ function codeOf(option) {
 
     if (code === null || code === undefined || code === '') return null;
 
+    // A vocabulary option carries its key as `code` ("manufacturer", "normal"). That is a
+    // storage key, not a code anyone says out loud; showing it gave "normal · Normal".
+    if (option.value !== undefined && String(code) === String(option.value)) return null;
+
     return String(code) === labelOf(option) ? null : String(code);
 }
 

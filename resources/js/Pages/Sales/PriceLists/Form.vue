@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -11,7 +11,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { date, isoDate, pcs, todayIso } from '@/plugins/formatting';
+import { addCalendarMonths, date, isoDate, pcs, todayIso, typed } from '@/plugins/formatting';
 
 const props = defineProps({
     list: { type: Object, default: null },
@@ -44,8 +44,34 @@ const form = useForm({
     valid_to: isoDate(props.list?.valid_to),
     // The row comes straight from the table, where this is 1 or 0; a checkbox wants a boolean.
     is_active: Boolean(props.list?.is_active ?? true),
-    lines: props.list?.lines?.length ? props.list.lines.map((line) => ({ ...line })) : [blankLine()],
+    // Stored decimals load as typed numbers: "5000.0000" in a quantity cell is the database talking.
+    lines: props.list?.lines?.length
+        ? props.list.lines.map((line) => ({ ...line, min_qty: typed(line.min_qty), rate_per_m: typed(line.rate_per_m) }))
+        : [blankLine()],
 });
+
+/*
+ * Valid-to is usually "the rest of the year" or "a year from the start"; typing the date is
+ * the slow way. Counted from the valid-from date.
+ */
+const validToPresets = computed(() => {
+    const from = form.valid_from || todayIso();
+    const yearEnd = `${from.slice(0, 4)}-12-31`;
+
+    return [
+        { label: 'End of year', value: yearEnd > from ? yearEnd : `${Number(from.slice(0, 4)) + 1}-12-31` },
+        { label: '+6 months', value: addCalendarMonths(from, 6) },
+        { label: '+12 months', value: addCalendarMonths(from, 12) },
+    ];
+});
+
+/** Enter in the last cell of the last row starts the next break, cursor on its product. */
+function addBreakFromKeyboard(index) {
+    if (index !== form.lines.length - 1) return;
+
+    addLine();
+    nextTick(() => document.querySelector(`[aria-label="Product, line ${form.lines.length}"]`)?.focus());
+}
 
 /** A price list belongs to one customer, so only that customer's products can be priced. */
 const availableProducts = computed(() =>
@@ -73,6 +99,13 @@ watch(() => form.customer_id, (customer, previous) => {
     droppedProducts.value = 0;
 
     if (!customer) return;
+
+    // A code nobody has typed yet follows the customer: PL-{customer code}-{year}.
+    const chosen = props.customers.find((c) => String(c.id) === String(customer));
+
+    if (!isEdit.value && chosen?.code && (!form.code || /^PL-.+-\d{4}$/.test(form.code))) {
+        form.code = `PL-${String(chosen.code).replace(/^CUST-/i, '')}-${(form.valid_from || todayIso()).slice(0, 4)}`;
+    }
 
     if (!form.currency_id || form.currency_id === customerCurrency(previous)) {
         form.currency_id = customerCurrency(customer) ?? form.currency_id;
@@ -142,7 +175,7 @@ const columns = [
                     </FormField>
 
                     <FormField label="Name" :error="form.errors.name" required>
-                        <TextInput v-model="form.name" />
+                        <TextInput v-model="form.name" placeholder="Nordfjell 2026 running programme" />
                     </FormField>
 
                     <FormField label="Customer" :error="form.errors.customer_id" required>
@@ -158,7 +191,19 @@ const columns = [
                     </FormField>
 
                     <FormField label="Valid to" hint="Leave empty for open-ended." :error="form.errors.valid_to">
-                        <DateInput v-model="form.valid_to" />
+                        <DateInput v-model="form.valid_to" :min="form.valid_from" />
+                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                            <button
+                                v-for="preset in validToPresets"
+                                :key="preset.label"
+                                type="button"
+                                class="min-h-6 rounded border border-slate-200 px-2 text-ink-700 transition hover:border-brand-300 hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                @click="form.valid_to = preset.value"
+                            >
+                                {{ preset.label }}
+                            </button>
+                            <button v-if="form.valid_to" type="button" class="min-h-6 px-1 text-ink-500 underline-offset-2 hover:underline" @click="form.valid_to = ''">Open-ended</button>
+                        </div>
                     </FormField>
                 </div>
 
@@ -197,15 +242,15 @@ const columns = [
                         </template>
 
                         <template #cell:min_qty="{ line }">
-                            <TextInput cell v-model="line.min_qty" type="number" numeric min="0" />
+                            <TextInput cell v-model="line.min_qty" type="number" numeric min="0" placeholder="0" class="min-w-24" />
                         </template>
 
                         <template #cell:rate_per_m="{ line }">
-                            <TextInput cell v-model="line.rate_per_m" type="number" step="0.0001" numeric />
+                            <TextInput cell v-model="line.rate_per_m" type="number" step="0.0001" numeric placeholder="0.0000" class="min-w-24" />
                         </template>
 
-                        <template #cell:description="{ line }">
-                            <TextInput cell v-model="line.description" placeholder="Optional note" />
+                        <template #cell:description="{ line, index }">
+                            <TextInput cell v-model="line.description" placeholder="Optional note" class="min-w-40" @keydown.enter.prevent="addBreakFromKeyboard(index)" />
                         </template>
                     </LineItemsTable>
 
@@ -218,11 +263,12 @@ const columns = [
                         belonging to the previous customer. {{ droppedProducts === 1 ? 'It has' : 'They have' }} been cleared.
                     </p>
                     <p v-if="form.errors.lines" class="mt-2 text-xs text-rose-600">{{ form.errors.lines }}</p>
+                    <p class="mt-2 text-xs text-ink-500">A break at 0 is the base rate; add higher breaks for volume prices. Enter in the note cell starts the next break.</p>
                 </div>
             </Card>
 
             <template #rail>
-                <Card title="Price list">
+                <Card title="Summary">
                     <dl class="space-y-2.5 text-sm">
                         <div class="flex items-baseline justify-between gap-3">
                             <dt class="text-xs text-ink-500">Breaks</dt>

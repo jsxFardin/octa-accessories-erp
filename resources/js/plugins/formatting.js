@@ -172,6 +172,33 @@ export function todayIso() {
     return isoFromLocal(new Date());
 }
 
+/**
+ * A stored decimal as something to type: "12000.0000" becomes "12000", null becomes "".
+ * For an input's v-model on an edit form, where the database's scale is not the user's.
+ */
+export function typed(value) {
+    if (value === null || value === undefined || value === '') return '';
+
+    const n = Number(value);
+
+    return Number.isFinite(n) ? String(n) : String(value);
+}
+
+/** A calendar date some whole months on, clamped to the month's last day. */
+export function addCalendarMonths(value, months) {
+    const parsed = parseCalendarDate(value);
+
+    if (!parsed) return '';
+
+    const day = parsed.getDate();
+    parsed.setDate(1);
+    parsed.setMonth(parsed.getMonth() + Number(months));
+    const last = new Date(parsed.getFullYear(), parsed.getMonth() + 1, 0).getDate();
+    parsed.setDate(Math.min(day, last));
+
+    return isoFromLocal(parsed);
+}
+
 export function addCalendarDays(value, days) {
     const parsed = parseCalendarDate(value);
 

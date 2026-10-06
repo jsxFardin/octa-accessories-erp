@@ -85,10 +85,10 @@ class CostSheetController extends Controller
             'warnings' => array_values(array_filter([
                 // BR-21 is a flag, not a silent adjustment: the merchandiser has to see it.
                 $sheet->belowMinimumOrderValue
-                    ? 'BR-21: below this customer\'s minimum order value. A minimum charge has been added.'
+                    ? 'Below this customer\'s minimum order value, so a minimum charge has been added.'
                     : null,
                 $marginPct < $marginFloor
-                    ? "Margin {$marginPct}% is below the {$marginFloor}% floor — sending needs cost_sheet.override_margin."
+                    ? "Margin {$marginPct}% is below the {$marginFloor}% floor. Sending needs someone who may approve a margin below the floor."
                     : null,
             ])),
             'needs_margin_override' => $marginPct < $marginFloor,
@@ -111,7 +111,7 @@ class CostSheetController extends Controller
         $floor = $this->settings->decimal('margin_floor_pct', 12);
 
         if ($data['margin_pct'] < $floor && ! $request->user()->hasPermission('cost_sheet.override_margin')) {
-            return back()->with('error', "A margin below {$floor}% needs the cost_sheet.override_margin permission.");
+            return back()->with('error', "A margin below {$floor}% needs someone who may approve a margin below the floor. Ask a sales manager to save it.");
         }
 
         $costSheet->update($data);

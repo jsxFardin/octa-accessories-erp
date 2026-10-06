@@ -12,9 +12,11 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
-import { date, isoDate, money, pcs, todayIso } from '@/plugins/formatting';
+import { addCalendarDays, date, isoDate, money, pcs, rate, todayIso, typed } from '@/plugins/formatting';
 
 const props = defineProps({
+    /** `{ [product_id]: [{ min_qty, rate_per_m, list_code, currency }] }` from the lists current today. */
+    listRates: { type: Object, default: () => ({}) },
     priorities: { type: Array, default: () => [] },
     order: { type: Object, default: null },
     customers: { type: Array, default: () => [] },
@@ -56,10 +58,55 @@ const form = useForm({
     priority: props.order?.priority ?? 'normal',
     notes: props.order?.notes ?? '',
     amendment_reason: '',
+    // Stored decimals load as typed numbers: "1000.0000" in a quantity cell is the database talking.
     lines: props.order?.lines?.length
-        ? props.order.lines.map((line) => ({ ...line, promised_date: isoDate(line.promised_date) }))
+        ? props.order.lines.map((line) => ({
+            ...line,
+            promised_date: isoDate(line.promised_date),
+            ordered_qty: typed(line.ordered_qty),
+            rate_per_m: typed(line.rate_per_m),
+            tooling_charge: typed(line.tooling_charge) || 0,
+            over_tolerance_pct: typed(line.over_tolerance_pct),
+            under_tolerance_pct: typed(line.under_tolerance_pct),
+        }))
         : [blankLine()],
 });
+
+/*
+ * The contract rate, when the customer has one: the break with the highest starting quantity
+ * at or below the ordered quantity, on a list that is current today and in this order's
+ * currency. Offered, not imposed — a typed rate is kept.
+ */
+function listRateFor(line) {
+    const breaks = props.listRates?.[line.product_id] ?? [];
+    const qty = Number(line.ordered_qty) || 0;
+    const applicable = breaks.filter((b) => Number(b.min_qty) <= qty || qty === 0).sort((a, b) => Number(b.min_qty) - Number(a.min_qty))[0] ?? breaks[0] ?? null;
+
+    return applicable;
+}
+
+function listRateHint(line) {
+    const found = listRateFor(line);
+
+    if (!found) return null;
+    if (found.currency !== currencyCode.value) return { text: `${found.list_code} lists ${rate(found.rate_per_m, found.currency)}; this order is in ${currencyCode.value}.`, applied: false };
+    if (Number(line.rate_per_m) === Number(found.rate_per_m)) return { text: `Contract rate from ${found.list_code}.`, applied: true };
+
+    return { text: `${found.list_code} lists ${rate(found.rate_per_m, found.currency)}.`, applied: false, rate: found.rate_per_m };
+}
+
+function applyListRate(line) {
+    const found = listRateFor(line);
+
+    if (found && found.currency === currencyCode.value) line.rate_per_m = typed(found.rate_per_m);
+}
+
+/* Delivery is usually four to eight weeks out; counted from the order date. */
+const DELIVERY_PRESETS = [30, 45, 60];
+
+function presetDelivery(days) {
+    form.delivery_date = addCalendarDays(form.order_date || todayIso(), days);
+}
 
 /** The rate follows the currency: filled from the rate on file, and no field at all for base. */
 const { isBase: baseCurrencyDocument, rateHint } = useBookedRate(form, () => props.currencies, { existing: Boolean(props.order) });
@@ -81,6 +128,9 @@ function productOf(line) {
  */
 function onProductChange(line) {
     line.product_spec_id = productOf(line)?.current_spec?.id ?? '';
+
+    // An empty rate takes the contract rate; a typed one is left alone.
+    if (!line.rate_per_m) applyListRate(line);
 }
 
 /** Products on the order that cannot be ordered yet, said before the save rather than after. */
@@ -208,7 +258,8 @@ const columns = [
 
             <Card title="Order details">
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <FormField label="Customer" :error="form.errors.customer_id" required>
+                    <!-- Two columns: a code and a name do not fit in one, and the name is what is read. -->
+                    <FormField label="Customer" class="sm:col-span-2" :error="form.errors.customer_id" required>
                         <SelectInput
                             v-model="form.customer_id"
                             placeholder="— select —"
@@ -218,16 +269,28 @@ const columns = [
                         />
                     </FormField>
 
-                    <FormField label="Customer PO number" :error="form.errors.customer_po_no">
-                        <TextInput v-model="form.customer_po_no" />
+                    <FormField label="Customer PO number" :error="form.errors.customer_po_no" hint="As it reads on their purchase order.">
+                        <TextInput v-model="form.customer_po_no" placeholder="LPO-26-101" />
                     </FormField>
 
                     <FormField label="Order date" :error="form.errors.order_date" required>
                         <DateInput v-model="form.order_date" />
                     </FormField>
 
-                    <FormField label="Delivery date" :error="form.errors.delivery_date">
-                        <DateInput v-model="form.delivery_date" />
+                    <FormField label="Delivery date" :error="form.errors.delivery_date" hint="Promised dates on the lines count back from it.">
+                        <DateInput v-model="form.delivery_date" :min="form.order_date" />
+                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                            <span class="text-ink-500">From the order date:</span>
+                            <button
+                                v-for="days in DELIVERY_PRESETS"
+                                :key="days"
+                                type="button"
+                                class="min-h-6 rounded border border-slate-200 px-2 text-ink-700 transition hover:border-brand-300 hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                @click="presetDelivery(days)"
+                            >
+                                +{{ days }} days
+                            </button>
+                        </div>
                     </FormField>
 
                     <FormField label="Currency" :error="form.errors.currency_id" required>
@@ -266,6 +329,7 @@ const columns = [
                         <template #cell:product_id="{ line }">
                             <SelectInput
                                 v-model="line.product_id"
+                                class="min-w-40"
                                 placeholder="— product —"
                                 :options="availableProducts"
                                 value-key="id"
@@ -287,17 +351,22 @@ const columns = [
                         </template>
 
                         <template #cell:ordered_qty="{ line }">
-                            <TextInput cell v-model="line.ordered_qty" type="number" numeric min="1" />
+                            <TextInput cell v-model="line.ordered_qty" type="number" numeric min="1" placeholder="0" class="min-w-24" @change="!line.rate_per_m && applyListRate(line)" />
                         </template>
 
                         <template #cell:rate_per_m="{ line }">
-                            <TextInput cell v-model="line.rate_per_m" type="number" step="0.0001" numeric />
+                            <TextInput cell v-model="line.rate_per_m" type="number" step="0.0001" numeric placeholder="0.0000" class="min-w-24" />
+                            <!-- The contract rate, said beside the cell: taken when the cell was empty, offered when it was not. -->
+                            <p v-if="listRateHint(line)" class="mt-1 text-xs" :class="listRateHint(line).applied ? 'text-emerald-700' : 'text-ink-500'">
+                                {{ listRateHint(line).text }}
+                                <button v-if="listRateHint(line).rate !== undefined" type="button" class="font-medium text-brand-700 underline" @click="applyListRate(line)">Use it</button>
+                            </p>
                         </template>
 
                         <template #cell:tolerance="{ line }">
                             <div class="flex gap-1">
-                                <TextInput cell v-model="line.under_tolerance_pct" type="number" step="0.01" numeric />
-                                <TextInput cell v-model="line.over_tolerance_pct" type="number" step="0.01" numeric />
+                                <TextInput cell v-model="line.under_tolerance_pct" type="number" step="0.01" numeric placeholder="−%" class="min-w-14" aria-label="Under-delivery tolerance %" />
+                                <TextInput cell v-model="line.over_tolerance_pct" type="number" step="0.01" numeric placeholder="+%" class="min-w-14" aria-label="Over-delivery tolerance %" />
                             </div>
                         </template>
 
