@@ -47,18 +47,49 @@ class PurchaseOrderController extends Controller
         // BR-47 — a PO placed in USD next to one in BDT needs no arithmetic to tell apart.
         $query = PurchaseOrder::query()->with(['supplier:id,code,name', 'currency:id,code'])->withCount('lines');
 
+        // How far in the order is, line by line. Lines are in different units, so the sum of
+        // their quantities is not a figure; the average of how complete each line is, is.
+        $query->addSelect(['received_pct' => DB::table('purchase_order_lines')
+            ->selectRaw('AVG(LEAST(received_qty, qty) / qty) * 100')
+            ->whereColumn('po_id', 'purchase_orders.id')]);
+
+        // A buyer remembers an order by who it was placed with.
+        $term = trim((string) $request->string('q'));
+
+        if ($term !== '') {
+            $query->where(fn ($where) => $where
+                ->where('number', 'like', "%{$term}%")
+                ->orWhere('remarks', 'like', "%{$term}%")
+                ->orWhereHas('supplier', fn ($supplier) => $supplier
+                    ->where('name', 'like', "%{$term}%")
+                    ->orWhere('code', 'like', "%{$term}%")));
+        }
+
         $this->applyListing(
             $query,
             $request,
-            searchable: ['number', 'remarks'],
             filters: ['status' => 'status', 'supplier' => 'supplier_id'],
             sortable: ['number', 'order_date', 'expected_date', 'status', 'total'],
             defaultSort: '-id',
         );
 
+        // Placed, not all in, and past the day it was expected.
+        $awaited = ['approved', 'sent', 'partially_received'];
+
+        if ($request->query('late') === '1') {
+            $query->whereDate('expected_date', '<', now()->toDateString())->whereIn('status', $awaited);
+        }
+
         return Inertia::render('Procurement/PurchaseOrders/Index', [
             'purchase_orders' => $query->paginate($this->perPage($request))->withQueryString(),
-            'filters' => $this->listingFilters($request, ['status', 'supplier']),
+            'filters' => $this->listingFilters($request, ['status', 'supplier', 'late']),
+            'counts' => [
+                ...$this->stageCounts('purchase_orders'),
+                'late' => DB::table('purchase_orders')
+                    ->whereDate('expected_date', '<', now()->toDateString())
+                    ->whereIn('status', $awaited)
+                    ->count(),
+            ],
             'suppliers' => Supplier::query()->orderBy('name')->get(['id', 'code', 'name']),
         ]);
     }

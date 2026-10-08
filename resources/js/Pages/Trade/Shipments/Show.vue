@@ -6,6 +6,7 @@ import DateInput from '@/Components/Ui/DateInput.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import CodeName from '@/Components/Ui/CodeName.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Icon from '@/Components/Ui/Icon.vue';
@@ -186,7 +187,7 @@ const byLine = computed(() => {
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="shipment.number">
         <Head :title="shipment.number ?? 'Shipment'" />
 
         <template #title>{{ shipment.number }}</template>
@@ -381,8 +382,7 @@ const byLine = computed(() => {
                     dense
                 >
                     <template #cell:item_code="{ row }">
-                        <span class="font-medium">{{ row.item_code }}</span>
-                        <span class="text-ink-500"> {{ row.item_name }}</span>
+                        <CodeName :code="row.item_code" :name="row.item_name" />
                     </template>
                     <template #cell:lot_no="{ value }">
                         <span v-if="value" class="font-mono text-xs">{{ value }}</span>

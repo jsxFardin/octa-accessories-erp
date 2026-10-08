@@ -244,7 +244,7 @@ const kindLabel = computed(() => titleCase(props.customer.kind ?? ''));
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="customer.code">
         <Head :title="customer.code" />
 
         <template #title>{{ customer.code }} · {{ customer.name }}</template>

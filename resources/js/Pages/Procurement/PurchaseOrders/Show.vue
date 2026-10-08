@@ -1,16 +1,17 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import CodeName from '@/Components/Ui/CodeName.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
-import { baseCurrency, date, money, qty } from '@/plugins/formatting';
+import { baseCurrency, date, money, qty, qtyRound } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
@@ -191,11 +192,10 @@ function reopen() {
                     dense
                 >
                     <template #cell:item_code="{ row }">
-                        <span class="font-medium">{{ row.item_code }}</span>
-                        <span class="text-ink-500"> {{ row.item_name }}</span>
+                        <CodeName :code="row.item_code" :name="row.item_name" />
                     </template>
-                    <template #cell:qty="{ row }">{{ qty(row.qty) }} {{ row.uom }}</template>
-                    <template #cell:received_qty="{ value }">{{ qty(value) }}</template>
+                    <template #cell:qty="{ row }">{{ qtyRound(row.qty) }} {{ row.uom }}</template>
+                    <template #cell:received_qty="{ value }">{{ qtyRound(value) }}</template>
                     <template #cell:rate="{ value }">{{ money(value, purchaseOrder.currency) }}</template>
                     <template #cell:amount="{ value }">{{ money(value, purchaseOrder.currency) }}</template>
                     <template #cell:expected_date="{ value }">{{ value ? date(value) : '—' }}</template>
@@ -212,7 +212,12 @@ function reopen() {
                     <Button v-if="canReceive" size="sm" :href="grnHref">Receive goods</Button>
                 </template>
 
+                <!-- Nothing in and nothing to do about it yet is one line, not a table of headings over a blank. -->
+                <p v-if="receipts.length === 0 && !canReceive" class="px-4 py-3 text-sm text-ink-600">
+                    Nothing received yet. Goods can be booked in once the order has been approved.
+                </p>
                 <DataTable
+                    v-else
                     :columns="[
                         { key: 'number', label: 'Goods receipt' },
                         { key: 'received_on', label: 'Received' },
@@ -236,6 +241,7 @@ function reopen() {
                         />
                     </template>
 
+                    <template #cell:number="{ row, value }"><Link :href="`/grns/${row.id}`" class="doc-link-quiet">{{ value ?? '(draft)' }}</Link></template>
                     <template #cell:received_on="{ value }">{{ date(value) }}</template>
                     <template #cell:status="{ value }"><Badge :status="value" /></template>
                 </DataTable>

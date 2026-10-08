@@ -45,9 +45,24 @@ class PurchaseRequisitionController extends Controller
             defaultSort: '-id',
         );
 
+        // Wanted by a day that has passed, and still not bought: the requisitions a buyer
+        // should open first.
+        $waiting = ['draft', 'submitted', 'approved', 'partially_ordered'];
+
+        if ($request->query('overdue') === '1') {
+            $query->whereDate('required_by', '<', now()->toDateString())->whereIn('status', $waiting);
+        }
+
         return Inertia::render('Procurement/Requisitions/Index', [
             'purchase_requisitions' => $query->paginate($this->perPage($request))->withQueryString(),
-            'filters' => $this->listingFilters($request, ['status', 'origin']),
+            'filters' => $this->listingFilters($request, ['status', 'origin', 'overdue']),
+            'counts' => [
+                ...$this->stageCounts('purchase_requisitions'),
+                'overdue' => DB::table('purchase_requisitions')
+                    ->whereDate('required_by', '<', now()->toDateString())
+                    ->whereIn('status', $waiting)
+                    ->count(),
+            ],
         ]);
     }
 

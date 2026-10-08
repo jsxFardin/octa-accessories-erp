@@ -28,7 +28,11 @@ class SupplierController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = Supplier::query();
+        // What is out with each supplier now, so the list answers "who are we waiting on".
+        $query = Supplier::query()->addSelect(['suppliers.*', 'open_orders' => DB::table('purchase_orders')
+            ->selectRaw('COUNT(*)')
+            ->whereColumn('supplier_id', 'suppliers.id')
+            ->whereIn('status', ['approved', 'sent', 'partially_received'])]);
 
         $this->applyListing(
             $query,
@@ -42,6 +46,11 @@ class SupplierController extends Controller
         return Inertia::render('MasterData/Suppliers/Index', [
             'suppliers' => $query->paginate($this->perPage($request))->withQueryString(),
             'filters' => $this->listingFilters($request, ['active', 'approved', 'country']),
+            'counts' => [
+                'approved' => Supplier::query()->where('is_active', true)->where('is_approved', true)->count(),
+                'not_approved' => Supplier::query()->where('is_active', true)->where('is_approved', false)->count(),
+                'inactive' => Supplier::query()->where('is_active', false)->count(),
+            ],
             // Only the countries suppliers are actually in: a filter offering all 249 of them
             // is a list to scroll, not a way to narrow one.
             'countries' => Supplier::query()

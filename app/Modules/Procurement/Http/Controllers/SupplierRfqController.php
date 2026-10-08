@@ -55,16 +55,29 @@ class SupplierRfqController extends Controller
             defaultSort: '-id',
         );
 
+        // Out with suppliers past the day replies were due.
+        if ($request->query('overdue') === '1') {
+            $query->whereDate('respond_by', '<', now()->toDateString())->where('status', 'issued');
+        }
+
         return Inertia::render('Procurement/Rfqs/Index', [
             'rfqs' => $query->paginate($this->perPage($request))->withQueryString()->through(
                 fn (SupplierRfq $row): array => [
                     ...$row->only(['id', 'number', 'issued_on', 'respond_by', 'status']),
                     'pr_number' => $row->requisition?->number,
+                    'pr_id' => $row->requisition?->id,
                     'lines_count' => $row->lines_count,
                     'quotations_count' => $row->quotations_count,
                 ],
             ),
-            'filters' => $this->listingFilters($request, ['status']),
+            'filters' => $this->listingFilters($request, ['status', 'overdue']),
+            'counts' => [
+                ...$this->stageCounts('supplier_rfqs'),
+                'overdue' => DB::table('supplier_rfqs')
+                    ->whereDate('respond_by', '<', now()->toDateString())
+                    ->where('status', 'issued')
+                    ->count(),
+            ],
         ]);
     }
 

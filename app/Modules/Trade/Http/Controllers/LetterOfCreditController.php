@@ -54,6 +54,14 @@ class LetterOfCreditController extends Controller
             defaultSort: '-id',
         );
 
+        // A live credit that has run out, or will within a fortnight: an amendment costs a fee
+        // and a week, so these are the ones to look at before anything ships.
+        $live = ['applied', 'opened', 'shipped'];
+
+        if ($request->query('expiring') === '1') {
+            $query->whereDate('expiry_date', '<=', now()->addDays(14)->toDateString())->whereIn('status', $live);
+        }
+
         return Inertia::render('Trade/LettersOfCredit/Index', [
             'letters' => $query->paginate($this->perPage($request))->withQueryString()->through(
                 fn (LetterOfCredit $lc): array => [
@@ -67,7 +75,14 @@ class LetterOfCreditController extends Controller
                     'currency' => $lc->currency?->code,
                 ],
             ),
-            'filters' => $this->listingFilters($request, ['status', 'supplier', 'kind']),
+            'filters' => $this->listingFilters($request, ['status', 'supplier', 'kind', 'expiring']),
+            'counts' => [
+                ...$this->stageCounts('letters_of_credit'),
+                'expiring' => DB::table('letters_of_credit')
+                    ->whereDate('expiry_date', '<=', now()->addDays(14)->toDateString())
+                    ->whereIn('status', $live)
+                    ->count(),
+            ],
             'suppliers' => DB::table('suppliers')->orderBy('name')->get(['id', 'code', 'name']),
             'kinds' => LetterOfCredit::KINDS,
             'statuses' => LetterOfCredit::STATUSES,

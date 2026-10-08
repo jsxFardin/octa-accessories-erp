@@ -1,5 +1,7 @@
 <script setup>
-import { Head, router } from '@inertiajs/vue3';
+import StageStrip from '@/Components/Ui/StageStrip.vue';
+import { deadline, useStageFilter } from '@/composables/useStageFilter';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -15,6 +17,8 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 const KIND_LABELS = { sight: 'LC at sight', usance: 'LC usance', back_to_back: 'Back-to-back LC', tt: 'Bank transfer (TT)', da: 'Documents against acceptance (DA)', dp: 'Documents against payment (DP)' };
 
 const props = defineProps({
+    /** Every credit by status, plus `expiring`, whatever the filters say. */
+    counts: { type: Object, default: () => ({}) },
     letters: Object,
     filters: Object,
     suppliers: { type: Array, default: () => [] },
@@ -22,37 +26,21 @@ const props = defineProps({
     statuses: { type: Array, default: () => [] },
 });
 
-/**
- * Days to expiry, as a number the eye reads rather than two dates it has to subtract.
- *
- * An expired credit is not a warning, it is money already spent: the bank will not pay, and
- * an amendment after the fact costs a fee and a week.
- */
-function daysLeft(value) {
-    if (!value) return null;
+const { stages, select } = useStageFilter('/letters-of-credit', () => props.filters, () => props.counts, {
+    statuses: props.statuses,
+    alert: { key: 'expiring', label: 'Expiring or expired' },
+});
 
-    return Math.round((new Date(value) - new Date()) / 86400000);
-}
-
-function expiryTone(row) {
-    const days = daysLeft(row.expiry_date);
-
-    if (days === null || ['closed', 'cancelled', 'retired'].includes(row.status)) return 'neutral';
-    if (days < 0) return 'danger';
-    if (days <= 14) return 'warning';
-
-    return 'neutral';
-}
+/** Live credits: the stages where the two dates are deadlines. */
+const LIVE = ['applied', 'opened', 'shipped'];
 
 const columns = [
-    { key: 'number', label: 'Ours', sort: true },
-    { key: 'lc_no', label: 'Bank LC no' },
-    { key: 'supplier', label: 'Supplier' },
-    { key: 'kind', label: 'Kind' },
-    { key: 'amount', label: 'Amount', align: 'right', sort: true },
-    { key: 'last_shipment_date', label: 'Last shipment' },
-    { key: 'expiry_date', label: 'Expiry', sort: true },
+    { key: 'number', label: 'Number', sort: true },
     { key: 'status', label: 'Status' },
+    { key: 'expiry_date', label: 'Expires', sort: true },
+    { key: 'last_shipment_date', label: 'Ship by' },
+    { key: 'supplier', label: 'Supplier' },
+    { key: 'amount', label: 'Amount', align: 'right', sort: true },
 ];
 </script>
 
@@ -68,6 +56,8 @@ const columns = [
             <Button v-if="can('letter_of_credit.create')" variant="primary" href="/letters-of-credit/create">New credit</Button>
         </template>
 
+        <StageStrip :stages="stages" label="Letters of credit by stage" @select="select" />
+
         <Card :padded="false">
             <FilterBar
                 :filters="filters"
@@ -75,6 +65,7 @@ const columns = [
                     { key: 'status', label: 'Status', options: statuses.map((s) => ({ value: s, label: titleCase(s) })) },
                     { key: 'kind', label: 'Kind', options: kinds.map((k) => ({ value: k, label: KIND_LABELS[k] ?? titleCase(k) })) },
                     { key: 'supplier', label: 'Supplier', options: suppliers.map((s) => ({ value: String(s.id), label: s.name })) },
+                    { key: 'expiring', label: 'Deadline', options: [{ value: '1', label: 'Expired or within 14 days' }] },
                 ]"
                 placeholder="Search our number or the bank's…"
             />
@@ -86,25 +77,19 @@ const columns = [
                 :row-href="(row) => `/letters-of-credit/${row.id}`"
                 empty="No credits match these filters."
             >
-                <template #cell:number="{ value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
-                <template #cell:lc_no="{ value }">
-                    <span v-if="value" class="font-mono text-xs">{{ value }}</span>
-                    <span v-else class="text-ink-400">not yet opened</span>
+                <!-- Ours, with the bank's under it: one credit, two numbers, and the bank's is the one on the paperwork. -->
+                <template #cell:number="{ row, value }">
+                    <Link :href="`/letters-of-credit/${row.id}`" class="doc-link-quiet">{{ value ?? '(unnumbered)' }}</Link>
+                    <span class="block text-xs" :class="row.lc_no ? 'text-ink-600' : 'text-ink-500'">{{ row.lc_no ? `Bank no. ${row.lc_no}` : 'Not yet opened at the bank' }}</span>
                 </template>
-                <template #cell:kind="{ value }">{{ KIND_LABELS[value] ?? titleCase(value) }}</template>
-                <template #cell:amount="{ row, value }">{{ money(value, row.currency) }}</template>
-                <template #cell:last_shipment_date="{ value }">{{ value ? date(value) : '—' }}</template>
-                <template #cell:expiry_date="{ row, value }">
-                    <span v-if="!value" class="text-ink-400">—</span>
-                    <span v-else class="flex items-center gap-1.5">
-                        {{ date(value) }}
-                        <Badge
-                            v-if="expiryTone(row) !== 'neutral'"
-                            :tone="expiryTone(row)"
-                            :label="daysLeft(value) < 0 ? 'expired' : `${daysLeft(value)}d`"
-                        />
-                    </span>
+                <!-- How it is paid sits under who is paid: a column of its own pushed the amount off the screen. -->
+                <template #cell:supplier="{ row, value }">
+                    {{ value ?? '—' }}
+                    <span class="block text-xs text-ink-500">{{ KIND_LABELS[row.kind] ?? titleCase(row.kind) }}</span>
                 </template>
+                <template #cell:amount="{ row, value }"><span class="tnum">{{ money(value, row.currency) }}</span></template>
+                <template #cell:last_shipment_date="{ row, value }"><span :class="deadline(value, LIVE.includes(row.status) && row.status !== 'shipped', { soon: 14, late: 'past' }).tone">{{ deadline(value, LIVE.includes(row.status) && row.status !== 'shipped', { soon: 14, late: 'past' }).text }}</span></template>
+                <template #cell:expiry_date="{ row, value }"><span :class="deadline(value, LIVE.includes(row.status), { soon: 14, late: 'expired' }).tone">{{ deadline(value, LIVE.includes(row.status), { soon: 14, late: 'expired' }).text }}</span></template>
                 <template #cell:status="{ value }"><Badge :status="value" /></template>
 
                 <template #empty>

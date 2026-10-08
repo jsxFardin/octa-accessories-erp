@@ -75,6 +75,22 @@ trait ListsResources
         return $request->only([...$keys, 'q', 'sort']);
     }
 
+    /**
+     * Every record by stage, whatever the filters say: the shape of the book, for the strip of
+     * counts above a list. A list of forty rows says nothing about how many are waiting.
+     *
+     * @return array<string, int>
+     */
+    protected function stageCounts(string $table, string $column = 'status'): array
+    {
+        return \Illuminate\Support\Facades\DB::table($table)
+            ->selectRaw("{$column} as stage, COUNT(*) as n")
+            ->groupBy($column)
+            ->pluck('n', 'stage')
+            ->map(fn ($n): int => (int) $n)
+            ->all();
+    }
+
     protected function perPage(Request $request, int $default = 25): int
     {
         return min(200, max(10, (int) $request->query('per_page', (string) $default)));

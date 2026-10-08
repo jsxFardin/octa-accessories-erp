@@ -40,7 +40,9 @@ class GrnController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = Grn::query()->with(['supplier:id,code,name']);
+        // The order a receipt answers, by number: what a store keeper is asked about first.
+        $query = Grn::query()->with(['supplier:id,code,name'])
+            ->addSelect(['po_number' => DB::table('purchase_orders')->select('number')->whereColumn('id', 'grns.po_id')]);
 
         $this->applyListing(
             $query,
@@ -57,9 +59,13 @@ class GrnController extends Controller
                     ...$grn->only(['id', 'number', 'invoice_no', 'challan_no', 'received_on', 'status',
                         'freight_amount', 'duty_amount', 'clearing_amount']),
                     'supplier' => $grn->supplier?->name,
+                    'po_id' => $grn->po_id,
+                    'po_number' => $grn->po_number,
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'supplier']),
+            'counts' => $this->stageCounts('grns'),
+            'suppliers' => DB::table('suppliers')->whereNull('deleted_at')->orderBy('name')->get(['id', 'code', 'name']),
         ]);
     }
 

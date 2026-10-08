@@ -197,7 +197,7 @@ const TILE_LINK = `${TILE} transition hover:border-brand-300 focus-visible:ring-
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="supplier.code">
         <Head :title="supplier.code" />
 
         <template #title>{{ supplier.code }} · {{ supplier.name }}</template>

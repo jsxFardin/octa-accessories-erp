@@ -5,6 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import CodeName from '@/Components/Ui/CodeName.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
 import DocumentActions from '@/Components/Ui/DocumentActions.vue';
@@ -12,7 +13,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import SelectWinner from '@/Components/Procurement/SelectWinner.vue';
-import { baseCurrency, date, money, qty, todayIso } from '@/plugins/formatting';
+import { baseCurrency, date, money, qty, qtyRound, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
@@ -74,7 +75,7 @@ const needsThree = computed(() => {
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="rfq.number ?? 'Draft RFQ'">
         <Head :title="rfq.number ?? 'RFQ'" />
 
         <template #title>{{ rfq.number ?? '(draft RFQ)' }}</template>
@@ -111,10 +112,9 @@ const needsThree = computed(() => {
                     dense
                 >
                     <template #cell:item_code="{ row }">
-                        <span class="font-medium">{{ row.item_code }}</span>
-                        <span class="text-ink-500"> {{ row.item_name }}</span>
+                        <CodeName :code="row.item_code" :name="row.item_name" />
                     </template>
-                    <template #cell:qty="{ row }">{{ qty(row.qty) }} {{ row.uom }}</template>
+                    <template #cell:qty="{ row }">{{ qtyRound(row.qty) }} {{ row.uom }}</template>
                 </DataTable>
             </Card>
 
@@ -186,7 +186,7 @@ const needsThree = computed(() => {
                 </div>
                 <div class="mt-4 space-y-2">
                     <div v-for="(line, index) in quoteForm.lines" :key="line.item_id" class="grid grid-cols-3 gap-2 text-sm">
-                        <p class="col-span-1 self-center">{{ lines[index]?.item_code }} · {{ qty(line.qty) }}</p>
+                        <p class="col-span-1 self-center">{{ lines[index]?.item_code }} · {{ qtyRound(line.qty) }}</p>
                         <FormField :error="quoteForm.errors[`lines.${index}.rate`]" label="Rate">
                             <TextInput v-model="line.rate" type="number" min="0" step="any" />
                         </FormField>

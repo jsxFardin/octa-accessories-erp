@@ -188,7 +188,7 @@ const bomColumns = [
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="product.code">
         <Head :title="product.code" />
 
         <template #title>{{ product.code }} · {{ product.name }}</template>

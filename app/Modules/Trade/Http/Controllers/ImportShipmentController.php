@@ -53,6 +53,11 @@ class ImportShipmentController extends Controller
             defaultSort: '-id',
         );
 
+        // Still on the way after the day it was due in.
+        if ($request->query('overdue') === '1') {
+            $query->whereDate('eta', '<', now()->toDateString())->where('status', 'in_transit');
+        }
+
         return Inertia::render('Trade/Shipments/Index', [
             'shipments' => $query->paginate($this->perPage($request))->withQueryString()->through(
                 fn (ImportShipment $shipment): array => [
@@ -66,7 +71,14 @@ class ImportShipmentController extends Controller
                     'currency' => $shipment->currency?->code,
                 ],
             ),
-            'filters' => $this->listingFilters($request, ['status', 'supplier', 'mode']),
+            'filters' => $this->listingFilters($request, ['status', 'supplier', 'mode', 'overdue']),
+            'counts' => [
+                ...$this->stageCounts('import_shipments'),
+                'overdue' => DB::table('import_shipments')
+                    ->whereDate('eta', '<', now()->toDateString())
+                    ->where('status', 'in_transit')
+                    ->count(),
+            ],
             'suppliers' => DB::table('suppliers')->orderBy('name')->get(['id', 'code', 'name']),
             'modes' => ImportShipment::MODES,
             'statuses' => ImportShipment::STATUSES,

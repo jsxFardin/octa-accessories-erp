@@ -137,7 +137,7 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="letter.number">
         <Head :title="letter.number ?? 'Letter of credit'" />
 
         <template #title>{{ letter.number }}</template>

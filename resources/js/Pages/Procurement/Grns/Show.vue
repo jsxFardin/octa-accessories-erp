@@ -4,8 +4,9 @@ import { Head, router } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
+import CodeName from '@/Components/Ui/CodeName.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
-import { baseCurrency, date, money, qty } from '@/plugins/formatting';
+import { baseCurrency, date, money, qty, qtyRound } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useGuardedAction } from '@/composables/useGuardedAction';
@@ -54,7 +55,7 @@ const orderCurrency = computed(() => props.purchaseOrder?.currency ?? baseCurren
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="grn.number ?? 'Draft receipt'">
         <Head :title="grn.number" />
 
         <template #title>{{ grn.number }}</template>
@@ -121,7 +122,7 @@ const orderCurrency = computed(() => props.purchaseOrder?.currency ?? baseCurren
                 </dl>
             </Card>
 
-            <Card title="Lines" rule="I5 · Gate 2" subtitle="cert_scheme and cert_claim_pct here are the only legitimate origin of a certified claim" :padded="false">
+            <Card title="Lines" rule="I5 · Gate 2" subtitle="A certification claim on a lot can only come from the scheme and percentage recorded here" :padded="false">
                 <DataTable
                     :columns="[
                         { key: 'line_no', label: '#', align: 'center' },
@@ -138,10 +139,9 @@ const orderCurrency = computed(() => props.purchaseOrder?.currency ?? baseCurren
                     dense
                 >
                     <template #cell:item_code="{ row }">
-                        <span class="font-medium">{{ row.item_code }}</span>
-                        <span class="text-ink-500"> {{ row.item_name }}</span>
+                        <CodeName :code="row.item_code" :name="row.item_name" />
                     </template>
-                    <template #cell:received_qty="{ row }">{{ qty(row.received_qty) }} {{ row.uom }}</template>
+                    <template #cell:received_qty="{ row }">{{ qtyRound(row.received_qty) }} {{ row.uom }}</template>
                     <template #cell:rate="{ value }">{{ money(value, orderCurrency) }}</template>
                     <template #cell:landed_rate="{ value }">{{ money(value, orderCurrency) }}</template>
                     <template #cell:cert="{ row }">
@@ -168,7 +168,7 @@ const orderCurrency = computed(() => props.purchaseOrder?.currency ?? baseCurren
                     dense
                 >
                     <template #cell:lot_no="{ value }"><span class="font-mono text-xs">{{ value }}</span></template>
-                    <template #cell:balance_qty="{ value }">{{ qty(value) }}</template>
+                    <template #cell:balance_qty="{ value }">{{ qtyRound(value) }}</template>
                     <template #cell:unit_cost="{ value }">{{ money(value) }}</template>
                     <template #cell:status="{ value }"><Badge :status="value" /></template>
                 </DataTable>

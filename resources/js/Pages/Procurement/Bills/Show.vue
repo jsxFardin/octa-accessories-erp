@@ -53,7 +53,7 @@ const lineColumns = [
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout :crumb="bill.number ?? 'Draft bill'">
         <Head :title="bill.number ?? 'Supplier bill'" />
 
         <template #title>{{ bill.number ?? '(draft bill)' }}</template>
