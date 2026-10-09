@@ -62,6 +62,11 @@ it('reads a sheet as a document: summaries that foot, lines with their share of 
                 ->and(round($prof['material'] + $prof['other'], 2))->toBe(round($prof['total_cost'], 2))
                 ->and($prof['margin_pct'])->not->toBeNull()
                 ->and(round(array_sum(array_column($props['summary']['materials'], 'amount')), 2))->toBe(round($prof['material'], 2))
+                // Where the cost goes adds up to the total cost, and the sheet opens with its verdict.
+                ->and(round(array_sum(array_column($props['summary']['breakdown'], 'amount')), 2))->toBe(round($prof['total_cost'], 2))
+                ->and(array_column($props['summary']['breakdown'], 'key'))->toContain('material', 'overhead')
+                ->and($props['summary']['verdict']['headline'])->toStartWith('Makes ')
+                ->and($props['summary']['verdict']['detail'])->toContain('margin')
                 ->and($props['lines'])->not->toBeEmpty();
 
             $material = collect($props['lines'])->firstWhere('is_material', true);

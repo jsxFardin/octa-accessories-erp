@@ -40,17 +40,20 @@
         </div>
     </div>
 
+    @php $verdict = $summary['verdict']; @endphp
+    <p style="margin:0 0 4mm;font-size:11pt"><strong>{{ $verdict['headline'] }}</strong>@if ($verdict['detail']) {{ $verdict['detail'] }}@endif</p>
+
     <table class="lines" style="margin-bottom:6mm">
         <thead>
             <tr>
                 <th colspan="3">Materials</th>
-                <th colspan="3">Other costs</th>
+                <th colspan="3">Where the cost goes</th>
                 <th colspan="2">Profitability</th>
             </tr>
         </thead>
         <tbody>
             @php
-                $rows = max(count($summary['materials']), count($summary['others']), 7);
+                $rows = max(count($summary['materials']), count($summary['breakdown']), 7);
                 $profRows = [
                     ['Value at price', $prof['value'] === null ? null : $money($prof['value'])],
                     ['Material', $money($prof['material']).($prof['material_pct'] !== null ? '  ('.number_format($prof['material_pct'], 1).' %)' : '')],
@@ -62,22 +65,22 @@
                 ];
             @endphp
             @for ($i = 0; $i < $rows; $i++)
-                @php $m = $summary['materials'][$i] ?? null; $o = $summary['others'][$i] ?? null; $p = $profRows[$i] ?? null; @endphp
+                @php $m = $summary['materials'][$i] ?? null; $o = $summary['breakdown'][$i] ?? null; $p = $profRows[$i] ?? null; @endphp
                 <tr>
                     <td>{{ $m['label'] ?? '' }}</td>
                     <td class="num">{{ $m ? $money($m['amount']) : '' }}</td>
                     <td class="num">{{ $m ? $pctOrDash($m['pct_of_price']) : '' }}</td>
                     <td>{{ $o['label'] ?? '' }}</td>
                     <td class="num">{{ $o ? $money($o['amount']) : '' }}</td>
-                    <td class="num">{{ $o ? $pctOrDash($o['pct_of_price']) : '' }}</td>
+                    <td class="num">{{ $o ? $pctOrDash($o['pct_of_cost']).' of cost' : '' }}</td>
                     <td>{{ $p[0] ?? '' }}</td>
                     <td class="num">{{ $p[1] ?? '' }}</td>
                 </tr>
             @endfor
             <tr class="grand">
                 <td>Total material</td><td class="num">{{ $money($prof['material']) }}</td><td class="num">{{ $pctOrDash($prof['material_pct']) }}</td>
-                <td>Total other</td><td class="num">{{ $money($prof['other']) }}</td><td class="num">{{ $pctOrDash($prof['other_pct']) }}</td>
-                <td>Breakeven per unit</td><td class="num">{{ $money($prof['breakeven_per_unit']) }}</td>
+                <td>Total cost</td><td class="num">{{ $money($prof['total_cost']) }}</td><td class="num">100 %</td>
+                <td>Margin per unit</td><td class="num">{{ $prof['margin_per_unit'] === null ? '—' : $money($prof['margin_per_unit']) }}</td>
             </tr>
         </tbody>
     </table>

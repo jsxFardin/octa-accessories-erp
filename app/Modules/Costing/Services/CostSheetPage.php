@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Costing\Services;
 
 use App\Modules\Costing\Models\CostSheet;
+use App\Support\Settings\Settings;
 use App\Support\Text\RecordLink;
 use Illuminate\Support\Facades\DB;
 
@@ -23,15 +24,21 @@ class CostSheetPage
         'material_component' => 'Components', 'material_other' => 'Other material',
     ];
 
-    /** Everything that is not material, in the order the specification's table reads. */
-    private const OTHER_TYPES = [
-        'machine' => 'Machine', 'labour' => 'Labour', 'energy' => 'Energy', 'tooling' => 'Tooling',
-        'subcontract' => 'Subcontract', 'outsourcing' => 'Subcontract', 'development' => 'Development & samples',
-        'freight' => 'Freight & logistics', 'finance' => 'Finance & LC', 'commission' => 'Commission',
-        'overhead' => 'Overhead', 'minimum_charge' => 'Minimum charge', 'other' => 'Other',
+    /** Where the cost goes: every line lands in one of these, in the order a clerk reads them. */
+    private const BREAKDOWN = [
+        'material' => ['Material', 'bg-brand-600'],
+        'conversion' => ['Conversion', 'bg-brand-400'],
+        'tooling' => ['Tooling', 'bg-amber-400'],
+        'packing' => ['Packing', 'bg-sky-400'],
+        'other' => ['Other direct costs', 'bg-violet-400'],
+        'overhead' => ['Overhead', 'bg-slate-400'],
     ];
 
-    public function __construct(private readonly CostSheetPresenter $presenter) {}
+    public function __construct(
+        private readonly CostSheetPresenter $presenter,
+        private readonly Settings $settings,
+        private readonly CostStages $stages,
+    ) {}
 
     /** @return array<string, mixed> */
     public function forSheet(CostSheet $sheet): array
@@ -55,12 +62,18 @@ class CostSheetPage
         }, $this->presenter->lines($sheet->lines));
 
         $materials = $this->group($lines, self::MATERIAL_TYPES, $value);
-        $others = $this->group(array_filter($lines, fn (array $l): bool => $l['basis'] !== 'percentage'), self::OTHER_TYPES, $value);
 
         $overhead = (float) $sheet->overhead_amount;
         $materialTotal = (float) $sheet->material_cost;
         $otherTotal = (float) $sheet->total_cost - $materialTotal;
         $unitCost = (float) $sheet->unit_cost * $per;
+        $marginAmount = $value === null ? null : round($value - (float) $sheet->total_cost, 4);
+        $floor = $this->settings->decimal('margin_floor_pct', 12);
+
+        // A job's actuals read against its benchmark, line by line (spec §4).
+        $comparison = $sheet->stage === CostSheet::POST_PRODUCTION && $sheet->jobCard !== null
+            ? $this->stages->forJobCard($sheet->jobCard)
+            : null;
 
         return [
             'sheet' => [
@@ -101,8 +114,9 @@ class CostSheetPage
             'buyer' => $this->buyer($sheet),
             'document' => $this->document($sheet),
             'summary' => [
+                'verdict' => $this->verdict($sheet, $marginAmount, $floor, $comparison),
+                'breakdown' => $this->breakdown($lines, (float) $sheet->total_cost, $value),
                 'materials' => $materials,
-                'others' => $others,
                 'profitability' => [
                     'revenue_per_unit' => $revenue === null ? null : $revenue * $per,
                     'value' => $value,
@@ -112,9 +126,9 @@ class CostSheetPage
                     'total_cost' => (float) $sheet->total_cost,
                     'unit_cost' => $unitCost,
                     'margin_per_unit' => $revenue === null ? null : round($revenue * $per - $unitCost, 6),
-                    'margin_amount' => $value === null ? null : round($value - (float) $sheet->total_cost, 4),
+                    'margin_amount' => $marginAmount,
                     'margin_pct' => $sheet->marginPct(),
-                    'breakeven_per_unit' => $unitCost,
+                    'margin_floor_pct' => $floor,
                     'material_pct' => $value !== null && $value > 0 ? round($materialTotal / $value * 100, 2) : null,
                     'other_pct' => $value !== null && $value > 0 ? round($otherTotal / $value * 100, 2) : null,
                 ],
@@ -122,7 +136,102 @@ class CostSheetPage
             'lines' => array_values($lines),
             'revisions' => $this->revisions($sheet),
             'history' => $this->history($sheet),
+            'comparison' => $comparison,
         ];
+    }
+
+    /**
+     * The sheet's answer in one sentence, before any table: what it makes or loses on the
+     * quantity, whether that clears the floor, and on a post-production sheet what moved it
+     * against the benchmark. The screen and the printed sheet open with it.
+     *
+     * @param  array<string, mixed>|null  $comparison
+     * @return array{tone: string, headline: string, detail: ?string}
+     */
+    private function verdict(CostSheet $sheet, ?float $marginAmount, float $floor, ?array $comparison): array
+    {
+        $cur = $sheet->currency?->code ?? '';
+        $money = fn (float $v): string => trim($cur.' '.number_format(abs($v), abs($v) >= 100 ? 0 : 2));
+        $qty = number_format((float) $sheet->basis_qty).' pcs';
+        $past = $sheet->stage === CostSheet::POST_PRODUCTION;
+        $margin = $sheet->marginPct();
+
+        if ($marginAmount === null || $margin === null) {
+            return ['tone' => 'none', 'headline' => 'No price on this sheet yet.', 'detail' => 'Cost '.$money((float) $sheet->total_cost).' for '.$qty.'.'];
+        }
+
+        $verb = $marginAmount >= 0 ? ($past ? 'Made' : 'Makes') : ($past ? 'Lost' : 'Loses');
+        $headline = sprintf('%s %s on %s.', $verb, $money($marginAmount), $qty);
+        $floorText = rtrim(rtrim(number_format($floor, 2, '.', ''), '0'), '.').'% floor';
+        $detail = $margin < $floor
+            ? sprintf('%s margin, below the %s.', number_format($margin, 1).'%', $floorText)
+            : sprintf('%s margin, above the %s.', number_format($margin, 1).'%', $floorText);
+
+        if ($comparison !== null && $comparison['pre'] !== null) {
+            $total = collect($comparison['variance'])->firstWhere('key', 'total_cost')['total'] ?? null;
+
+            if ($total !== null && abs($total) >= 0.005) {
+                $drivers = collect($comparison['variance'])
+                    ->filter(fn (array $row): bool => $row['key'] !== 'total_cost' && $row['total'] !== null && ($total > 0 ? $row['total'] > 0 : $row['total'] < 0))
+                    ->sortByDesc(fn (array $row): float => abs((float) $row['total']))
+                    ->take(2)
+                    ->map(fn (array $row): string => sprintf('%s (%s%s)', $row['label'], $row['total'] > 0 ? '+' : '−', $money((float) $row['total'])))
+                    ->all();
+                $detail .= sprintf(' %s %s the benchmark%s.', $money((float) $total), $total > 0 ? 'over' : 'under', $drivers === [] ? '' : ', mostly '.implode(' and ', $drivers));
+            }
+        }
+
+        return ['tone' => $marginAmount < 0 ? 'bad' : ($margin < $floor ? 'warn' : 'good'), 'headline' => $headline, 'detail' => $detail];
+    }
+
+    /**
+     * Where the cost goes: six buckets that add up to the total cost, each with its share of
+     * the cost. The margin line is not a cost and is left out; whatever the lines do not
+     * account for (a minimum charge, rounding) lands in "Other direct costs" so it still foots.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @return list<array{key: string, label: string, colour: string, amount: float, pct_of_cost: ?float, pct_of_price: ?float}>
+     */
+    private function breakdown(array $lines, float $total, ?float $value): array
+    {
+        $bucket = fn (string $type): ?string => match (true) {
+            isset(self::MATERIAL_TYPES[$type]) => 'material',
+            in_array($type, ['machine', 'labour', 'energy'], true) => 'conversion',
+            $type === 'tooling' => 'tooling',
+            $type === 'packing' => 'packing',
+            $type === 'overhead' || $type === 'admin_overhead' => 'overhead',
+            $type === 'margin' => null,
+            default => 'other',
+        };
+        $sums = array_fill_keys(array_keys(self::BREAKDOWN), 0.0);
+
+        foreach ($lines as $line) {
+            $key = $bucket((string) $line['cost_type']);
+
+            if ($key !== null) {
+                $sums[$key] += (float) $line['amount'];
+            }
+        }
+
+        $sums['other'] += $total - array_sum($sums);
+        $rows = [];
+
+        foreach (self::BREAKDOWN as $key => [$label, $colour]) {
+            if (abs($sums[$key]) < 0.005) {
+                continue;
+            }
+
+            $rows[] = [
+                'key' => $key,
+                'label' => $label,
+                'colour' => $colour,
+                'amount' => round($sums[$key], 4),
+                'pct_of_cost' => $total > 0 ? round($sums[$key] / $total * 100, 1) : null,
+                'pct_of_price' => $value !== null && $value > 0 ? round($sums[$key] / $value * 100, 1) : null,
+            ];
+        }
+
+        return $rows;
     }
 
     /**

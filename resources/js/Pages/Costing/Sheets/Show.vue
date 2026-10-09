@@ -33,6 +33,13 @@ const cur = computed(() => props.sheet.currency ?? undefined);
 const name = computed(() => props.sheet.number ?? `cost sheet #${props.sheet.id}`);
 const prof = computed(() => props.summary.profitability);
 const belowFloor = computed(() => prof.value.margin_pct !== null && prof.value.margin_pct < props.marginFloorPct);
+const verdict = computed(() => props.summary.verdict);
+const verdictTone = {
+    good: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+    warn: 'border-amber-200 bg-amber-50 text-amber-900',
+    bad: 'border-rose-200 bg-rose-50 text-rose-900',
+    none: 'border-slate-200 bg-slate-50 text-ink-800',
+};
 
 const stageLabel = { marketing: 'Marketing', pre_production: 'Pre-production', post_production: 'Post-production' };
 const stageHint = {
@@ -122,7 +129,7 @@ const revisionColumns = [
 
         <template #title>{{ sheet.number ?? 'Cost sheet' }} <span v-if="sheet.revision_no" class="text-base font-normal text-ink-500">rev {{ sheet.revision_no }}</span></template>
         <template #subtitle>
-            {{ stageLabel[sheet.stage] }} · {{ product?.code }} {{ product?.name }}<template v-if="buyer"> · {{ buyer.name }}</template>
+            {{ stageLabel[sheet.stage] }} · {{ product?.code }} {{ product?.name }}<template v-if="buyer"> · {{ buyer.name }}</template> · {{ pcs(sheet.basis_qty) }} pcs<template v-if="document"> · <Link :href="document.href" class="doc-link-quiet">{{ document.label }}</Link></template>
         </template>
 
         <template #actions>
@@ -136,63 +143,77 @@ const revisionColumns = [
             <Button v-if="transitions.includes('draft') && sheet.status !== 'draft'" size="sm" variant="ghost" @click="move('draft')">{{ sheet.status === 'approved' ? 'Reopen' : 'Withdraw' }}</Button>
         </template>
 
-        <p v-if="belowFloor" class="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-            This sheet leaves {{ pct(prof.margin_pct, 1) }} margin, below the {{ marginFloorPct }}% floor. Approving it needs someone who may accept a margin under the floor.
-        </p>
-
         <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
             <div class="min-w-0 space-y-4">
-                <!-- The profitability strip first: the figures the sheet exists to produce. -->
+                <!-- The answer first, in words: what the sheet makes or loses, and why. -->
+                <section class="rounded-lg border px-4 py-3" :class="verdictTone[verdict.tone]" data-testid="verdict">
+                    <p class="text-base font-semibold">{{ verdict.headline }}</p>
+                    <p v-if="verdict.detail" class="mt-0.5 text-sm">{{ verdict.detail }}</p>
+                    <p v-if="belowFloor && transitions.includes('approved') && !can('cost_sheet.override_margin')" class="mt-1 text-xs opacity-80">Approving a sheet under the floor needs someone who may accept that margin.</p>
+                </section>
+
                 <Card title="Profitability" rule="CS-2" :padded="false">
-                    <dl class="grid grid-cols-2 divide-y divide-slate-100 text-sm sm:grid-cols-4 sm:divide-y-0 sm:divide-x lg:grid-cols-7">
-                        <div class="px-3 py-2"><dt class="text-xs text-ink-500">Value at price</dt><dd class="tnum font-medium text-ink-900">{{ prof.value === null ? '—' : money(prof.value, cur) }}</dd></div>
-                        <div class="px-3 py-2"><dt class="text-xs text-ink-500">Total cost</dt><dd class="tnum font-medium text-ink-900">{{ money(prof.total_cost, cur) }}</dd></div>
-                        <div class="px-3 py-2"><dt class="text-xs text-ink-500">Cost per unit</dt><dd class="tnum font-medium text-ink-900">{{ money(prof.unit_cost, cur) }}</dd></div>
-                        <div class="px-3 py-2"><dt class="text-xs text-ink-500">Price per unit</dt><dd class="tnum font-medium text-ink-900">{{ prof.revenue_per_unit === null ? '—' : money(prof.revenue_per_unit, cur) }}</dd></div>
-                        <div class="px-3 py-2"><dt class="text-xs text-ink-500">Margin per unit</dt><dd class="tnum font-medium" :class="belowFloor ? 'text-rose-700' : 'text-ink-900'">{{ prof.margin_per_unit === null ? '—' : money(prof.margin_per_unit, cur) }}</dd></div>
+                    <dl class="grid grid-cols-3 divide-x divide-slate-100 text-sm lg:grid-cols-6">
                         <div class="px-3 py-2"><dt class="text-xs text-ink-500">Margin</dt><dd class="tnum text-lg font-semibold" :class="belowFloor ? 'text-rose-700' : 'text-ink-900'">{{ prof.margin_pct === null ? '—' : pct(prof.margin_pct, 1) }}</dd></div>
-                        <div class="px-3 py-2"><dt class="text-xs text-ink-500">Breakeven per unit</dt><dd class="tnum font-medium text-ink-900">{{ money(prof.breakeven_per_unit, cur) }}</dd></div>
+                        <div class="px-3 py-2"><dt class="text-xs text-ink-500">{{ prof.margin_amount === null || prof.margin_amount >= 0 ? 'Margin on the order' : 'Loss on the order' }}</dt><dd class="tnum font-medium" :class="belowFloor ? 'text-rose-700' : 'text-ink-900'">{{ prof.margin_amount === null ? '—' : money(Math.abs(prof.margin_amount), cur) }}</dd></div>
+                        <div class="px-3 py-2"><dt class="text-xs text-ink-500">Cost per unit</dt><dd class="tnum font-medium text-ink-900">{{ money(prof.unit_cost, cur) }}</dd></div>
+                        <div class="px-3 py-2 max-lg:border-t max-lg:border-slate-100"><dt class="text-xs text-ink-500">Price per unit</dt><dd class="tnum font-medium text-ink-900">{{ prof.revenue_per_unit === null ? '—' : money(prof.revenue_per_unit, cur) }}</dd></div>
+                        <div class="px-3 py-2 max-lg:border-t max-lg:border-slate-100"><dt class="text-xs text-ink-500">Total cost</dt><dd class="tnum font-medium text-ink-900">{{ money(prof.total_cost, cur) }}</dd></div>
+                        <div class="px-3 py-2 max-lg:border-t max-lg:border-slate-100"><dt class="text-xs text-ink-500">Value at price</dt><dd class="tnum font-medium text-ink-900">{{ prof.value === null ? '—' : money(prof.value, cur) }}</dd></div>
                     </dl>
                 </Card>
 
-                <!-- The two summaries the printed sheet carries, side by side. -->
-                <div class="grid gap-4 md:grid-cols-2">
-                    <Card title="Materials" :padded="false">
+                <!-- On a post-production sheet the clerk's own words are the first thing to write, not the last. -->
+                <Card v-if="sheet.stage === 'post_production'" title="Why it differed" subtitle="In the clerk's words: price, usage, yield, efficiency, overhead, subcontract, exchange.">
+                    <form v-if="can('cost_sheet.explain')" class="flex flex-col gap-2 sm:flex-row sm:items-end" @submit.prevent="explain">
+                        <FormField class="min-w-0 flex-1" label="Reason" :error="explainForm.errors.variance_reason" hint="For example: yarn price up 3%; 1.5 kg extra at setup.">
+                            <TextInput v-model="explainForm.variance_reason" maxlength="255" />
+                        </FormField>
+                        <Button type="submit" size="sm" variant="primary" :loading="explainForm.processing">Save reason</Button>
+                    </form>
+                    <p v-else class="text-sm" :class="sheet.variance_reason ? 'text-ink-800' : 'text-ink-500'">{{ sheet.variance_reason ?? 'Not yet explained.' }}</p>
+                </Card>
+
+                <!-- Where the cost goes: six buckets that add up to the total, as a bar and as rows. -->
+                <Card title="Where the cost goes" :padded="false">
+                    <div class="px-3 pt-3">
+                        <div class="flex h-3 w-full overflow-hidden rounded-sm bg-slate-100" role="img" :aria-label="summary.breakdown.map((r) => `${r.label} ${pct(r.pct_of_cost, 1)}`).join(', ')">
+                            <div v-for="row in summary.breakdown" :key="row.key" :class="row.colour" :style="{ width: `${Math.max(0, row.pct_of_cost ?? 0)}%` }" :title="`${row.label} · ${pct(row.pct_of_cost, 1)}`"></div>
+                        </div>
+                    </div>
+                    <table class="mt-2 min-w-full text-sm">
+                        <thead class="text-xs text-ink-500">
+                            <tr><th class="px-3 py-1 text-left font-medium">Cost</th><th class="px-3 py-1 text-right font-medium">Amount</th><th class="px-3 py-1 text-right font-medium">Of cost</th><th class="px-3 py-1 text-right font-medium">Of price</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="row in summary.breakdown" :key="row.key" class="border-t border-slate-100">
+                                <td class="px-3 py-1.5"><span class="mr-2 inline-block size-2.5 rounded-sm align-middle" :class="row.colour"></span>{{ row.label }}</td>
+                                <td class="px-3 py-1.5 text-right tnum">{{ money(row.amount, cur) }}</td>
+                                <td class="px-3 py-1.5 text-right tnum">{{ row.pct_of_cost === null ? '—' : pct(row.pct_of_cost, 1) }}</td>
+                                <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ row.pct_of_price === null ? '—' : pct(row.pct_of_price, 1) }}</td>
+                            </tr>
+                            <tr class="border-t border-slate-200 bg-slate-50/60 font-semibold">
+                                <td class="px-3 py-1.5">Total cost</td>
+                                <td class="px-3 py-1.5 text-right tnum">{{ money(prof.total_cost, cur) }}</td>
+                                <td class="px-3 py-1.5 text-right tnum">100%</td>
+                                <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ prof.value ? pct(prof.total_cost / prof.value * 100, 1) : '—' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-if="summary.materials.length > 1" class="border-t border-slate-100">
+                        <p class="px-3 pt-2 text-xs font-semibold text-ink-700">Material by type</p>
                         <table class="min-w-full text-sm">
                             <tbody>
-                                <tr v-for="row in summary.materials" :key="row.key" class="border-b border-slate-100">
-                                    <td class="px-3 py-1.5">{{ row.label }}</td>
-                                    <td class="px-3 py-1.5 text-right tnum">{{ money(row.amount, cur) }}</td>
-                                    <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ row.pct_of_price === null ? '—' : pct(row.pct_of_price, 1) }}</td>
-                                </tr>
-                                <tr v-if="!summary.materials.length"><td class="px-3 py-3 text-ink-500" colspan="3">No material on this sheet.</td></tr>
-                                <tr class="bg-slate-50/60 font-semibold">
-                                    <td class="px-3 py-1.5">Total</td>
-                                    <td class="px-3 py-1.5 text-right tnum">{{ money(prof.material, cur) }}</td>
-                                    <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ prof.material_pct === null ? '—' : pct(prof.material_pct, 1) }}</td>
+                                <tr v-for="row in summary.materials" :key="row.key">
+                                    <td class="px-3 py-1">{{ row.label }}</td>
+                                    <td class="px-3 py-1 text-right tnum">{{ money(row.amount, cur) }}</td>
+                                    <td class="px-3 py-1 text-right tnum text-ink-500">{{ prof.material ? pct(row.amount / prof.material * 100, 1) : '—' }}</td>
+                                    <td class="px-3 py-1 text-right tnum text-ink-500">{{ row.pct_of_price === null ? '—' : pct(row.pct_of_price, 1) }}</td>
                                 </tr>
                             </tbody>
                         </table>
-                    </Card>
-
-                    <Card title="Other costs" :padded="false">
-                        <table class="min-w-full text-sm">
-                            <tbody>
-                                <tr v-for="row in summary.others" :key="row.key" class="border-b border-slate-100">
-                                    <td class="px-3 py-1.5">{{ row.label }}</td>
-                                    <td class="px-3 py-1.5 text-right tnum">{{ money(row.amount, cur) }}</td>
-                                    <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ row.pct_of_price === null ? '—' : pct(row.pct_of_price, 1) }}</td>
-                                </tr>
-                                <tr class="bg-slate-50/60 font-semibold">
-                                    <td class="px-3 py-1.5">Total</td>
-                                    <td class="px-3 py-1.5 text-right tnum">{{ money(prof.other, cur) }}</td>
-                                    <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ prof.other_pct === null ? '—' : pct(prof.other_pct, 1) }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </Card>
-
-                </div>
+                    </div>
+                </Card>
 
                 <Card title="Line detail" :subtitle="stageHint[sheet.stage]" :padded="false">
                     <div v-for="group in groups" :key="group.key">
@@ -234,7 +255,7 @@ const revisionColumns = [
                 </Card>
             </div>
 
-            <aside class="order-first space-y-4 xl:order-none xl:sticky xl:top-20">
+            <aside class="space-y-4 xl:sticky xl:top-20">
                 <Card title="Sheet">
                     <dl class="space-y-2 text-sm">
                         <div class="flex justify-between gap-3"><dt class="text-ink-500">Product</dt><dd class="text-right"><Link v-if="product" :href="`/products/${product.id}`" class="doc-link-quiet">{{ product.code }}</Link></dd></div>
@@ -253,16 +274,6 @@ const revisionColumns = [
                         <div v-if="sheet.submitted_at" class="flex justify-between gap-3"><dt class="text-ink-500">Submitted</dt><dd class="text-right">{{ date(sheet.submitted_at) }}<span class="block text-xs text-ink-500">{{ sheet.submitted_by }}</span></dd></div>
                         <div v-if="sheet.approved_at" class="flex justify-between gap-3"><dt class="text-ink-500">Approved</dt><dd class="text-right">{{ date(sheet.approved_at) }}<span class="block text-xs text-ink-500">{{ sheet.approved_by ?? 'System' }}</span></dd></div>
                     </dl>
-                </Card>
-
-                <Card v-if="sheet.stage === 'post_production'" title="Why it differed" subtitle="In the clerk's words: price, usage, yield, efficiency, overhead, subcontract, exchange.">
-                    <form v-if="can('cost_sheet.explain')" class="space-y-2" @submit.prevent="explain">
-                        <FormField label="Reason" :error="explainForm.errors.variance_reason">
-                            <TextInput v-model="explainForm.variance_reason" maxlength="255" placeholder="Yarn price up 3%; 1.5 kg extra at setup" />
-                        </FormField>
-                        <Button type="submit" size="sm" variant="primary" :loading="explainForm.processing">Save reason</Button>
-                    </form>
-                    <p v-else class="text-sm" :class="sheet.variance_reason ? 'text-ink-800' : 'text-ink-500'">{{ sheet.variance_reason ?? 'Not yet explained.' }}</p>
                 </Card>
 
                 <Card title="Approval history" rule="CS-3" :padded="false">

@@ -7,7 +7,6 @@ namespace App\Modules\Costing\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Costing\Models\CostSheet;
 use App\Modules\Costing\Services\CostSheetPage;
-use App\Modules\Costing\Services\CostStages;
 use App\Modules\Costing\States\CostSheetStateMachine;
 use App\Support\Http\ListsResources;
 use App\Support\Settings\SettingCatalogue;
@@ -29,7 +28,6 @@ class CostingController extends Controller
     public function __construct(
         private readonly Settings $settings,
         private readonly CostSheetPage $pages,
-        private readonly CostStages $stages,
         private readonly CostSheetStateMachine $states,
     ) {}
 
@@ -181,10 +179,6 @@ class CostingController extends Controller
         return Inertia::render('Costing/Sheets/Show', [
             ...$page,
             'marginFloorPct' => $this->settings->decimal('margin_floor_pct', 12),
-            // A job's actuals read against its benchmark, line by line (spec §4).
-            'comparison' => $costSheet->stage === CostSheet::POST_PRODUCTION && $costSheet->jobCard !== null
-                ? $this->stages->forJobCard($costSheet->jobCard)
-                : null,
             'transitions' => $this->states->available($costSheet),
         ]);
     }
