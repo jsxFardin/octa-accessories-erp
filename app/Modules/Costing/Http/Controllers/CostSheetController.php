@@ -44,6 +44,11 @@ class CostSheetController extends Controller
             'packing_rate_per_bundle' => ['nullable', 'numeric', 'min:0'],
             'packing_rate_per_polybag' => ['nullable', 'numeric', 'min:0'],
             'packing_rate_per_carton' => ['nullable', 'numeric', 'min:0'],
+            'extra_costs' => ['nullable', 'array'],
+            'extra_costs.*.key' => ['required', 'string', 'max:40'],
+            'extra_costs.*.label' => ['nullable', 'string', 'max:80'],
+            'extra_costs.*.basis' => ['nullable', 'string', 'in:pct_of_price,per_unit,amount'],
+            'extra_costs.*.value' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         /** @var Product $product */
@@ -75,6 +80,7 @@ class CostSheetController extends Controller
                 'packingRatePerBundle' => $data['packing_rate_per_bundle'] ?? 0,
                 'packingRatePerPolybag' => $data['packing_rate_per_polybag'] ?? 0,
                 'packingRatePerCarton' => $data['packing_rate_per_carton'] ?? 0,
+                'extraCosts' => $data['extra_costs'] ?? [],
             ]);
         } catch (\InvalidArgumentException $e) {
             throw ValidationException::withMessages(['qty' => $e->getMessage()]);

@@ -116,7 +116,18 @@ class CostSheetCalculator
             );
         }
 
-        $totalCost = $subtotal + $minimumCharge;
+        // Spec §4 — the other-cost components. Lump sums and per-unit amounts join the cost
+        // here; percentage-of-price ones are resolved with the price below (ExtraCosts).
+        $extras = ExtraCosts::split($input->extraCosts, (float) $input->orderQtyPcs, $seq);
+        $lines = [...$lines, ...$extras['fixed']];
+        $seq += count($extras['fixed']);
+
+        $costBeforePct = $subtotal + $minimumCharge + $extras['fixedTotal'];
+        $priced = ExtraCosts::priced($extras['pct'], ExtraCosts::price($costBeforePct, $input->marginPct, $extras['pctSum']), $seq);
+        $lines = [...$lines, ...$priced['lines']];
+        $seq += count($priced['lines']);
+
+        $totalCost = $costBeforePct + $priced['total'];
 
         // --- BR-20: margin on price, not on cost ---------------------------------------
         $unitCost = $totalCost / $input->orderQtyPcs;

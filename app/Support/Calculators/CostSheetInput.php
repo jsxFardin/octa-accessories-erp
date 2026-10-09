@@ -40,5 +40,7 @@ final readonly class CostSheetInput
         public float $minOrderValue = 0.0,
         public float $exchangeRate = 1.0,
         public string $currency = 'BDT',
+        /** Other-cost components (spec §4): commission, finance, logistics, inspection… — see ExtraCosts. */
+        public array $extraCosts = [],
     ) {}
 }

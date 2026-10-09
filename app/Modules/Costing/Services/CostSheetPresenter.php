@@ -44,7 +44,7 @@ class CostSheetPresenter
         $rate = (float) ($row['rate'] ?? 0);
         $amount = (float) ($row['amount'] ?? 0);
 
-        $isPercentage = in_array($costType, self::PERCENTAGE_TYPES, true);
+        $isPercentage = in_array($costType, self::PERCENTAGE_TYPES, true) || ($row['basis_uom'] ?? null) === '%';
 
         // A rate that was never written, against an amount that plainly was. Recover it rather
         // than print a zero nobody can reconcile — and say that it was recovered.

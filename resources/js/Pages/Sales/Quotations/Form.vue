@@ -13,6 +13,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import LineItemsTable from '@/Components/Ui/LineItemsTable.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
+import Modal from '@/Components/Ui/Modal.vue';
 import FormFooter from '@/Components/Ui/FormFooter.vue';
 import FormLayout from '@/Components/Ui/FormLayout.vue';
 import { addCalendarDays, baseCurrency, date, decimals, isoDate, money, number, pcs, qty, rate, titleCase, todayIso, typed, unitCost } from '@/plugins/formatting';
@@ -29,6 +30,8 @@ const props = defineProps({
     products: { type: Array, default: () => [] },
     defaultMarginPct: { type: [Number, String], default: 20 },
     marginFloorPct: { type: [Number, String], default: 12 },
+    /** Spec §4 — the other-cost components a line's sheet may carry: commission, finance, logistics… */
+    costComponents: { type: Array, default: () => [] },
 });
 
 const isEdit = computed(() => Boolean(props.quotation));
@@ -46,7 +49,52 @@ function blankLine() {
         rate_per_m: '',
         tooling_charge: 0,
         lead_time_days: '',
+        // Spec §4 — commission, finance, logistics, inspection…: `[{ key, label, basis, value }]`.
+        extra_costs: [],
     };
+}
+
+/*
+ * The other-cost components are edited in a dialog per line: a table of every component with
+ * its basis (% of price, per unit, a lump sum) and value. Only non-zero ones travel with the
+ * line; the rest stay as the empty rows the dialog shows.
+ */
+const otherCostsFor = ref(null);
+const otherCostsDraft = ref([]);
+
+function openOtherCosts(index) {
+    const line = form.lines[index];
+    const current = new Map((line.extra_costs ?? []).map((entry) => [entry.key, entry]));
+
+    otherCostsDraft.value = [
+        ...props.costComponents.map((component) => ({
+            key: component.key,
+            label: component.label,
+            basis: current.get(component.key)?.basis ?? component.basis,
+            value: current.get(component.key)?.value ?? '',
+        })),
+        ...(line.extra_costs ?? []).filter((entry) => !props.costComponents.some((c) => c.key === entry.key)),
+    ];
+    otherCostsFor.value = index;
+}
+
+function saveOtherCosts() {
+    const line = form.lines[otherCostsFor.value];
+
+    line.extra_costs = otherCostsDraft.value
+        .filter((entry) => Number(entry.value) > 0)
+        .map((entry) => ({ key: entry.key, label: entry.label, basis: entry.basis, value: Number(entry.value) }));
+    otherCostsFor.value = null;
+}
+
+const BASIS_LABELS = { pct_of_price: '% of price', per_unit: 'per unit', amount: 'for the order' };
+
+function otherCostsSummary(line) {
+    const entries = line.extra_costs ?? [];
+
+    if (!entries.length) return null;
+
+    return entries.map((entry) => `${entry.label} ${entry.basis === 'pct_of_price' ? `${entry.value}%` : number(entry.value, 2)}`).join(', ');
 }
 
 /**
@@ -191,6 +239,7 @@ async function priceLine(line) {
                 product_spec_id: line.product_spec_id || null,
                 qty: Number(line.qty),
                 margin_pct: Number(line.margin_pct),
+                extra_costs: line.extra_costs ?? [],
                 exchange_rate: Number(form.exchange_rate) || 1,
                 currency: props.currencies.find((c) => c.id === Number(form.currency_id))?.code,
             }),
@@ -219,7 +268,7 @@ async function priceLine(line) {
 const signatures = new WeakMap();
 
 watch(
-    () => form.lines.map((line) => `${line.product_id}|${line.qty}|${line.margin_pct}`),
+    () => form.lines.map((line) => `${line.product_id}|${line.qty}|${line.margin_pct}|${JSON.stringify(line.extra_costs ?? [])}`),
     (now) => {
         form.lines.forEach((line, index) => {
             if (signatures.get(line) !== now[index]) {
@@ -248,7 +297,7 @@ onMounted(() => {
     }
 
     form.lines.forEach((line) => {
-        signatures.set(line, `${line.product_id}|${line.qty}|${line.margin_pct}`);
+        signatures.set(line, `${line.product_id}|${line.qty}|${line.margin_pct}|${JSON.stringify(line.extra_costs ?? [])}`);
 
         if (line.product_id && line.qty) priceLine(line);
     });
@@ -414,6 +463,7 @@ const columns = [
     // In the line's state and in its total all along, with no box to type either into.
     { key: 'tooling_charge', label: 'Tooling charge', width: '7rem', align: 'right' },
     { key: 'lead_time_days', label: 'Lead days', width: '5.5rem', align: 'right' },
+    { key: 'other_costs', label: 'Other costs', width: '8rem', align: 'right' },
     { key: 'line_total', label: 'Line value', width: '8rem', align: 'right' },
 ];
 </script>
@@ -580,13 +630,21 @@ const columns = [
                             <TextInput cell v-model="line.lead_time_days" type="number" step="1" min="0" numeric placeholder="days" class="min-w-16" />
                         </template>
 
+                        <template #cell:other_costs="{ line, index }">
+                            <div class="text-right">
+                                <Button size="xs" variant="ghost" :title="otherCostsSummary(line) ?? 'Commission, finance, logistics, inspection, development…'" @click="openOtherCosts(index)">
+                                    {{ (line.extra_costs ?? []).length ? `${line.extra_costs.length} set` : 'Add' }}
+                                </Button>
+                            </div>
+                        </template>
+
                         <template #cell:line_total="{ line }">
                             <span class="text-sm tnum text-ink-800">{{ money(lineTotal(line), currencyCode) }}</span>
                         </template>
 
                         <template #footer>
                             <tr>
-                                <td colspan="7" class="px-3 py-2 text-right text-xs text-ink-700">Subtotal</td>
+                                <td colspan="8" class="px-3 py-2 text-right text-xs text-ink-700">Subtotal</td>
                                 <td class="px-2 py-2 text-right text-sm font-semibold tnum text-ink-900">
                                     {{ money(subtotal, currencyCode) }}
                                 </td>
@@ -793,5 +851,35 @@ const columns = [
                 />
             </template>
         </FormLayout>
+        <!-- Spec §4 — the other-cost components of one line's sheet. -->
+        <Modal
+            :open="otherCostsFor !== null"
+            title="Other costs on this line"
+            subtitle="Beside material and conversion: a share of the price, an amount per unit, or a lump sum for the order. Each becomes a line on the cost sheet and moves the rate."
+            width="max-w-2xl"
+            @update:open="otherCostsFor = null"
+        >
+            <table class="min-w-full text-sm">
+                <thead class="text-xs text-ink-500">
+                    <tr><th class="py-1 text-left">Component</th><th class="py-1 text-left">Basis</th><th class="py-1 text-right">Value</th></tr>
+                </thead>
+                <tbody>
+                    <tr v-for="entry in otherCostsDraft" :key="entry.key" class="border-t border-slate-100">
+                        <td class="py-1.5 pr-3">{{ entry.label }}</td>
+                        <td class="py-1.5 pr-3">
+                            <SelectInput v-model="entry.basis" :options="Object.entries(BASIS_LABELS).map(([value, label]) => ({ value, label }))" :placeholder="null" />
+                        </td>
+                        <td class="py-1.5 text-right">
+                            <TextInput v-model="entry.value" type="number" step="0.01" min="0" numeric class="w-28" :aria-label="`${entry.label} value`" />
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <template #footer>
+                <Button @click="otherCostsFor = null">Back</Button>
+                <Button variant="primary" @click="saveOtherCosts">Use these costs</Button>
+            </template>
+        </Modal>
     </AppLayout>
 </template>

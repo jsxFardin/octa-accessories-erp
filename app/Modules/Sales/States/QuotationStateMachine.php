@@ -29,6 +29,7 @@ class QuotationStateMachine extends StateMachine
         AuditLogger $audit,
         private readonly NumberAllocator $numbers,
         private readonly InquiryProgression $inquiries,
+        private readonly \App\Support\Settings\Settings $settings,
     ) {
         parent::__construct($audit);
     }
@@ -92,6 +93,36 @@ class QuotationStateMachine extends StateMachine
                     'Q1',
                     'Every line needs a cost sheet before sending: line '
                     .$withoutSheet->pluck('line_no')->join(', ').' has none.',
+                );
+            }
+
+            // CS-3 — a line costed under the margin floor goes out only on an approved sheet,
+            // or in the hands of someone who may accept that margin. The margin read here is
+            // the one the sheet was built with (what the form warned about); the margin the
+            // typed price actually leaves is what the sheet's own approval weighs.
+            $floor = $this->settings->decimal('margin_floor_pct', 12);
+            $mayOverride = auth()->user()?->hasPermission('cost_sheet.override_margin') ?? false;
+            $unapproved = [];
+
+            foreach ($lines as $line) {
+                $sheet = CostSheet::query()->where('quotation_line_id', $line->id)->latest('id')->first();
+
+                if ($sheet === null) {
+                    continue;
+                }
+
+                $margin = (float) $sheet->margin_pct;
+
+                if ($margin < $floor && $sheet->status !== CostSheet::APPROVED && ! $mayOverride) {
+                    $unapproved[] = sprintf('line %d at %s%%', $line->line_no, number_format($margin, 1));
+                }
+            }
+
+            if ($unapproved !== []) {
+                throw TransitionDenied::guard(
+                    'CS-3',
+                    'Below the '.rtrim(rtrim(number_format($floor, 2, '.', ''), '0'), '.').'% margin floor and not approved: '
+                    .implode(', ', $unapproved).'. Have the cost sheet approved, or ask someone who may accept the margin to send.',
                 );
             }
         }

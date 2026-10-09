@@ -248,6 +248,7 @@ class CostSheetService
             minOrderValue: (float) ($overrides['minOrderValue'] ?? $product->customer?->min_order_value ?? 0),
             exchangeRate: (float) ($overrides['exchangeRate'] ?? 1),
             currency: (string) ($overrides['currency'] ?? $this->settings->get('base_currency', 'BDT')),
+            extraCosts: \App\Modules\Costing\CostComponents::normalise($overrides['extraCosts'] ?? []),
         );
     }
 

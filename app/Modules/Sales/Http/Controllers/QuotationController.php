@@ -418,8 +418,16 @@ class QuotationController extends Controller
 
         $quotation->load('lines');
 
+        // The other-cost components come back out of each line's sheet, for the form to edit.
+        $sheets = CostSheet::query()->with('lines')->whereIn('quotation_line_id', $quotation->lines->pluck('id'))->get()->keyBy('quotation_line_id');
+        $payload = $quotation->toArray();
+        $payload['lines'] = $quotation->lines->map(fn ($line): array => [
+            ...$line->toArray(),
+            'extra_costs' => \App\Modules\Costing\CostComponents::fromLines($sheets->get($line->id)?->lines ?? []),
+        ])->all();
+
         return Inertia::render('Sales/Quotations/Form', [
-            'quotation' => $quotation,
+            'quotation' => $payload,
             'inquiryId' => $quotation->inquiry_id,
             ...$this->formOptions(),
         ]);
@@ -540,6 +548,12 @@ class QuotationController extends Controller
             'lines.*.tooling_charge' => ['nullable', 'numeric', 'min:0'],
             'lines.*.margin_pct' => ['nullable', 'numeric', 'min:0', 'lt:100'],
             'lines.*.lead_time_days' => ['nullable', 'integer', 'min:0'],
+            // Spec §4 — the other-cost components of the line's sheet.
+            'lines.*.extra_costs' => ['nullable', 'array'],
+            'lines.*.extra_costs.*.key' => ['required', 'string', 'max:40'],
+            'lines.*.extra_costs.*.label' => ['nullable', 'string', 'max:80'],
+            'lines.*.extra_costs.*.basis' => ['nullable', 'string', 'in:pct_of_price,per_unit,amount'],
+            'lines.*.extra_costs.*.value' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         // BR-58 — the snapshot rate is booked by the server from the reference table, not
@@ -636,6 +650,7 @@ class QuotationController extends Controller
                     [
                         'marginPct' => $line['margin_pct'] ?? $this->settings->decimal('default_margin_pct', 20),
                         'exchangeRate' => (float) $quotation->exchange_rate,
+                        'extraCosts' => $line['extra_costs'] ?? [],
                     ],
                     $model->id,
                 );
@@ -668,6 +683,7 @@ class QuotationController extends Controller
                 ->get(['id', 'item_id', 'customer_id', 'product_type'])->sortBy('code')->values(),
             'defaultMarginPct' => $this->settings->decimal('default_margin_pct', 20),
             'marginFloorPct' => $this->settings->decimal('margin_floor_pct', 12),
+            'costComponents' => \App\Modules\Costing\CostComponents::DEFAULTS,
         ];
     }
 }

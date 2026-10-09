@@ -104,14 +104,25 @@ class ProductCostEstimate
 
         $factoryOverhead = $direct * $overheadPct / 100;
         $adminOverhead = ($direct + $factoryOverhead) * $adminPct / 100;
-        $total = $direct + $factoryOverhead + $adminOverhead;
 
         $lines[] = new CostLine($seq++, 'overhead', '%', $overheadPct, round($direct, 4), round($factoryOverhead, 4), 'BR-19', 'Factory overhead');
         $lines[] = new CostLine($seq++, 'overhead', '%', $adminPct, round($direct + $factoryOverhead, 4), round($adminOverhead, 4), 'BR-19', 'Administrative overhead');
 
+        // Spec §4 — the other-cost components, the same way the label sheet carries them.
+        $extras = \App\Support\Calculators\ExtraCosts::split(\App\Modules\Costing\CostComponents::normalise($overrides['extraCosts'] ?? []), $qty, $seq);
+        $lines = [...$lines, ...$extras['fixed']];
+        $seq += count($extras['fixed']);
+
+        $costBeforePct = $direct + $factoryOverhead + $adminOverhead + $extras['fixedTotal'];
+        $sellingValue = \App\Support\Calculators\ExtraCosts::price($costBeforePct, $marginPct, $extras['pctSum']);
+        $priced = \App\Support\Calculators\ExtraCosts::priced($extras['pct'], $sellingValue, $seq);
+        $lines = [...$lines, ...$priced['lines']];
+        $seq += count($priced['lines']);
+
+        $total = $costBeforePct + $priced['total'];
         $unitCost = $qty > 0 ? $total / $qty : 0.0;
-        $unitPrice = $marginPct < 100 ? $unitCost / (1 - $marginPct / 100) : $unitCost;
-        $marginAmount = ($unitPrice - $unitCost) * $qty;
+        $unitPrice = $qty > 0 ? $sellingValue / $qty : 0.0;
+        $marginAmount = $sellingValue - $total;
 
         return new CostSheet(
             lines: $lines,
@@ -131,7 +142,7 @@ class ProductCostEstimate
             ratePerMInCurrency: round($unitPrice, 4),
             marginPct: $marginPct,
             marginAmount: round($marginAmount, 4),
-            sellingValue: round($unitPrice * $qty, 4),
+            sellingValue: round($sellingValue, 4),
             currency: (string) $this->settings->get('base_currency', 'BDT'),
             exchangeRate: 1.0,
             belowMinimumOrderValue: false,
