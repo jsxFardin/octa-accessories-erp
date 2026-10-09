@@ -5,7 +5,7 @@ import { router } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
 import Icon from '@/Components/Ui/Icon.vue';
 import { canAny } from '@/plugins/permissions';
-import { adminNavigation, navigation } from '@/navigation';
+import { navigation } from '@/navigation';
 
 /**
  * ⌘K / Ctrl-K: go anywhere, find anything.
@@ -48,7 +48,7 @@ const screens = computed(() => {
             }),
     );
 
-    return [...flatten(navigation), ...flatten(adminNavigation)];
+    return flatten(navigation);
 });
 
 const matchedScreens = computed(() => {

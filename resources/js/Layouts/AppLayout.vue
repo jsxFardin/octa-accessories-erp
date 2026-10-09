@@ -8,7 +8,7 @@ import NotificationBell from '@/Components/Ui/NotificationBell.vue';
 import SessionExpired from '@/Components/Ui/SessionExpired.vue';
 import Toasts from '@/Components/Ui/Toasts.vue';
 import { canAny } from '@/plugins/permissions';
-import { ADMIN_PREFIXES, adminNavigation, navigation, visibleSections } from '@/navigation';
+import { navigation, visibleSections } from '@/navigation';
 
 /**
  * The desk layout: dense, keyboard-driven, built for people who live in it all day
@@ -33,18 +33,8 @@ const user = computed(() => page.props.auth?.user);
 const organisation = computed(() => page.props.app ?? {});
 const currentUrl = computed(() => page.url);
 
-/**
- * Configuration is a mode, not a menu. Inside it the sidebar swaps wholesale and offers an
- * explicit way out, so the working application never shows admin rows.
- */
-const inAdminShell = computed(() =>
-    ADMIN_PREFIXES.some((prefix) => currentUrl.value.startsWith(prefix)),
-);
-
 /** A section the user can open nothing inside is not shown at all. */
-const sections = computed(() =>
-    visibleSections(inAdminShell.value ? adminNavigation : navigation, canAny),
-);
+const sections = computed(() => visibleSections(navigation, canAny));
 
 const path = computed(() => currentUrl.value.split('?')[0]);
 
@@ -154,15 +144,14 @@ function toggleSection(section) {
 }
 
 /**
- * Hubs with no heading are always visible. Sections marked `open: true` (the small admin
- * shell, where collapsing three groups would hide three of six rows) never close.
+ * Hubs with no heading are always visible.
  *
  * Otherwise exactly one group is open: whichever the user last clicked, or — once they
  * navigate, which clears that — the one holding the page they are on. So the sidebar always
  * shows where you are and nothing else.
  */
 function isOpen(section) {
-    if (section.heading === false || section.open === true) {
+    if (section.heading === false) {
         return true;
     }
 
@@ -245,25 +234,12 @@ const paletteHint = computed(() =>
                 mobileOpen ? 'translate-x-0 shadow-2xl lg:shadow-none' : '-translate-x-full',
             ]"
         >
-            <!-- Inside configuration the header becomes the way out, as `socialx` does. -->
-            <div v-if="inAdminShell" class="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 px-3">
-                <Link
-                    href="/dashboard"
-                    class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1.5 text-sm text-ink-700 transition hover:bg-slate-100"
-                    :class="railed && 'justify-center px-0'"
-                    :title="railed ? 'Exit configuration' : undefined"
-                >
-                    <Icon name="close" size="size-4" class="shrink-0 text-ink-400" />
-                    <span v-if="!railed" class="truncate font-medium">Exit configuration</span>
-                </Link>
-            </div>
-
             <!--
                 Railed, the header is one 64px column: the mark alone, and it is the way back
                 out. A logo and a collapse button side by side do not fit in a rail, and the
                 pair of them squeezed in was the first thing that looked wrong.
             -->
-            <div v-else-if="railed" class="flex h-14 shrink-0 items-center justify-center border-b border-slate-200">
+            <div v-if="railed" class="flex h-14 shrink-0 items-center justify-center border-b border-slate-200">
                 <button
                     class="group relative flex size-9 items-center justify-center rounded-lg transition hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                     title="Expand sidebar"
@@ -285,7 +261,7 @@ const paletteHint = computed(() =>
                 </button>
             </div>
 
-            <div v-else class="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 px-3">
+            <div class="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 px-3">
                 <!-- The square mark from the organisation profile, falling back to the Trimflow mark. -->
                 <Link
                     href="/dashboard"
@@ -416,25 +392,6 @@ const paletteHint = computed(() =>
                     </template>
                 </button>
 
-                <!--
-                    The shop-floor terminal used to be duplicated here as 'Shop floor' while the
-                    Production group listed the same URL as 'Floor terminal' — two rows, two
-                    labels, two icons, one screen. It now has a single entry in that group,
-                    where the command palette can also find it.
-
-                    Configuration is entered deliberately and left deliberately. Six admin rows
-                    used to sit in the main tree competing with the shop floor for attention.
-                -->
-                <Link
-                    v-if="!inAdminShell && canAny('reference_data.view_any', 'setting.view_any', 'user.view_any', 'role.view_any')"
-                    href="/setup"
-                    class="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-ink-800 transition hover:bg-white hover:text-ink-900 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
-                    :class="railed && 'justify-center px-0'"
-                    :title="railed ? 'Configuration' : undefined"
-                >
-                    <Icon name="settings" class="shrink-0 text-ink-500 transition-colors group-hover:text-ink-700" />
-                    <span v-if="!railed">Configuration</span>
-                </Link>
             </div>
         </aside>
 
@@ -479,7 +436,7 @@ const paletteHint = computed(() =>
                         </nav>
 
                         <!-- Two lines on a phone before it is cut: a record's code and name did not fit in one. -->
-                        <h1 class="line-clamp-2 text-base leading-tight font-semibold break-words text-ink-900 sm:line-clamp-none sm:truncate">
+                        <h1 class="line-clamp-2 text-xl leading-tight font-semibold tracking-tight break-words text-ink-900 sm:line-clamp-none sm:truncate">
                             <slot name="title" />
                         </h1>
                         <!--
@@ -596,7 +553,7 @@ const paletteHint = computed(() =>
                 </Link>
             </div> -->
 
-            <main class="mx-auto w-full max-w-[1600px] p-4">
+            <main class="mx-auto w-full max-w-[90rem] p-4">
                 <slot />
             </main>
         </div>

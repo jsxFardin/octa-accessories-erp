@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_PREFIXES, adminNavigation, navigation, visibleSections } from '../../resources/js/navigation.js';
+import { SETUP_GROUPS, navigation, visibleSections } from '../../resources/js/navigation.js';
 
 const all = () => true;
 const none = () => false;
@@ -46,6 +46,9 @@ describe('sidebar visibility', () => {
             'Dispatch',
             'Money',
             'Reports',
+            'Setup',
+            'Access',
+            'Activity',
         ]);
         expect(visibleSections(navigation, all).find((section) => section.label === 'Overview')?.heading).toBe(false);
     });
@@ -82,20 +85,18 @@ describe('sidebar visibility', () => {
         expect(floorRows[0].external).toBe(true);
     });
 
-    it('shows every administration screen inside the shell', () => {
-        expect(rows(visibleSections(adminNavigation, all))).toEqual([
-            'Lists',
-            'Settings',
-            'Number sequences',
-            'Users',
-            'Roles & permissions',
-            'Audit log',
-        ]);
+    it('lists setup, access and activity as groups after the day\'s work', () => {
+        // Configuration used to be a separate shell entered from the footer and left through
+        // an "Exit configuration" header. It is three ordinary groups now, last in the tree.
+        expect(navigation.slice(-3).map((section) => section.label)).toEqual(SETUP_GROUPS);
+        expect(itemsOf('Setup')).toEqual(['Lists', 'Settings', 'Number sequences']);
+        expect(itemsOf('Access')).toEqual(['Users', 'Roles & permissions']);
+        expect(itemsOf('Activity')).toEqual(['Audit log']);
+        expect(navigation.every((section) => section.open !== true)).toBe(true);
     });
 
     it('hides everything from a user with no permissions', () => {
         expect(visibleSections(navigation, none)).toEqual([]);
-        expect(visibleSections(adminNavigation, none)).toEqual([]);
     });
 
     it('drops a group whose every screen is out of reach', () => {
@@ -123,20 +124,8 @@ describe('sidebar visibility', () => {
         }
     });
 
-    it('keeps administration out of the working application', () => {
-        const mainHrefs = navigation.flatMap((s) => s.items).map((i) => i.href);
-
-        for (const href of mainHrefs) {
-            expect(ADMIN_PREFIXES.some((prefix) => href.startsWith(prefix))).toBe(false);
-        }
-    });
-
-    it('keeps every admin group permanently open, and keeps old names as search aliases', () => {
-        // The admin shell is six rows across three labelled groups; a collapsed group would
-        // hide half the shell, so every section is pinned open.
-        expect(adminNavigation.every((section) => section.open === true)).toBe(true);
-
-        const items = [...navigation, ...adminNavigation].flatMap((section) => section.items);
+    it('keeps old names as search aliases', () => {
+        const items = navigation.flatMap((section) => section.items);
         const byHref = Object.fromEntries(items.map((item) => [item.href, item]));
 
         expect(byHref['/mrp'].aliases).toContain('mrp');
@@ -144,6 +133,7 @@ describe('sidebar visibility', () => {
         expect(byHref['/items'].aliases).toContain('items');
         expect(byHref['/delivery-challans'].aliases).toContain('challans');
         expect(byHref['/setup'].aliases).toContain('setup');
+        expect(byHref['/setup'].aliases).toContain('configuration');
         expect(byHref['/boms']).toBeTruthy();
     });
 });

@@ -19,6 +19,19 @@
     --font-mono: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
 
     /*
+     * Type scale. The two sizes nearly every screen is set in — `text-sm` for body and table
+     * cells, `text-xs` for labels, hints and captions — are a step larger than Tailwind's
+     * defaults: 15px and 13px rather than 14px and 12px. A factory desk is read at arm's
+     * length on a 1080p monitor, often by someone whose first language is not the one on the
+     * screen, and 12px grey labels were the first thing every reviewer called "hard to read".
+     * Spacing is untouched: inputs stay 36px, rows stay dense.
+     */
+    --text-xs: 0.8125rem;
+    --text-xs--line-height: 1.125rem;
+    --text-sm: 0.9375rem;
+    --text-sm--line-height: 1.375rem;
+
+    /*
      * Brand: Trimflow teal, the product's colour on octapussolution.com (#0F766E to #2DD4BF).
      * Deliberately not the violet-leaning indigo Tailwind ships as a default — this is a
      * factory system that sits next to amber warnings and rose failures all day, and it
@@ -48,8 +61,8 @@
      * under the 4.5:1 that small text needs. It now sits where 500 was (4.8:1), and 500 moves
      * a step darker so the two still read as different weights.
      */
-    --color-ink-400: oklch(0.551 0.021 258);
-    --color-ink-500: oklch(0.505 0.022 258);
+    --color-ink-400: oklch(0.530 0.021 258);
+    --color-ink-500: oklch(0.470 0.022 258);
     --color-ink-600: oklch(0.461 0.023 257);
     --color-ink-700: oklch(0.386 0.024 257);
     --color-ink-800: oklch(0.301 0.023 256);

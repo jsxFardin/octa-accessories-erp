@@ -397,3 +397,22 @@ Still open:
 5. **Customer portal.** It is one placeholder page with developer copy. Is it reachable by customers today?
 6. **Goods receipt numbers.** A receipt takes its number when it is first saved, so a discarded draft leaves a gap in the GRN series. Should a draft stay unnumbered until it is posted?
 7. **Date and time entry.** The job card's "When was it made?" field needs a time as well as a date. Should the kit gain a time picker, or is the browser's own control acceptable there?
+
+---
+
+## 7. Kit pass, 9 October 2026
+
+Applied after the item-master work, from a 1920 px walk of fourteen screens (dashboard, four lists, five detail pages, three forms, one Setup list). The faults were systemic, so each fix is one change in the kit and reaches every page.
+
+| ID | What was wrong | Fix | Where |
+|---|---|---|---|
+| K-01 | Body text 14 px and labels 12 px in a grey that sat at the 4.5:1 line; reviewers read the desk as "hard to read" | `text-sm` and `text-xs` are 15 px and 13 px; `ink-500` and `ink-400` darkened to clear 6:1 | `resources/css/app.css` |
+| K-02 | Content stretched to 1,600 px: table columns drifted apart, label rows ran the width of the screen | Main column capped at 1,440 px and centred | `AppLayout.vue` |
+| K-03 | Page title (16 px) and card titles (14 px) sat at the same weight as table headers; no hierarchy | Page title 20 px tracking-tight; card title 16 px | `AppLayout.vue`, `Card.vue` |
+| K-04 | Two-column forms aligned by row, leaving a hole under every short card | `ResourceForm` packs sections into two independent stacks (`layout="columns"` to assign them, alternating otherwise) | `ResourceForm.vue` |
+| K-05 | Item and product forms: seven cards in a masonry, Scope asked twice, long hints | One section builder, reading order, "Made for" section, live summary rail | `itemSections.js`, `Items/Form.vue`, `Products/Form.vue`, `ItemSummaryRail.vue` |
+| K-06 | Product page: Setup and Activation lists said the same thing twice over a screen and a half | One readiness panel in a sticky rail, done steps one line, "not asked yet" folded | `Products/Show.vue`, `ActivationCard.vue` |
+| K-07 | A long product description forced the order-lines table past its card | `DataTable` columns accept `wrap: true`; used on the product column | `DataTable.vue`, `SalesOrders/Show.vue` |
+
+Evidence: `docs/ux-evidence/IM-1-*.png`. Not changed: the 360 px header action wrap on detail pages with six or more actions (pre-existing, see H-xx), and the dashboard.
+

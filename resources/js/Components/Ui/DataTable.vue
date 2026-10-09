@@ -20,6 +20,11 @@ const props = defineProps({
     actions: { type: Function, default: null },
     empty: { type: String, default: 'Nothing here yet.' },
     /** Starting density; the user's own choice overrides it and persists. */
+    /**
+     * A column may set `wrap: true` to let long text break onto a second line. Cells are
+     * single-line by default so a table of numbers stays a grid; a product name or a note is
+     * the column that should give, not the twelve beside it.
+     */
     dense: { type: Boolean, default: false },
     /** Renders skeleton rows instead of content — for lists that load after the page. */
     loading: { type: Boolean, default: false },
@@ -297,8 +302,8 @@ onUnmounted(() => {
                         <td
                             v-for="(column, columnIndex) in columns"
                             :key="column.key"
-                            class="px-3 whitespace-nowrap text-ink-700"
-                            :class="[alignClass(column), rowPadding, rowHref && columnIndex > 0 && 'cursor-pointer']"
+                            class="px-3 text-ink-700"
+                            :class="[column.wrap ? 'whitespace-normal' : 'whitespace-nowrap', alignClass(column), rowPadding, rowHref && columnIndex > 0 && 'cursor-pointer']"
                             @click="rowHref && columnIndex > 0 && openRow(row, $event)"
                         >
                             <component

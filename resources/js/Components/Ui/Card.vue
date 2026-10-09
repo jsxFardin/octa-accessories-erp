@@ -21,7 +21,7 @@ defineProps({
             class="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/70 px-4 py-2.5"
         >
             <div class="min-w-0">
-                <h2 class="flex items-center gap-1.5 text-sm font-semibold text-ink-800">
+                <h2 class="flex items-center gap-1.5 text-base font-semibold text-ink-900">
                     {{ title }}
                     <RuleHint v-if="rule" :rule="rule" />
                 </h2>

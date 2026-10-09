@@ -6,11 +6,10 @@
  * A heading opens the first screen in the group; the chevron peeks without leaving the page.
  * URLs are unchanged, so a deep link still lands.
  *
- * Configuration is not navigation. Lists, users, roles, settings and the audit log live in a
- * separate shell entered from the footer — the main sidebar never shows admin noise.
- *
  * Grouping is the factory's own sequence: sell, buy, make, then stock, quality, dispatch,
- * money. Reports sit last so they do not compete with the day's work.
+ * money, reports. Setup, Access and Activity sit last: the lists, settings, users and audit
+ * log are groups like any other, collapsed until opened, so an administrator reaches them
+ * from where they are rather than through a separate shell they have to enter and leave.
  *
  * Each entry names the permissions that make it visible. Visibility is a courtesy; the route
  * middleware is the boundary (06-rbac §7).
@@ -150,25 +149,16 @@ export const navigation = [
             { label: 'NCR / CAPA', href: '/reports/ncr-capa', icon: 'reports', permissions: ['report.view'], requires: ['ncr.view_any'] },
         ],
     },
-];
-
-/**
- * The administration shell. Entered from the sidebar footer and exited explicitly, so these
- * six screens never compete with the shop floor for attention.
- */
-export const adminNavigation = [
     {
-        label: 'Configuration',
-        open: true,
+        label: 'Setup',
         items: [
-            { label: 'Lists', href: '/setup', icon: 'sliders', aliases: ['setup'], permissions: ['reference_data.view_any'] },
-            { label: 'Settings', href: '/admin/settings', icon: 'settings', permissions: ['setting.view_any'] },
+            { label: 'Lists', href: '/setup', icon: 'sliders', aliases: ['setup', 'configuration', 'reference data'], permissions: ['reference_data.view_any'] },
+            { label: 'Settings', href: '/admin/settings', icon: 'settings', aliases: ['configuration'], permissions: ['setting.view_any'] },
             { label: 'Number sequences', href: '/admin/number-sequences', icon: 'sequence', permissions: ['number_sequence.view_any'] },
         ],
     },
     {
         label: 'Access',
-        open: true,
         items: [
             { label: 'Users', href: '/admin/users', icon: 'users', permissions: ['user.view_any'] },
             { label: 'Roles & permissions', href: '/admin/roles', icon: 'roles', permissions: ['role.view_any'] },
@@ -176,15 +166,14 @@ export const adminNavigation = [
     },
     {
         label: 'Activity',
-        open: true,
         items: [
             { label: 'Audit log', href: '/admin/audit-log', icon: 'audit', permissions: ['audit_log.view_any'] },
         ],
     },
 ];
 
-/** URLs that belong to the administration shell rather than the working application. */
-export const ADMIN_PREFIXES = ['/admin', '/setup'];
+/** The groups that configure the system rather than run it; listed after the day's work. */
+export const SETUP_GROUPS = ['Setup', 'Access', 'Activity'];
 
 /**
  * The sections a user may actually open.

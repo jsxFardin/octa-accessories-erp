@@ -187,7 +187,7 @@ async function transition(to) {
 
 const lineColumns = [
     { key: 'line_no', label: '#', align: 'center', width: '3rem' },
-    { key: 'product', label: 'Product' },
+    { key: 'product', label: 'Product', wrap: true },
     { key: 'ordered_qty', label: 'Ordered', align: 'right' },
     { key: 'produced_qty', label: 'Produced', align: 'right' },
     { key: 'delivered_qty', label: 'Delivered', align: 'right' },
@@ -327,12 +327,10 @@ const lineColumns = [
             <Card title="Lines" rule="BR-1 · BR-44" :padded="false">
                 <DataTable :columns="lineColumns" :rows="lines" row-key="id" empty="No lines." dense>
                     <template #cell:product="{ row }">
-                        <span class="inline-flex min-w-0 items-baseline gap-1.5">
-                            <Link v-if="row.product" :href="`/products/${row.product.id}`" class="doc-link-quiet shrink-0">
-                                {{ row.product.code }}
-                            </Link>
-                            <span class="truncate text-ink-500">{{ row.description ?? row.product?.name }}</span>
-                        </span>
+                        <Link v-if="row.product" :href="`/products/${row.product.id}`" class="doc-link-quiet">
+                            {{ row.product.code }}
+                        </Link>
+                        <span class="ml-1.5 text-ink-500">{{ row.description ?? row.product?.name }}</span>
                     </template>
                     <!--
                         BR-53 — an order amended downwards after its job cards were raised

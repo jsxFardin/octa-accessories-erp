@@ -69,9 +69,17 @@ const props = defineProps({
 
 const mode = props.layout ?? (props.stacked ? 'stacked' : 'grid');
 
-/** The visible sections, in the column they asked for; `columns` mode only. */
+/**
+ * The visible sections, in the column they asked for.
+ *
+ * A section that names no column alternates: first left, second right, and so on. Each column
+ * is its own stack, so a short card never leaves a hole beside a tall one — which is what a
+ * row-aligned grid did under every two-column form.
+ */
 function sectionsIn(column) {
-    return props.sections.filter((section) => sectionVisible(section) && (section.column ?? 'left') === column);
+    const visible = props.sections.filter(sectionVisible);
+
+    return visible.filter((section, index) => (section.column ?? (index % 2 === 0 ? 'left' : 'right')) === column);
 }
 
 const form = useForm(resolveDefaults(props.sections, props.initial));
@@ -169,10 +177,10 @@ function submit() {
         -->
         <div
             class="grid items-start gap-4"
-            :class="{ 'grid-cols-1 max-w-3xl': mode === 'stacked', 'xl:grid-cols-2': mode === 'grid', 'grid-cols-1 2xl:grid-cols-2': mode === 'columns' }"
+            :class="{ 'grid-cols-1 max-w-3xl': mode === 'stacked', 'grid-cols-1 xl:grid-cols-2': mode === 'grid', 'grid-cols-1 2xl:grid-cols-2': mode === 'columns' }"
         >
-            <template v-for="column in (mode === 'columns' ? ['left', 'right'] : [null])" :key="column ?? 'all'">
-            <div :class="mode === 'columns' ? 'min-w-0 space-y-4' : 'contents'">
+            <template v-for="column in (mode === 'stacked' ? [null] : ['left', 'right'])" :key="column ?? 'all'">
+            <div :class="column ? 'min-w-0 space-y-4' : 'contents'">
             <Card
                 v-for="section in (column ? sectionsIn(column) : sections.filter(sectionVisible))"
                 :id="section.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')"
@@ -180,7 +188,7 @@ function submit() {
                 :title="section.title"
                 :subtitle="typeof section.description === 'function' ? section.description(form) : section.description"
                 :rule="section.rule"
-                :class="section.span === 'full' && mode === 'grid' ? 'xl:col-span-2' : ''"
+                :class="''"
             >
                 <!-- A section with nothing to ask yet says what would fill it, rather than sitting empty. -->
                 <p v-if="section.empty && section.fields.filter(visible).length === 0" class="text-sm text-ink-600">
