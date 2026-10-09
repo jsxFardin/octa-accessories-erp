@@ -118,6 +118,7 @@ function validity(row) {
 
         <Card :padded="false">
             <FilterBar
+                :only="['quotations', 'filters']"
                 :filters="filters"
                 :fields="[
                     { key: 'status', label: 'Status', options: STAGES.map((s) => ({ value: s, label: titleCase(s) })) },
@@ -128,6 +129,7 @@ function validity(row) {
             />
 
             <DataTable
+                :only="['quotations', 'filters']"
                 :columns="columns"
                 :rows="quotations"
                 row-key="id" :actions="rowActions" :row-href="(row) => `/quotations/${row.id}`"

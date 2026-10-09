@@ -116,16 +116,6 @@ class HandleInertiaRequests extends Middleware
                 'unread' => $user?->unreadNotifications()->count() ?? 0,
                 'notifications' => [],
             ],
-
-            /*
-             * Scoped by config/ziggy.php. Route names are not a secret — every route is
-             * authorised server-side regardless — but publishing the full admin and destroy
-             * surface with every page load is needless reconnaissance material.
-             */
-            'ziggy' => fn (): array => [
-                ...(new \Tighten\Ziggy\Ziggy)->toArray(),
-                'location' => $request->url(),
-            ],
         ];
     }
 

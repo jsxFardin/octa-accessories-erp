@@ -65,9 +65,10 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'customer', label: 'Customer', options: customers.map((c) => ({ value: c.id, label: c.name, code: c.code })) }, { key: 'type', label: 'Type', options: productTypes.map((t) => ({ value: t.value, label: t.label, code: t.code })) }, { key: 'status', label: 'Status', options: statuses.map((s) => ({ value: s.value, label: s.label })) }]" placeholder="Search code, name or customer style ref…" />
+            <FilterBar :only="['products', 'filters']" :filters="filters" :fields="[{ key: 'customer', label: 'Customer', options: customers.map((c) => ({ value: c.id, label: c.name, code: c.code })) }, { key: 'type', label: 'Type', options: productTypes.map((t) => ({ value: t.value, label: t.label, code: t.code })) }, { key: 'status', label: 'Status', options: statuses.map((s) => ({ value: s.value, label: s.label })) }]" placeholder="Search code, name or customer style ref…" />
 
             <DataTable
+                :only="['products', 'filters']"
                 :columns="columns"
                 :rows="products"
                 row-key="id" :actions="rowActions" :row-href="(row) => `/products/${row.id}`"

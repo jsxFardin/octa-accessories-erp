@@ -49,9 +49,10 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'kind', label: 'Type', options: LOT_KINDS }, { key: 'status', label: 'Status', options: ['quarantine','available','reserved','consumed','blocked','expired','scrapped'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'warehouse', label: 'Warehouse', options: warehouses.map((w) => ({ value: w.id, label: w.code })) }, { key: 'scheme', label: 'Scheme', options: ['GRS','FSC','OEKO_TEX','SCOPE'].map((s) => ({ value: s, label: s })) }]" placeholder="Search lot number, barcode, batch or shade…" />
+            <FilterBar :only="['lots', 'filters']" :filters="filters" :fields="[{ key: 'kind', label: 'Type', options: LOT_KINDS }, { key: 'status', label: 'Status', options: ['quarantine','available','reserved','consumed','blocked','expired','scrapped'].map((s) => ({ value: s, label: titleCase(s) })) }, { key: 'warehouse', label: 'Warehouse', options: warehouses.map((w) => ({ value: w.id, label: w.code })) }, { key: 'scheme', label: 'Scheme', options: ['GRS','FSC','OEKO_TEX','SCOPE'].map((s) => ({ value: s, label: s })) }]" placeholder="Search lot number, barcode, batch or shade…" />
 
             <DataTable
+                :only="['lots', 'filters']"
                 :columns="columns"
                 :rows="lots"
                 row-key="id" :row-href="(row) => `/lots/${row.id}`"

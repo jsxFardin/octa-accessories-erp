@@ -97,6 +97,7 @@ const days = (n) => `${pcs(Math.abs(n))} ${Math.abs(n) === 1 ? 'day' : 'days'}`;
 
         <Card :padded="false">
             <FilterBar
+                :only="['inquiries', 'filters']"
                 :filters="filters"
                 :fields="[
                     { key: 'status', label: 'Status', options: STAGES.map((s) => ({ value: s, label: titleCase(s) })) },
@@ -107,6 +108,7 @@ const days = (n) => `${pcs(Math.abs(n))} ${Math.abs(n) === 1 ? 'day' : 'days'}`;
             />
 
             <DataTable
+                :only="['inquiries', 'filters']"
                 :columns="columns"
                 :rows="inquiries"
                 row-key="id" :actions="rowActions" :row-href="(row) => `/inquiries/${row.id}`"

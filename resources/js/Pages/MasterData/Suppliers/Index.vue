@@ -103,9 +103,10 @@ const columns = [
         <StageStrip :stages="stages" label="Suppliers by standing" @select="select" />
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'approved', label: 'Approval', options: [{ value: '1', label: 'Approved' }, { value: '0', label: 'Not approved' }] }, { key: 'active', label: 'Active', options: [{ value: '1', label: 'Active' }, { value: '0', label: 'Inactive' }] }, { key: 'country', label: 'Country', options: (countries ?? []).map((country) => ({ value: country, label: country })) }]" placeholder="Search code, name or country…" />
+            <FilterBar :only="['suppliers', 'filters']" :filters="filters" :fields="[{ key: 'approved', label: 'Approval', options: [{ value: '1', label: 'Approved' }, { value: '0', label: 'Not approved' }] }, { key: 'active', label: 'Active', options: [{ value: '1', label: 'Active' }, { value: '0', label: 'Inactive' }] }, { key: 'country', label: 'Country', options: (countries ?? []).map((country) => ({ value: country, label: country })) }]" placeholder="Search code, name or country…" />
 
             <DataTable
+                :only="['suppliers', 'filters']"
                 :columns="columns"
                 :rows="suppliers"
                 row-key="id" :actions="rowActions" :row-href="(row) => `/suppliers/${row.id}`"

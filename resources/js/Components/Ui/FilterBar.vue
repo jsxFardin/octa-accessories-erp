@@ -12,6 +12,12 @@ const props = defineProps({
     /** `[{ key, label, options: [{value,label}], type }]` */
     fields: { type: Array, default: () => [] },
     placeholder: { type: String, default: 'Search…' },
+    /**
+     * The props a filter change actually alters — the list and `filters`, typically. Named,
+     * the visit asks the server for those alone; the option lists and counts the page already
+     * holds are neither rebuilt nor sent again on every keystroke.
+     */
+    only: { type: Array, default: () => [] },
 });
 
 const state = ref({ ...props.filters });
@@ -44,6 +50,7 @@ const push = useDebounceFn(() => {
         preserveState: true,
         preserveScroll: true,
         replace: true,
+        ...(props.only.length ? { only: props.only } : {}),
     });
 }, 250);
 

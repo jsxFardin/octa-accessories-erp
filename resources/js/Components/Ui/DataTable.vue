@@ -31,6 +31,8 @@ const props = defineProps({
     loading: { type: Boolean, default: false },
     /** Turns on the checkbox column. The page owns what the selection is then used for. */
     selectable: { type: Boolean, default: false },
+    /** The props a sort or page-size change alters; see FilterBar's `only`. */
+    only: { type: Array, default: () => [] },
 });
 
 /** Selected row ids, as a v-model so the page can act on them. */
@@ -113,6 +115,7 @@ function toggleSort(column) {
         preserveState: true,
         preserveScroll: true,
         replace: true,
+        ...(props.only.length ? { only: props.only } : {}),
     });
 }
 

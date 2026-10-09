@@ -67,9 +67,10 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'category', label: 'Category', options: categories.map((c) => ({ value: c.id, label: c.name, code: c.code })) }, { key: 'status', label: 'Status', options: statuses.map((s) => ({ value: s.value, label: s.label })) }, { key: 'type', label: 'Type', options: itemTypes.map((t) => ({ value: t.value, label: t.label })) }, { key: 'family', label: 'Family', options: families.map((f) => ({ value: f.value, label: f.label, code: f.code })) }]" placeholder="Search code, name or description…" />
+            <FilterBar :only="['items', 'filters']" :filters="filters" :fields="[{ key: 'category', label: 'Category', options: categories.map((c) => ({ value: c.id, label: c.name, code: c.code })) }, { key: 'status', label: 'Status', options: statuses.map((s) => ({ value: s.value, label: s.label })) }, { key: 'type', label: 'Type', options: itemTypes.map((t) => ({ value: t.value, label: t.label })) }, { key: 'family', label: 'Family', options: families.map((f) => ({ value: f.value, label: f.label, code: f.code })) }]" placeholder="Search code, name or description…" />
 
             <DataTable
+                :only="['items', 'filters']"
                 :columns="columns"
                 :rows="items"
                 row-key="id" :actions="rowActions" :row-href="(row) => `/items/${row.id}`"

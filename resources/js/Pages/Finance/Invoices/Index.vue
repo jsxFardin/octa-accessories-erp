@@ -47,9 +47,10 @@ const columns = [
                 invoices and what is still owed on them.
             </div>
 
-            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','issued','partially_paid','paid','credited','overdue','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search invoice or Mushak number…" />
+            <FilterBar :only="['invoices', 'filters']" :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','issued','partially_paid','paid','credited','overdue','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search invoice or Mushak number…" />
 
             <DataTable
+                :only="['invoices', 'filters']"
                 :columns="columns"
                 :rows="invoices"
                 row-key="id"

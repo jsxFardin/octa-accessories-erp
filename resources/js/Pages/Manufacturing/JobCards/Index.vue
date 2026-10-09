@@ -64,9 +64,10 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','planned','material_pending','released','in_production','on_hold','qc_pending','completed','closed','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search number, colourway, product or customer…" />
+            <FilterBar :only="['jobCards', 'filters']" :filters="filters" :fields="[{ key: 'status', label: 'Status', options: ['draft','planned','material_pending','released','in_production','on_hold','qc_pending','completed','closed','cancelled'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search number, colourway, product or customer…" />
 
             <DataTable
+                :only="['jobCards', 'filters']"
                 :columns="columns"
                 :rows="jobCards"
                 row-key="id" :actions="rowActions" :row-href="(row) => `/job-cards/${row.id}`"

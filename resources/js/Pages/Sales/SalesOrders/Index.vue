@@ -140,6 +140,7 @@ const PRIORITY_TONES = { urgent: 'danger', high: 'warning', normal: 'neutral', l
 
         <Card :padded="false">
             <FilterBar
+                :only="['orders', 'filters']"
                 :filters="filters"
                 :fields="[
                     { key: 'status', label: 'Status', options: STAGES.map((s) => ({ value: s, label: titleCase(s) })) },
@@ -153,6 +154,7 @@ const PRIORITY_TONES = { urgent: 'danger', high: 'warning', normal: 'neutral', l
             />
 
             <DataTable
+                :only="['orders', 'filters']"
                 :columns="columns"
                 :rows="orders"
                 row-key="id" :actions="rowActions" :row-href="(row) => `/sales-orders/${row.id}`"

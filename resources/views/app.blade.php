@@ -38,7 +38,6 @@
         <meta name="theme-color" content="#0F766E">
     @endif
 
-    @routes
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @inertiaHead
 </head>

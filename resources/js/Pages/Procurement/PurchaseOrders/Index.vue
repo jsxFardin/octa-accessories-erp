@@ -94,13 +94,14 @@ const columns = [
         <StageStrip :stages="stages" label="Purchase orders by stage" @select="select" />
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[
+            <FilterBar :only="['purchase_orders', 'filters']" :filters="filters" :fields="[
                 { key: 'status', label: 'Status', options: STATUSES.map((s) => ({ value: s, label: titleCase(s) })) },
                 { key: 'supplier', label: 'Supplier', options: (suppliers ?? []).map((s) => ({ value: s.id, label: s.name, code: s.code })) },
                 { key: 'late', label: 'Deadline', options: [{ value: '1', label: 'Past expected date' }] },
             ]" placeholder="Search number or supplier…" />
 
             <DataTable
+                :only="['purchase_orders', 'filters']"
                 :columns="columns"
                 :rows="purchase_orders"
                 row-key="id" v-model:selection="selection" selectable :actions="rowActions" :row-href="(row) => `/purchase-orders/${row.id}`"

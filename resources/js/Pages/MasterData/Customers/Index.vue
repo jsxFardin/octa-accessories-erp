@@ -76,6 +76,7 @@ const kindLabel = (value) => props.kinds.find((k) => k.value === value)?.label ?
 
         <Card :padded="false">
             <FilterBar
+                :only="['customers', 'filters']"
                 :filters="filters"
                 :fields="[
                     { key: 'active', label: 'Status', options: [{ value: '1', label: 'Active' }, { value: '0', label: 'Inactive' }] },
@@ -85,6 +86,7 @@ const kindLabel = (value) => props.kinds.find((k) => k.value === value)?.label ?
             />
 
             <DataTable
+                :only="['customers', 'filters']"
                 :columns="columns"
                 :rows="customers"
                 row-key="id" :actions="rowActions" :row-href="(row) => `/customers/${row.id}`"

@@ -63,9 +63,9 @@ function changes(row) {
         <template #subtitle>Who changed what, and when. Every change records the person who made it.</template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="filterFields" placeholder="Search by record type, action or record number…" />
+            <FilterBar :only="['entries', 'filters']" :filters="filters" :fields="filterFields" placeholder="Search by record type, action or record number…" />
 
-            <DataTable :columns="columns" :rows="entries" row-key="id" empty="Nothing logged yet." dense>
+            <DataTable :only="['entries', 'filters']" :columns="columns" :rows="entries" row-key="id" empty="Nothing logged yet." dense>
                 <template #cell:created_at="{ value }">{{ datetime(value) }}</template>
                 <template #cell:user="{ value }">{{ value ?? 'System' }}</template>
                 <template #cell:event="{ value }"><Badge :status="value === 'status_changed' ? 'info' : 'neutral'" :label="titleCase(value)" /></template>
