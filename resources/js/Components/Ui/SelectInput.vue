@@ -103,12 +103,21 @@ const filtered = computed(() => {
 const showSearch = computed(() => props.options.length >= props.searchThreshold);
 
 /*
+ * A list is read, not scrolled. Past this many rows the rest are reached by typing — which
+ * is what anyone does with a catalogue of a thousand items anyway, and what keeps a form
+ * with three such pickers from rendering three thousand buttons on open.
+ */
+const LIMIT = 100;
+const visible = computed(() => filtered.value.slice(0, LIMIT));
+const hidden = computed(() => Math.max(0, filtered.value.length - LIMIT));
+
+/*
  * What the arrow keys move through: the "clear" row, when the field has one, and then the
  * options. The clear row used to sit outside the list the keyboard knew about, so a value
  * could be chosen without a mouse and never un-chosen.
  */
 const CLEAR = Symbol('clear');
-const rows = computed(() => (props.placeholder && !query.value ? [CLEAR, ...filtered.value] : filtered.value));
+const rows = computed(() => (props.placeholder && !query.value ? [CLEAR, ...visible.value] : visible.value));
 
 /** Ids, so the control can tell a screen reader which option the arrow keys are on. */
 const uid = useId();
@@ -358,6 +367,10 @@ onUnmounted(() => {
                             </span>
                         </button>
                     </template>
+
+                    <p v-if="hidden > 0" class="border-t border-slate-100 px-3 py-2 text-xs text-ink-500">
+                        {{ hidden }} more not shown. Type to narrow the list.
+                    </p>
 
                     <p v-if="filtered.length === 0" class="px-3 py-4 text-center text-xs text-ink-500">
                         <template v-if="query">Nothing matches “{{ query }}”.</template>
