@@ -105,7 +105,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 return $response;
             }
 
-            if (! in_array($response->getStatusCode(), [403, 404, 419, 429, 500, 503], true)) {
+            // 413: a file past the upload limit used to come back as a bare server page.
+            if (! in_array($response->getStatusCode(), [403, 404, 413, 419, 429, 500, 503], true)) {
                 return $response;
             }
 
@@ -133,13 +134,24 @@ return Application::configure(basePath: dirname(__DIR__))
             return Inertia::render('Error', [
                 'status' => $response->getStatusCode(),
                 'home' => LandingPage::for($user),
+                /*
+                 * A reference for the support ticket. It is derived from where the fault is,
+                 * not from the request, so the same bug reported twice carries the same code
+                 * and two different bugs never share one.
+                 */
+                'reference' => $response->getStatusCode() === 500
+                    ? strtoupper(substr(hash('crc32b', get_class($exception).'|'.$exception->getFile().'|'.$exception->getLine()), 0, 8))
+                    : null,
+                // Enough of the shared props for the app shell to draw its sidebar around the page.
                 'auth' => [
                     'user' => $user === null ? null : [
                         'id' => $user->id,
                         'name' => $user->name,
                         'roles' => $user->roleNames(),
+                        'permissions' => $user->permissionNames(),
                     ],
                 ],
+                'app' => $user === null ? [] : app(\App\Support\Settings\Organisation::class)->forFrontend(),
             ])
                 ->toResponse($request)
                 ->setStatusCode($response->getStatusCode());

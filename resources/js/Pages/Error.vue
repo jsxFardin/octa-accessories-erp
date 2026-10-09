@@ -2,12 +2,19 @@
 import { computed } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import Button from '@/Components/Ui/Button.vue';
+import AppLayout from '@/Layouts/AppLayout.vue';
 
+/*
+ * No layout of its own: signed in, the page draws the app shell around itself so the sidebar
+ * is still there to leave by; signed out, a bare card.
+ */
 defineOptions({ layout: null });
 
 const props = defineProps({
     status: { type: Number, required: true },
     home: { type: String, default: '/' },
+    /** Quoted on a 500 so support can find the fault. */
+    reference: { type: String, default: null },
 });
 
 const page = usePage();
@@ -26,6 +33,10 @@ const MESSAGES = {
         title: 'Nothing here',
         body: 'That page or record does not exist. It may have been cancelled, or the link may be out of date.',
     },
+    413: {
+        title: 'File too large',
+        body: 'The file is bigger than the server accepts. Reduce it, or split it, and upload again.',
+    },
     419: {
         title: 'Session expired',
         body: 'You were away long enough for the session to lapse. Sign in again and carry on.',
@@ -36,7 +47,7 @@ const MESSAGES = {
     },
     500: {
         title: 'Something broke',
-        body: 'The error has been logged. Nothing you did caused it.',
+        body: 'The error has been logged. Nothing you did caused it. If it keeps happening, quote the reference below.',
     },
     503: {
         title: 'Down for maintenance',
@@ -61,8 +72,8 @@ const requestedPath = window.location.pathname + window.location.search;
 <template>
     <Head :title="`${status} — ${message.title}`" />
 
-    <div class="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-        <div class="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <component :is="signedIn ? AppLayout : 'div'" :class="signedIn ? '' : 'flex min-h-screen items-center justify-center bg-slate-100 p-4'">
+        <div class="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm" :class="signedIn && 'mx-auto mt-8'">
             <div class="mb-4 flex items-center gap-3">
                 <span class="rounded-md bg-slate-900 px-2.5 py-1 font-mono text-sm font-bold text-white">
                     {{ status }}
@@ -88,11 +99,15 @@ const requestedPath = window.location.pathname + window.location.search;
                 {{ requestedPath }}
             </p>
 
+            <p v-if="reference" class="mt-4 text-xs text-ink-500">
+                Reference <span class="font-mono font-medium text-ink-800">{{ reference }}</span>
+            </p>
+
             <p v-if="status === 403 && signedIn" class="mt-4 text-xs text-ink-500">
                 Signed in as <span class="font-medium">{{ page.props.auth.user.name }}</span>
                 ({{ page.props.auth.user.roles.map((r) => r.replace(/_/g, ' ')).join(', ') }}).
                 If you need this screen, ask an administrator to review your role.
             </p>
         </div>
-    </div>
+    </component>
 </template>
