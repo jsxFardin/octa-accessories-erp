@@ -64,7 +64,7 @@ class JobCardController extends Controller
         $this->applyListing(
             $query,
             $request,
-            searchable: ['number', 'colourway'],
+            searchable: ['number', 'colourway', 'product.item.code', 'product.item.name', 'product.customer.name'],
             filters: ['status' => 'status', 'product' => 'product_id', 'unit' => 'factory_unit_id'],
             sortable: ['number', 'due_date', 'priority', 'planned_qty', 'status'],
             defaultSort: '-id',

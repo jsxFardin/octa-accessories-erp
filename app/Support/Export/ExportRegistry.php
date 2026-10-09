@@ -277,6 +277,91 @@ class ExportRegistry
                     'Status' => 'l.status',
                 ],
             ],
+
+            'sales-returns' => [
+                'label' => 'Customer returns',
+                'permission' => 'sales_return.export',
+                'from' => 'sales_returns as sr',
+                'joins' => [
+                    ['customers as c', 'c.id', 'sr.customer_id'],
+                    ['sales_invoices as si', 'si.id', 'sr.sales_invoice_id'],
+                ],
+                'searchable' => ['sr.number', 'sr.reason'],
+                'filters' => ['status' => 'sr.status', 'customer' => 'sr.customer_id'],
+                'columns' => [
+                    'Number' => 'sr.number',
+                    'Customer' => 'c.name',
+                    'Billed on' => 'si.number',
+                    'Returned' => 'sr.returned_on',
+                    'Reason' => 'sr.reason',
+                    'Status' => 'sr.status',
+                ],
+            ],
+
+            'machines' => [
+                'label' => 'Machines',
+                'permission' => 'machine.export',
+                'from' => 'machines as m',
+                'joins' => [
+                    ['machine_groups as g', 'g.id', 'm.machine_group_id'],
+                    ['factory_units as fu', 'fu.id', 'm.factory_unit_id'],
+                ],
+                'searchable' => ['m.code', 'm.name', 'm.make', 'm.model'],
+                'filters' => ['group' => 'm.machine_group_id', 'status' => 'm.status'],
+                'columns' => [
+                    'Code' => 'm.code',
+                    'Name' => 'm.name',
+                    'Group' => 'g.name',
+                    'Unit' => 'fu.code',
+                    'Make' => 'm.make',
+                    'Model' => 'm.model',
+                    'Serial' => 'm.serial_no',
+                    'Web width (mm)' => 'm.web_width_mm',
+                    'Rate per hour' => 'm.hourly_rate',
+                    'Efficiency %' => 'm.efficiency_pct',
+                    'Status' => 'm.status',
+                ],
+            ],
+
+            'routings' => [
+                'label' => 'Routings',
+                'permission' => 'routing.export',
+                'from' => 'routings as r',
+                'joins' => [],
+                'searchable' => ['r.code', 'r.name'],
+                'filters' => ['product_type' => 'r.product_type'],
+                'columns' => [
+                    'Code' => 'r.code',
+                    'Name' => 'r.name',
+                    'Product type' => 'r.product_type',
+                    'Max lot size' => 'r.max_lot_size',
+                    'Default' => 'r.is_default',
+                    'Active' => 'r.is_active',
+                ],
+            ],
+
+            'artworks' => [
+                'label' => 'Artwork',
+                'permission' => 'artwork.export',
+                'from' => 'artworks as a',
+                'joins' => [
+                    ['products as p', 'p.id', 'a.product_id'],
+                    ['items as pi', 'pi.id', 'p.item_id'],
+                    ['customers as c', 'c.id', 'p.customer_id'],
+                    ['users as d', 'd.id', 'a.designer_id'],
+                ],
+                'searchable' => ['a.code', 'a.title', 'pi.code', 'pi.name'],
+                'filters' => ['product' => 'a.product_id', 'customer' => 'p.customer_id'],
+                'columns' => [
+                    'Code' => 'a.code',
+                    'Title' => 'a.title',
+                    'Product' => 'pi.code',
+                    'Product name' => 'pi.name',
+                    'Customer' => 'c.name',
+                    'Designer' => 'd.name',
+                    'Created' => 'a.created_at',
+                ],
+            ],
         ];
     }
 

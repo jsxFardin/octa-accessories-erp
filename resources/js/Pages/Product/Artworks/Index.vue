@@ -5,6 +5,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
+import ExportDialog from '@/Components/Ui/ExportDialog.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import FormField from '@/Components/Ui/FormField.vue';
@@ -82,6 +83,7 @@ const columns = [
         <template #subtitle>Production can only run against an approved version</template>
 
         <template #actions>
+            <ExportDialog v-if="can('artwork.export')" resource="artworks" />
             <Button v-if="can('artwork.create')" variant="primary" @click="createOpen = true">New artwork</Button>
         </template>
 

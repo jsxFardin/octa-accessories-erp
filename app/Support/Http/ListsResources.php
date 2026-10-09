@@ -17,7 +17,7 @@ trait ListsResources
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
      * @param  Builder<TModel>  $query
-     * @param  list<string>  $searchable  columns matched against the `q` parameter
+     * @param  list<string>  $searchable  columns matched against the `q` parameter; `relation.column` reaches a relation
      * @param  array<string, string>  $filters  request key => column
      * @param  list<string>  $sortable
      * @return Builder<TModel>
@@ -35,6 +35,15 @@ trait ListsResources
         if ($term !== '' && $searchable !== []) {
             $query->where(function (Builder $sub) use ($searchable, $term): void {
                 foreach ($searchable as $column) {
+                    // "product.item.code": the column of a (nested) relation. A planner looks
+                    // for a job card by the product on it, not by the number alone.
+                    if (str_contains($column, '.')) {
+                        $relation = substr($column, 0, strrpos($column, '.'));
+                        $sub->orWhereRelation($relation, substr($column, strrpos($column, '.') + 1), 'like', "%{$term}%");
+
+                        continue;
+                    }
+
                     $sub->orWhere($column, 'like', "%{$term}%");
                 }
             });

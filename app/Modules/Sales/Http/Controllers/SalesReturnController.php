@@ -53,6 +53,7 @@ class SalesReturnController extends Controller
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'customer']),
+            'customers' => DB::table('customers')->orderBy('name')->get(['id', 'code', 'name']),
         ]);
     }
 
