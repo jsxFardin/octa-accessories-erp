@@ -107,7 +107,7 @@ class MachineController extends Controller
     /** @return array<string, mixed> */
     private function validated(Request $request, ?Machine $machine = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'factory_unit_id' => ['required', 'integer', 'exists:factory_units,id'],
             'machine_group_id' => ['required', 'integer', 'exists:machine_groups,id'],
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
@@ -125,8 +125,12 @@ class MachineController extends Controller
             // BR-27 divides by this; 0 would make the machine infinitely fast.
             'efficiency_pct' => ['numeric', 'gt:0', 'max:100'],
             'status' => ['required', Rule::in(['available', 'running', 'maintenance', 'breakdown', 'retired'])],
-            'is_active' => ['boolean'],
         ]);
+
+        // One switch, not three: a machine is off the pickers exactly when it is retired.
+        $data['is_active'] = $data['status'] !== 'retired';
+
+        return $data;
     }
 
     /** @return array<string, mixed> */

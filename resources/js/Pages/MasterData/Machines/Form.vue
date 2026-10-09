@@ -40,7 +40,6 @@ const sections = computed(() => [
                 { value: 'breakdown', label: 'Breakdown' },
                 { value: 'retired', label: 'Retired' },
             ] },
-            { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
         ],
     },
 ]);
