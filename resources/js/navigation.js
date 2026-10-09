@@ -165,6 +165,7 @@ export const navigation = [
         items: [
             { label: 'Settings', href: '/admin/settings', icon: 'settings', aliases: ['configuration', 'company'], permissions: ['setting.view_any'] },
             { label: 'Number sequences', href: '/admin/number-sequences', icon: 'sequence', permissions: ['number_sequence.view_any'] },
+            { label: 'Accounting periods', href: '/admin/accounting-periods', icon: 'calendar', aliases: ['month end', 'close period', 'period lock'], permissions: ['accounting_period.view_any'] },
         ],
     },
     {

@@ -57,6 +57,10 @@ class SupplierBillStateMachine extends StateMachine
      */
     protected function guard(Model $document, string $from, string $to, array $context): void
     {
+        if ($to === 'approved') {
+            app(\App\Support\Periods\PeriodLock::class)->assertOpen($document->bill_date, 'a supplier bill');
+        }
+
         // Approval is what happens to a draft. A bill returning to `approved` because its
         // payment was voided has already been matched and approved once.
         if ($to === 'approved' && $from === 'draft') {

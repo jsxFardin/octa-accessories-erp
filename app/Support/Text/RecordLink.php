@@ -42,7 +42,7 @@ final class RecordLink
     ];
 
     /** @var array<string, string> lists without a page per row */
-    public const LISTS = ['Tool' => '/tools', 'User' => '/admin/users', 'Role' => '/admin/roles'];
+    public const LISTS = ['Tool' => '/tools', 'User' => '/admin/users', 'Role' => '/admin/roles', 'AccountingPeriod' => '/admin/accounting-periods'];
 
     /** "App\…\SalesOrder" or "sales_orders" → "sales order". */
     public static function label(string $type): string

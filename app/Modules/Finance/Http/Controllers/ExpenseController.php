@@ -141,6 +141,10 @@ class ExpenseController extends Controller
         $this->refuseUnless(in_array($data['status'], $allowed, true),
             "An expense cannot go from {$this->statusWords($expense->status)} to {$this->statusWords($data['status'])}.");
 
+        if (in_array($data['status'], ['approved', 'paid'], true)) {
+            app(\App\Support\Periods\PeriodLock::class)->assertOpen($expense->expense_date, 'an expense');
+        }
+
         if ($data['status'] === 'approved') {
             abort_unless($request->user()->hasPermission('expense.approve'), 403);
 

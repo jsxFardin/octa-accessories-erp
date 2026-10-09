@@ -275,8 +275,10 @@ it('loads every object the specification promises', function (): void {
     // `products.item_id` in place of `products.status`, two on `tools` (item, owner) and the
     // three the new tables carry. Eleven more CHECKs: ten vocabularies and bounds on `items`
     // and the attribute data type.
-    expect($tables)->toBe(162)
+    // 163 is `accounting_periods`: a closed month takes no stock movement, invoice, bill,
+    // receipt or payment. Two foreign keys (closer, reopener) and two CHECKs (status, month).
+    expect($tables)->toBe(163)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(444)
-        ->and($checks)->toBe(186);
+        ->and($foreignKeys)->toBe(446)
+        ->and($checks)->toBe(188);
 });

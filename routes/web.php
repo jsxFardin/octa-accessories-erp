@@ -60,6 +60,7 @@ use App\Support\Http\Controllers\BulkTransitionController;
 use App\Support\Http\LandingPage;
 use App\Support\Import\Http\Controllers\ImportController;
 use App\Support\Notifications\Http\Controllers\NotificationInboxController;
+use App\Support\Platform\Http\Controllers\AccountingPeriodController;
 use App\Support\Platform\Http\Controllers\AuditLogController;
 use App\Support\Platform\Http\Controllers\NumberSequenceController;
 use App\Support\Platform\Http\Controllers\OrganisationController;
@@ -820,6 +821,15 @@ Route::middleware('auth')->group(function (): void {
 
         Route::get('number-sequences', [NumberSequenceController::class, 'index'])
             ->middleware('can:number_sequence.view_any')->name('number-sequences.index');
+
+        // Month-end close. Closing and reopening are separate rights: reopening is the act
+        // an auditor asks about.
+        Route::get('accounting-periods', [AccountingPeriodController::class, 'index'])
+            ->middleware('can:accounting_period.view_any')->name('accounting-periods.index');
+        Route::post('accounting-periods/close', [AccountingPeriodController::class, 'close'])
+            ->middleware('can:accounting_period.close')->name('accounting-periods.close');
+        Route::post('accounting-periods/reopen', [AccountingPeriodController::class, 'reopen'])
+            ->middleware('can:accounting_period.reopen')->name('accounting-periods.reopen');
 
         Route::get('audit-log', [AuditLogController::class, 'index'])
             ->middleware('can:audit_log.view_any')->name('audit-log.index');

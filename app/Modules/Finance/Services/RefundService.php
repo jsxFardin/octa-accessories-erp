@@ -43,6 +43,8 @@ class RefundService
      */
     public function post(CreditNote $note, float $amount, array $details = []): Refund
     {
+        app(\App\Support\Periods\PeriodLock::class)->assertOpen(null, 'a refund');
+
         return DB::transaction(function () use ($note, $amount, $details): Refund {
             /** @var CreditNote $locked */
             $locked = CreditNote::query()->lockForUpdate()->findOrFail($note->getKey());

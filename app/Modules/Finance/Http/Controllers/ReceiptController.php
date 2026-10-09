@@ -94,6 +94,8 @@ class ReceiptController extends Controller
             'allocations.*.amount' => ['required', 'numeric', 'gt:0'],
         ]);
 
+        app(\App\Support\Periods\PeriodLock::class)->assertOpen($data['receipt_date'], 'a receipt');
+
         try {
             $receipt = DB::transaction(function () use ($data, $request): Receipt {
                 $allocated = array_sum(array_column($data['allocations'], 'amount'));

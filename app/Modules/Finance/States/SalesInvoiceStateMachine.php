@@ -75,6 +75,7 @@ class SalesInvoiceStateMachine extends StateMachine
         // Issuing is what happens to a draft. An invoice returning to `issued` because its
         // receipt was reversed is not being issued a second time.
         if ($to === 'issued' && $from === 'draft') {
+            app(\App\Support\Periods\PeriodLock::class)->assertOpen($document->invoice_date, 'an invoice');
             if (DB::table('sales_invoice_lines')->where('sales_invoice_id', $document->getKey())->doesntExist()) {
                 throw TransitionDenied::guard('FN-1', 'An invoice with no lines cannot be issued.');
             }

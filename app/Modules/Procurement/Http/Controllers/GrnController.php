@@ -627,6 +627,8 @@ class GrnController extends Controller
     /** Posts a draft. The only step that puts the goods into stock. */
     public function post(Request $request, Grn $grn): RedirectResponse
     {
+        app(\App\Support\Periods\PeriodLock::class)->assertOpen($grn->received_on, 'a goods receipt');
+
         if ($grn->status !== 'draft') {
             return back()->with('error', 'This goods receipt is already posted.');
         }

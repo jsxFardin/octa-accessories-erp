@@ -69,6 +69,28 @@ CREATE TABLE users (
     UNIQUE KEY users_email_uq (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- A closed month takes no new entries: stock movements, invoices, bills, receipts, payments.
+-- A row is a closed month; a month without a row is open. Reopening is recorded, not deleted.
+CREATE TABLE accounting_periods (
+    id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    period_year  SMALLINT UNSIGNED NOT NULL,
+    period_month TINYINT UNSIGNED NOT NULL,
+    status       VARCHAR(10) NOT NULL DEFAULT 'closed',
+    closed_at    DATETIME(3),
+    closed_by    BIGINT UNSIGNED,
+    reopened_at  DATETIME(3),
+    reopened_by  BIGINT UNSIGNED,
+    note         VARCHAR(255),
+    UNIQUE KEY accounting_periods_uq (period_year, period_month),
+    KEY accounting_periods_closer_idx (closed_by),
+    KEY accounting_periods_reopener_idx (reopened_by),
+    CONSTRAINT accounting_periods_closer_fk   FOREIGN KEY (closed_by)   REFERENCES users(id),
+    CONSTRAINT accounting_periods_reopener_fk FOREIGN KEY (reopened_by) REFERENCES users(id),
+    CONSTRAINT accounting_periods_status_chk CHECK (status IN ('open','closed')),
+    CONSTRAINT accounting_periods_month_chk  CHECK (period_month BETWEEN 1 AND 12)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
 CREATE TABLE roles (
     id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name       VARCHAR(80)  NOT NULL,

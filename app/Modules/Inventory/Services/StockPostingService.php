@@ -7,6 +7,7 @@ namespace App\Modules\Inventory\Services;
 use App\Modules\Inventory\Models\StockLedgerEntry;
 use App\Modules\Inventory\Models\StockLot;
 use App\Support\Calculators\InventoryValuator;
+use App\Support\Periods\PeriodLock;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -23,7 +24,10 @@ use Illuminate\Support\Facades\DB;
  */
 class StockPostingService
 {
-    public function __construct(private readonly InventoryValuator $valuator) {}
+    public function __construct(
+        private readonly InventoryValuator $valuator,
+        private readonly PeriodLock $periods,
+    ) {}
 
     /**
      * Post one movement.
@@ -44,6 +48,9 @@ class StockPostingService
         if (abs($qty) < 0.000001) {
             throw new \InvalidArgumentException('A stock movement of zero is not a movement (stock_ledger_qty_chk).');
         }
+
+        // A movement is dated now, so the month that matters is this one.
+        $this->periods->assertOpen(null, 'a stock movement');
 
         return DB::transaction(function () use ($lot, $movementType, $qty, $source, $unitCost, $remarks, $binId): StockLedgerEntry {
             // Lock the lot for the duration: two operators issuing the same roll at the same

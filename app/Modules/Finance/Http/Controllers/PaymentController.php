@@ -87,6 +87,8 @@ class PaymentController extends Controller
             'allocations.*.amount' => ['required', 'numeric', 'gt:0'],
         ]);
 
+        app(\App\Support\Periods\PeriodLock::class)->assertOpen($data['payment_date'], 'a payment');
+
         try {
             $payment = DB::transaction(function () use ($data, $request): Payment {
                 $allocated = array_sum(array_column($data['allocations'], 'amount'));

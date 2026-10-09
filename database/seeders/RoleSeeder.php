@@ -263,6 +263,8 @@ class RoleSeeder extends Seeder
                 'sales_invoice.*', 'receipt.*', 'credit_note.*', 'supplier_bill.*', 'payment.*',
                 'credit_note.approve', 'credit_note.apply', 'credit_note.refund',
                 'refund.*', 'sales_order.release_credit_hold',
+                // Accounts closes the month; reopening it is the same hand, recorded.
+                'accounting_period.*',
                 // A customer return ends in a credit note, so the commercial sign-off is
                 // accounts' — the same hand that approves the credit it turns into. `update`
                 // comes with it because declining a return is cancelling it, and an approver

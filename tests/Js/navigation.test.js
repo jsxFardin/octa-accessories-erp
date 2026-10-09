@@ -134,7 +134,7 @@ describe('sidebar visibility', () => {
         // Configuration used to be a separate shell entered from the footer and left through
         // an "Exit configuration" header. It is three ordinary groups now, last in the tree.
         expect(navigation.slice(-4).map((section) => section.label)).toEqual(SETUP_GROUPS);
-        expect(itemsOf('Settings')).toEqual(['Settings', 'Number sequences']);
+        expect(itemsOf('Settings')).toEqual(['Settings', 'Number sequences', 'Accounting periods']);
         expect(itemsOf('Access')).toEqual(['Users', 'Roles & permissions']);
         expect(itemsOf('Activity')).toEqual(['Audit log']);
         expect(navigation.every((section) => section.open !== true)).toBe(true);

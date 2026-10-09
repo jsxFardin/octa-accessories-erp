@@ -131,6 +131,9 @@ class PermissionSeeder extends Seeder
         'credit_note' => ['Money', ['approve', 'apply', 'refund']],
         'refund' => ['Money', ['post']],
         'payment' => ['Money', ['allocate']],
+        // Month-end close. `reopen` is its own right because reopening a closed month is
+        // the act an auditor asks about, and fewer hands should hold it than can close.
+        'accounting_period' => ['Money', ['close', 'reopen']],
 
         // Reporting
         'report' => ['Reporting', ['dashboard']],

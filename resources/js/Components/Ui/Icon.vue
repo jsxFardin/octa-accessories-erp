@@ -95,6 +95,7 @@ const REGISTRY = {
     mail: Mail,
     bell: Bell,
     help: CircleHelp,
+    calendar: CalendarDays,
     command: Command,
     warehouse: Warehouse,
     card: CreditCard,
