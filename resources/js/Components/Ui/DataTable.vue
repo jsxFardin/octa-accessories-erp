@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import DropdownMenu from '@/Components/Ui/DropdownMenu.vue';
+import EmptyState from '@/Components/Ui/EmptyState.vue';
 import Icon from '@/Components/Ui/Icon.vue';
 import Pagination from '@/Components/Ui/Pagination.vue';
 
@@ -148,9 +149,26 @@ function togglePage() {
  * Density is a per-user preference, not a per-screen decision: someone entering fifty issue
  * lines wants compact rows everywhere, and someone reading an order book wants air.
  */
-const compact = ref(localStorage.getItem('octa.table.compact') === '1' || props.dense);
+/** A remembered preference, never a requirement: private windows and blocked storage throw. */
+function remembered(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+}
 
-watch(compact, (value) => localStorage.setItem('octa.table.compact', value ? '1' : '0'));
+function remember(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch {
+        // Nothing to do: the choice holds for this page and is asked again next time.
+    }
+}
+
+const compact = ref(remembered('octa.table.compact') === '1' || props.dense);
+
+watch(compact, (value) => remember('octa.table.compact', value ? '1' : '0'));
 
 const rowPadding = computed(() => (compact.value ? 'py-1.5' : 'py-2.5'));
 
@@ -192,7 +210,7 @@ onUnmounted(() => {
             Bounded rather than page-length so the pinning has something to happen inside; a
             short list never reaches the limit and renders exactly as before.
         -->
-        <div class="max-h-[70vh] overflow-auto">
+        <div class="overflow-auto md:max-h-[70vh]">
             <table class="min-w-full text-sm">
                 <!-- A forty-row list scrolled halfway is a grid of numbers with no column names. -->
                 <thead class="sticky top-0 z-10">
@@ -208,11 +226,11 @@ onUnmounted(() => {
                             >
                         </th>
                         <th
-                            v-for="column in columns"
+                            v-for="(column, columnIndex) in columns"
                             :key="column.key"
                             scope="col"
                             class="px-3 py-2 text-xs font-semibold whitespace-nowrap text-ink-600"
-                            :class="[alignClass(column), column.class]"
+                            :class="[alignClass(column), column.class, columnIndex === 0 && 'max-md:sticky max-md:left-0 max-md:z-[2] max-md:bg-slate-50 max-md:shadow-[inset_-1px_0_0_0_var(--color-slate-200)]']"
                             :style="column.width ? { width: column.width } : undefined"
                             :aria-sort="sortState(column) ? (sortState(column) === 'asc' ? 'ascending' : 'descending') : undefined"
                         >
@@ -273,7 +291,8 @@ onUnmounted(() => {
                     <tr v-else-if="items(rows).length === 0">
                         <td :colspan="columns.length + (actions ? 1 : 0) + (selectable ? 1 : 0)" class="px-3 py-12 text-center">
                             <slot name="empty">
-                                <p class="text-sm text-ink-500">{{ empty }}</p>
+                                <!-- One empty state, not 52 different strings in a grey paragraph. -->
+                                <EmptyState :title="empty" icon="inbox" />
                             </slot>
                         </td>
                     </tr>
@@ -303,7 +322,15 @@ onUnmounted(() => {
                             v-for="(column, columnIndex) in columns"
                             :key="column.key"
                             class="px-3 text-ink-700"
-                            :class="[column.wrap ? 'whitespace-nowrap sm:whitespace-normal' : 'whitespace-nowrap', alignClass(column), rowPadding, rowHref && columnIndex > 0 && 'cursor-pointer']"
+                            :class="[
+                                column.wrap ? 'whitespace-nowrap sm:whitespace-normal' : 'whitespace-nowrap',
+                                alignClass(column),
+                                rowPadding,
+                                rowHref && columnIndex > 0 && 'cursor-pointer',
+                                // On a phone the first column stays put while the rest scrolls
+                                // under it, so a row keeps its name; the shadow says there is more.
+                                columnIndex === 0 && 'max-md:sticky max-md:left-0 max-md:z-[1] max-md:bg-white max-md:shadow-[inset_-1px_0_0_0_var(--color-slate-200)]',
+                            ]"
                             @click="rowHref && columnIndex > 0 && openRow(row, $event)"
                         >
                             <component
