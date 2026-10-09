@@ -39,7 +39,7 @@ class NcrController extends Controller
         $query = Ncr::query()->with([
             'inspection:id,number,disposition,lot_size,result,stage',
             'jobCard:id,number,product_id',
-            'jobCard.product:id,code,name',
+            'jobCard.product:id,item_id',
             'owner:id,name',
         ]);
 
@@ -106,7 +106,7 @@ class NcrController extends Controller
     {
         $ncr->load([
             'inspection',
-            'jobCard.product:id,code,name',
+            'jobCard.product:id,item_id',
             'jobCard.salesOrderLine.salesOrder:id,number',
             'owner:id,name',
             'raiser:id,name',

@@ -172,10 +172,11 @@ class SalesInvoiceController extends Controller
             ],
             'lines' => DB::table('sales_invoice_lines as sil')
                 ->leftJoin('products as p', 'p.id', '=', 'sil.product_id')
+                ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
                 ->where('sil.sales_invoice_id', $invoice->id)
                 ->orderBy('sil.line_no')
                 ->get(['sil.id', 'sil.line_no', 'sil.description', 'sil.qty', 'sil.rate_per_m',
-                    'sil.amount', 'p.code as product_code']),
+                    'sil.amount', 'pi.code as product_code']),
             'creditNotes' => DB::table('credit_notes')
                 ->where('sales_invoice_id', $invoice->id)
                 ->orderByDesc('id')

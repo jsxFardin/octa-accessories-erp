@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\MasterData\Models\PriceList;
 use App\Modules\MasterData\Models\PriceListLine;
+use App\Modules\MasterData\Services\ItemMasterService;
 use App\Modules\Procurement\Models\Grn;
 use App\Modules\Procurement\Models\PurchaseOrder;
 use App\Modules\Procurement\Models\PurchaseOrderLine;
@@ -283,23 +284,44 @@ class LocalCatalogueSeeder extends Seeder
         $brandId = DB::table('brands')->where('customer_id', $customerId)->where('code', $brandCode)->value('id');
         $def = $this->typeDef($type);
 
-        /** @var Product $product */
-        $product = Product::query()->updateOrCreate(
-            ['code' => $code],
+        $families = DB::table('production_families')->pluck('id', 'code');
+        $uoms = DB::table('uoms')->pluck('id', 'code');
+        $familyCode = in_array($type, ['woven', 'ribbon', 'tape'], true) ? '01' : ($type === 'offset_tag' ? '03' : '02');
+
+        $item = app(ItemMasterService::class)->upsertByCode(
+            $code,
+            [
+                'name' => $name,
+                'item_type' => 'finished_good',
+                'make_or_buy' => 'make',
+                'production_family_id' => $families[$familyCode],
+                'garment_type' => 'both',
+                'spec_scope' => 'buyer',
+                'material_base' => match ($type) {
+                    'offset_tag', 'thermal' => 'paper',
+                    'heat_transfer' => 'film',
+                    default => 'textile',
+                },
+                'base_uom_id' => $uoms['pcs'],
+                'order_uom_id' => $uoms['M'],
+                'status' => 'active',
+                'created_by' => $this->userId,
+            ],
             [
                 'customer_id' => $customerId,
                 'brand_id' => $brandId,
                 'routing_id' => $routing->id,
-                'name' => $name,
                 'customer_style_ref' => $brandCode.'-26-'.$style,
                 'product_type' => $type,
                 'is_running_programme' => true,
                 'annual_forecast_qty' => 200_000,
-                'status' => 'active',
-                'is_active' => true,
                 'created_by' => $this->userId,
             ],
+            $this->userId,
         );
+
+        /** @var Product $product */
+        $product = $item->product()->firstOrFail();
 
         $product->load('routing.operations');
         $spec = $this->spec($product, $def);
@@ -466,7 +488,7 @@ class LocalCatalogueSeeder extends Seeder
 
     private function toolsAndPriceLists(): void
     {
-        $flexo = Product::query()->where('code', 'PRD-NFJ-FLEX-01')->first();
+        $flexo = Product::query()->whereCode('PRD-NFJ-FLEX-01')->first();
         $screen = Product::query()->where('product_type', 'screen')->first();
 
         if ($flexo !== null && ! Tool::query()->where('code', 'TOOL-L-FLX-01')->exists()) {
@@ -513,7 +535,7 @@ class LocalCatalogueSeeder extends Seeder
 
         $nordicId = (int) DB::table('customers')->where('code', 'CUST-001')->value('id');
         $haMeemId = (int) DB::table('customers')->where('code', 'CUST-L-01')->value('id');
-        $care = Product::query()->where('code', 'PRD-NFJ-CARE-01')->first();
+        $care = Product::query()->whereCode('PRD-NFJ-CARE-01')->first();
 
         if ($nordicId > 0 && ! PriceList::query()->where('code', 'PL-L-NFJ')->exists()) {
             $list = PriceList::query()->create([
@@ -544,7 +566,7 @@ class LocalCatalogueSeeder extends Seeder
                 'is_active' => true,
             ]);
 
-            $localWoven = Product::query()->where('code', 'PRD-L-01')->first();
+            $localWoven = Product::query()->whereCode('PRD-L-01')->first();
 
             PriceListLine::query()->create([
                 'price_list_id' => $list->id,
@@ -1108,7 +1130,7 @@ class LocalCatalogueSeeder extends Seeder
             return;
         }
 
-        $product = Product::query()->where('code', 'PRD-NFJ-CARE-01')->first();
+        $product = Product::query()->whereCode('PRD-NFJ-CARE-01')->first();
         $techId = (int) DB::table('employees')->where('code', 'EMP-0014')->value('id');
         $tests = DB::table('lab_tests')->where('is_active', true)->orderBy('id')->limit(4)->get();
 

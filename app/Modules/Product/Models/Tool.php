@@ -10,9 +10,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * @property int $id
  * @property int|null $product_spec_id
+ * @property int|null $item_id
  * @property string $kind
  * @property string $code
  * @property int|null $colour_index
+ * @property int|null $cavity_count
+ * @property int|null $owner_customer_id
  * @property string|null $location
  * @property \Illuminate\Support\Carbon|null $made_on
  * @property string $cost
@@ -29,9 +32,12 @@ class Tool extends Model
 
     protected $fillable = [
         'product_spec_id',
+        'item_id',
         'kind',
         'code',
         'colour_index',
+        'cavity_count',
+        'owner_customer_id',
         'location',
         'made_on',
         'cost',
@@ -45,7 +51,10 @@ class Tool extends Model
     {
         return [
             'product_spec_id' => 'integer',
+            'item_id' => 'integer',
             'colour_index' => 'integer',
+            'cavity_count' => 'integer',
+            'owner_customer_id' => 'integer',
             'made_on' => 'date:Y-m-d',
             'cost' => 'decimal:4',
             'life_impressions' => 'integer',
@@ -58,6 +67,18 @@ class Tool extends Model
     public function spec(): BelongsTo
     {
         return $this->belongsTo(ProductSpec::class, 'product_spec_id');
+    }
+
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Item, $this> */
+    public function item(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Item::class);
+    }
+
+    /** The customer who owns the tool; null means the factory does. */
+    public function ownerCustomer(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Customer::class, 'owner_customer_id');
     }
 
     /** BR-13 — impressions left before this tool must be remade. */

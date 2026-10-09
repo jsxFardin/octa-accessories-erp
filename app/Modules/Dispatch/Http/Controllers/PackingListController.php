@@ -118,10 +118,11 @@ class PackingListController extends Controller
             ->join('cartons as c', 'c.id', '=', 'cc.carton_id')
             ->leftJoin('stock_lots as sl', 'sl.id', '=', 'cc.lot_id')
             ->leftJoin('products as p', 'p.id', '=', 'cc.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->where('c.packing_list_id', $packingList->id)
             ->get(['cc.id', 'cc.carton_id', 'cc.sales_order_line_id', 'cc.qty', 'cc.bundles',
                 'sl.lot_no', 'sl.status as lot_status', 'sl.balance_qty', 'sl.cert_scheme',
-                'p.code as product_code']);
+                'pi.code as product_code']);
 
         return Inertia::render('Dispatch/PackingLists/Show', [
             'packingList' => [
@@ -136,10 +137,11 @@ class PackingListController extends Controller
             'orderLines' => $packingList->sales_order_id
                 ? DB::table('sales_order_lines as sol')
                     ->join('products as p', 'p.id', '=', 'sol.product_id')
+                    ->join('items as pi', 'pi.id', '=', 'p.item_id')
                     ->where('sol.sales_order_id', $packingList->sales_order_id)
                     ->get(['sol.id', 'sol.line_no', 'sol.ordered_qty', 'sol.produced_qty', 'sol.delivered_qty',
                         'sol.over_tolerance_pct', 'sol.under_tolerance_pct',
-                        'p.id as product_id', 'p.code as product_code'])
+                        'p.id as product_id', 'pi.code as product_code'])
                 : [],
             // The picker offers only what D1 will accept — and D1 re-checks anyway.
             'availableLots' => $packingList->sales_order_id

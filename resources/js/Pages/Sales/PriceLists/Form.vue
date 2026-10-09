@@ -76,7 +76,7 @@ function addBreakFromKeyboard(index) {
 /** A price list belongs to one customer, so only that customer's products can be priced. */
 const availableProducts = computed(() =>
     form.customer_id
-        ? props.products.filter((product) => product.customer_id === Number(form.customer_id))
+        ? props.products.filter((product) => product.customer_id === null || product.customer_id === Number(form.customer_id))
         : props.products,
 );
 
@@ -114,7 +114,7 @@ watch(() => form.customer_id, (customer, previous) => {
     form.lines.forEach((line) => {
         const product = props.products.find((row) => row.id === Number(line.product_id));
 
-        if (product && product.customer_id !== Number(customer)) {
+        if (product && product.customer_id !== null && product.customer_id !== Number(customer)) {
             line.product_id = "";
             droppedProducts.value += 1;
         }

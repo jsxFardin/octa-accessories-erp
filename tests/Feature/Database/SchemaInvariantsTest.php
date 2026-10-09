@@ -21,13 +21,24 @@ function seedArtwork(): int
 
     $routingId = (int) DB::table('routings')->where('code', 'RT-WOVEN')->value('id');
 
-    $productId = DB::table('products')->insertGetId([
-        'customer_id' => $customerId,
-        'routing_id' => $routingId,
+    $itemId = DB::table('items')->insertGetId([
+        'item_category_id' => DB::table('item_categories')->where('code', 'FG')->value('id'),
         'code' => 'TST-PRD-1',
         'name' => 'Test label',
+        'item_type' => 'finished_good',
+        'make_or_buy' => 'make',
+        'production_family_id' => DB::table('production_families')->where('code', '02')->value('id'),
+        'base_uom_id' => DB::table('uoms')->where('code', 'pcs')->value('id'),
+        'variant_axes' => '[]',
+        'attributes' => '{}',
+        'created_at' => now(),
+    ]);
+
+    $productId = DB::table('products')->insertGetId([
+        'item_id' => $itemId,
+        'customer_id' => $customerId,
+        'routing_id' => $routingId,
         'product_type' => 'woven',
-        'status' => 'development',
         'created_at' => now(),
     ]);
 
@@ -254,8 +265,18 @@ it('loads every object the specification promises', function (): void {
     // was the alternative and would have put money flowing the wrong way inside every existing
     // sum over receipts, allocations and BR-46 exposure unless each was found and filtered.
     // Four more foreign keys and three more CHECKs, bringing the totals to 430 and 175.
-    expect($tables)->toBe(159)
+    // 160 to 162 are `production_families`, `item_groups` and `family_attributes` (IM-1): the
+    // item master of a garments-accessories factory classifies every item into one of ten
+    // families, a group and a sub-group, and the family says which specification attributes
+    // the item must carry. `product_statuses` became `item_statuses` in the same change — the
+    // lifecycle moved from the product to the item, since a product is now one made item's
+    // engineering profile and nothing else. Fourteen more foreign keys: nine on `items`
+    // (family, group, buyer, order unit, warehouse, tool owner, status, creator, activator),
+    // `products.item_id` in place of `products.status`, two on `tools` (item, owner) and the
+    // three the new tables carry. Eleven more CHECKs: ten vocabularies and bounds on `items`
+    // and the attribute data type.
+    expect($tables)->toBe(162)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(430)
-        ->and($checks)->toBe(175);
+        ->and($foreignKeys)->toBe(444)
+        ->and($checks)->toBe(186);
 });

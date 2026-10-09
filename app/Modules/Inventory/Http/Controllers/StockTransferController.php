@@ -401,7 +401,7 @@ class StockTransferController extends Controller
                 $inner->where('lot_no', 'like', "%{$search}%")
                     ->orWhere('barcode', $search)
                     ->orWhereHas('item', fn ($item) => $item->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"))
-                    ->orWhereHas('product', fn ($product) => $product->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"));
+                    ->orWhereHas('product.item', fn ($product) => $product->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"));
             });
         });
 
@@ -412,14 +412,14 @@ class StockTransferController extends Controller
         $total = $matching()->count();
 
         $lots = $matching()
-            ->with(['item:id,code,name', 'product:id,code,name'])
+            ->with(['item:id,code,name', 'product:id,item_id'])
             ->orderBy('lot_no')
             ->limit($limit)
             ->get();
 
         if ($include !== []) {
             $lots = $lots->concat(
-                StockLot::query()->with(['item:id,code,name', 'product:id,code,name'])
+                StockLot::query()->with(['item:id,code,name', 'product:id,item_id'])
                     ->whereIn('id', $include)->whereNotIn('id', $lots->pluck('id'))->get(),
             );
         }

@@ -101,7 +101,11 @@ const columns = [
                     <template #cell:net_req_qty="{ value }">
                         <span :class="Number(value) > 0 ? 'font-medium text-rose-600' : ''">{{ qty(value) }}</span>
                     </template>
-                    <template #cell:suggested_po_qty="{ value }">{{ qty(value) }}</template>
+                    <template #cell:suggested_po_qty="{ row, value }">
+                        <!-- A made item is planned, not bought. -->
+                        <Badge v-if="row.make_or_buy === 'make'" tone="info" label="Make" />
+                        <template v-else>{{ qty(value) }}</template>
+                    </template>
                     <template #cell:need_date="{ value }">{{ date(value) }}</template>
                     <template #cell:po_place_by="{ value }">
                         <!-- A place-by date in the past is already late; say so rather than imply it -->

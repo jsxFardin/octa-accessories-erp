@@ -153,7 +153,7 @@ class CostSheetService
             overheadPct: (float) ($overrides['overheadPct'] ?? $this->settings->decimal('overhead_pct', 12)),
             adminPct: (float) ($overrides['adminPct'] ?? $this->settings->decimal('admin_pct', 5)),
             marginPct: (float) ($overrides['marginPct'] ?? $this->settings->decimal('default_margin_pct', 20)),
-            minOrderValue: (float) ($overrides['minOrderValue'] ?? $product->customer->min_order_value),
+            minOrderValue: (float) ($overrides['minOrderValue'] ?? $product->customer?->min_order_value ?? 0),
             exchangeRate: (float) ($overrides['exchangeRate'] ?? 1),
             currency: (string) ($overrides['currency'] ?? $this->settings->get('base_currency', 'BDT')),
         );
@@ -212,7 +212,14 @@ class CostSheetService
                 'chemical' => 'material_chemical',
                 'paper' => 'material_paper',
                 'film' => 'material_film',
-                default => null,
+                // A made item on the bill — a family-01 tape on a zipper — costs as what it
+                // is made of. Plastic and metal components have no consumption formula yet.
+                default => match ($item->material_base) {
+                    'textile' => 'material_ribbon',
+                    'paper' => 'material_paper',
+                    'film' => 'material_film',
+                    default => null,
+                },
             };
 
             if ($costType === null) {

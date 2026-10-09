@@ -26,7 +26,7 @@ beforeEach(function (): void {
         'item_id' => null,
         'product_id' => $productId,
     ]);
-    $this->productCode = (string) DB::table('products')->where('id', $productId)->value('code');
+    $this->productCode = (string) DB::table('products as p')->join('items as pi', 'pi.id', '=', 'p.item_id')->where('p.id', $productId)->value('pi.code');
 });
 
 it('names the product on a finished-goods lot in the lots list, and filters by type', function (): void {

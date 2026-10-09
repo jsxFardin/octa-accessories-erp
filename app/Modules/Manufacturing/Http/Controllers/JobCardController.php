@@ -59,7 +59,7 @@ class JobCardController extends Controller
         // "60,457 good" against a plan of 30,000 for a job that made exactly 30,000 labels.
         $query = JobCard::query()
             ->withFinalOutput()
-            ->with(['product:id,code,name,product_type', 'factoryUnit:id,code']);
+            ->with(['product:id,item_id,product_type', 'factoryUnit:id,code']);
 
         $this->applyListing(
             $query,
@@ -107,6 +107,7 @@ class JobCardController extends Controller
         $lines = DB::table('sales_order_lines as sol')
             ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
             ->join('products as p', 'p.id', '=', 'sol.product_id')
+            ->join('items as pi', 'pi.id', '=', 'p.item_id')
             ->join('customers as c', 'c.id', '=', 'so.customer_id')
             ->whereIn('so.status', ['confirmed', 'in_production', 'partially_delivered'])
             ->whereColumn('sol.produced_qty', '<', 'sol.ordered_qty')
@@ -115,7 +116,7 @@ class JobCardController extends Controller
                 'sol.id', 'sol.line_no', 'sol.ordered_qty', 'sol.produced_qty', 'sol.promised_date',
                 'sol.product_id', 'sol.product_spec_id', 'sol.sales_order_id',
                 'sol.over_tolerance_pct', 'sol.under_tolerance_pct',
-                'so.number as so_number', 'p.code as product_code', 'p.name as product_name',
+                'so.number as so_number', 'pi.code as product_code', 'pi.name as product_name',
                 'c.name as customer_name',
             ]);
 

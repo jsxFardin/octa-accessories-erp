@@ -27,7 +27,7 @@ CREATE TABLE item_categories (
     UNIQUE KEY item_categories_code_uq (code),
     KEY item_categories_parent_idx (parent_id),
     CONSTRAINT item_categories_parent_fk FOREIGN KEY (parent_id) REFERENCES item_categories(id),
-    CONSTRAINT item_categories_class_chk CHECK (item_class IN ('yarn','ribbon','tape','ink','chemical','paper','film','adhesive','tool_stock','packing','spare','other'))
+    CONSTRAINT item_categories_class_chk CHECK (item_class IN ('yarn','ribbon','tape','ink','chemical','paper','film','adhesive','tool_stock','packing','spare','finished_good','semi_finished','component','service','tool','other'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 SQL);
     }

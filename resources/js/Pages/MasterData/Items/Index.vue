@@ -15,7 +15,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 
 const { confirm } = useConfirm();
 
-const props = defineProps({ items: Object, filters: Object, categories: Array });
+const props = defineProps({ items: Object, filters: Object, categories: Array, statuses: Array, families: Array, itemTypes: Array });
 
 async function remove(row) {
     if (!await confirm({
@@ -49,7 +49,7 @@ const columns = [
     { key: 'avg_rate', label: 'Avg rate', align: 'right', sort: true },
     { key: 'reorder_level', label: 'Reorder', align: 'right', sort: true },
     { key: 'flags', label: 'Flags' },
-    { key: 'is_active', label: 'Active' },
+    { key: 'status', label: 'Status' },
 ];
 </script>
 
@@ -67,7 +67,7 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'category', label: 'Category', options: categories.map((c) => ({ value: c.id, label: c.name, code: c.code })) }, { key: 'active', label: 'Status', options: [{ value: '1', label: 'Active' }, { value: '0', label: 'Inactive' }] }]" placeholder="Search code, name or description…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'category', label: 'Category', options: categories.map((c) => ({ value: c.id, label: c.name, code: c.code })) }, { key: 'status', label: 'Status', options: statuses.map((s) => ({ value: s.value, label: s.label })) }, { key: 'type', label: 'Type', options: itemTypes.map((t) => ({ value: t.value, label: t.label })) }, { key: 'family', label: 'Family', options: families.map((f) => ({ value: f.value, label: f.label, code: f.code })) }]" placeholder="Search code, name or description…" />
 
             <DataTable
                 :columns="columns"
@@ -82,7 +82,7 @@ const columns = [
                         <Badge v-if="row.is_shade_critical" tone="warning" label="Shade" />
                         <Badge v-if="row.has_expiry" tone="info" label="Expiry" />
                     </span></template>
-                <template #cell:is_active="{ row, value }"><Badge :tone="value ? 'success' : 'neutral'" :label="value ? 'Active' : 'Inactive'" /></template>
+                <template #cell:status="{ value }"><Badge :status="value" /></template>
                 <template #empty>
                     <EmptyState
                         icon="item"

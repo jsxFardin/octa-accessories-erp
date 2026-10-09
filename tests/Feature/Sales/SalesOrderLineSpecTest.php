@@ -50,8 +50,12 @@ it('saves a hand-typed order line against the product\'s current specification',
 it('replaces a specification that belongs to a different product', function (): void {
     // A spec row that exists but belongs to some other product — what an edited line carries
     // after its product is changed.
-    $other = $this->product->replicate();
-    $other->forceFill(['code' => 'QA-C03-OTHER'])->save();
+    // A product is an item plus its make profile, so the copy is made through the item
+    // master service, which writes both rows.
+    $other = app(App\Modules\MasterData\Services\ItemMasterService::class)->create(
+        [...$this->product->item->only(['item_category_id', 'item_type', 'make_or_buy', 'production_family_id', 'base_uom_id', 'status']), 'code' => 'QA-C03-OTHER', 'name' => 'Other product'],
+        [...$this->product->only(['customer_id', 'brand_id', 'routing_id', 'product_type'])],
+    )->product()->firstOrFail();
     $foreign = $this->product->currentSpec->replicate(['current_key']);
     $foreign->forceFill(['product_id' => $other->id, 'status' => ProductSpec::SUPERSEDED, 'version_no' => 99])->save();
 

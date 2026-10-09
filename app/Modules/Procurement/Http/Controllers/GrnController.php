@@ -154,7 +154,7 @@ class GrnController extends Controller
                 ->get(['id', 'code', 'name']),
             'warehouses' => DB::table('warehouses')->where('is_active', true)->orderBy('code')
                 ->get(['id', 'code', 'name', 'kind']),
-            'items' => DB::table('items')->where('is_active', true)->orderBy('code')
+            'items' => DB::table('items')->where('status', 'active')->orderBy('code')
                 ->get(['id', 'code', 'name', 'base_uom_id', 'std_rate', 'is_shade_critical', 'has_expiry', 'shelf_life_days']),
             'uoms' => DB::table('uoms')->orderBy('code')->get(['id', 'code', 'name']),
             'purchaseOrders' => $orders,

@@ -1,4 +1,5 @@
 import { isoDate } from '@/plugins/formatting';
+import { getPath, setPath } from '@/plugins/formPath';
 
 /**
  * The starting values for a `ResourceForm`, resolved from the field descriptors and whatever
@@ -19,14 +20,16 @@ export function resolveDefaults(sections, initial = {}) {
     for (const section of sections ?? []) {
         for (const field of section.fields ?? []) {
             // The declared default wins for every type; a checkbox only falls back to `false`
-            // when nothing was declared.
-            const fallback = field.default ?? (field.type === 'checkbox' ? false : '');
+            // when nothing was declared, and a multi-checkbox to no choices.
+            const fallback = field.default ?? (field.type === 'checkbox' ? false : field.type === 'checkboxes' ? [] : '');
 
             // `??`, not `||`: an existing record's `false`, `0` or `''` is its value and must
             // survive editing rather than being replaced by the create-time default.
-            const raw = initial?.[field.key] ?? fallback;
+            const raw = getPath(initial, field.key) ?? fallback;
 
-            values[field.key] = field.type === 'date' ? isoDate(raw) || raw : raw;
+            // A dotted key (`attributes.diameter_mm`) is posted nested, which is how the server
+            // validates and stores it.
+            setPath(values, field.key, field.type === 'date' ? isoDate(raw) || raw : raw);
         }
     }
 

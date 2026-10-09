@@ -395,7 +395,7 @@ it('ignores an operation that is not a QC step on the named card', function (): 
 function approvedRequisition(object $test): array
 {
     $unit = DB::table('factory_units')->value('id');
-    $item = DB::table('items')->where('is_active', true)->first(['id', 'base_uom_id']);
+    $item = DB::table('items')->where('status', 'active')->first(['id', 'base_uom_id']);
 
     $test->actingAs($test->planner)->post('/purchase-requisitions', [
         'factory_unit_id' => $unit,
@@ -420,7 +420,7 @@ function approvedPurchaseOrder(object $test): int
 {
     $supplier = DB::table('suppliers')->where('is_approved', true)->first(['id', 'currency_id']);
     $unit = DB::table('factory_units')->value('id');
-    $item = DB::table('items')->where('is_active', true)->first(['id', 'base_uom_id']);
+    $item = DB::table('items')->where('status', 'active')->first(['id', 'base_uom_id']);
 
     $test->actingAs($test->buyer)->post('/purchase-orders', [
         'supplier_id' => $supplier->id,

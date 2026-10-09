@@ -102,7 +102,7 @@ class SupplierController extends Controller
             ],
             'stats' => $this->stats($supplier),
             // For adding a material here: what can be bought, and what a rate can be quoted in.
-            'materials' => DB::table('items')->where('is_active', true)->whereNull('deleted_at')
+            'materials' => DB::table('items')->where('status', 'active')->whereNull('deleted_at')
                 ->orderBy('code')->get(['id', 'code', 'name']),
             'currencies' => Currency::query()->orderBy('code')->get(['id', 'code', 'name']),
         ]);

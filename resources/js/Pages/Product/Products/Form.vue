@@ -2,52 +2,43 @@
 import { computed } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import ResourceForm from '@/Components/Ui/ResourceForm.vue';
+import ItemSummaryRail from '@/Components/MasterData/ItemSummaryRail.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { productSections } from '@/Pages/MasterData/Items/itemSections';
 
-const props = defineProps({ product: Object, preselectedCustomer: Number, customers: Array, brands: Array, routings: Array, productTypes: Array, statuses: Array, cutTypes: Array });
+const props = defineProps({
+    product: Object, preselectedCustomer: Number,
+    customers: Array, brands: Array, routings: Array, productTypes: Array, statuses: Array, cutTypes: Array,
+    families: Array, groups: Array, uoms: Array, warehouses: Array, familyAttributes: Object,
+    garmentTypes: Array, materialBases: Array, specScopes: Array, variantAxes: Array, valuationMethods: Array,
+});
 
 const isEdit = computed(() => Boolean(props.product));
 
-const sections = computed(() => [
-    {
-        title: 'Commercial identity',
-        rule: 'P1',
-        fields: [
-            // `?customer=` was already resolved server-side and then dropped on the floor:
-            // the prop existed, nothing consumed it, and the picker opened empty.
-            {
-                key: 'customer_id', label: 'Customer', type: 'select', options: props.customers, valueKey: 'id', labelKey: 'name', required: true, rule: 'P1',
-                // Said to be permanent, and it is: the artwork approvals and the prices belong
-                // to this customer. The field used to stay editable on a product that existed.
-                disabled: isEdit.value,
-                hint: isEdit.value
-                    ? 'A product stays with the customer it was created for. To make it for another customer, create a new product.'
-                    : 'A product belongs to one customer, and that cannot be changed later.',
-                default: props.preselectedCustomer ?? '',
-            },
-            {
-                key: 'brand_id', label: 'Brand', type: 'select', valueKey: 'id', labelKey: 'name',
-                // Only this customer's brands, and brands that belong to no one customer.
-                options: (form) => props.brands.filter((brand) => brand.customer_id === null || Number(brand.customer_id) === Number(form.customer_id)),
-                hint: 'Brands of the chosen customer.',
-            },
-            { key: 'code', label: 'Code', required: true },
-            { key: 'name', label: 'Name', required: true },
-            { key: 'customer_style_ref', label: 'Customer style ref' },
-        ],
-    },
-    {
-        title: 'Manufacturing',
-        fields: [
-            { key: 'product_type', label: 'Product type', type: 'select', options: props.productTypes, required: true },
-            { key: 'routing_id', label: 'Routing', type: 'select', options: props.routings, valueKey: 'id', labelKey: 'label', hint: 'Must match the product type. Left blank, a new product takes the default routing for its type.' },
-            { key: 'is_running_programme', label: 'Running programme', type: 'checkbox', rule: 'BR-15', checkboxLabel: 'Amortise tooling over the annual forecast' },
-            { key: 'annual_forecast_qty', label: 'Annual forecast qty', type: 'number', step: '0.000001', rule: 'BR-15' },
-            { key: 'status', label: 'Status', type: 'select', default: 'development', options: props.statuses },
-            { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
-        ],
-    },
-]);
+/*
+ * A product is a finished good on the item master with a make profile beside it. The sections
+ * are shared with the Materials screen, in the order the work is done: name it, say who it is
+ * for, classify it, specify it, say how it is counted, how it is made, how it is costed.
+ */
+const sections = computed(() => {
+    const built = productSections(props, { isEdit: isEdit.value });
+
+    // Arriving from a customer's page: that customer, already chosen.
+    if (!isEdit.value && props.preselectedCustomer) {
+        const customer = built[1].fields.find((field) => field.key === 'customer_id');
+        if (customer) customer.default = props.preselectedCustomer;
+    }
+
+    // An existing product's buyer is fixed (P1): the field shows, and does not change.
+    if (isEdit.value && props.product?.customer_id) {
+        const customer = built[1].fields.find((field) => field.key === 'customer_id');
+        if (customer) customer.disabled = true;
+    }
+
+    return built;
+});
+
+const initial = computed(() => ({ ...(props.product ?? {}), spec_scope: props.product?.spec_scope ?? (props.product?.customer_id === null && isEdit.value ? 'standard' : 'buyer') }));
 </script>
 
 <template>
@@ -55,14 +46,20 @@ const sections = computed(() => [
         <Head :title="isEdit ? `Edit ${product.code ?? ''}` : 'New product'" />
 
         <template #title>{{ isEdit ? `Edit ${product.name ?? product.code}` : 'New product' }}</template>
+        <template #subtitle>{{ isEdit ? 'The item and its make profile.' : 'A finished good the factory makes. Saved as a draft; its page then walks through setup.' }}</template>
 
         <ResourceForm
             :sections="sections"
-            :initial="product ?? {}"
+            :initial="initial"
             :action="isEdit ? `/products/${product.id}` : '/products'"
             :method="isEdit ? 'put' : 'post'"
             :submit-label="isEdit ? 'Save changes' : 'Create product'"
             cancel-href="/products"
-        />
+            layout="columns"
+        >
+            <template #rail="{ form }">
+                <ItemSummaryRail :form="form" :options="props" for-product :is-edit="isEdit" />
+            </template>
+        </ResourceForm>
     </AppLayout>
 </template>

@@ -90,7 +90,7 @@ class RoleSeeder extends Seeder
             'label' => 'Product engineer',
             'grants' => [
                 'product.*', 'product_spec.*', 'bom.*', 'routing.*', 'tool.*',
-                'machine.*', 'item:read', 'artwork:read', 'job_card:read',
+                'machine.*', 'item:read', 'item.activate', 'artwork:read', 'job_card:read',
                 'production_plan:read', 'qc_inspection:read', 'report.*',
             ],
         ],

@@ -16,7 +16,7 @@ beforeEach(function (): void {
     $this->buyer = User::query()->where('email', 'purchase@octapussolution.com')->firstOrFail();
     $this->operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
     $this->supplier = Supplier::query()->where('is_active', true)->firstOrFail();
-    $this->item = Item::query()->where('is_active', true)->firstOrFail();
+    $this->item = Item::query()->where('status', 'active')->firstOrFail();
     $this->currencyId = (int) (DB::table('currencies')->where('is_base', true)->value('id')
         ?? DB::table('currencies')->value('id'));
 });

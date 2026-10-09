@@ -129,8 +129,8 @@ class InquiryController extends Controller
             // A repeat order names a product that already exists. Offered on each line so the
             // quotation raised from this inquiry arrives with its product instead of asking
             // for it again.
-            'products' => \App\Modules\Product\Models\Product::query()->active()->orderBy('code')
-                ->get(['id', 'code', 'name', 'customer_id', 'product_type']),
+            'products' => \App\Modules\Product\Models\Product::query()->active()
+                ->get(['id', 'item_id', 'customer_id', 'product_type'])->sortBy('code')->values(),
             'sources' => Vocabulary::options('inquiry_source'),
             // Who asked and for which label: both filtered by the chosen customer on the form.
             'contacts' => CustomerContact::query()->orderBy('name')->get(['id', 'customer_id', 'name', 'designation']),
@@ -160,7 +160,7 @@ class InquiryController extends Controller
 
     public function show(Request $request, Inquiry $inquiry): Response
     {
-        $inquiry->load(['customer.currency:id,code,name,symbol', 'lines.product:id,code,name', 'contact:id,name,designation,email,phone', 'brand:id,code,name', 'merchandiser:id,name']);
+        $inquiry->load(['customer.currency:id,code,name,symbol', 'lines.product:id,item_id', 'contact:id,name,designation,email,phone', 'brand:id,code,name', 'merchandiser:id,name']);
 
         // F-06 — a Won inquiry listed its quotations and stopped there, so the order it was
         // won with was reachable only by searching for it. The chain is walked in one query:
@@ -259,8 +259,8 @@ class InquiryController extends Controller
             // A repeat order names a product that already exists. Offered on each line so the
             // quotation raised from this inquiry arrives with its product instead of asking
             // for it again.
-            'products' => \App\Modules\Product\Models\Product::query()->active()->orderBy('code')
-                ->get(['id', 'code', 'name', 'customer_id', 'product_type']),
+            'products' => \App\Modules\Product\Models\Product::query()->active()
+                ->get(['id', 'item_id', 'customer_id', 'product_type'])->sortBy('code')->values(),
             'sources' => Vocabulary::options('inquiry_source'),
             // Who asked and for which label: both filtered by the chosen customer on the form.
             'contacts' => CustomerContact::query()->orderBy('name')->get(['id', 'customer_id', 'name', 'designation']),

@@ -44,7 +44,7 @@ class MrpController extends Controller
                     ->where('mr.mrp_run_id', $runId)
                     ->orderByDesc('mr.net_req_qty')
                     ->get([
-                        'mr.id', 'i.code as item_code', 'i.name as item_name', 'mr.gross_req_qty',
+                        'mr.id', 'i.code as item_code', 'i.name as item_name', 'i.make_or_buy', 'mr.gross_req_qty',
                         'mr.on_hand_qty', 'mr.on_order_qty', 'mr.reserved_qty', 'mr.net_req_qty',
                         'mr.suggested_po_qty', 'mr.need_date', 'mr.po_place_by', 'mr.is_shortage',
                     ])
@@ -131,7 +131,10 @@ class MrpController extends Controller
                     'on_order_qty' => $onOrder,
                     'reserved_qty' => $reserved,
                     'net_req_qty' => $result['net_req'],
-                    'suggested_po_qty' => $this->mrp->suggestedPurchaseQty(
+                    // A made item is not bought: the shortage stands, but nothing is suggested
+                    // for a purchase order. Planning a make order for it is the production
+                    // module's job.
+                    'suggested_po_qty' => $item->isMade() ? 0 : $this->mrp->suggestedPurchaseQty(
                         $result['net_req'],
                         (float) $item->min_order_qty,
                         (float) $item->order_multiple,

@@ -25,7 +25,7 @@ class StockLotController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = StockLot::query()->with(['item:id,code,name', 'product:id,code,name', 'warehouse:id,code,name']);
+        $query = StockLot::query()->with(['item:id,code,name', 'product:id,item_id', 'warehouse:id,code,name']);
 
         $this->applyListing(
             $query,

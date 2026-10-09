@@ -7,10 +7,12 @@ namespace App\Modules\Product\Models;
 use App\Models\User;
 use App\Modules\MasterData\Models\Brand;
 use App\Modules\MasterData\Models\Customer;
+use App\Modules\MasterData\Models\Item;
 use App\Support\Audit\Auditable;
 use App\Support\Calculators\ProductTypeRule;
 use App\Support\Reference\Vocabulary;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -18,27 +20,31 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * A saleable finished label or tag, defined for one customer and style.
+ * The make profile of an item: a made item's customer, brand, style reference, routing and
+ * process type, with its specs, artworks and bills of materials hanging off it.
  *
- * P1 — a Product belongs to exactly one Customer. Two customers never share a Product row
- * even for an identical label, because the price, the artwork approval and the certification
- * claim all belong to a commercial relationship, not to a shape.
+ * Code, name, classification and lifecycle live on the {@see Item}; `code` and `name` here
+ * read through to it so a document line keeps saying `$line->product->code`.
+ *
+ * P1 — a buyer-specific product belongs to exactly one customer and never changes hands: the
+ * price, the artwork approval and the certification claim all belong to that relationship. A
+ * standard product belongs to no customer and may be ordered by any.
  *
  * @property int $id
- * @property int $customer_id
+ * @property int $item_id
+ * @property int|null $customer_id
  * @property int|null $brand_id
  * @property int|null $routing_id
- * @property string $code
  * @property string|null $customer_style_ref
- * @property string $name
  * @property string $product_type
  * @property bool $is_running_programme
  * @property string|null $annual_forecast_qty
- * @property string $status
- * @property bool $is_active
  * @property \Illuminate\Support\Carbon $created_at
  * @property int|null $created_by
  * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property-read string $code
+ * @property-read string $name
+ * @property-read string $status
  */
 class Product extends Model
 {
@@ -49,18 +55,19 @@ class Product extends Model
 
     public const UPDATED_AT = null;
 
+    protected $with = ['item'];
+
+    protected $appends = ['code', 'name', 'status'];
+
     protected $fillable = [
+        'item_id',
         'customer_id',
         'brand_id',
         'routing_id',
-        'code',
         'customer_style_ref',
-        'name',
         'product_type',
         'is_running_programme',
         'annual_forecast_qty',
-        'status',
-        'is_active',
         'created_by',
     ];
 
@@ -68,15 +75,39 @@ class Product extends Model
     protected function casts(): array
     {
         return [
+            'item_id' => 'integer',
             'customer_id' => 'integer',
             'brand_id' => 'integer',
             'routing_id' => 'integer',
             'is_running_programme' => 'boolean',
             'annual_forecast_qty' => 'decimal:6',
-            'is_active' => 'boolean',
             'created_at' => 'datetime',
             'created_by' => 'integer',
         ];
+    }
+
+    /** @return BelongsTo<Item, $this> */
+    public function item(): BelongsTo
+    {
+        return $this->belongsTo(Item::class);
+    }
+
+    /** @return Attribute<string|null, never> */
+    protected function code(): Attribute
+    {
+        return Attribute::get(fn (): ?string => $this->item?->code);
+    }
+
+    /** @return Attribute<string|null, never> */
+    protected function name(): Attribute
+    {
+        return Attribute::get(fn (): ?string => $this->item?->name);
+    }
+
+    /** @return Attribute<string|null, never> */
+    protected function status(): Attribute
+    {
+        return Attribute::get(fn (): ?string => $this->item?->status);
     }
 
     /** @return BelongsTo<Customer, $this> */
@@ -167,15 +198,29 @@ class Product extends Model
         ];
     }
 
-    /** @param Builder<$this> $query */
+    /**
+     * Products whose item is active — the only ones a new document line may name.
+     *
+     * @param  Builder<$this>  $query
+     */
     public function scopeActive(Builder $query): void
     {
-        $query->where('is_active', true);
+        $query->whereHas('item', fn (Builder $item) => $item->where('status', Item::ACTIVE));
     }
 
     /** @param Builder<$this> $query */
+    public function scopeWhereCode(Builder $query, string $code): void
+    {
+        $query->whereHas('item', fn (Builder $item) => $item->where('code', $code));
+    }
+
+    /**
+     * Products a customer may order: their own, and every standard one.
+     *
+     * @param  Builder<$this>  $query
+     */
     public function scopeForCustomer(Builder $query, int $customerId): void
     {
-        $query->where('customer_id', $customerId);
+        $query->where(fn (Builder $q) => $q->where('customer_id', $customerId)->orWhereNull('customer_id'));
     }
 }

@@ -120,6 +120,11 @@ const BY_DOCUMENT = {
         applied: { verb: 'Apply', title: (name) => `Apply ${name} to its invoice?`, label: 'Apply to invoice', message: 'The whole credit is set against the invoice it was raised for, reducing what the customer owes on it. This cannot be undone.', tone: 'danger' },
         cancelled: { ...CANCEL, message: 'The credit is withdrawn and cannot be applied or refunded.' },
     },
+    item: {
+        active: { verb: 'Activate', message: 'It can then be bought, put on a bill of materials, quoted and ordered. A draft cannot.' },
+        on_hold: { verb: 'Put on hold', title: (name) => `Put ${name} on hold?`, label: 'Put on hold', message: 'It stays readable on the documents that name it, but no new order, purchase or bill of materials may use it until it is made active again.' },
+        discontinued: { verb: 'Discontinue', message: 'It is retired for good and cannot be brought back. Documents that already name it keep working.', tone: 'danger', cancelLabel: 'Keep it' },
+    },
     test_report: {
         issued: { verb: 'Issue', label: 'Issue test report', message: 'The report is given its number and its results can no longer be changed.' },
         cancelled: { ...CANCEL, message: 'The report is withdrawn and cannot be issued.' },

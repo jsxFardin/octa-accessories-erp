@@ -30,7 +30,7 @@ SELECT
     c.name         AS customer_name,
     sol.id         AS sales_order_line_id,
     sol.product_id,
-    p.code         AS product_code,
+    pi.code        AS product_code,
     sol.ordered_qty,
     sol.produced_qty,
     sol.delivered_qty,
@@ -44,6 +44,7 @@ FROM sales_orders so
 JOIN sales_order_lines sol ON sol.sales_order_id = so.id
 JOIN customers c ON c.id = so.customer_id
 JOIN products  p ON p.id = sol.product_id
+JOIN items     pi ON pi.id = p.item_id
 WHERE so.status IN ('confirmed','in_production','partially_delivered')
 SQL);
     }

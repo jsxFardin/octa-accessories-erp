@@ -192,7 +192,7 @@ class QuotationController extends Controller
         }
 
         $inquiry = Inquiry::query()
-            ->with(['customer:id,code,name,currency_id,payment_term_id', 'lines.product:id,code,name,customer_id'])
+            ->with(['customer:id,code,name,currency_id,payment_term_id', 'lines.product:id,item_id,customer_id'])
             ->find($id);
 
         if ($inquiry === null) {
@@ -303,7 +303,7 @@ class QuotationController extends Controller
 
     public function show(Request $request, Quotation $quotation): Response
     {
-        $quotation->load(['customer', 'currency:id,code,name,symbol', 'merchandiser:id,name', 'lines.product:id,code,name,product_type']);
+        $quotation->load(['customer', 'currency:id,code,name,symbol', 'merchandiser:id,name', 'lines.product:id,item_id,product_type']);
 
         $sheets = CostSheet::query()
             ->whereIn('quotation_line_id', $quotation->lines->pluck('id'))
@@ -656,7 +656,7 @@ class QuotationController extends Controller
                 ->get(['id', 'code', 'name', 'min_order_value', 'currency_id', 'payment_term_id']),
             'currencies' => $this->rates->currencyOptions(),
             'products' => Product::query()->active()->with('currentSpec:id,product_id,version_no')
-                ->orderBy('code')->get(['id', 'code', 'name', 'customer_id', 'product_type']),
+                ->get(['id', 'item_id', 'customer_id', 'product_type'])->sortBy('code')->values(),
             'defaultMarginPct' => $this->settings->decimal('default_margin_pct', 20),
             'marginFloorPct' => $this->settings->decimal('margin_floor_pct', 12),
         ];

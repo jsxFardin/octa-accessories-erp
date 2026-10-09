@@ -87,11 +87,16 @@ class SearchController extends Controller
      */
     private function lookup(string $table, array $columns, string $like, ?string $partyColumn): array
     {
-        $query = DB::table($table)->where(function ($q) use ($columns, $like): void {
-            foreach ($columns as $column) {
-                $q->orWhere($column, 'like', $like);
-            }
-        });
+        // A product's code and name live on its item.
+        $prefix = $table === 'products' ? 'pi.' : '';
+
+        $query = DB::table($table)
+            ->when($table === 'products', fn ($q) => $q->join('items as pi', 'pi.id', '=', 'products.item_id'))
+            ->where(function ($q) use ($columns, $like, $prefix): void {
+                foreach ($columns as $column) {
+                    $q->orWhere($prefix.$column, 'like', $like);
+                }
+            });
 
         // The party name is what makes a bare document number recognisable in a list.
         if ($partyColumn !== null) {
@@ -101,7 +106,7 @@ class SearchController extends Controller
                 // A deleted customer must not resurrect a document into the palette's subtitle.
                 ->addSelect([$table.'.status']);
         } else {
-            $query->select([$table.'.id', ...$columns]);
+            $query->select([$table.'.id', ...array_map(fn (string $c): string => $prefix.$c.' as '.$c, $columns)]);
         }
 
         $rows = $query->orderByDesc($table.'.id')->limit(self::PER_SOURCE)->get();

@@ -678,7 +678,7 @@ class SupplierRfqController extends Controller
     private function options(): array
     {
         return [
-            'items' => Item::query()->where('is_active', true)->orderBy('code')
+            'items' => Item::query()->where('status', 'active')->orderBy('code')
                 ->get(['id', 'code', 'name', 'base_uom_id', 'min_order_qty', 'order_multiple']),
             'uoms' => Uom::query()->orderBy('code')->get(['id', 'code', 'name']),
             'requisitions' => PurchaseRequisition::query()

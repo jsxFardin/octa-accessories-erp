@@ -213,11 +213,12 @@ class DeliveryChallanController extends Controller
             'lines' => DB::table('delivery_challan_lines as dcl')
                 ->leftJoin('stock_lots as sl', 'sl.id', '=', 'dcl.lot_id')
                 ->leftJoin('products as p', 'p.id', '=', 'dcl.product_id')
+                ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
                 ->leftJoin('sales_order_lines as sol', 'sol.id', '=', 'dcl.sales_order_line_id')
                 ->where('dcl.delivery_challan_id', $deliveryChallan->id)
                 ->orderBy('dcl.line_no')
                 ->get(['dcl.id', 'dcl.line_no', 'dcl.qty', 'dcl.cartons', 'sl.lot_no', 'sl.balance_qty',
-                    'p.code as product_code', 'sol.line_no as so_line_no', 'sol.ordered_qty',
+                    'pi.code as product_code', 'sol.line_no as so_line_no', 'sol.ordered_qty',
                     'sol.delivered_qty', 'sol.over_tolerance_pct', 'sol.under_tolerance_pct']),
             'availableTransitions' => $this->states->available($deliveryChallan),
         ]);

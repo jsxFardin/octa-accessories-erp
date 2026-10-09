@@ -72,10 +72,12 @@ class ArtworkController extends Controller
             // The create dialog lives on this screen; artwork has no page of its own until a
             // product owns it.
             'products' => DB::table('products as p')
+                ->join('items as pi', 'pi.id', '=', 'p.item_id')
                 ->leftJoin('customers as c', 'c.id', '=', 'p.customer_id')
-                ->where('p.status', '!=', 'obsolete')
-                ->orderBy('p.code')
-                ->get(['p.id', 'p.code', 'p.name', 'c.name as customer_name']),
+                ->where('pi.status', '!=', 'discontinued')
+                ->whereNull('p.deleted_at')
+                ->orderBy('pi.code')
+                ->get(['p.id', 'pi.code', 'pi.name', 'c.name as customer_name']),
             'designers' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
         ]);
     }

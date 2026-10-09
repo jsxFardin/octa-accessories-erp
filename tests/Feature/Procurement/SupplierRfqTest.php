@@ -21,7 +21,7 @@ beforeEach(function (): void {
     $this->planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
     $this->operator = User::query()->where('email', 'operator@octapussolution.com')->firstOrFail();
     $this->unit = FactoryUnit::query()->firstOrFail();
-    $this->item = Item::query()->where('is_active', true)->firstOrFail();
+    $this->item = Item::query()->where('status', 'active')->firstOrFail();
     $this->suppliers = Supplier::query()->where('is_approved', true)->where('is_active', true)->orderBy('id')->get();
     $this->currencyId = (int) (DB::table('currencies')->where('is_base', true)->value('id')
         ?? DB::table('currencies')->value('id'));
@@ -150,7 +150,7 @@ it('records a supplier quotation against issued RFQ lines only', function (): vo
         ->and($quote->is_selected)->toBeFalse()
         ->and($quote->lines()->count())->toBe(1);
 
-    $otherItem = Item::query()->where('id', '!=', $this->item->id)->where('is_active', true)->firstOrFail();
+    $otherItem = Item::query()->where('id', '!=', $this->item->id)->where('status', 'active')->firstOrFail();
 
     $this->actingAs($this->buyer)->post("/rfqs/{$rfq->id}/quotations", [
         'supplier_id' => $this->suppliers[1]->id,

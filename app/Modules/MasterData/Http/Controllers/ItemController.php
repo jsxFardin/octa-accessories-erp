@@ -10,10 +10,19 @@ use App\Modules\MasterData\Models\Item;
 use App\Modules\MasterData\Models\ItemCategory;
 use App\Modules\MasterData\Models\Supplier;
 use App\Modules\MasterData\Models\Uom;
+use App\Modules\MasterData\Models\Warehouse;
+use App\Modules\MasterData\Services\ItemActivationChecklist;
+use App\Modules\MasterData\Services\ItemMasterService;
+use App\Modules\MasterData\States\ItemStateMachine;
 use App\Support\Http\ListsResources;
+use App\Support\Reference\ItemVocabulary;
+use App\Support\Reference\Vocabulary;
+use App\Support\States\TransitionDenied;
+use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,17 +35,23 @@ class ItemController extends Controller
 {
     use ListsResources;
 
+    public function __construct(
+        private readonly ItemMasterService $items,
+        private readonly ItemStateMachine $states,
+        private readonly ItemActivationChecklist $checklist,
+    ) {}
+
     public function index(Request $request): Response
     {
         $query = Item::query()
-            ->with(['category:id,code,name,item_class', 'baseUom:id,code'])
+            ->with(['category:id,code,name,item_class', 'baseUom:id,code', 'family:id,code,name'])
             ->withCount([]);
 
         $this->applyListing(
             $query,
             $request,
             searchable: ['code', 'name', 'description'],
-            filters: ['category' => 'item_category_id', 'active' => 'is_active'],
+            filters: ['category' => 'item_category_id', 'status' => 'status', 'type' => 'item_type', 'family' => 'production_family_id', 'make' => 'make_or_buy'],
             sortable: ['code', 'name', 'avg_rate', 'reorder_level'],
             defaultSort: 'code',
         );
@@ -55,11 +70,18 @@ class ItemController extends Controller
                     'reorder_level' => $item->reorder_level,
                     'is_shade_critical' => $item->is_shade_critical,
                     'has_expiry' => $item->has_expiry,
-                    'is_active' => $item->is_active,
+                    'item_type' => $item->item_type,
+                    'make_or_buy' => $item->make_or_buy,
+                    'family' => $item->family?->name,
+                    'status' => $item->status,
                 ],
             ),
-            'filters' => $this->listingFilters($request, ['category', 'active']),
+            'filters' => $this->listingFilters($request, ['category', 'status', 'type', 'family', 'make']),
             'categories' => ItemCategory::query()->orderBy('name')->get(['id', 'code', 'name', 'item_class']),
+            'statuses' => Vocabulary::options('item_status'),
+            'families' => \App\Modules\MasterData\Models\ProductionFamily::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'code', 'name', 'code_prefix'])
+                ->map(fn ($family): array => ['value' => $family->id, 'label' => $family->name, 'code' => $family->code, 'prefix' => $family->code_prefix])->all(),
+            'itemTypes' => ItemVocabulary::options(ItemVocabulary::ITEM_TYPES),
         ]);
     }
 
@@ -73,7 +95,13 @@ class ItemController extends Controller
 
     public function store(ItemRequest $request): RedirectResponse
     {
-        $item = Item::query()->create([...$request->validated(), 'attributes' => $request->validated()['attributes'] ?? []]);
+        $data = $request->validated();
+
+        if (($data['code'] ?? '') === '') {
+            unset($data['code']);
+        }
+
+        $item = $this->items->create($data, [], $request->user()->id);
 
         return redirect()
             ->route('items.show', $item)
@@ -82,10 +110,29 @@ class ItemController extends Controller
 
     public function show(Item $item): Response
     {
-        $item->load(['category', 'baseUom', 'purchaseUom', 'defaultSupplier']);
+        $item->loadMissing('product');
+
+        $item->load(['category', 'family', 'group', 'baseUom', 'purchaseUom', 'orderUom', 'defaultSupplier', 'defaultWarehouse', 'customer', 'toolOwner', 'product']);
 
         return Inertia::render('MasterData/Items/Show', [
             'item' => $item,
+            // IM-1 — what it still needs before it is active, and which status changes the
+            // reader may make from here.
+            'activation' => $this->checklist->steps($item),
+            'transitions' => $this->states->available($item),
+            // The family's attribute definitions, so the page says "Diameter (mm)", not "diameter_mm".
+            'attributeDefinitions' => \App\Support\Validation\FamilyAttributeRules::definitions()[$item->production_family_id] ?? [],
+            // Worded vocabularies for the page: a reader sees "Weighted average", never the key.
+            'labels' => [
+                'itemTypes' => ItemVocabulary::ITEM_TYPES,
+                'makeOrBuy' => ItemVocabulary::MAKE_OR_BUY,
+                'garmentTypes' => ItemVocabulary::GARMENT_TYPES,
+                'specScopes' => ItemVocabulary::SPEC_SCOPES,
+                'materialBases' => ItemVocabulary::MATERIAL_BASES,
+                'variantAxes' => ItemVocabulary::VARIANT_AXES,
+                'valuationMethods' => ItemVocabulary::VALUATION_METHODS,
+                'chargeBases' => ItemVocabulary::CHARGE_BASES,
+            ],
             // Live, not cached: an availability figure that is 60 seconds stale is a wrong
             // purchasing decision (08-architecture §7).
             'stock' => DB::table('stock_balances as sb')
@@ -118,11 +165,30 @@ class ItemController extends Controller
 
     public function update(ItemRequest $request, Item $item): RedirectResponse
     {
-        $item->update($request->validated());
+        $this->items->update($item, $request->validated());
 
         return redirect()
             ->route('items.show', $item)
             ->with('success', "Item {$item->code} updated.");
+    }
+
+    /** IM-1 — activate, hold, resume or discontinue. */
+    public function transition(Request $request, Item $item): RedirectResponse
+    {
+        $data = $request->validate([
+            'to' => ['required', Rule::in([Item::ACTIVE, Item::ON_HOLD, Item::DISCONTINUED])],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $this->states->transition($item, $data['to'], $data);
+        } catch (TransitionDenied $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', $data['to'] === Item::ACTIVE
+            ? "{$item->code} is active. It can now be bought, put on a bill of materials, quoted and ordered."
+            : "{$item->code} is now ".Plain::status($data['to']).'.');
     }
 
     public function destroy(Item $item): RedirectResponse
@@ -142,6 +208,13 @@ class ItemController extends Controller
             'categories' => ItemCategory::query()->orderBy('name')->get(['id', 'code', 'name', 'item_class']),
             'uoms' => Uom::query()->orderBy('code')->get(['id', 'code', 'name', 'dimension']),
             'suppliers' => Supplier::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            'warehouses' => Warehouse::query()->orderBy('code')->get(['id', 'code', 'name']),
+            'families' => \App\Modules\MasterData\Models\ProductionFamily::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'code', 'name', 'code_prefix'])
+                ->map(fn ($family): array => ['value' => $family->id, 'label' => $family->name, 'code' => $family->code, 'prefix' => $family->code_prefix])->all(),
+            'groups' => \App\Modules\MasterData\Models\ItemGroup::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'production_family_id', 'parent_id', 'code', 'name']),
+            'customers' => \App\Modules\MasterData\Models\Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
+            'familyAttributes' => \App\Support\Validation\FamilyAttributeRules::definitions(),
+            ...ItemVocabulary::all(),
         ];
     }
 }

@@ -32,7 +32,9 @@ class Vocabulary
         'customer_kind' => 'customer_kinds',
         'inquiry_source' => 'inquiry_sources',
         'order_priority' => 'order_priorities',
-        'product_status' => 'product_statuses',
+        'item_status' => 'item_statuses',
+        'production_family' => 'production_families',
+        'item_group' => 'item_groups',
         'defect_severity' => 'defect_severities',
         'qc_disposition' => 'qc_dispositions',
     ];

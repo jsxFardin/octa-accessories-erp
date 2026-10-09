@@ -100,9 +100,10 @@ class MaterialIssueController extends Controller
     {
         $card = DB::table('job_cards as jc')
             ->leftJoin('products as p', 'p.id', '=', 'jc.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->where('jc.id', $materialIssue->job_card_id)
             ->first(['jc.id', 'jc.number', 'jc.status', 'jc.planned_qty', 'jc.colourway',
-                'p.code as product_code', 'p.name as product_name']);
+                'pi.code as product_code', 'pi.name as product_name']);
 
         $lines = DB::table('material_issue_lines as mil')
             ->leftJoin('items as i', 'i.id', '=', 'mil.item_id')
@@ -169,7 +170,7 @@ class MaterialIssueController extends Controller
                 ->orderBy('code')->get(['id', 'code', 'name', 'kind']),
             // The picker needs `is_shade_critical` to know whether to offer a shade at all
             // (BR-37), and the base UoM to post the line without a second lookup.
-            'items' => Item::query()->where('is_active', true)->orderBy('code')
+            'items' => Item::query()->where('status', 'active')->orderBy('code')
                 ->get(['id', 'code', 'name', 'base_uom_id', 'is_shade_critical']),
         ]);
     }

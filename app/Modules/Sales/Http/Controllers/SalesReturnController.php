@@ -180,12 +180,13 @@ class SalesReturnController extends Controller
             'lines' => DB::table('sales_return_lines as srl')
                 ->leftJoin('sales_invoice_lines as sil', 'sil.id', '=', 'srl.sales_invoice_line_id')
                 ->leftJoin('products as p', 'p.id', '=', 'srl.product_id')
+                ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
                 ->leftJoin('stock_lots as sl', 'sl.id', '=', 'srl.lot_id')
                 ->where('srl.sales_return_id', $salesReturn->getKey())
                 ->orderBy('srl.line_no')
                 ->get([
                     'srl.id', 'srl.line_no', 'srl.qty', 'srl.rate_per_m',
-                    'p.code as product_code', 'sl.lot_no', 'sl.status as lot_status',
+                    'pi.code as product_code', 'sl.lot_no', 'sl.status as lot_status',
                     'sil.line_no as invoice_line_no', 'sil.qty as invoiced_qty', 'sil.returned_qty',
                 ]),
             'creditNotes' => DB::table('credit_notes')
@@ -235,10 +236,11 @@ class SalesReturnController extends Controller
 
         return DB::table('sales_invoice_lines as sil')
             ->leftJoin('products as p', 'p.id', '=', 'sil.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->where('sil.sales_invoice_id', $invoice->getKey())
             ->orderBy('sil.line_no')
             ->get(['sil.id', 'sil.line_no', 'sil.description', 'sil.qty', 'sil.returned_qty',
-                'sil.rate_per_m', 'sil.product_id', 'p.code as product_code'])
+                'sil.rate_per_m', 'sil.product_id', 'pi.code as product_code'])
             ->map(fn (object $line): array => [
                 ...(array) $line,
                 'returnable' => round((float) $line->qty - (float) $line->returned_qty, 6),

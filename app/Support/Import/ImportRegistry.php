@@ -7,7 +7,7 @@ namespace App\Support\Import;
 use App\Modules\MasterData\Models\Customer;
 use App\Modules\MasterData\Models\Item;
 use App\Modules\MasterData\Models\Supplier;
-use App\Modules\Product\Models\Product;
+use App\Support\Reference\ItemVocabulary;
 use App\Support\Reference\Vocabulary;
 
 /**
@@ -282,77 +282,41 @@ class ImportRegistry
                         'type' => 'boolean', 'example' => 'no', 'default' => false,
                         'description' => 'yes / no. Shade-critical items may not be mixed across lots.',
                     ],
-                    'is_active' => [
-                        'type' => 'boolean', 'example' => 'yes', 'default' => true,
-                        'description' => 'yes / no',
+                    'item_type' => [
+                        'type' => 'select', 'example' => 'raw_material', 'default' => 'raw_material',
+                        'options' => array_keys(ItemVocabulary::ITEM_TYPES),
+                        'description' => 'What kind of thing it is: raw_material, consumable, packaging, component, semi_finished, finished_good, tool or service.',
+                    ],
+                    'make_or_buy' => [
+                        'type' => 'select', 'example' => 'buy', 'default' => 'buy',
+                        'options' => array_keys(ItemVocabulary::MAKE_OR_BUY),
+                        'description' => 'make / buy. A made item needs a production family.',
+                    ],
+                    'production_family' => [
+                        'type' => 'lookup', 'column' => 'production_family_id', 'example' => '06',
+                        'lookup' => ['table' => 'production_families', 'columns' => ['code', 'name']],
+                        'description' => 'Production family code or name, 01–10. Required for a made item.',
+                    ],
+                    'garment_type' => [
+                        'type' => 'select', 'example' => 'knit',
+                        'options' => array_keys(ItemVocabulary::GARMENT_TYPES),
+                        'rules' => ['nullable'],
+                        'description' => 'knit / woven / both',
+                    ],
+                    'material_base' => [
+                        'type' => 'select', 'example' => 'textile',
+                        'options' => array_keys(ItemVocabulary::MATERIAL_BASES),
+                        'rules' => ['nullable'],
+                        'description' => 'textile / plastic / metal / paper / film',
+                    ],
+                    'status' => [
+                        'type' => 'select', 'example' => 'active', 'default' => 'draft',
+                        'options' => Vocabulary::codes('item_status'),
+                        'description' => 'Lifecycle stage. Only an active item may be bought, put on a bill or ordered.',
                     ],
                 ],
             ],
 
-            'products' => [
-                'label' => 'Products',
-                'permission' => 'product.import',
-                'model' => Product::class,
-                'key' => 'code',
-                'fields' => [
-                    'code' => [
-                        'type' => 'text', 'required' => true, 'example' => 'PRD-0001',
-                        'rules' => ['required', 'string', 'max:40'],
-                        'description' => 'Unique product code. A code that already exists updates that product.',
-                    ],
-                    'name' => [
-                        'type' => 'text', 'required' => true, 'example' => 'Main label — size M',
-                        'rules' => ['required', 'string', 'max:180'],
-                        'description' => 'Product name',
-                    ],
-                    'customer' => [
-                        'type' => 'lookup', 'required' => true, 'column' => 'customer_id', 'example' => 'CUS-001',
-                        'lookup' => ['table' => 'customers', 'columns' => ['code', 'name']],
-                        'rules' => ['required', 'integer'],
-                        // P1 — a product belongs to exactly one customer, and the import may
-                        // not invent that relationship on a customer who is not there yet.
-                        'description' => 'Customer code or name. Must already exist.',
-                    ],
-                    'brand' => [
-                        'type' => 'lookup', 'column' => 'brand_id', 'example' => 'Nordic',
-                        'lookup' => ['table' => 'brands', 'columns' => ['name']],
-                        'description' => 'Brand name',
-                    ],
-                    'routing' => [
-                        'type' => 'lookup', 'column' => 'routing_id', 'example' => 'RTG-WOV-01',
-                        'lookup' => ['table' => 'routings', 'columns' => ['code', 'name']],
-                        'description' => 'Routing code or name',
-                    ],
-                    'product_type' => [
-                        'type' => 'select', 'required' => true, 'example' => 'woven',
-                        'options' => Vocabulary::codes('product_type'),
-                        'description' => 'Manufacturing family',
-                    ],
-                    'customer_style_ref' => [
-                        'type' => 'text', 'example' => 'NA-SS26-114',
-                        'rules' => ['nullable', 'string', 'max:80'],
-                        'description' => "The customer's own reference",
-                    ],
-                    'status' => [
-                        'type' => 'select', 'example' => 'active', 'default' => 'development',
-                        'options' => Vocabulary::codes('product_status'),
-                        'description' => 'Lifecycle stage. Only an active product may be ordered.',
-                    ],
-                    'is_running_programme' => [
-                        'type' => 'boolean', 'example' => 'no', 'default' => false,
-                        'description' => 'yes / no. A running programme amortises tooling over the forecast (BR-15).',
-                    ],
-                    'annual_forecast_qty' => [
-                        'type' => 'number', 'example' => '250000',
-                        'rules' => ['nullable', 'numeric', 'min:0', 'required_if:is_running_programme,1'],
-                        'description' => 'Required when the product is a running programme',
-                    ],
-                    'is_active' => [
-                        'type' => 'boolean', 'example' => 'yes', 'default' => true,
-                        'description' => 'yes / no',
-                    ],
-                ],
-            ],
         ];
     }
 

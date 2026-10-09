@@ -224,6 +224,7 @@ function issueAnyMaterialFor(
 ): int {
     $lot = DB::table('stock_lots')
         ->whereNotNull('item_id')
+        ->whereNull('product_id')
         ->orderBy('id')
         ->first(['id', 'item_id', 'uom_id', 'warehouse_id']);
 

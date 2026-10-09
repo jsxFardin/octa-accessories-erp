@@ -60,10 +60,11 @@ class LabController extends Controller
                 ->join('customers as c', 'c.id', '=', 'ctr.customer_id')
                 ->join('lab_tests as lt', 'lt.id', '=', 'ctr.lab_test_id')
                 ->leftJoin('products as p', 'p.id', '=', 'ctr.product_id')
+                ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
                 ->orderBy('c.name')
                 ->limit(100)
                 ->get([
-                    'ctr.id', 'c.name as customer', 'p.code as product_code', 'lt.code as test_code',
+                    'ctr.id', 'c.name as customer', 'pi.code as product_code', 'lt.code as test_code',
                     'lt.name as test_name', 'lt.default_pass_value', 'ctr.pass_value', 'ctr.is_mandatory',
                 ]),
             'filters' => $this->listingFilters($request, ['status']),
@@ -81,8 +82,9 @@ class LabController extends Controller
         $labTests = DB::table('lab_tests')->where('is_active', true)->orderBy('code')
             ->get(['id', 'code', 'name', 'method', 'scale', 'default_pass_value', 'unit']);
 
-        $products = DB::table('products')->where('is_active', true)->orderBy('code')
-            ->select(['id', 'code', 'name'])->get();
+        $products = DB::table('products as p')->join('items as pi', 'pi.id', '=', 'p.item_id')
+            ->where('pi.status', 'active')->whereNull('p.deleted_at')->orderBy('pi.code')
+            ->select(['p.id', 'pi.code', 'pi.name'])->get();
 
         return Inertia::render('Quality/Lab/Form', [
             'customers' => $customers,

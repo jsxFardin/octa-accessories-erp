@@ -16,7 +16,7 @@ beforeEach(function (): void {
     $this->accounts = User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail();
     $this->supplier = DB::table('suppliers')->where('is_active', true)->firstOrFail();
     $this->base = DB::table('currencies')->where('is_base', true)->firstOrFail();
-    $this->item = DB::table('items')->where('is_active', true)->firstOrFail();
+    $this->item = DB::table('items')->where('status', 'active')->firstOrFail();
 
     $this->payload = fn (array $lines): array => [
         'supplier_id' => $this->supplier->id, 'bill_no' => 'QA-H21', 'bill_date' => now()->toDateString(),

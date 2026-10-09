@@ -10,6 +10,7 @@ use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
+use App\Modules\MasterData\Services\ItemMasterService;
 use App\Modules\Product\Models\Artwork;
 use App\Modules\Product\Models\ArtworkVersion;
 use App\Modules\Product\Models\Bom;
@@ -196,7 +197,15 @@ class DemoDataSeeder extends Seeder
                     'has_expiry' => $row['has_expiry'] ?? false,
                     'shelf_life_days' => $row['shelf_life_days'] ?? null,
                     'attributes' => '{}',
-                    'is_active' => true,
+                    'item_type' => $row['category'] === 'PACKMAT' ? 'packaging' : 'raw_material',
+                    'make_or_buy' => 'buy',
+                    'variant_axes' => '[]',
+                    'material_base' => match ($row['category']) {
+                        'YARN' => 'textile',
+                        'PACKMAT' => 'paper',
+                        default => null,
+                    },
+                    'status' => 'active',
                 ],
             );
 
@@ -209,26 +218,44 @@ class DemoDataSeeder extends Seeder
     private function product(object $customer): Product
     {
         $routing = Routing::query()->where('code', 'RT-WOVEN')->firstOrFail();
+        $families = DB::table('production_families')->pluck('id', 'code');
+        $uoms = DB::table('uoms')->pluck('id', 'code');
 
-        /** @var Product $product */
-        $product = Product::query()->updateOrCreate(
-            ['code' => 'PRD-NFJ-CARE-01'],
+        // A finished good is an item like any other, with a make profile beside it.
+        $item = app(ItemMasterService::class)->upsertByCode(
+            'PRD-NFJ-CARE-01',
+            [
+                'name' => 'Nordfjell centre-fold satin care label',
+                'item_type' => 'finished_good',
+                'make_or_buy' => 'make',
+                'production_family_id' => $families['02'],
+                'item_group_id' => DB::table('item_groups')->where('production_family_id', $families['02'])->where('code', 'CARE')->value('id'),
+                'garment_type' => 'both',
+                'spec_scope' => 'buyer',
+                'material_base' => 'textile',
+                'base_uom_id' => $uoms['pcs'],
+                'order_uom_id' => $uoms['M'],
+                'pack_pcs_per_inner' => 500,
+                'pack_inners_per_carton' => 20,
+                'default_warehouse_id' => DB::table('warehouses')->where('kind', 'finished_goods')->value('id'),
+                'attributes' => ['label_type' => 'care', 'fold' => 'centre fold'],
+                'status' => 'active',
+                'created_by' => Auth::id(),
+            ],
             [
                 'customer_id' => $customer->id,
                 'brand_id' => DB::table('brands')->where('customer_id', $customer->id)->value('id'),
                 'routing_id' => $routing->id,
-                'name' => 'Nordfjell centre-fold satin care label',
                 'customer_style_ref' => 'NFJ-AW26-CARE',
                 'product_type' => 'woven',
                 'is_running_programme' => true,
                 'annual_forecast_qty' => 500_000,
-                'status' => 'active',
-                'is_active' => true,
                 'created_by' => Auth::id(),
             ],
+            Auth::id() ? (int) Auth::id() : null,
         );
 
-        return $product;
+        return $item->product()->firstOrFail();
     }
 
     private function spec(Product $product): ProductSpec

@@ -34,6 +34,7 @@ final class LotLabels
         return DB::table('stock_lots as sl')
             ->leftJoin('items as i', 'i.id', '=', 'sl.item_id')
             ->leftJoin('products as p', 'p.id', '=', 'sl.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->leftJoin('uoms as u', 'u.id', '=', 'sl.uom_id')
             ->leftJoin('warehouses as w', 'w.id', '=', 'sl.warehouse_id')
             ->whereIn('sl.id', $lotIds)
@@ -41,7 +42,7 @@ final class LotLabels
             ->get([
                 'sl.id', 'sl.lot_no', 'sl.barcode', 'sl.balance_qty', 'sl.shade_code', 'sl.roll_length_m',
                 'sl.supplier_batch_no', 'sl.received_on', 'sl.expiry_date', 'sl.cert_scheme',
-                'i.code as item_code', 'i.name as item_name', 'p.code as product_code', 'p.name as product_name',
+                'i.code as item_code', 'i.name as item_name', 'pi.code as product_code', 'pi.name as product_name',
                 'u.code as uom', 'w.code as warehouse',
             ])
             ->map(function (object $lot) use ($generator): array {

@@ -376,7 +376,7 @@ class PurchaseOrderController extends Controller
             'units' => FactoryUnit::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
             'currencies' => $this->rates->currencyOptions(),
             'paymentTerms' => PaymentTerm::query()->orderBy('net_days')->get(['id', 'code', 'name']),
-            'items' => Item::query()->where('is_active', true)->orderBy('code')
+            'items' => Item::query()->where('status', 'active')->orderBy('code')
                 ->get(['id', 'code', 'name', 'base_uom_id', 'std_rate', 'min_order_qty', 'order_multiple']),
             'uoms' => Uom::query()->orderBy('code')->get(['id', 'code', 'name']),
             'approvalBand' => $this->settings->decimal('po_approval_band_manager', 100000),

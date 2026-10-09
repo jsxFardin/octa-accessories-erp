@@ -115,7 +115,7 @@ const unresolvedFromInquiry = computed(
 /** Products belong to exactly one customer, so the picker narrows with the header. */
 const availableProducts = computed(() =>
     form.customer_id
-        ? props.products.filter((product) => product.customer_id === Number(form.customer_id))
+        ? props.products.filter((product) => product.customer_id === null || product.customer_id === Number(form.customer_id))
         : props.products,
 );
 
@@ -241,7 +241,8 @@ onMounted(() => {
     const product = props.quotation || prefill ? null : props.products.find((row) => row.id === wanted);
 
     if (product) {
-        form.customer_id = product.customer_id;
+        // A standard product names no customer; the merchandiser picks one.
+        if (product.customer_id !== null) form.customer_id = product.customer_id;
         form.lines[0].product_id = product.id;
         form.lines[0].description = product.name;
     }
@@ -393,7 +394,7 @@ watch(() => form.customer_id, (customer) => {
     form.lines.forEach((line) => {
         const product = props.products.find((row) => row.id === Number(line.product_id));
 
-        if (product && product.customer_id !== Number(customer)) {
+        if (product && product.customer_id !== null && product.customer_id !== Number(customer)) {
             line.product_id = '';
             line.product_spec_id = '';
             line.rate_per_m = '';

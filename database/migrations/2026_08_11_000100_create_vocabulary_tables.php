@@ -8,9 +8,9 @@ use Illuminate\Support\Facades\Schema;
 /**
  * The vocabularies become tables (docs/02a-schema.sql §1a).
  *
- * Product type, cut type, customer kind, inquiry source, order priority, product status,
- * defect severity and QC disposition were PHP enums behind CHECK constraints: an administrator
- * could read them in Setup and change nothing. They are now eight lookup tables with the
+ * Product type, cut type, customer kind, inquiry source, order priority, defect severity
+ * and QC disposition were PHP enums behind CHECK constraints: an administrator
+ * could read them in Setup and change nothing. They are now seven lookup tables with the
  * behaviour as columns, and the columns that used to be checked carry a foreign key instead —
  * the same refusal of an unknown value, without a release to add a known one.
  *
@@ -142,13 +142,6 @@ return new class extends Migration
             ['code' => 'urgent', 'name' => 'Urgent', 'priority_rank' => 90, 'sort_order' => 40],
         ]);
 
-        $this->fill('product_statuses', [
-            ['code' => 'development', 'name' => 'Development', 'allows_ordering' => false, 'sort_order' => 10],
-            ['code' => 'active', 'name' => 'Active', 'allows_ordering' => true, 'sort_order' => 20],
-            ['code' => 'on_hold', 'name' => 'On hold', 'allows_ordering' => false, 'sort_order' => 30],
-            ['code' => 'discontinued', 'name' => 'Discontinued', 'allows_ordering' => false, 'sort_order' => 40],
-        ]);
-
         $this->fill('defect_severities', [
             ['code' => 'critical', 'name' => 'Critical — rejects the lot on its own', 'rejects_lot' => true, 'counts_toward_aql' => true, 'sort_order' => 10],
             ['code' => 'major', 'name' => 'Major — counted against the accept number', 'rejects_lot' => false, 'counts_toward_aql' => true, 'sort_order' => 20],
@@ -188,7 +181,6 @@ return new class extends Migration
         ['customers', 'kind', 'customers_kind_chk', 'customers_kind_fk', 'customer_kinds(code)'],
         ['routings', 'product_type', 'routings_type_chk', 'routings_type_fk', 'product_types(code)'],
         ['products', 'product_type', 'products_type_chk', 'products_type_fk', 'product_types(code)'],
-        ['products', 'status', 'products_status_chk', 'products_status_fk', 'product_statuses(code)'],
         ['product_specs', 'cut_type', 'product_specs_cut_chk', 'product_specs_cut_fk', 'cut_types(code)'],
         ['inquiries', 'source', 'inquiries_source_chk', 'inquiries_source_fk', 'inquiry_sources(code)'],
         ['inquiry_lines', 'product_type', 'inquiry_lines_type_chk', 'inquiry_lines_type_fk', 'product_types(code)'],
@@ -262,16 +254,6 @@ CREATE TABLE order_priorities (
     sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     is_active  BOOLEAN NOT NULL DEFAULT TRUE,
     UNIQUE KEY order_priorities_code_uq (code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE product_statuses (
-    id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    code            VARCHAR(20)  NOT NULL,
-    name            VARCHAR(120) NOT NULL,
-    allows_ordering BOOLEAN NOT NULL DEFAULT FALSE,
-    sort_order      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
-    UNIQUE KEY product_statuses_code_uq (code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE defect_severities (

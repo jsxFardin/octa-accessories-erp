@@ -85,8 +85,9 @@ class RoutingController extends Controller
             ]),
             // BR-8 — additive across the operations that consume the web, and only those.
             'totalWastagePct' => $routing->totalWastagePct(),
-            'products' => DB::table('products')->where('routing_id', $routing->id)
-                ->get(['id', 'code', 'name', 'status']),
+            'products' => DB::table('products as p')->join('items as pi', 'pi.id', '=', 'p.item_id')
+                ->where('p.routing_id', $routing->id)->whereNull('p.deleted_at')
+                ->orderBy('pi.code')->get(['p.id', 'pi.code', 'pi.name', 'pi.status']),
         ]);
     }
 

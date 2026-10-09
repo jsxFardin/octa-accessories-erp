@@ -15,7 +15,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 
 const { confirm } = useConfirm();
 
-const props = defineProps({ products: Object, filters: Object, customers: Array, productTypes: Array });
+const props = defineProps({ products: Object, filters: Object, customers: Array, productTypes: Array, statuses: Array });
 
 async function remove(row) {
     if (!await confirm({
@@ -60,13 +60,12 @@ const columns = [
         <template #subtitle>Finished labels the customer orders. Yarn, ink and packing are under Inventory → Materials.</template>
 
         <template #actions>
-            <ImportDialog v-if="can('product.import')" resource="products" label="Products" />
             <ExportDialog v-if="can('product.export')" resource="products" />
             <Button v-if="can('product.create')" variant="primary" href="/products/create">New product</Button>
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'customer', label: 'Customer', options: customers.map((c) => ({ value: c.id, label: c.name, code: c.code })) }, { key: 'type', label: 'Type', options: productTypes.map((t) => ({ value: t.value, label: t.label, code: t.code })) }, { key: 'status', label: 'Status', options: ['development','active','on_hold','discontinued'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search code, name or customer style ref…" />
+            <FilterBar :filters="filters" :fields="[{ key: 'customer', label: 'Customer', options: customers.map((c) => ({ value: c.id, label: c.name, code: c.code })) }, { key: 'type', label: 'Type', options: productTypes.map((t) => ({ value: t.value, label: t.label, code: t.code })) }, { key: 'status', label: 'Status', options: statuses.map((s) => ({ value: s.value, label: s.label })) }]" placeholder="Search code, name or customer style ref…" />
 
             <DataTable
                 :columns="columns"

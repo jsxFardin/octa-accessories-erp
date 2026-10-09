@@ -154,10 +154,13 @@ class FgReceiptService
             $lot = $this->posting->receive(
                 [
                     'lot_no' => $this->numbers->nextLotNumber(),
+                    // The lot is the product's AND its item's: a made item of one family is a
+                    // material on another's bill, and availability is read by item.
                     'product_id' => $locked->product_id,
+                    'item_id' => $locked->product->item_id,
                     'kind' => 'finished_goods',
                     'warehouse_id' => $warehouseId,
-                    'uom_id' => $this->pieceUomId(),
+                    'uom_id' => (int) $locked->product->item->base_uom_id,
                     'job_card_id' => $locked->getKey(),
                     'received_on' => now()->toDateString(),
                     'cert_scheme' => $claim['scheme'],
@@ -577,11 +580,5 @@ class FgReceiptService
     private function signedIssueQty(?string $issueType, float $qty): float
     {
         return $issueType === 'return' ? -abs($qty) : abs($qty);
-    }
-
-    /** FG is counted in pieces; the base UoM for labels. */
-    private function pieceUomId(): int
-    {
-        return (int) DB::table('uoms')->where('code', 'pcs')->value('id');
     }
 }

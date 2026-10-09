@@ -22,7 +22,7 @@ class ToolController extends Controller
     use ListsResources;
 
     /** The kinds and statuses the table itself allows (`tools_kind_chk`, `tools_status_chk`). */
-    public const KINDS = ['flexo_plate', 'screen', 'offset_plate', 'cutting_die', 'embossing_die', 'cad_pattern'];
+    public const KINDS = ['flexo_plate', 'screen', 'offset_plate', 'cutting_die', 'embossing_die', 'cad_pattern', 'mould'];
 
     public const STATUSES = ['in_production', 'available', 'in_use', 'worn', 'scrapped'];
 
@@ -61,9 +61,10 @@ class ToolController extends Controller
              */
             'specs' => DB::table('product_specs as ps')
                 ->join('products as p', 'p.id', '=', 'ps.product_id')
+                ->join('items as pi', 'pi.id', '=', 'p.item_id')
                 ->whereIn('ps.status', ['current', 'draft'])
-                ->orderBy('p.code')->orderByDesc('ps.version_no')
-                ->get(['ps.id', 'ps.version_no', 'ps.status', 'ps.colours', 'p.code', 'p.name']),
+                ->orderBy('pi.code')->orderByDesc('ps.version_no')
+                ->get(['ps.id', 'ps.version_no', 'ps.status', 'ps.colours', 'pi.code', 'pi.name']),
         ]);
     }
 
@@ -126,6 +127,10 @@ class ToolController extends Controller
             'kind' => ['required', Rule::in(self::KINDS)],
             'product_spec_id' => ['nullable', 'integer', 'exists:product_specs,id'],
             'colour_index' => ['nullable', 'integer', 'min:1', 'max:20'],
+            // A mould is defined by how many pieces one shot gives.
+            'cavity_count' => ['nullable', 'integer', 'min:1', Rule::requiredIf($request->input('kind') === 'mould')],
+            'owner_customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'item_id' => ['nullable', 'integer', 'exists:items,id'],
             'location' => ['nullable', 'string', 'max:80'],
             'made_on' => ['nullable', 'date'],
             'cost' => ['nullable', 'numeric', 'min:0'],
@@ -134,6 +139,7 @@ class ToolController extends Controller
             'status' => ['required', Rule::in(self::SETTABLE)],
         ], [
             'code.unique' => 'Another tool already has this code.',
+            'cavity_count.required' => 'A mould needs its cavity count.',
             'life_impressions.min' => $tool !== null && $tool->used_impressions > 0
                 ? "This tool has already run {$tool->used_impressions} impressions; its life cannot be less than that."
                 : 'Enter the number of impressions this tool is good for.',

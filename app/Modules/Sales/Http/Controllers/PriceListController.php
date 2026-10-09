@@ -147,10 +147,11 @@ class PriceListController extends Controller
                 ->get(['id', 'code', 'name', 'valid_from', 'valid_to']),
             'lines' => DB::table('price_list_lines as l')
                 ->leftJoin('products as p', 'p.id', '=', 'l.product_id')
+                ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
                 ->where('l.price_list_id', $priceList)
-                ->orderBy('p.code')
+                ->orderBy('pi.code')
                 ->orderBy('l.min_qty')
-                ->get(['l.id', 'l.min_qty', 'l.rate_per_m', 'l.description', 'p.code as product_code', 'p.name as product_name']),
+                ->get(['l.id', 'l.min_qty', 'l.rate_per_m', 'l.description', 'pi.code as product_code', 'pi.name as product_name']),
         ]);
     }
 
@@ -286,8 +287,9 @@ class PriceListController extends Controller
             // The customer's trading currency rides along so the form can default to it.
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name', 'currency_id']),
             'currencies' => Currency::query()->orderBy('code')->get(['id', 'code', 'is_base']),
-            'products' => DB::table('products')->where('status', '!=', 'obsolete')
-                ->orderBy('code')->get(['id', 'code', 'name', 'customer_id']),
+            'products' => DB::table('products as p')->join('items as pi', 'pi.id', '=', 'p.item_id')
+                ->where('pi.status', '!=', 'discontinued')->whereNull('p.deleted_at')
+                ->orderBy('pi.code')->get(['p.id', 'pi.code', 'pi.name', 'p.customer_id']),
         ];
     }
 }

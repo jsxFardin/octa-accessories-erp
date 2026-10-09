@@ -16,6 +16,7 @@ import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useGuardedAction } from '@/composables/useGuardedAction';
 import RuleHint from '@/Components/Ui/RuleHint.vue';
+import ActivationCard from '@/Components/MasterData/ActivationCard.vue';
 
 const props = defineProps({
     product: { type: Object, required: true },
@@ -30,6 +31,9 @@ const props = defineProps({
     options: { type: Object, default: () => ({}) },
     designers: { type: Array, default: () => [] },
     suggestedArtworkCode: { type: String, default: '' },
+    /** IM-1 — the item's activation steps and the status changes open to the reader. */
+    activation: { type: Array, default: () => [] },
+    transitions: { type: Array, default: () => [] },
 });
 
 /*
@@ -99,16 +103,6 @@ const steps = computed(() => {
 
 const outstanding = computed(() => steps.value.filter((step) => step.state !== 'done'));
 
-const setupSummary = computed(() => {
-    if (outstanding.value.length === 0) {
-        return 'Everything is in place. This product can be quoted, ordered and produced.';
-    }
-
-    const done = steps.value.length - outstanding.value.length;
-
-    return `${done} of ${steps.value.length} done. Next: ${outstanding.value[0].label.toLowerCase()}.`;
-});
-
 /*
  * A finished setup is a status, not a to-do list. Five ticked rows took a third of the screen
  * to say "nothing to do here" and pushed the specification — what people open this page for —
@@ -116,8 +110,8 @@ const setupSummary = computed(() => {
  * price; the full steps are one click away, for the routing's "Change" and the price breakdown.
  */
 const setupReady = computed(() => steps.value.length > 0 && outstanding.value.length === 0);
+/** The price breakdown, shown on demand when the figure looks wrong. */
 const stepsShown = ref(false);
-const setupFolded = computed(() => setupReady.value && !stepsShown.value);
 const priceStep = computed(() => steps.value.find((step) => step.key === 'price' && step.state === 'done') ?? null);
 /** A price built on no material or no machine time is wrong, and has to say so even when folded. */
 const priceSuspect = computed(() => priceStep.value && !(priceStep.value.parts.material > 0 && priceStep.value.parts.conversion > 0));
@@ -196,140 +190,34 @@ const bomColumns = [
             <Link v-if="product.customer" :href="`/customers/${product.customer.id}`" class="doc-link">
                 {{ product.customer.name }}
             </Link>
+            <span v-else>Standard item</span>
             · {{ titleCase(product.product_type) }}
             <span v-if="product.customer_style_ref"> · style {{ product.customer_style_ref }}</span>
+            <span v-if="product.item?.family"> · {{ product.item.family.code }} {{ product.item.family.name }}<span v-if="product.item.group"> › {{ product.item.group.name }}</span></span>
+            <span v-if="product.item"> · {{ product.item.base_uom }}<span v-if="product.item.order_uom && product.item.order_uom !== product.item.base_uom">, ordered in {{ product.item.order_uom }}</span></span>
         </template>
 
         <template #actions>
             <Badge :status="product.status" />
+            <Button v-if="product.item && can('item.view')" size="sm" variant="ghost" :href="`/items/${product.item.id}`">Item master</Button>
             <Button v-if="can('product.update')" size="sm" :href="`/products/${product.id}/edit`">Edit</Button>
+            <!-- Once everything is in place, the next thing anyone does with a product is quote it. -->
+            <Button v-if="setupReady && product.status === 'active' && can('quotation.create')" size="sm" variant="primary" :href="`/quotations/create?product=${product.id}`">
+                Create a quotation
+            </Button>
         </template>
 
-        <div class="space-y-4">
-            <!-- What this product still needs, in working order, and the one thing to do next. -->
-            <!-- Done, the title says so and the ticks say the rest; a sentence beside two buttons had no room on a phone. -->
-            <Card :title="setupReady ? 'Setup complete' : 'Setup'" :subtitle="setupReady ? null : setupSummary" :padded="false">
-                <!-- Setup used to end on a trial price and nothing else. Once everything is in
-                     place, the next thing anyone does with a product is quote it. -->
-                <template v-if="setupReady" #actions>
-                    <Button size="sm" variant="ghost" :aria-expanded="stepsShown" aria-controls="setup-steps" data-setup-toggle @click="stepsShown = !stepsShown">
-                        {{ stepsShown ? 'Hide steps' : 'Show steps' }}
-                    </Button>
-                    <Button v-if="can('quotation.create')" size="sm" variant="primary" :href="`/quotations/create?product=${product.id}`">
-                        Create a quotation
-                    </Button>
-                </template>
-
-                <!-- Everything done: one line of ticks, and the figure they add up to. -->
-                <div v-if="setupFolded" class="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5" data-setup-folded>
-                    <ul class="flex min-w-0 flex-1 flex-wrap gap-x-5 gap-y-1 text-xs">
-                        <li v-for="step in steps.filter((s) => s.key !== 'price')" :key="step.key" class="inline-flex items-baseline gap-1.5">
-                            <Icon name="check" class="size-3.5 shrink-0 self-center text-emerald-600" />
-                            <span class="font-medium text-ink-900">{{ step.label }}</span>
-                            <span class="text-ink-600">{{ brief(step.detail) }}</span>
-                            <span class="sr-only">— done</span>
-                        </li>
-                    </ul>
-                    <p v-if="priceStep" class="text-xs text-ink-600 sm:text-right">
-                        <span class="text-ink-500">{{ priceStep.label }}</span>
-                        <span class="ml-1.5 text-sm font-semibold tnum text-ink-900">{{ ratePerM(priceStep.rate_per_m, priceStep.currency) }}</span>
-                        <span class="ml-1.5">at {{ pcs(priceStep.qty) }} pcs, {{ pct(priceStep.margin_pct) }} margin</span>
-                        <button v-if="priceSuspect" type="button" class="ml-1.5 inline-flex min-h-6 items-center gap-1 font-medium text-amber-900 underline underline-offset-2" @click="stepsShown = true">
-                            <Icon name="warning" class="size-3.5" /> check the breakdown
-                        </button>
-                    </p>
-                </div>
-
-                <ol v-else id="setup-steps" class="divide-y divide-slate-100">
-                    <li v-for="step in steps" :key="step.key" class="px-4" :class="step.state === 'done' ? 'py-2' : 'py-3'">
-                        <div class="flex flex-wrap items-start gap-x-4 gap-y-2">
-                            <span
-                                class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold tnum"
-                                :class="{
-                                    'bg-emerald-600 text-white': step.state === 'done',
-                                    'bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-600/40': step.state === 'attention',
-                                    'text-ink-600 ring-1 ring-inset ring-slate-300': step.state === 'todo',
-                                }"
-                                aria-hidden="true"
-                            >
-                                <Icon v-if="step.state === 'done'" name="check" class="size-3.5" />
-                                <Icon v-else-if="step.state === 'attention'" name="warning" class="size-3.5" />
-                                <template v-else>{{ step.no }}</template>
-                            </span>
-
-                            <div class="min-w-0 flex-1 basis-64" :class="step.state === 'done' ? 'flex flex-wrap items-baseline gap-x-2' : ''">
-                                <p class="text-sm font-medium text-ink-900">
-                                    {{ step.label }}
-                                    <span class="sr-only">
-                                        — {{ { done: 'done', attention: 'needs attention', todo: 'not done yet' }[step.state] }}
-                                    </span>
-                                </p>
-                                <p class="mt-0.5 text-xs" :class="step.state === 'attention' ? 'text-amber-900' : 'text-ink-600'">
-                                    {{ step.detail }}
-                                </p>
-                                <p v-if="step.state !== 'done' && step.unlocks" class="mt-0.5 text-xs text-ink-500">
-                                    {{ step.unlocks }}
-                                </p>
-                            </div>
-
-                            <!-- The trial price is the result the other four steps add up to. -->
-                            <div v-if="step.key === 'price' && step.state === 'done'" class="max-sm:ml-10 sm:text-right">
-                                <p class="text-sm font-semibold tnum text-ink-900">{{ ratePerM(step.rate_per_m, step.currency) }}</p>
-                                <p class="text-xs text-ink-600">
-                                    at {{ pcs(step.qty) }} pcs, {{ pct(step.margin_pct) }} margin{{ step.minimum_applied ? ', raised to the customer minimum' : '' }}
-                                </p>
-                                <p class="text-xs" :class="step.parts.material > 0 && step.parts.conversion > 0 ? 'text-ink-500' : 'text-amber-900'">
-                                    material {{ money(step.parts.material, step.currency) }}, machine and labour {{ money(step.parts.conversion, step.currency) }}
-                                </p>
-                            </div>
-
-                            <!-- Wrapped under the text on a narrow screen, it lines up with the text. -->
-                            <div v-else-if="step.button && !(step.key === 'routing' && routingOpen)" class="max-sm:ml-10">
-                                <Button v-if="step.button.href" size="sm" :variant="step.button.variant" :href="step.button.href">
-                                    {{ step.button.label }}
-                                </Button>
-                                <Button v-else size="sm" :variant="step.button.variant" @click="step.button.run">
-                                    {{ step.button.label }}
-                                </Button>
-                            </div>
-                        </div>
-
-                        <form
-                            v-if="step.key === 'routing' && routingOpen"
-                            class="mt-3 flex flex-wrap items-end gap-2 pl-10"
-                            @submit.prevent="saveRouting"
-                        >
-                            <template v-if="routings.length">
-                                <FormField
-                                    class="min-w-64 flex-1 sm:max-w-md"
-                                    :label="`Routing for a ${titleCase(product.product_type).toLowerCase()} product`"
-                                    :error="routingForm.errors.routing_id"
-                                >
-                                    <SelectInput
-                                        v-model="routingForm.routing_id"
-                                        placeholder="— select —"
-                                        :options="routings.map((r) => ({ id: r.id, label: `${r.code} · ${r.name}${r.is_default ? ' (default)' : ''}` }))"
-                                        value-key="id"
-                                        label-key="label"
-                                    />
-                                </FormField>
-                                <Button type="submit" size="sm" variant="primary" :loading="routingForm.processing" :disabled="!routingForm.routing_id">
-                                    Save routing
-                                </Button>
-                            </template>
-                            <p v-else class="flex-1 text-xs text-ink-600">
-                                There is no active routing for this product type yet.
-                                <Link v-if="can('routing.create')" href="/routings/create" class="doc-link">Create one</Link>
-                            </p>
-                            <Button size="sm" variant="ghost" @click="routingOpen = false">Cancel</Button>
-                        </form>
-                    </li>
-                </ol>
-            </Card>
-
-            <div class="grid gap-4 xl:grid-cols-3">
+        <!--
+            Two columns: the work on the left — specification, artwork, bill of materials — and
+            on the right, sticky, where the product stands: the engineering steps and the item
+            steps in one list, with the one next action and the Activate button at the top.
+            Two separate lists used to say the same thing twice and took a whole screen to do it.
+        -->
+        <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+            <div class="min-w-0 space-y-4">
+            <div class="grid gap-4 2xl:grid-cols-3">
                 <!-- Spec versions with their derived geometry -->
-                <Card class="xl:col-span-2" title="Specifications" rule="P2 · P3" subtitle="A specification in use cannot be changed; a change is a new version" :padded="false">
+                <Card class="2xl:col-span-2" title="Specifications" rule="P2 · P3" subtitle="A specification in use cannot be changed; a change is a new version" :padded="false">
                     <template #actions>
                         <Button v-if="can('product_spec.create')" size="sm" :href="`/products/${product.id}/specs/create`">
                             {{ specs.length ? 'New version' : 'New spec' }}
@@ -454,6 +342,105 @@ const bomColumns = [
                     No BOM yet. A job card cannot be released without an active one.
                 </p>
             </Card>
+
+            </div>
+
+            <!-- On a phone, where the product stands comes before the cards it stands on. -->
+            <aside class="order-first space-y-4 xl:order-none xl:sticky xl:top-20">
+                <ActivationCard
+                    :steps="activation"
+                    :transitions="transitions"
+                    :status="product.status"
+                    :code="product.code"
+                    :action="`/products/${product.id}/transition`"
+                    :omit="['bom', 'routing']"
+                    :extra-outstanding="outstanding.filter((step) => !['bom', 'routing'].includes(step.key)).length"
+                    :next-label="outstanding[0]?.label ?? null"
+                >
+                    <!-- The engineering steps, in working order; the first one not done carries the primary button. -->
+                    <template #before>
+                        <ol id="setup-steps" class="divide-y divide-slate-100 border-b border-slate-200">
+                            <li v-for="step in steps" :key="step.key" class="px-4 py-2">
+                                <div class="flex items-start gap-2.5">
+                                    <span
+                                        class="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-xs font-semibold tnum"
+                                        :class="{
+                                            'bg-emerald-600 text-white': step.state === 'done',
+                                            'bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-600/40': step.state === 'attention',
+                                            'text-ink-500 ring-1 ring-inset ring-slate-300': step.state === 'todo',
+                                        }"
+                                        aria-hidden="true"
+                                    >
+                                        <Icon v-if="step.state === 'done'" name="check" class="size-3" />
+                                        <Icon v-else-if="step.state === 'attention'" name="warning" class="size-3" />
+                                        <template v-else>{{ step.no }}</template>
+                                    </span>
+
+                                    <div class="min-w-0 flex-1 text-sm" :class="step.state === 'done' ? 'flex flex-wrap items-baseline gap-x-2' : ''">
+                                        <span class="font-medium text-ink-900">
+                                            {{ step.label }}
+                                            <span class="sr-only">— {{ { done: 'done', attention: 'needs attention', todo: 'not done yet' }[step.state] }}</span>
+                                        </span>
+                                        <!-- The trial price is the result the other steps add up to. -->
+                                        <span v-if="step.key === 'price' && step.state === 'done'" class="text-xs text-ink-600">
+                                            <span class="font-semibold tnum text-ink-900">{{ ratePerM(step.rate_per_m, step.currency) }}</span>
+                                            at {{ pcs(step.qty) }} pcs, {{ pct(step.margin_pct) }} margin{{ step.minimum_applied ? ', raised to the customer minimum' : '' }}
+                                            <button v-if="priceSuspect" type="button" class="ml-1 inline-flex items-center gap-1 font-medium text-amber-900 underline underline-offset-2" @click="stepsShown = true">
+                                                <Icon name="warning" class="size-3" /> check the breakdown
+                                            </button>
+                                        </span>
+                                        <span v-else class="text-xs" :class="step.state === 'attention' ? 'text-amber-900' : 'text-ink-600'">
+                                            {{ step.state === 'done' ? brief(step.detail) : step.detail }}
+                                        </span>
+                                        <p v-if="priceSuspect && stepsShown && step.key === 'price'" class="mt-0.5 text-xs text-amber-900">
+                                            material {{ money(step.parts.material, step.currency) }}, machine and labour {{ money(step.parts.conversion, step.currency) }}
+                                        </p>
+                                    </div>
+
+                                    <Button v-if="step.button && !(step.key === 'routing' && routingOpen) && step.button.href" size="sm" :variant="step.button.variant === 'primary' ? 'primary' : 'ghost'" :href="step.button.href">
+                                        {{ step.button.label }}
+                                    </Button>
+                                    <Button v-else-if="step.button && !(step.key === 'routing' && routingOpen)" size="sm" :variant="step.button.variant === 'primary' ? 'primary' : 'ghost'" @click="step.button.run">
+                                        {{ step.button.label }}
+                                    </Button>
+                                </div>
+
+                                <form
+                                    v-if="step.key === 'routing' && routingOpen"
+                                    class="mt-2 space-y-2 pl-7"
+                                    @submit.prevent="saveRouting"
+                                >
+                                    <template v-if="routings.length">
+                                        <FormField
+                                            :label="`Routing for a ${titleCase(product.product_type).toLowerCase()} product`"
+                                            :error="routingForm.errors.routing_id"
+                                        >
+                                            <SelectInput
+                                                v-model="routingForm.routing_id"
+                                                placeholder="— select —"
+                                                :options="routings.map((r) => ({ id: r.id, label: `${r.code} · ${r.name}${r.is_default ? ' (default)' : ''}` }))"
+                                                value-key="id"
+                                                label-key="label"
+                                            />
+                                        </FormField>
+                                        <div class="flex gap-2">
+                                            <Button type="submit" size="sm" variant="primary" :loading="routingForm.processing" :disabled="!routingForm.routing_id">
+                                                Save routing
+                                            </Button>
+                                            <Button size="sm" variant="ghost" @click="routingOpen = false">Cancel</Button>
+                                        </div>
+                                    </template>
+                                    <p v-else class="text-xs text-ink-600">
+                                        There is no active routing for this product type yet.
+                                        <Link v-if="can('routing.create')" href="/routings/create" class="doc-link">Create one</Link>
+                                        <Button size="sm" variant="ghost" class="ml-2" @click="routingOpen = false">Cancel</Button>
+                                    </p>
+                                </form>
+                            </li>
+                        </ol>
+                    </template>
+                </ActivationCard>
+            </aside>
         </div>
         <Modal
             v-model:open="artworkOpen"

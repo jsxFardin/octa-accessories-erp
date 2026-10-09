@@ -28,7 +28,7 @@ class FloorQueueController extends Controller
             // loaded here — the filter runs per row and would otherwise lazy load (J2).
             ->with([
                 'jobCard:id,number,product_id,colourway,planned_qty,due_date,factory_unit_id',
-                'jobCard.product:id,code,name',
+                'jobCard.product:id,item_id',
                 'machine:id,code,name',
                 'routingOperation:id,allow_parallel,consumes_web',
             ])

@@ -80,7 +80,7 @@ describe('kept on the supplier page', function (): void {
         $this->admin = User::query()->where('email', 'admin@octapussolution.com')->firstOrFail();
         $this->supplierId = (int) DB::table('suppliers')->insertGetId(['code' => 'SUP-KEPT-T', 'name' => 'Kept test supplier']);
         $this->otherId = (int) DB::table('suppliers')->insertGetId(['code' => 'SUP-KEPT-O', 'name' => 'Another supplier']);
-        $this->itemId = (int) DB::table('items')->where('is_active', true)->value('id');
+        $this->itemId = (int) DB::table('items')->where('status', 'active')->value('id');
         $this->currencyId = (int) DB::table('currencies')->value('id');
     });
 

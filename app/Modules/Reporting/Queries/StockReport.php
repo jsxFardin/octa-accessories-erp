@@ -74,12 +74,13 @@ class StockReport extends ReportQuery
             ->join('warehouses as w', 'w.id', '=', 'sl.warehouse_id')
             ->leftJoin('items as i', 'i.id', '=', 'sl.item_id')
             ->leftJoin('products as p', 'p.id', '=', 'sl.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->leftJoin('v_stock_balances as v', 'v.lot_id', '=', 'sl.id')
             ->leftJoinSub($consumed, 'cons', 'cons.lot_id', '=', 'sl.id')
             ->selectRaw("
                 sl.id,
                 sl.lot_no,
-                COALESCE(i.code, p.code) as item_or_product,
+                COALESCE(i.code, pi.code) as item_or_product,
                 w.code as warehouse,
                 sl.status,
                 sl.balance_qty,
@@ -92,7 +93,7 @@ class StockReport extends ReportQuery
             ")
             ->orderByDesc('sl.id');
 
-        $this->applySearch($query, $request, 'sl.lot_no', 'i.code', 'p.code');
+        $this->applySearch($query, $request, 'sl.lot_no', 'i.code', 'pi.code');
         $this->applyDate($query, $request, 'sl.received_on');
 
         if ($request->query('warehouse')) {

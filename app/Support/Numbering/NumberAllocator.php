@@ -83,6 +83,26 @@ class NumberAllocator
     }
 
     /**
+     * Item codes are numbered per production family — `BC-06-00012` for the twelfth item of
+     * family 06 — and never reset. Bought items with no family share the `ITM-00` series.
+     *
+     * The family's prefix is the printed part; the series key is the family code. A family is
+     * data an administrator adds in Setup, so its series is created on first use the way a
+     * day's lot series is, and the same `insertOrIgnore` makes two first items race benignly.
+     */
+    public function nextItemCode(string $prefix, string $seriesKey): string
+    {
+        DB::table('number_sequences')->insertOrIgnore([
+            'document_type' => 'item',
+            'series_key' => $seriesKey,
+            'prefix' => $prefix,
+            'padding' => 5,
+        ]);
+
+        return $this->next('item', $seriesKey);
+    }
+
+    /**
      * BR-35 — the printed reference of a revised document is `{number}/R{n}`.
      */
     public function withRevision(?string $number, int $revisionNo): string

@@ -35,31 +35,32 @@ class StockEnquiryController extends Controller
             ->leftJoin('items as i', 'i.id', '=', 'sb.item_id')
             ->leftJoin('uoms as u', 'u.id', '=', 'sl.uom_id')
             ->leftJoin('products as p', 'p.id', '=', 'sb.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->join('warehouses as w', 'w.id', '=', 'sb.warehouse_id')
             ->select([
                 'sb.lot_id', 'sb.lot_no', 'sb.shade_code', 'sb.cert_scheme', 'sb.cert_claim_pct',
                 'sb.balance_qty', 'sb.received_on',
                 'sl.unit_cost', 'sl.expiry_date',
                 'i.code', 'i.name',
-                'p.code as product_code', 'p.name as product_name',
+                'pi.code as product_code', 'pi.name as product_name',
                 'w.code as warehouse_code', 'w.is_nettable',
                 'u.code as uom_code', 'u.dimension as uom_dimension',
             ])
             ->when($request->query('q'), fn ($q, $term) => $q->where(function ($sub) use ($term): void {
                 $sub->where('i.code', 'like', "%{$term}%")
                     ->orWhere('i.name', 'like', "%{$term}%")
-                    ->orWhere('p.code', 'like', "%{$term}%")
-                    ->orWhere('p.name', 'like', "%{$term}%")
+                    ->orWhere('pi.code', 'like', "%{$term}%")
+                    ->orWhere('pi.name', 'like', "%{$term}%")
                     ->orWhere('sb.lot_no', 'like', "%{$term}%");
             }))
             ->when($request->query('warehouse'), fn ($q, $id) => $q->where('sb.warehouse_id', $id))
             ->when($request->query('scheme'), fn ($q, $s) => $q->where('sb.cert_scheme', $s))
             ->when($request->query('nettable') === '1', fn ($q) => $q->where('w.is_nettable', true))
             // Materials or products: a balance row holds one or the other.
-            ->when($request->query('type') === 'material', fn ($q) => $q->whereNotNull('sb.item_id'))
+            ->when($request->query('type') === 'material', fn ($q) => $q->whereNull('sb.product_id'))
             ->when($request->query('type') === 'product', fn ($q) => $q->whereNotNull('sb.product_id'))
             ->where('sb.balance_qty', '>', 0)
-            ->orderByRaw('COALESCE(i.code, p.code)')
+            ->orderByRaw('COALESCE(i.code, pi.code)')
             ->orderBy('sb.received_on')
             ->paginate(50)
             ->withQueryString()

@@ -229,7 +229,7 @@ it('backs every vocabulary column with a foreign key rather than a check constra
         ['customers', 'kind', 'customer_kinds'],
         ['routings', 'product_type', 'product_types'],
         ['products', 'product_type', 'product_types'],
-        ['products', 'status', 'product_statuses'],
+        ['items', 'status', 'item_statuses'],
         ['product_specs', 'cut_type', 'cut_types'],
         ['inquiries', 'source', 'inquiry_sources'],
         ['inquiry_lines', 'product_type', 'product_types'],
@@ -300,17 +300,28 @@ it('edits a vocabulary like any other list', function (): void {
         'code' => 'VOC-1', 'name' => 'Vocabulary customer', 'kind' => 'brand', 'created_at' => now(),
     ]);
 
-    DB::table('products')->insert([
-        'customer_id' => $customerId,
-        'routing_id' => DB::table('routings')->where('code', 'RT-WOVEN')->value('id'),
+    $itemId = DB::table('items')->insertGetId([
+        'item_category_id' => DB::table('item_categories')->where('code', 'FG')->value('id'),
         'code' => 'VOC-PRD-1',
         'name' => 'Embroidered badge',
-        'product_type' => 'embroidered',
-        'status' => 'development',
+        'item_type' => 'finished_good',
+        'make_or_buy' => 'make',
+        'production_family_id' => DB::table('production_families')->where('code', '10')->value('id'),
+        'base_uom_id' => DB::table('uoms')->where('code', 'pcs')->value('id'),
+        'variant_axes' => '[]',
+        'attributes' => '{}',
         'created_at' => now(),
     ]);
 
-    expect(DB::table('products')->where('code', 'VOC-PRD-1')->exists())->toBeTrue();
+    DB::table('products')->insert([
+        'item_id' => $itemId,
+        'customer_id' => $customerId,
+        'routing_id' => DB::table('routings')->where('code', 'RT-WOVEN')->value('id'),
+        'product_type' => 'embroidered',
+        'created_at' => now(),
+    ]);
+
+    expect(DB::table('products')->where('item_id', $itemId)->exists())->toBeTrue();
 });
 
 it('still refuses a value no vocabulary row carries', function (): void {

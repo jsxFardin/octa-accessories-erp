@@ -249,15 +249,32 @@ class ReferenceController extends Controller
         foreach ($definition['fields'] as $field) {
             $value = $validated[$field['name']] ?? $field['default'] ?? null;
 
-            $row[$field['name']] = match ($field['type']) {
-                'boolean' => (bool) $value,
-                'number' => $value === null || $value === '' ? null : (int) $value,
-                'decimal' => $value === null || $value === '' ? null : (float) $value,
+            $row[$field['name']] = match (true) {
+                $field['type'] === 'boolean' => (bool) $value,
+                $field['type'] === 'number' => $value === null || $value === '' ? null : (int) $value,
+                $field['type'] === 'decimal' => $value === null || $value === '' ? null : (float) $value,
+                // A list typed one per line, stored as a JSON array; a JSON array typed as such is kept.
+                ($field['jsonLines'] ?? false) === true => $this->jsonLines($value),
                 default => $value === '' ? null : $value,
             };
         }
 
         return $row;
+    }
+
+    private function jsonLines(mixed $value): ?string
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        $decoded = json_decode((string) $value, true);
+
+        $list = is_array($decoded)
+            ? array_values(array_map('strval', $decoded))
+            : array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $value) ?: []), fn (string $line): bool => $line !== ''));
+
+        return json_encode($list, JSON_THROW_ON_ERROR);
     }
 
     /**

@@ -28,6 +28,7 @@ class ReferenceDataSeeder extends Seeder
         $this->machineGroups();
         $this->warehouses();
         $this->itemCategories();
+        $this->itemClassification();
         $this->expenseCategories();
         $this->routings();
         $this->aqlPlans();
@@ -95,8 +96,9 @@ class ReferenceDataSeeder extends Seeder
             ['code' => 'urgent', 'name' => 'Urgent', 'priority_rank' => 90, 'sort_order' => 40],
         ]);
 
-        $this->upsert('product_statuses', 'code', [
-            ['code' => 'development', 'name' => 'Development', 'allows_ordering' => false, 'sort_order' => 10],
+        // IM-1 — an item is born draft and only the activation gate makes it active.
+        $this->upsert('item_statuses', 'code', [
+            ['code' => 'draft', 'name' => 'Draft', 'allows_ordering' => false, 'sort_order' => 10],
             ['code' => 'active', 'name' => 'Active', 'allows_ordering' => true, 'sort_order' => 20],
             ['code' => 'on_hold', 'name' => 'On hold', 'allows_ordering' => false, 'sort_order' => 30],
             ['code' => 'discontinued', 'name' => 'Discontinued', 'allows_ordering' => false, 'sort_order' => 40],
@@ -126,7 +128,7 @@ class ReferenceDataSeeder extends Seeder
         $this->upsert('uoms', 'code', [
             ['code' => 'pcs', 'name' => 'Pieces', 'dimension' => 'count'],
             ['code' => 'M', 'name' => 'Thousand pieces', 'dimension' => 'count'],
-            ['code' => 'm', 'name' => 'Metre', 'dimension' => 'length'],
+            ['code' => 'mtr', 'name' => 'Metre', 'dimension' => 'length'],
             ['code' => 'kg', 'name' => 'Kilogram', 'dimension' => 'mass'],
             ['code' => 'g', 'name' => 'Gram', 'dimension' => 'mass'],
             ['code' => 'l', 'name' => 'Litre', 'dimension' => 'volume'],
@@ -135,6 +137,9 @@ class ReferenceDataSeeder extends Seeder
             ['code' => 'roll', 'name' => 'Roll', 'dimension' => 'count'],
             ['code' => 'cone', 'name' => 'Cone', 'dimension' => 'count'],
             ['code' => 'carton', 'name' => 'Carton', 'dimension' => 'count'],
+            ['code' => 'inner', 'name' => 'Inner pack', 'dimension' => 'count'],
+            ['code' => 'dz', 'name' => 'Dozen', 'dimension' => 'count'],
+            ['code' => 'gross', 'name' => 'Gross', 'dimension' => 'count'],
             ['code' => 'hr', 'name' => 'Hour', 'dimension' => 'time'],
         ]);
 
@@ -146,6 +151,13 @@ class ReferenceDataSeeder extends Seeder
             ['from' => 'g', 'to' => 'kg', 'factor' => 0.001],
             ['from' => 'M', 'to' => 'pcs', 'factor' => 1000],
             ['from' => 'pcs', 'to' => 'M', 'factor' => 0.001],
+            // Buttons and snaps are bought and sold by the gross and the dozen.
+            ['from' => 'dz', 'to' => 'pcs', 'factor' => 12],
+            ['from' => 'pcs', 'to' => 'dz', 'factor' => 1 / 12],
+            ['from' => 'gross', 'to' => 'pcs', 'factor' => 144],
+            ['from' => 'pcs', 'to' => 'gross', 'factor' => 1 / 144],
+            ['from' => 'gross', 'to' => 'dz', 'factor' => 12],
+            ['from' => 'dz', 'to' => 'gross', 'factor' => 1 / 12],
         ], $uoms);
     }
 
@@ -286,7 +298,117 @@ class ReferenceDataSeeder extends Seeder
             ['code' => 'TOOLSTK', 'name' => 'Plate & screen stock', 'item_class' => 'tool_stock'],
             ['code' => 'PACKMAT', 'name' => 'Polybags, cartons, string', 'item_class' => 'packing'],
             ['code' => 'SPARE', 'name' => 'Machine spares', 'item_class' => 'spare'],
+            // What the factory makes, charges for and tools up with — items too, since a
+            // made component of one family is a material on another family's bill.
+            ['code' => 'FG', 'name' => 'Finished goods', 'item_class' => 'finished_good'],
+            ['code' => 'SFG', 'name' => 'Semi-finished goods', 'item_class' => 'semi_finished'],
+            ['code' => 'COMP', 'name' => 'Made components', 'item_class' => 'component'],
+            ['code' => 'SVC', 'name' => 'Services', 'item_class' => 'service'],
+            ['code' => 'TOOL', 'name' => 'Tools & moulds', 'item_class' => 'tool'],
         ]);
+    }
+
+    /**
+     * The ten production families of a garments-accessories factory, and the starter groups
+     * and specification attributes under each. The prefix is the first part of every item
+     * code in the family (`BC-06-00012`), so it is unique and never `L`, which is a lot.
+     *
+     * @return list<array{code: string, name: string, code_prefix: string}>
+     */
+    public static function productionFamilies(): array
+    {
+        return [
+            ['code' => '01', 'name' => 'Narrow textile', 'code_prefix' => 'NT'],
+            ['code' => '02', 'name' => 'Printed label', 'code_prefix' => 'PL'],
+            ['code' => '03', 'name' => 'Paper', 'code_prefix' => 'PA'],
+            ['code' => '04', 'name' => 'Zipper', 'code_prefix' => 'ZP'],
+            ['code' => '05', 'name' => 'Fastener', 'code_prefix' => 'FS'],
+            ['code' => '06', 'name' => 'Braiding & cord', 'code_prefix' => 'BC'],
+            ['code' => '07', 'name' => 'Plastic injection', 'code_prefix' => 'PI'],
+            ['code' => '08', 'name' => 'Packaging', 'code_prefix' => 'PK'],
+            ['code' => '09', 'name' => 'Textile support', 'code_prefix' => 'TS'],
+            ['code' => '10', 'name' => 'Decoration', 'code_prefix' => 'DC'],
+        ];
+    }
+
+    private function itemClassification(): void
+    {
+        $rows = [];
+
+        foreach (self::productionFamilies() as $index => $family) {
+            $rows[] = [...$family, 'sort_order' => ($index + 1) * 10];
+        }
+
+        $this->upsert('production_families', 'code', $rows);
+
+        $families = DB::table('production_families')->pluck('id', 'code');
+
+        // family => group => [sub-groups]
+        $groups = [
+            '01' => ['TAPE' => ['Twill tape', ['TWILL' => 'Twill', 'HERRINGBONE' => 'Herringbone']], 'ELASTIC' => ['Elastic', []], 'WEBBING' => ['Webbing', []]],
+            '02' => ['CARE' => ['Care label', []], 'SIZE' => ['Size label', []], 'MAIN' => ['Main label', []], 'HEAT' => ['Heat-transfer label', []], 'BARCODE' => ['Barcode label', []]],
+            '03' => ['HANGTAG' => ['Hangtag', []], 'PRICETAG' => ['Price tag', []], 'STICKER' => ['Sticker', []]],
+            '04' => ['NYLON' => ['Nylon zipper', []], 'PLASTIC' => ['Plastic zipper', []], 'METAL' => ['Metal zipper', []], 'INVISIBLE' => ['Invisible zipper', []]],
+            '05' => ['BUTTON' => ['Button', ['SHANK' => 'Shank', '4HOLE' => 'Four-hole', '2HOLE' => 'Two-hole']], 'SNAP' => ['Snap', []], 'RIVET' => ['Rivet', []], 'EYELET' => ['Eyelet', []], 'BUCKLE' => ['D-ring & buckle', []]],
+            '06' => ['CORD' => ['Cord', ['DRAWCORD' => 'Drawcord', 'BRAIDED' => 'Braided cord', 'TWISTED' => 'Twisted cord']]],
+            '07' => ['CORDLOCK' => ['Cord lock', []], 'TIP' => ['Tip', []], 'TOGGLE' => ['Toggle', []], 'SLIDER' => ['Plastic slider & stopper', []]],
+            '08' => ['POLYBAG' => ['Polybag', []], 'CARTON' => ['Carton', []], 'TISSUE' => ['Tissue & divider', []]],
+            '09' => ['INTERLINING' => ['Interlining', ['FUSIBLE' => 'Fusible', 'NONWOVEN' => 'Non-woven']], 'STAYTAPE' => ['Stay tape', []]],
+            '10' => ['PATCH' => ['Patch', []], 'BADGE' => ['Badge', []], 'APPLIQUE' => ['Appliqué', []]],
+        ];
+
+        foreach ($groups as $familyCode => $familyGroups) {
+            $order = 0;
+
+            foreach ($familyGroups as $code => [$name, $children]) {
+                $order += 10;
+                $this->upsertScoped('item_groups', ['production_family_id', 'code'], [[
+                    'production_family_id' => $families[$familyCode], 'code' => $code, 'parent_id' => null, 'name' => $name, 'sort_order' => $order,
+                ]]);
+                $parentId = DB::table('item_groups')->where('production_family_id', $families[$familyCode])->where('code', $code)->value('id');
+                $childOrder = 0;
+
+                foreach ($children as $childCode => $childName) {
+                    $childOrder += 10;
+                    $this->upsertScoped('item_groups', ['production_family_id', 'code'], [[
+                        'production_family_id' => $families[$familyCode], 'code' => $childCode, 'parent_id' => $parentId, 'name' => $childName, 'sort_order' => $childOrder,
+                    ]]);
+                }
+            }
+        }
+
+        // The specification fields the document's examples name. Each becomes a required or
+        // optional key under `items.attributes`; Setup adds the rest.
+        $attributes = [
+            '01' => [['width_mm', 'Width', 'number', 'mm', null, true], ['construction', 'Construction', 'select', null, ['woven', 'knitted'], true], ['material', 'Material', 'text', null, null, true]],
+            '02' => [['label_type', 'Label type', 'select', null, ['care', 'size', 'main', 'heat_transfer', 'barcode'], true], ['fold', 'Fold', 'text', null, null, false]],
+            '03' => [['board_gsm', 'Board', 'number', 'gsm', null, true], ['lamination', 'Lamination', 'select', null, ['none', 'gloss', 'matt'], false], ['string_or_eyelet', 'String / eyelet', 'select', null, ['none', 'string', 'eyelet', 'both'], false]],
+            '04' => [['chain_type', 'Chain type', 'select', null, ['nylon', 'plastic', 'metal', 'invisible'], true], ['teeth_no', 'Teeth no.', 'number', null, null, true], ['length_cm', 'Length', 'number', 'cm', null, false], ['slider_type', 'Slider type', 'text', null, null, false]],
+            '05' => [['ligne', 'Ligne', 'number', 'L', null, true], ['holes', 'Holes', 'number', null, null, false], ['finish', 'Finish', 'text', null, null, false], ['base_material', 'Material', 'select', null, ['resin', 'brass', 'zinc_alloy', 'iron'], true]],
+            '06' => [['material', 'Material', 'text', null, null, true], ['diameter_mm', 'Diameter', 'number', 'mm', null, true], ['construction', 'Construction', 'select', null, ['braid', 'twist', 'knit'], true], ['length_cm', 'Length', 'number', 'cm', null, false], ['tip_type', 'Tip', 'text', null, null, false]],
+            '07' => [['resin', 'Resin', 'select', null, ['PP', 'ABS', 'nylon', 'POM'], true], ['colour_masterbatch', 'Masterbatch', 'text', null, null, false], ['metal_insert', 'Metal insert', 'boolean', null, null, false]],
+            '08' => [['pack_kind', 'Kind', 'select', null, ['polybag', 'carton', 'tissue', 'divider'], true], ['dimensions', 'Dimensions', 'text', null, null, true], ['micron_or_ply', 'Micron / ply', 'number', null, null, false]],
+            '09' => [['base_fabric', 'Base fabric', 'text', null, null, true], ['gsm', 'Weight', 'number', 'gsm', null, true], ['adhesive', 'Adhesive', 'text', null, null, false]],
+            '10' => [['technique', 'Technique', 'select', null, ['embroidery', 'rubber', 'silicone', 'printed'], true], ['backing', 'Backing', 'text', null, null, false], ['dimensions', 'Dimensions', 'text', null, null, false]],
+        ];
+
+        foreach ($attributes as $familyCode => $rows) {
+            $order = 0;
+
+            foreach ($rows as [$key, $label, $type, $unit, $options, $required]) {
+                $order += 10;
+                $this->upsertScoped('family_attributes', ['production_family_id', 'attr_key'], [[
+                    'production_family_id' => $families[$familyCode],
+                    'attr_key' => $key,
+                    'label' => $label,
+                    'data_type' => $type,
+                    'unit' => $unit,
+                    'options' => $options === null ? null : json_encode($options, JSON_THROW_ON_ERROR),
+                    'is_required' => $required,
+                    'sort_order' => $order,
+                ]]);
+            }
+        }
     }
 
     /**
@@ -634,6 +756,8 @@ class ReferenceDataSeeder extends Seeder
             ['credit_note_approval_band_accounts', 50000, 'approval', 'Credit note value accounts may approve'],
             ['qc_final_required_default', false, 'quality', 'P1-1 — require an accepted final inspection before ANY job completes, even when no routing operation flags QC'],
             ['expiry_alert_days', 30, 'inventory', 'Days before expiry at which ink and chemicals flag (BR-39)'],
+            ['item_activation_requires_qc_plan', false, 'inventory', 'IM-1 — an item cannot be activated without a QC plan reference'],
+            ['item_activation_requires_accounts', false, 'inventory', 'IM-1 — an item cannot be activated without its inventory and cost-of-sales accounts'],
 
             // The organisation profile. Edited on its own screen (/admin/organisation) rather
             // than in the raw settings list, but seeded here so a fresh install has an identity.

@@ -262,7 +262,7 @@ class PurchaseRequisitionController extends Controller
         return [
             'units' => FactoryUnit::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
             'departments' => Department::query()->orderBy('code')->get(['id', 'code', 'name']),
-            'items' => Item::query()->where('is_active', true)->orderBy('code')
+            'items' => Item::query()->where('status', 'active')->orderBy('code')
                 ->get(['id', 'code', 'name', 'base_uom_id', 'min_order_qty', 'order_multiple', 'safety_days']),
             'uoms' => Uom::query()->orderBy('code')->get(['id', 'code', 'name']),
         ];

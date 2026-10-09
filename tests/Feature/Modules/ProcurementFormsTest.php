@@ -23,7 +23,7 @@ beforeEach(function (): void {
     $this->md = User::query()->where('email', 'md@octapussolution.com')->firstOrFail();
     $this->planner = User::query()->where('email', 'planner@octapussolution.com')->firstOrFail();
     $this->unit = FactoryUnit::query()->firstOrFail();
-    $this->item = Item::query()->where('is_active', true)->firstOrFail();
+    $this->item = Item::query()->where('status', 'active')->firstOrFail();
     $this->supplier = Supplier::query()->where('is_approved', true)->firstOrFail();
 });
 

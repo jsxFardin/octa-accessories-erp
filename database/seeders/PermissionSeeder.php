@@ -37,7 +37,7 @@ class PermissionSeeder extends Seeder
         // (App\Support\Import\ImportRegistry). It is separate from `create` because loading
         // four hundred records in one upload is not the same act as adding one, and because
         // it writes over records that already exist.
-        'item' => ['Master data', ['import']],
+        'item' => ['Master data', ['import', 'activate']],
         'machine' => ['Master data', []],
         'customer' => ['Master data', ['import']],
         'supplier' => ['Master data', ['approve', 'import']],

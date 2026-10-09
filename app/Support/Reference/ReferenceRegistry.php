@@ -364,9 +364,73 @@ class ReferenceRegistry
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
                     ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
-                    ['name' => 'item_class', 'label' => 'Item class', 'type' => 'select', 'options' => ['yarn', 'ribbon', 'tape', 'ink', 'chemical', 'paper', 'film', 'adhesive', 'tool_stock', 'packing', 'spare', 'other']],
+                    ['name' => 'item_class', 'label' => 'Item class', 'type' => 'select', 'options' => ['yarn', 'ribbon', 'tape', 'ink', 'chemical', 'paper', 'film', 'adhesive', 'tool_stock', 'packing', 'spare', 'finished_good', 'semi_finished', 'component', 'service', 'tool', 'other']],
                     ['name' => 'parent_id', 'label' => 'Parent', 'type' => 'reference', 'reference' => 'item_categories', 'rules' => ['nullable', 'integer', 'exists:item_categories,id']],
                 ],
+            ],
+
+            'production-families' => [
+                'table' => 'production_families',
+                'group' => 'inventory',
+                'label' => 'Production families',
+                'singular' => 'family',
+                'icon' => 'item',
+                'permission' => 'item',
+                'description' => 'The ten kinds of thing the factory makes — narrow textile, zipper, cord, injection moulding. Every made item belongs to one, and its code starts with the family prefix.',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'size:2'], 'unique' => true, 'hint' => 'Two digits, 01 to 99.'],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'code_prefix', 'label' => 'Code prefix', 'type' => 'text', 'rules' => ['required', 'string', 'max:4', 'not_in:L,ITM'], 'unique' => true, 'hint' => 'Starts every item code in the family, e.g. BC for BC-06-00012.'],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+                'defaultSort' => 'sort_order',
+            ],
+
+            'item-groups' => [
+                'table' => 'item_groups',
+                'group' => 'inventory',
+                'label' => 'Item groups',
+                'singular' => 'group',
+                'icon' => 'item',
+                'permission' => 'item',
+                'description' => 'Groups and sub-groups inside a production family: Cord › Drawcord, Button › Four-hole. A row with a parent is a sub-group.',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'production_family_id', 'label' => 'Family', 'type' => 'reference', 'reference' => 'production_families', 'rules' => ['required', 'integer', 'exists:production_families,id']],
+                    ['name' => 'parent_id', 'label' => 'Parent group', 'type' => 'reference', 'reference' => 'item_groups', 'rules' => ['nullable', 'integer', 'exists:item_groups,id'], 'hint' => 'Leave empty for a group; pick the group to make this a sub-group.'],
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20']],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+                'uniqueWith' => ['production_family_id', 'code'],
+                'defaultSort' => 'production_family_id',
+            ],
+
+            'family-attributes' => [
+                'table' => 'family_attributes',
+                'group' => 'inventory',
+                'label' => 'Family attributes',
+                'singular' => 'attribute',
+                'icon' => 'item',
+                'permission' => 'item',
+                'description' => 'The specification an item of each family must state — diameter for a cord, chain type for a zipper. Required ones block activation until filled in.',
+                'searchable' => ['attr_key', 'label'],
+                'fields' => [
+                    ['name' => 'production_family_id', 'label' => 'Family', 'type' => 'reference', 'reference' => 'production_families', 'rules' => ['required', 'integer', 'exists:production_families,id']],
+                    ['name' => 'attr_key', 'label' => 'Key', 'type' => 'text', 'rules' => ['required', 'string', 'max:40', 'regex:/^[a-z][a-z0-9_]*$/'], 'hint' => 'Lower-case letters, digits and underscores.'],
+                    ['name' => 'label', 'label' => 'Label', 'type' => 'text', 'rules' => ['required', 'string', 'max:80']],
+                    ['name' => 'data_type', 'label' => 'Type', 'type' => 'select', 'options' => ['text', 'number', 'select', 'boolean']],
+                    ['name' => 'unit', 'label' => 'Unit', 'type' => 'text', 'rules' => ['nullable', 'string', 'max:20']],
+                    ['name' => 'options', 'label' => 'Choices', 'type' => 'textarea', 'rules' => ['nullable', 'string'], 'jsonLines' => true, 'hint' => 'For a select: one choice per line.'],
+                    ['name' => 'is_required', 'label' => 'Required', 'type' => 'boolean', 'default' => false],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+                'uniqueWith' => ['production_family_id', 'attr_key'],
+                'defaultSort' => 'production_family_id',
             ],
 
             'warehouses' => [
@@ -648,13 +712,13 @@ class ReferenceRegistry
                 'defaultSort' => 'sort_order',
             ],
 
-            'product-statuses' => [
-                'table' => 'product_statuses',
+            'item-statuses' => [
+                'table' => 'item_statuses',
                 'group' => 'vocabularies',
-                'label' => 'Product statuses',
-                'singular' => 'product status',
+                'label' => 'Item statuses',
+                'singular' => 'item status',
                 'icon' => 'product',
-                'description' => 'A lifecycle rather than a list: only a status that allows ordering may appear on a new order line, and the others stay readable on the documents that already used them.',
+                'description' => 'A lifecycle rather than a list: an item is born draft, and only a status that allows ordering may appear on a new order line. The others stay readable on the documents that already used them.',
                 'searchable' => ['code', 'name'],
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],

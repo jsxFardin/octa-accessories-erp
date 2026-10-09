@@ -119,6 +119,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('reports.show');
 
     // ---- Master data ---------------------------------------------------------------
+    // IM-1 — the machine enforces `item.activate`; reading the item is enough to try.
+    Route::post('items/{item}/transition', [ItemController::class, 'transition'])
+        ->middleware('can:item.view')->name('items.transition');
     Route::resource('items', ItemController::class)
         ->middlewareFor(['index', 'show'], 'can:item.view_any')
         ->middlewareFor(['create', 'store'], 'can:item.create')
@@ -194,6 +197,8 @@ Route::middleware('auth')->group(function (): void {
         ->middlewareFor(['edit', 'update'], 'can:product.update')
         ->middlewareFor('destroy', 'can:product.delete');
 
+    Route::post('products/{product}/transition', [ProductController::class, 'transition'])
+        ->middleware('can:product.view')->name('products.transition');
     Route::put('products/{product}/routing', [ProductController::class, 'updateRouting'])
         ->middleware('can:product.update')->name('products.routing.update');
     Route::get('products/{product}/specs/create', [ProductSpecController::class, 'create'])

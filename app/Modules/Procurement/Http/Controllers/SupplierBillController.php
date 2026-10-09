@@ -305,7 +305,7 @@ class SupplierBillController extends Controller
      */
     private function itemOptions(): \Illuminate\Support\Collection
     {
-        return DB::table('items')->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']);
+        return DB::table('items')->where('status', 'active')->orderBy('code')->get(['id', 'code', 'name']);
     }
 
     public function show(SupplierBill $supplierBill): Response

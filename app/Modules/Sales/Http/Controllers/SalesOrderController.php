@@ -740,7 +740,7 @@ class SalesOrderController extends Controller
                 ->get(['id', 'code', 'name', 'credit_limit', 'min_order_value']),
             'currencies' => $this->rates->currencyOptions(),
             'products' => Product::query()->active()->with('currentSpec:id,product_id,version_no')
-                ->orderBy('code')->get(['id', 'code', 'name', 'customer_id', 'product_type']),
+                ->get(['id', 'item_id', 'customer_id', 'product_type'])->sortBy('code')->values(),
             'defaults' => [
                 'over_tolerance_pct' => $this->settings->decimal('over_tolerance_pct', 5),
                 'under_tolerance_pct' => $this->settings->decimal('under_tolerance_pct', 5),

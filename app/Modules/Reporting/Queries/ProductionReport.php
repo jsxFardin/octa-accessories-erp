@@ -56,7 +56,8 @@ class ProductionReport extends ReportQuery
     public function filterFields(): array
     {
         $statuses = DB::table('job_cards')->distinct()->orderBy('status')->pluck('status');
-        $products = DB::table('products')->orderBy('code')->get(['id', 'code', 'name']);
+        $products = DB::table('products as p')->join('items as pi', 'pi.id', '=', 'p.item_id')
+            ->whereNull('p.deleted_at')->orderBy('pi.code')->get(['p.id', 'pi.code', 'pi.name']);
 
         return [
             ['key' => 'status', 'label' => 'Status', 'options' => $statuses->map(fn ($s): array => ['value' => $s, 'label' => str_replace('_', ' ', ucfirst((string) $s))])->all()],
@@ -78,6 +79,7 @@ class ProductionReport extends ReportQuery
             'jc.factory_unit_id',
         )
             ->join('products as p', 'p.id', '=', 'jc.product_id')
+            ->join('items as pi', 'pi.id', '=', 'p.item_id')
             ->leftJoin('sales_order_lines as sol', 'sol.id', '=', 'jc.sales_order_line_id')
             ->leftJoin('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
             ->leftJoin('v_job_card_output as final', 'final.job_card_id', '=', 'jc.id')
@@ -87,7 +89,7 @@ class ProductionReport extends ReportQuery
                 jc.id,
                 jc.number,
                 so.number as so_number,
-                p.code as product_code,
+                pi.code as product_code,
                 COALESCE(sol.ordered_qty, 0) as ordered_qty,
                 COALESCE(final.good_qty, 0) as produced_qty,
                 COALESCE(fr.qty, 0) as fg_received_qty,
@@ -109,7 +111,7 @@ class ProductionReport extends ReportQuery
             ')
             ->orderByDesc('jc.id');
 
-        $this->applySearch($query, $request, 'jc.number', 'so.number', 'p.code');
+        $this->applySearch($query, $request, 'jc.number', 'so.number', 'pi.code');
         $this->applyDate($query, $request, 'jc.actual_start');
 
         if ($request->query('status')) {

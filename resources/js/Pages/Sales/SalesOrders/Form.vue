@@ -113,7 +113,7 @@ const { isBase: baseCurrencyDocument, rateHint } = useBookedRate(form, () => pro
 
 const availableProducts = computed(() =>
     form.customer_id
-        ? props.products.filter((product) => product.customer_id === Number(form.customer_id))
+        ? props.products.filter((product) => product.customer_id === null || product.customer_id === Number(form.customer_id))
         : props.products,
 );
 
@@ -212,7 +212,7 @@ watch(() => form.customer_id, (customer) => {
         const product = productOf(line);
 
         // A line with production against it keeps its product: that is history, not a typo.
-        if (product && product.customer_id !== Number(customer) && !(Number(line.produced_qty) > 0)) {
+        if (product && product.customer_id !== null && product.customer_id !== Number(customer) && !(Number(line.produced_qty) > 0)) {
             line.product_id = '';
             line.product_spec_id = '';
             droppedProducts.value += 1;

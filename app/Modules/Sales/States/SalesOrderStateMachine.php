@@ -106,6 +106,12 @@ class SalesOrderStateMachine extends StateMachine
         }
     }
 
+    /** `item_statuses.allows_ordering` — the lifecycle says which statuses a new line may name. */
+    private function orderable(string $status): bool
+    {
+        return (bool) (\App\Support\Reference\Vocabulary::row('item_status', $status)['allows_ordering'] ?? false);
+    }
+
     /**
      * S3 + BR-46. Both checks report *which* line or how much over the limit — a merchandiser
      * needs to know what to chase, not that "confirmation failed".
@@ -123,6 +129,11 @@ class SalesOrderStateMachine extends StateMachine
                 ->whereIn('artwork_id', $line->product->artworks()->select('id'))
                 ->where('status', ArtworkVersion::APPROVED)
                 ->exists();
+
+            // IM-1 — a draft or discontinued item is not one a customer may order.
+            if (! $this->orderable($line->product->item->status)) {
+                $blocked[] = "Line {$line->line_no} ({$line->product->code}): the item is ".\App\Support\Text\Plain::status($line->product->item->status).', not active.';
+            }
 
             if (! $specCurrent) {
                 $blocked[] = "Line {$line->line_no} ({$line->product->code}): its specification is not the current version.";

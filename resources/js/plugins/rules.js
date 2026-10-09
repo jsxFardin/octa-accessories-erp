@@ -4,6 +4,7 @@
  * Source of truth: docs/04-business-rules.md and the module docs.
  */
 export const RULES = {
+    'IM-1': 'An item is born draft and is activated only once its family, units, routing, bill of materials, wastage, warehouse and standard cost are in place.',
     'BR-1': 'Label prices are quoted per 1,000 pieces.',
     'BR-4': 'Labels per metre follow from label height plus the cut gap for the cut type.',
     'BR-8': 'Wastage adds up across every routing operation that consumes the web.',

@@ -13,6 +13,7 @@ use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -22,12 +23,12 @@ class BomController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = Bom::query()->with(['product:id,code,name']);
+        $query = Bom::query()->with(['product:id,item_id']);
 
         $term = trim((string) $request->string('q'));
 
         if ($term !== '') {
-            $query->whereHas('product', function ($products) use ($term): void {
+            $query->whereHas('product.item', function ($products) use ($term): void {
                 $products->where(function ($match) use ($term): void {
                     $match->where('code', 'like', "%{$term}%")
                         ->orWhere('name', 'like', "%{$term}%");
@@ -81,7 +82,7 @@ class BomController extends Controller
             'bom' => null,
             'basedOn' => $newest?->only(['id', 'version_no', 'status', 'base_qty']),
             'activeLines' => $newest === null ? [] : $this->formLines($newest),
-            ...$this->formOptions(),
+            ...$this->formOptions($product),
         ]);
     }
 
@@ -106,7 +107,7 @@ class BomController extends Controller
             'bom' => $bom->only(['id', 'version_no', 'status', 'base_qty', 'notes']),
             'basedOn' => null,
             'activeLines' => $this->formLines($bom),
-            ...$this->formOptions(),
+            ...$this->formOptions($bom->product),
         ]);
     }
 
@@ -116,7 +117,7 @@ class BomController extends Controller
             return back()->with('error', $refusal);
         }
 
-        $data = $this->validated($request);
+        $data = $this->validated($request, $bom->product);
         $activate = $request->boolean('activate');
 
         abort_if($activate && ! $request->user()->hasPermission('bom.activate'), 403);
@@ -167,28 +168,36 @@ class BomController extends Controller
         ])->values()->all();
     }
 
-    /** @return array<string, mixed> */
-    private function formOptions(): array
+    /**
+     * The materials a bill may name: every usable item, bought or made — a family-01 tape is a
+     * line on a family-04 zipper — except the product's own item.
+     *
+     * @return array<string, mixed>
+     */
+    private function formOptions(Product $product): array
     {
         return [
             'items' => DB::table('items as i')
                 ->leftJoin('item_categories as c', 'c.id', '=', 'i.item_category_id')
-                ->where('i.is_active', true)
+                ->where('i.status', 'active')
+                ->where('i.id', '!=', $product->item_id)
+                ->whereNull('i.deleted_at')
                 ->orderBy('i.code')
-                ->get(['i.id', 'i.code', 'i.name', 'i.base_uom_id', 'c.item_class']),
+                ->get(['i.id', 'i.code', 'i.name', 'i.base_uom_id', 'i.item_type', 'i.make_or_buy', 'c.item_class']),
             'uoms' => DB::table('uoms')->orderBy('code')->get(['id', 'code', 'name']),
         ];
     }
 
     /** @return array<string, mixed> */
-    private function validated(Request $request): array
+    private function validated(Request $request, Product $product): array
     {
         return $request->validate([
             'product_spec_id' => ['nullable', 'integer', 'exists:product_specs,id'],
             'base_qty' => ['required', 'numeric', 'gt:0'],
             'notes' => ['nullable', 'string'],
             'lines' => ['required', 'array', 'min:1'],
-            'lines.*.item_id' => ['required', 'integer', 'exists:items,id'],
+            // Not itself: a bill that lists its own product never resolves.
+            'lines.*.item_id' => ['required', 'integer', 'exists:items,id', Rule::notIn([$product->item_id])],
             'lines.*.uom_id' => ['required', 'integer', 'exists:uoms,id'],
             'lines.*.qty_per_base' => ['required', 'numeric', 'gt:0'],
             'lines.*.wastage_pct' => ['nullable', 'numeric', 'min:0'],
@@ -198,6 +207,7 @@ class BomController extends Controller
         ], [
             'lines.required' => 'A bill of materials needs at least one material.',
             'lines.*.item_id.required' => 'Choose a material.',
+            'lines.*.item_id.not_in' => 'A product cannot be a material on its own bill.',
             'lines.*.uom_id.required' => 'Choose a unit.',
             'lines.*.qty_per_base.required' => 'Enter a quantity.',
             'lines.*.qty_per_base.gt' => 'The quantity must be more than zero.',
@@ -230,7 +240,7 @@ class BomController extends Controller
      */
     public function store(Request $request, Product $product): RedirectResponse
     {
-        $data = $this->validated($request);
+        $data = $this->validated($request, $product);
 
         // A BOM written to be used should not need a second trip to the product page to be
         // activated. Activation is its own permission, so asking for it without holding it is

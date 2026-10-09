@@ -251,12 +251,13 @@ class DocumentRegistry
 
         $lines = DB::table('inquiry_lines as l')
             ->leftJoin('products as p', 'p.id', '=', 'l.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->leftJoin('product_types as pt', 'pt.code', '=', 'l.product_type')
             ->where('l.inquiry_id', $id)
             ->orderBy('l.line_no')
             ->get([
                 'l.line_no', 'l.description', 'l.qty', 'l.target_rate_per_m', 'l.notes',
-                'p.code as product_code', 'pt.name as product_type_name',
+                'pi.code as product_code', 'pt.name as product_type_name',
             ]);
 
         return ['document' => $document, 'lines' => $lines];
@@ -278,11 +279,12 @@ class DocumentRegistry
 
         $lines = DB::table('quotation_lines as l')
             ->leftJoin('products as p', 'p.id', '=', 'l.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->where('l.quotation_id', $id)
             ->orderBy('l.line_no')
             ->get([
                 'l.line_no', 'l.description', 'l.qty', 'l.rate_per_m', 'l.tooling_charge',
-                'l.line_total', 'l.lead_time_days', 'p.code as product_code',
+                'l.line_total', 'l.lead_time_days', 'pi.code as product_code',
             ]);
 
         return ['document' => $document, 'lines' => $lines];
@@ -310,6 +312,7 @@ class DocumentRegistry
 
         $lines = DB::table('sales_order_lines as l')
             ->leftJoin('products as p', 'p.id', '=', 'l.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->leftJoin('artwork_versions as av', 'av.id', '=', 'l.artwork_version_id')
             ->leftJoin('artworks as a', 'a.id', '=', 'av.artwork_id')
             ->where('l.sales_order_id', $id)
@@ -318,7 +321,7 @@ class DocumentRegistry
                 'l.id', 'l.line_no', 'l.description', 'l.ordered_qty', 'l.rate_per_m',
                 'l.tooling_charge', 'l.line_total', 'l.promised_date', 'l.status',
                 'l.over_tolerance_pct', 'l.under_tolerance_pct',
-                'p.code as product_code', 'p.name as product_name', 'p.customer_style_ref',
+                'pi.code as product_code', 'pi.name as product_name', 'p.customer_style_ref',
                 'a.code as artwork_code', 'av.version_no as artwork_version',
             ]);
 
@@ -355,12 +358,13 @@ class DocumentRegistry
 
         $lines = DB::table('sales_invoice_lines as l')
             ->leftJoin('products as p', 'p.id', '=', 'l.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->leftJoin('taxes as t', 't.id', '=', 'l.tax_id')
             ->where('l.sales_invoice_id', $id)
             ->orderBy('l.line_no')
             ->get([
                 'l.line_no', 'l.description', 'l.qty', 'l.rate_per_m', 'l.tax_amount', 'l.amount',
-                'p.code as product_code', 't.name as tax_name',
+                'pi.code as product_code', 't.name as tax_name',
             ]);
 
         return ['document' => $document, 'lines' => $lines];
@@ -438,12 +442,13 @@ class DocumentRegistry
         $contents = DB::table('carton_contents as cc')
             ->join('cartons as ct', 'ct.id', '=', 'cc.carton_id')
             ->leftJoin('products as p', 'p.id', '=', 'cc.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->leftJoin('stock_lots as sl', 'sl.id', '=', 'cc.lot_id')
             ->where('ct.packing_list_id', $id)
             ->orderBy('ct.carton_no')
             ->get([
                 'cc.carton_id', 'cc.colourway', 'cc.qty', 'cc.bundles',
-                'p.code as product_code', 'p.name as product_name', 'sl.lot_no',
+                'pi.code as product_code', 'pi.name as product_name', 'sl.lot_no',
             ])
             ->groupBy('carton_id');
 
@@ -473,12 +478,13 @@ class DocumentRegistry
 
         $lines = DB::table('delivery_challan_lines as l')
             ->leftJoin('products as p', 'p.id', '=', 'l.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->leftJoin('stock_lots as sl', 'sl.id', '=', 'l.lot_id')
             ->leftJoin('sales_order_lines as sol', 'sol.id', '=', 'l.sales_order_line_id')
             ->where('l.delivery_challan_id', $id)
             ->orderBy('l.line_no')
             ->get([
-                'l.line_no', 'l.qty', 'l.cartons', 'p.code as product_code', 'p.name as product_name',
+                'l.line_no', 'l.qty', 'l.cartons', 'pi.code as product_code', 'pi.name as product_name',
                 'p.customer_style_ref', 'sl.lot_no', 'sol.description as order_description',
             ]);
 
@@ -547,12 +553,13 @@ class DocumentRegistry
         $document = DB::table('test_reports as tr')
             ->leftJoin('customers as c', 'c.id', '=', 'tr.customer_id')
             ->leftJoin('products as p', 'p.id', '=', 'tr.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->leftJoin('stock_lots as sl', 'sl.id', '=', 'tr.lot_id')
             ->leftJoin('job_cards as jc', 'jc.id', '=', 'tr.job_card_id')
             ->leftJoin('employees as e', 'e.id', '=', 'tr.technician_id')
             ->where('tr.id', $id)
             ->select([
-                'tr.*', 'c.name as customer_name', 'p.code as product_code', 'p.name as product_name',
+                'tr.*', 'c.name as customer_name', 'pi.code as product_code', 'pi.name as product_name',
                 'p.customer_style_ref', 'sl.lot_no', 'jc.number as job_card_number',
                 'e.name as technician_name', 'e.designation as technician_designation',
             ])
@@ -575,13 +582,14 @@ class DocumentRegistry
     {
         $document = DB::table('job_cards as j')
             ->leftJoin('products as p', 'p.id', '=', 'j.product_id')
+            ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->leftJoin('customers as c', 'c.id', '=', 'p.customer_id')
             ->leftJoin('artwork_versions as av', 'av.id', '=', 'j.artwork_version_id')
             ->leftJoin('artworks as a', 'a.id', '=', 'av.artwork_id')
             ->leftJoin('factory_units as fu', 'fu.id', '=', 'j.factory_unit_id')
             ->where('j.id', $id)
             ->select([
-                'j.*', 'p.code as product_code', 'p.name as product_name', 'p.product_type',
+                'j.*', 'pi.code as product_code', 'pi.name as product_name', 'p.product_type',
                 'c.name as customer_name', 'a.code as artwork_code', 'av.version_no as artwork_version',
                 'av.approved_at as artwork_approved_at', 'fu.name as unit_name',
             ])

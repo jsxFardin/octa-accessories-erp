@@ -108,7 +108,7 @@ it('gives a new product the default routing of its type', function (): void {
         'is_active' => true,
     ])->assertSessionHasNoErrors();
 
-    expect(Product::query()->where('code', 'PRD-SETUP-NEW')->firstOrFail()->routing_id)->toBe($default->id);
+    expect(Product::query()->whereCode('PRD-SETUP-NEW')->firstOrFail()->routing_id)->toBe($default->id);
 });
 
 it('sends the setup list to the product page', function (): void {

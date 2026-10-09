@@ -219,8 +219,9 @@ class CustomerController extends Controller
             'brands' => Brand::query()->where('customer_id', $customer->id)
                 ->orderBy('code')->get(['id', 'code', 'name', 'is_active']),
             'countries' => Countries::options(),
-            'products' => DB::table('products')->where('customer_id', $customer->id)
-                ->orderBy('code')->get(['id', 'code', 'name', 'product_type', 'status']),
+            'products' => DB::table('products as p')->join('items as pi', 'pi.id', '=', 'p.item_id')
+                ->where('p.customer_id', $customer->id)->whereNull('p.deleted_at')
+                ->orderBy('pi.code')->get(['p.id', 'pi.code', 'pi.name', 'p.product_type', 'pi.status']),
             'openOrders' => DB::table('v_order_book')->where('customer_id', $customer->id)
                 ->orderBy('promised_date')->limit(20)->get(),
             // The relationship, not only the settings: what they asked for, what was offered,

@@ -23,10 +23,21 @@ function specProduct(string $type): Product
         return $woven;
     }
 
-    $product = $woven->replicate()->fill(['code' => 'PRD-SPEC-'.strtoupper($type), 'product_type' => $type]);
-    $product->save();
+    // A product is an item plus a make profile, so the retyped copy is made the way every
+    // product is: through the item master service, which writes both rows.
+    $item = app(App\Modules\MasterData\Services\ItemMasterService::class)->create(
+        [
+            ...$woven->item->only(['item_category_id', 'item_type', 'make_or_buy', 'production_family_id', 'garment_type', 'spec_scope', 'material_base', 'base_uom_id', 'order_uom_id', 'status']),
+            'code' => 'PRD-SPEC-'.strtoupper($type),
+            'name' => $woven->name.' ('.$type.')',
+        ],
+        [
+            ...$woven->only(['customer_id', 'brand_id', 'routing_id', 'customer_style_ref', 'is_running_programme', 'annual_forecast_qty']),
+            'product_type' => $type,
+        ],
+    );
 
-    return $product;
+    return $item->product()->firstOrFail();
 }
 
 /** @param  array<string, mixed>  $overrides */
