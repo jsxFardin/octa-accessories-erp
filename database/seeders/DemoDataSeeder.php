@@ -56,6 +56,7 @@ class DemoDataSeeder extends Seeder
         $bom = $this->bom($product, $spec, $items);
 
         $this->stock($items);
+        $this->machines();
         $order = $this->salesOrder($customer, $product, $spec);
         $this->jobCard($order, $product, $spec, $artwork, $bom);
 
@@ -536,6 +537,27 @@ class DemoDataSeeder extends Seeder
                     ]);
                 }
             });
+        }
+    }
+
+    /**
+     * One machine per group, so the job card's operations can be scheduled onto a machine.
+     * The release gate asks for a machine on every operation (spec §1, release gate): a
+     * planned job with nowhere to run is not planned.
+     */
+    private function machines(): void
+    {
+        $unitId = DB::table('factory_units')->value('id');
+
+        foreach (DB::table('machine_groups')->orderBy('id')->get(['id', 'code', 'name']) as $group) {
+            DB::table('machines')->insertOrIgnore([
+                'factory_unit_id' => $unitId,
+                'machine_group_id' => $group->id,
+                'code' => $group->code.'-01',
+                'name' => $group->name.' 1',
+                'status' => 'available',
+                'is_active' => true,
+            ]);
         }
     }
 

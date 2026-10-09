@@ -11,7 +11,8 @@ use App\Modules\Product\Models\Bom;
 use App\Modules\Product\Models\Tool;
 
 /**
- * J1 — the four conditions a job card must satisfy before it may be released.
+ * J1 — the conditions a job card must satisfy before it may be released: artwork, BOM,
+ * tools, a machine on every operation, a QC plan, and material.
  *
  * This returns a *report*, not a boolean. A supervisor whose release is blocked at 2 a.m.
  * needs to know which condition failed and by how much, not "forbidden".
@@ -32,6 +33,8 @@ class JobCardReleaseGate
         $artwork = $this->artworkCheck($jobCard);
         $bom = $this->bomCheck($jobCard);
         $tools = $this->toolCheck($jobCard);
+        $machines = $this->machineCheck($jobCard);
+        $qcPlan = $this->qcPlanCheck($jobCard);
         $shortages = $this->availability->shortagesFor($jobCard);
 
         $materialOk = $shortages === [] || $materialWaived;
@@ -57,6 +60,18 @@ class JobCardReleaseGate
                 'rule' => 'J1 · BR-13',
                 'detail' => $tools['detail'],
             ],
+            'machines' => [
+                'ok' => $machines['ok'],
+                'label' => 'Machine on every operation',
+                'rule' => 'J1 · J2',
+                'detail' => $machines['detail'],
+            ],
+            'qc_plan' => [
+                'ok' => $qcPlan['ok'],
+                'label' => 'QC plan',
+                'rule' => 'J1 · QC1',
+                'detail' => $qcPlan['detail'],
+            ],
             'material' => [
                 'ok' => $materialOk,
                 'label' => 'Material in stock',
@@ -70,7 +85,7 @@ class JobCardReleaseGate
         ];
 
         return [
-            'ready' => $artwork && $bom && $tools['ok'] && $materialOk,
+            'ready' => $artwork && $bom && $tools['ok'] && $machines['ok'] && $qcPlan['ok'] && $materialOk,
             'checks' => $checks,
             'shortages' => $shortages,
         ];
@@ -88,6 +103,63 @@ class JobCardReleaseGate
     private function bomCheck(JobCard $jobCard): bool
     {
         return $jobCard->bom !== null && $jobCard->bom->status === Bom::ACTIVE;
+    }
+
+    /**
+     * Every operation that runs on a machine group has a machine chosen from it. A job with
+     * nowhere to run is not planned, whatever its status says; the planning board is where
+     * the machine is chosen.
+     *
+     * @return array{ok: bool, detail: string}
+     */
+    private function machineCheck(JobCard $jobCard): array
+    {
+        $unassigned = $jobCard->operations()
+            ->whereNotNull('machine_group_id')
+            ->whereNull('machine_id')
+            ->orderBy('sequence_no')
+            ->pluck('name')
+            ->all();
+
+        $total = $jobCard->operations()->whereNotNull('machine_group_id')->count();
+
+        if ($total === 0) {
+            return ['ok' => true, 'detail' => 'No operation needs a machine.'];
+        }
+
+        return [
+            'ok' => $unassigned === [],
+            'detail' => $unassigned === []
+                ? "{$total} operation(s) scheduled on a machine."
+                : 'No machine chosen for: '.implode(', ', $unassigned).'. Schedule them on the planning board.',
+        ];
+    }
+
+    /**
+     * Something will inspect the output: an operation on the routing requires QC, or the
+     * item names a QC plan. Without either, the QC gate after production has nothing to
+     * hold the goods against.
+     *
+     * @return array{ok: bool, detail: string}
+     */
+    private function qcPlanCheck(JobCard $jobCard): array
+    {
+        $qcSteps = $jobCard->operations()->where('requires_qc', true)->count();
+
+        if ($qcSteps > 0) {
+            return ['ok' => true, 'detail' => "{$qcSteps} operation(s) end in an inspection."];
+        }
+
+        $plan = $jobCard->product?->item?->qc_plan_ref;
+
+        if (filled($plan)) {
+            return ['ok' => true, 'detail' => "Item QC plan {$plan}."];
+        }
+
+        return [
+            'ok' => false,
+            'detail' => 'No operation requires QC and the item names no QC plan. Mark the inspection step on the routing, or set the plan on the item.',
+        ];
     }
 
     /**

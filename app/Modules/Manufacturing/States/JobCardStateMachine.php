@@ -100,7 +100,7 @@ class JobCardStateMachine extends StateMachine
     }
 
     /**
-     * J1 — all four conditions. The message names the ones that failed, because the planner's
+     * J1 — every condition. The message names the ones that failed, because the planner's
      * next action depends on which.
      *
      * @param  array<string, mixed>  $context

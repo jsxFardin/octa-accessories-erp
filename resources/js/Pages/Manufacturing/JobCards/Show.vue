@@ -612,7 +612,7 @@ const releaseBlockedBy = computed(() => {
     if (props.releaseGate.ready) return null;
 
     const gate = props.releaseGate.checks;
-    const fixed = ['artwork', 'bom', 'tools'].filter((key) => gate[key] && !gate[key].ok);
+    const fixed = ['artwork', 'bom', 'tools', 'machines', 'qc_plan'].filter((key) => gate[key] && !gate[key].ok);
 
     if (fixed.length) {
         return `${fixed.map((key) => gate[key].label).join(', ')} must be put right first — this cannot be waived.`;
@@ -971,7 +971,7 @@ const bomColumns = [
                             <template v-if="jobCard.actual_finish"> · finished {{ date(jobCard.actual_finish) }}</template>
                         </p>
 
-                        <!-- Before release: the four checks, failing ones first, with their fix. -->
+                        <!-- Before release: the six checks, failing ones first, with their fix. -->
                         <ul v-if="gateOpen" class="mt-3 grid gap-2 sm:grid-cols-2">
                             <li
                                 v-for="check in [...checks].sort((a, b) => Number(a.ok) - Number(b.ok))"
@@ -987,7 +987,7 @@ const bomColumns = [
                             </li>
                         </ul>
                         <p v-else-if="releaseGate.ready && !['cancelled'].includes(jobCard.status)" class="mt-2 text-xs text-ink-500">
-                            Released with artwork {{ jobCard.artwork?.code }} v{{ jobCard.artwork?.version_no }} approved, an active bill of materials, tools available and material in stock<template v-if="jobCard.material_waiver_reason"> (material waived: {{ jobCard.material_waiver_reason }})</template>.
+                            Released with artwork {{ jobCard.artwork?.code }} v{{ jobCard.artwork?.version_no }} approved, an active bill of materials, tools available, a machine on every operation, a QC plan and material in stock<template v-if="jobCard.material_waiver_reason"> (material waived: {{ jobCard.material_waiver_reason }})</template>.
                         </p>
 
                         <div v-if="gateOpen && releaseGate.shortages.length" class="mt-3">
