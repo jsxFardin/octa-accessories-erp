@@ -246,7 +246,7 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
                             -->
                             <button
                                 type="button"
-                                class="size-7 rounded-md border border-slate-300 text-ink-700 transition hover:bg-slate-100 disabled:opacity-30"
+                                class="size-11 rounded-md border border-slate-300 text-ink-700 transition hover:bg-slate-100 disabled:opacity-30 lg:size-8"
                                 :disabled="defectCount(defect.id) === 0"
                                 :aria-label="`One fewer ${defect.name}`"
                                 @click="bump(defect, -1)"
@@ -258,7 +258,7 @@ const severityTone = { critical: 'danger', major: 'warning', minor: 'neutral' };
                             </span>
                             <button
                                 type="button"
-                                class="size-7 rounded-md border border-slate-300 text-ink-700 transition hover:bg-slate-100"
+                                class="size-11 rounded-md border border-slate-300 text-ink-700 transition hover:bg-slate-100 lg:size-8"
                                 :aria-label="`One more ${defect.name}`"
                                 @click="bump(defect, 1)"
                             >
