@@ -31,7 +31,7 @@ class ToolController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = Tool::query()->with(['spec.product']);
+        $query = Tool::query()->with(['spec.product', 'ownerCustomer:id,name']);
 
         $this->applyListing(
             $query,
@@ -46,7 +46,9 @@ class ToolController extends Controller
             'tools' => $query->paginate($this->perPage($request))->withQueryString()->through(
                 fn (Tool $tool): array => [
                     ...$tool->only(['id', 'code', 'kind', 'product_spec_id', 'colour_index', 'location',
-                        'made_on', 'cost', 'life_impressions', 'used_impressions', 'status']),
+                        'made_on', 'cost', 'life_impressions', 'used_impressions', 'status',
+                        'cavity_count', 'owner_customer_id', 'item_id']),
+                    'owner' => $tool->ownerCustomer?->name,
                     'product' => $tool->spec?->product?->only(['id', 'code', 'name']),
                     'spec_version' => $tool->spec?->version_no,
                 ],
@@ -65,6 +67,8 @@ class ToolController extends Controller
                 ->whereIn('ps.status', ['current', 'draft'])
                 ->orderBy('pi.code')->orderByDesc('ps.version_no')
                 ->get(['ps.id', 'ps.version_no', 'ps.status', 'ps.colours', 'pi.code', 'pi.name']),
+            'customers' => \App\Modules\MasterData\Models\Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
+            'toolItems' => \App\Modules\MasterData\Models\Item::query()->ofType('tool')->orderBy('code')->get(['id', 'code', 'name']),
         ]);
     }
 

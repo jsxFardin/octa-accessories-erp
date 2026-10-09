@@ -23,6 +23,9 @@ const props = defineProps({
     kinds: { type: Array, default: () => [] },
     statuses: { type: Array, default: () => [] },
     specs: { type: Array, default: () => [] },
+    /** Who may own a tool, and the stock items a mould can be carried as. */
+    customers: { type: Array, default: () => [] },
+    toolItems: { type: Array, default: () => [] },
 });
 
 /** The stored keys, in the words the plate room uses. */
@@ -33,6 +36,7 @@ const KIND_LABELS = {
     cutting_die: 'Cutting die',
     embossing_die: 'Embossing die',
     cad_pattern: 'CAD pattern',
+    mould: 'Mould',
 };
 
 const STATUS_LABELS = {
@@ -92,6 +96,9 @@ const blank = () => ({
     cost: null,
     life_impressions: null,
     status: 'available',
+    cavity_count: null,
+    owner_customer_id: null,
+    item_id: null,
 });
 
 const form = useForm(blank());
@@ -118,6 +125,9 @@ function openEdit(tool) {
         cost: tool.cost === null ? null : Number(tool.cost),
         life_impressions: tool.life_impressions,
         status: tool.status === 'in_use' ? 'available' : tool.status,
+        cavity_count: tool.cavity_count,
+        owner_customer_id: tool.owner_customer_id,
+        item_id: tool.item_id,
     });
     form.reset();
     form.clearErrors();
@@ -126,6 +136,9 @@ function openEdit(tool) {
 
 /** Only printing tools are cut per colour. */
 const perColour = computed(() => ['flexo_plate', 'screen', 'offset_plate'].includes(form.kind));
+
+/** A mould is defined by how many pieces one shot gives; a plate is not. */
+const isMould = computed(() => form.kind === 'mould');
 
 const blockedBy = computed(() => {
     if (!form.code.trim()) return 'Enter the tool code.';
@@ -178,16 +191,18 @@ function retire(tool) {
 
             <DataTable :columns="columns" :rows="tools" row-key="id" empty="No tools registered.">
                 <template #cell:code="{ value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
-                <template #cell:kind="{ row, value }">
-                    {{ KIND_LABELS[value] ?? value }}
-                    <span v-if="row.colour_index" class="text-ink-500"> · colour {{ row.colour_index }}</span>
-                </template>
                 <template #cell:product="{ row }">
                     <Link v-if="row.product" :href="`/products/${row.product.id}`" class="doc-link-quiet">
                         {{ row.product.code }}
                     </Link>
                     <span v-if="row.product" class="text-ink-500"> · v{{ row.spec_version }}</span>
                     <span v-else class="text-ink-500">Any product</span>
+                </template>
+                <template #cell:kind="{ row, value }">
+                    {{ KIND_LABELS[value] ?? value }}
+                    <span v-if="row.colour_index" class="text-ink-500"> · colour {{ row.colour_index }}</span>
+                    <span v-if="row.cavity_count" class="text-ink-500"> · {{ row.cavity_count }} {{ row.cavity_count === 1 ? 'cavity' : 'cavities' }}</span>
+                    <Badge v-if="row.owner" tone="info" :label="`Owned by ${row.owner}`" class="ml-1" />
                 </template>
                 <template #cell:location="{ value }">{{ value || '—' }}</template>
                 <template #cell:life_impressions="{ value }">{{ value === null ? 'Not set' : pcs(value) }}</template>
@@ -254,6 +269,15 @@ function retire(tool) {
                 <div class="grid gap-4 sm:grid-cols-2">
                     <FormField v-if="perColour" label="Colour number" :error="form.errors.colour_index" hint="Which colour of the design it prints.">
                         <TextInput v-model="form.colour_index" type="number" min="1" max="20" numeric />
+                    </FormField>
+                    <FormField v-if="isMould" label="Cavities" :error="form.errors.cavity_count" required hint="Pieces one shot gives.">
+                        <TextInput v-model="form.cavity_count" type="number" min="1" numeric />
+                    </FormField>
+                    <FormField label="Owned by" :error="form.errors.owner_customer_id" hint="Empty: the factory owns it.">
+                        <SelectInput v-model="form.owner_customer_id" :options="customers" value-key="id" label-key="name" placeholder="The factory" clearable />
+                    </FormField>
+                    <FormField label="Carried as stock item" :error="form.errors.item_id" hint="When the tool is also an item on the master.">
+                        <SelectInput v-model="form.item_id" :options="toolItems" value-key="id" label-key="name" hint-key="code" placeholder="Not a stock item" clearable />
                     </FormField>
                     <FormField label="Kept at" :error="form.errors.location">
                         <TextInput v-model="form.location" maxlength="80" placeholder="Plate room, rack B" />

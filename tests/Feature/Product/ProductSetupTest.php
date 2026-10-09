@@ -143,6 +143,11 @@ it('registers, edits and retires a tool', function (): void {
     // A second tool cannot take the same code, and a kind the table does not know is refused.
     $this->post('/tools', ['code' => 'TOOL-T-01', 'kind' => 'screen', 'status' => 'available'])->assertSessionHasErrors('code');
     $this->post('/tools', ['code' => 'TOOL-T-02', 'kind' => 'die', 'status' => 'available'])->assertSessionHasErrors('kind');
+    // A mould is defined by its cavities (IM-1); a plate owned by a customer names that customer.
+    $this->post('/tools', ['code' => 'TOOL-M-01', 'kind' => 'mould', 'status' => 'available'])->assertSessionHasErrors('cavity_count');
+    $this->post('/tools', ['code' => 'TOOL-M-01', 'kind' => 'mould', 'status' => 'available', 'cavity_count' => 4, 'owner_customer_id' => DB::table('customers')->value('id')])
+        ->assertSessionHasNoErrors();
+    expect(DB::table('tools')->where('code', 'TOOL-M-01')->value('cavity_count'))->toBe(4);
     // "On a machine" and "Retired" are not set by typing them into the form.
     $this->post('/tools', ['code' => 'TOOL-T-02', 'kind' => 'screen', 'status' => 'scrapped'])->assertSessionHasErrors('status');
 
