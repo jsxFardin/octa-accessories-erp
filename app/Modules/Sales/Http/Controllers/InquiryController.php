@@ -220,13 +220,68 @@ class InquiryController extends Controller
             'lines' => $inquiry->lines->map(fn ($line): array => [
                 ...$line->only(['id', 'line_no', 'description', 'product_type', 'qty', 'target_rate_per_m', 'notes']),
                 'product' => $line->product?->only(['id', 'code', 'name']),
+                'rough_cost' => $this->roughCost($line, $inquiry->customer?->currency),
             ]),
+            'marginFloorPct' => app(\App\Support\Settings\Settings::class)->decimal('margin_floor_pct', 12),
             'quotations' => $quotations,
             'orders' => $orders,
             'statusChanges' => $statusChanges,
             // F-01/F-02 — when it came in, when it was quoted, when it was won or lost.
             'trail' => $this->trail->for($inquiry, $request->user()),
         ]);
+    }
+
+    /**
+     * Spec §4 — a rough costing before anything is quoted: the product at the asked quantity,
+     * standard rates, the factory's default margin. Nothing is saved; the quotation's sheet is
+     * the first costing that counts. In the base currency; the buyer's target rate, in their
+     * currency, is brought to base at the reference rate of the day before it is read against
+     * the cost, and left unread when no rate is known.
+     *
+     * @return array{cost_per_m: float, price_per_m: float, margin_pct: float, target_per_m_base: ?float, target_margin_pct: ?float, currency: string}|null
+     */
+    private function roughCost(InquiryLine $line, ?\App\Modules\MasterData\Models\Currency $buyerCurrency): ?array
+    {
+        if ($line->product_id === null || (float) $line->qty <= 0) {
+            return null;
+        }
+
+        $product = \App\Modules\Product\Models\Product::query()->with(['currentSpec', 'routing.operations', 'activeBom'])->find($line->product_id);
+
+        if ($product === null) {
+            return null;
+        }
+
+        try {
+            $sheet = app(\App\Modules\Costing\Services\CostSheetService::class)->estimate($product, (float) $line->qty);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if ($sheet === null) {
+            return null;
+        }
+
+        $settings = app(\App\Support\Settings\Settings::class);
+        $base = (string) $settings->get('base_currency', 'BDT');
+        $costPerM = $sheet->unitCost * 1000;
+        $pricePerM = (float) $line->qty > 0 ? $sheet->sellingValue / (float) $line->qty * 1000 : 0.0;
+        $target = $line->target_rate_per_m === null ? null : (float) $line->target_rate_per_m;
+        $targetBase = null;
+
+        if ($target !== null && $target > 0) {
+            $rate = $buyerCurrency === null ? 1.0 : app(\App\Support\Currency\ExchangeRateResolver::class)->reference($buyerCurrency->id);
+            $targetBase = $rate === null ? null : $target * $rate;
+        }
+
+        return [
+            'cost_per_m' => round($costPerM, 2),
+            'price_per_m' => round($pricePerM, 2),
+            'margin_pct' => round($sheet->marginPct, 1),
+            'target_per_m_base' => $targetBase === null ? null : round($targetBase, 2),
+            'target_margin_pct' => $targetBase === null || $targetBase <= 0 ? null : round(($targetBase - $costPerM) / $targetBase * 100, 1),
+            'currency' => $base,
+        ];
     }
 
     public function edit(Inquiry $inquiry): Response

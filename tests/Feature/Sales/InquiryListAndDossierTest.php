@@ -168,3 +168,34 @@ it('records when the inquiry moved stage, for the milestone strip', function ():
             expect(array_column($changes, 'status'))->toContain('open');
         });
 });
+
+it('shows a rough cost on every inquiry line that names a product, and nothing is saved by it', function (): void {
+    $inquiry = Inquiry::query()->create([
+        'customer_id' => Customer::query()->value('id'),
+        'inquiry_date' => now()->toDateString(),
+        'status' => 'open',
+        'created_by' => User::query()->where('email', 'admin@octapussolution.com')->value('id'),
+    ]);
+    $line = App\Modules\Sales\Models\InquiryLine::query()->create([
+        'inquiry_id' => $inquiry->id,
+        'line_no' => (int) $inquiry->lines()->max('line_no') + 1,
+        'product_id' => App\Modules\Product\Models\Product::query()->with('currentSpec')->firstOrFail()->id,
+        'description' => 'Care label, rough-costed',
+        'qty' => 10000,
+    ]);
+    $sheets = App\Modules\Costing\Models\CostSheet::query()->count();
+
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
+        ->get("/inquiries/{$line->inquiry_id}")
+        ->assertOk()
+        ->assertInertia(function ($page) use ($line): void {
+            $row = collect($page->toArray()['props']['lines'])->firstWhere('id', $line->id);
+
+            expect($row['rough_cost'])->not->toBeNull()
+                ->and($row['rough_cost']['cost_per_m'])->toBeGreaterThan(0)
+                ->and($row['rough_cost']['price_per_m'])->toBeGreaterThan($row['rough_cost']['cost_per_m'])
+                ->and($row['rough_cost']['currency'])->not->toBeEmpty();
+        });
+
+    expect(App\Modules\Costing\Models\CostSheet::query()->count())->toBe($sheets);
+});

@@ -11,7 +11,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import Icon from '@/Components/Ui/Icon.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import ActivityTrail from '@/Components/Ui/ActivityTrail.vue';
-import { date, isoDate, money, pcs, rate, titleCase, todayIso } from '@/plugins/formatting';
+import { date, isoDate, money, pcs, rate, titleCase, todayIso, pct } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
@@ -24,6 +24,7 @@ const props = defineProps({
     /** `[{ status, at }]`, oldest first — when the inquiry moved between stages. */
     statusChanges: { type: Array, default: () => [] },
     /** F-01/F-02 — this inquiry's own history. */
+    marginFloorPct: { type: Number, default: 12 },
     trail: { type: Array, default: () => [] },
 });
 
@@ -124,9 +125,11 @@ const lineColumns = [
     { key: 'description', label: 'Description' },
     { key: 'product', label: 'Product' },
     { key: 'product_type', label: 'Type' },
-    { key: 'qty', label: 'Requested qty', align: 'right' },
-    { key: 'target_rate_per_m', label: 'Target rate per 1,000 pcs', align: 'right' },
+    { key: 'qty', label: 'Qty', align: 'right' },
+    { key: 'target_rate_per_m', label: 'Target / 1,000', align: 'right' },
     { key: 'value', label: 'Indicative value', align: 'right' },
+    { key: 'rough_cost', label: 'Rough cost / 1,000', align: 'right' },
+    { key: 'rough_price', label: 'Would quote / 1,000', align: 'right' },
 ];
 
 /** BR-1: the rate is per 1000 pieces, so a line is worth qty ÷ 1000 × rate. */
@@ -308,7 +311,7 @@ const orderColumns = [
                 </div>
             </Card>
 
-            <Card title="Lines" :padded="false">
+            <Card title="Lines" subtitle="Rough cost: the product at this quantity, standard rates, the default margin. Nothing is saved; the quotation's sheet is the first costing that counts." :padded="false">
                 <DataTable :columns="lineColumns" :rows="lines" row-key="id" empty="No lines." dense>
                     <template #cell:product="{ row }">
                         <Link v-if="row.product" :href="`/products/${row.product.id}`" class="doc-link-quiet">
@@ -325,6 +328,18 @@ const orderColumns = [
                     </template>
                     <template #cell:value="{ row }">
                         <span v-if="lineValue(row)" class="tnum">{{ money(lineValue(row), inquiry.currency?.code) }}</span>
+                        <span v-else class="text-ink-400">—</span>
+                    </template>
+                    <template #cell:rough_cost="{ row }">
+                        <span v-if="row.rough_cost" class="tnum">{{ money(row.rough_cost.cost_per_m, row.rough_cost.currency) }}</span>
+                        <span v-else class="text-ink-400" :title="row.product ? 'No specification or bill to cost from yet' : 'Not yet a product'">—</span>
+                    </template>
+                    <template #cell:rough_price="{ row }">
+                        <template v-if="row.rough_cost">
+                            <span class="tnum">{{ money(row.rough_cost.price_per_m, row.rough_cost.currency) }}</span>
+                            <span class="block text-xs text-ink-500">{{ pct(row.rough_cost.margin_pct, 0) }} margin</span>
+                            <span v-if="row.rough_cost.target_margin_pct !== null" class="block text-xs" :class="row.rough_cost.target_margin_pct < marginFloorPct ? 'text-rose-700' : 'text-emerald-700'" :title="`Target ${money(row.rough_cost.target_per_m_base, row.rough_cost.currency)} per 1,000 at the reference rate`">target leaves {{ pct(row.rough_cost.target_margin_pct, 1) }}</span>
+                        </template>
                         <span v-else class="text-ink-400">—</span>
                     </template>
                 </DataTable>
