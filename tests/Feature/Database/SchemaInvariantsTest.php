@@ -281,8 +281,9 @@ it('loads every object the specification promises', function (): void {
     // families is one row, and family routings point at it. Three more foreign keys
     // (operations.machine_group, routings.production_family, routing_operations.operation)
     // and two more CHECKs (the operation's process, and a routing naming a family or a type).
+    // 450: `job_cards.parent_job_card_id`, a component made for another job (family flow).
     expect($tables)->toBe(164)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(449)
+        ->and($foreignKeys)->toBe(450)
         ->and($checks)->toBe(190);
 });

@@ -23,12 +23,37 @@ const props = defineProps({
     context: { type: Object, default: null },
     /** Live cards already covering the preselected line. */
     existingCards: { type: Array, default: () => [] },
+    /** Made products a card can be raised for with no order behind it. */
+    products: { type: Array, default: () => [] },
+    mode: { type: String, default: 'order' },
+    preselectProductId: { type: Number, default: null },
+    preselectQty: { type: Number, default: null },
+    /** The job this card would make a component for. */
+    parent: { type: Object, default: null },
 });
 
 const preselected = props.orderLines.find((line) => line.id === props.preselectLineId) ?? null;
 
+/*
+ * Two reasons to raise a card: an order line to fill, or a product to make for stock or for
+ * another job — tape for a zipper job, cord locks for a drawcord job. The second kind has
+ * no order line and no over-delivery ceiling; its quantity is whatever planning asked for.
+ */
+const mode = ref(props.mode);
+
+const selectedProduct = computed(() => props.products.find((product) => product.id === Number(form.product_id)) ?? null);
+
+const productOptions = computed(() => props.products.map((product) => ({
+    value: product.id,
+    label: product.name,
+    code: product.code,
+    hint: [product.family, product.missing.length ? `needs ${product.missing.join(' and ')}` : null].filter(Boolean).join(' · '),
+})));
+
 const form = useForm({
     sales_order_line_id: preselected?.id ?? '',
+    product_id: props.preselectProductId ?? '',
+    parent_job_card_id: props.parent?.id ?? '',
     factory_unit_id: props.units[0]?.id ?? '',
     // What is left to make on that line, and the date it was promised for: the same defaults
     // picking the line by hand would have applied.
@@ -85,11 +110,28 @@ const quantityError = computed(() => {
         + `It can absorb ${pcs(headroom.value)} more pcs; reduce the planned quantity to that or less.`;
 });
 
-const canSubmit = computed(() => Boolean(form.sales_order_line_id)
-    && quantityError.value === null
-    && (selectedLine.value === null || ready(selectedLine.value)));
+const canSubmit = computed(() => {
+    if (mode.value === 'stock') {
+        return Boolean(form.product_id)
+            && Number(form.planned_qty) > 0
+            && (selectedProduct.value?.missing ?? []).length === 0;
+    }
+
+    return Boolean(form.sales_order_line_id)
+        && quantityError.value === null
+        && (selectedLine.value === null || ready(selectedLine.value));
+});
 
 const blockedBy = computed(() => {
+    if (mode.value === 'stock') {
+        if (!form.product_id) return 'Choose the product to make.';
+        if (selectedProduct.value?.missing?.length) {
+            return `${selectedProduct.value.code} needs ${selectedProduct.value.missing.join(' and ')} before a card can be raised.`;
+        }
+
+        return Number(form.planned_qty) > 0 ? null : 'Enter a quantity greater than zero.';
+    }
+
     if (!form.sales_order_line_id) return 'Choose the order line this card is for.';
     if (selectedLine.value && !ready(selectedLine.value)) {
         return `${selectedLine.value.product_code} needs ${selectedLine.value.missing.join(' and ')} before a card can be raised.`;
@@ -97,6 +139,17 @@ const blockedBy = computed(() => {
 
     return quantityError.value;
 });
+
+function switchMode(to) {
+    mode.value = to;
+
+    if (to === 'stock') {
+        form.sales_order_line_id = '';
+    } else {
+        form.product_id = '';
+        form.parent_job_card_id = '';
+    }
+}
 
 function lineHeadroom(line) {
     return line.capacity ? Number(line.capacity.headroom) : 0;
@@ -143,7 +196,10 @@ function pickLine(id) {
 function submit() {
     if (!canSubmit.value) return;
 
-    form.post('/job-cards');
+    form.transform((data) => (mode.value === 'stock'
+        ? { ...data, sales_order_line_id: null }
+        : { ...data, product_id: null, parent_job_card_id: null }))
+        .post('/job-cards');
 }
 </script>
 
@@ -152,9 +208,53 @@ function submit() {
         <Head title="New job card" />
 
         <template #title>New job card</template>
-        <template #subtitle>From a confirmed sales order line</template>
+        <template #subtitle>{{ mode === 'stock' ? 'For stock, or for another job' : 'From a confirmed sales order line' }}</template>
 
         <FormLayout wide-rail @submit="submit">
+
+            <!-- What the card is for decides what the rest of the form asks. -->
+            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="What this card is for">
+                <label
+                    v-for="option in [['order', 'An order line'], ['stock', 'Stock or another job']]"
+                    :key="option[0]"
+                    class="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
+                    :class="mode === option[0] ? 'border-brand-400 bg-brand-50 text-brand-800' : 'border-slate-200 text-ink-700 hover:bg-slate-50'"
+                >
+                    <input type="radio" name="mode" class="form-radio" :checked="mode === option[0]" @change="switchMode(option[0])">
+                    {{ option[1] }}
+                </label>
+            </div>
+
+            <Card v-if="mode === 'stock'" title="Product to make">
+                <div class="space-y-3">
+                    <p v-if="parent" class="rounded-md bg-brand-50 px-3 py-2 text-sm text-brand-900">
+                        A component for job
+                        <Link :href="`/job-cards/${parent.id}`" class="font-medium underline">{{ parent.number ?? `#${parent.id}` }}</Link>.
+                        Its output is received into stock and issued to that job like any other material.
+                    </p>
+
+                    <FormField label="Product" :error="form.errors.product_id" required hint="Active made products with a routing. A family that needs artwork is listed with what it lacks.">
+                        <SelectInput v-model="form.product_id" :options="productOptions" placeholder="— choose —" />
+                    </FormField>
+
+                    <p v-if="selectedProduct?.missing?.length" class="text-xs text-amber-800">
+                        Cannot be planned yet: {{ selectedProduct.code }} needs {{ selectedProduct.missing.join(' and ') }}.
+                        <Link :href="`/products/${selectedProduct.id}`" class="font-medium underline">Open {{ selectedProduct.code }}</Link>
+                    </p>
+
+                    <div v-if="products.length === 0" class="py-4">
+                        <EmptyState
+                            icon="product"
+                            title="Nothing can be made for stock"
+                            description="A product is made for stock once its item is active and a routing is chosen on it."
+                            action-label="Open products"
+                            action-href="/products"
+                        />
+                    </div>
+                </div>
+            </Card>
+
+            <template v-if="mode === 'order'">
 
             <!-- Where the planner came from, and what was chosen on their behalf. -->
             <div
@@ -303,6 +403,7 @@ function submit() {
                     {{ form.errors.sales_order_line_id }}
                 </p>
             </Card>
+            </template>
 
             <template #rail>
                 <Card title="Card">
@@ -327,11 +428,13 @@ function submit() {
                         -->
                         <FormField
                             label="Planned quantity"
-                            rule="BR-49"
-                            :hint="capacity
-                                ? `${pcs(headroom)} pcs can still be planned on this line`
-                                : 'Choose an order line first.'"
-                            :error="form.errors.planned_qty ?? quantityError"
+                            :rule="mode === 'order' ? 'BR-49' : null"
+                            :hint="mode === 'stock'
+                                ? (selectedProduct ? `In ${selectedProduct.uom}. Each step is planned with its wastage on top.` : 'Choose a product first.')
+                                : capacity
+                                    ? `${pcs(headroom)} pcs can still be planned on this line`
+                                    : 'Choose an order line first.'"
+                            :error="form.errors.planned_qty ?? (mode === 'order' ? quantityError : null)"
                             required
                         >
                             <TextInput
@@ -339,12 +442,12 @@ function submit() {
                                 type="number"
                                 numeric
                                 min="1"
-                                :max="capacity ? headroom : null"
-                                :aria-invalid="quantityError ? 'true' : 'false'"
+                                :max="mode === 'order' && capacity ? headroom : null"
+                                :aria-invalid="mode === 'order' && quantityError ? 'true' : 'false'"
                                 aria-describedby="planned-qty-basis"
                             />
 
-                            <p v-if="capacity" id="planned-qty-basis" class="mt-1 text-xs text-ink-500">
+                            <p v-if="mode === 'order' && capacity" id="planned-qty-basis" class="mt-1 text-xs text-ink-500">
                                 {{ pcs(capacity.ordered) }} pcs ordered<span v-if="Number(capacity.committed) > 0">,
                                     {{ pcs(capacity.committed) }} pcs already committed to
                                     {{ capacity.live_cards }}
@@ -386,11 +489,11 @@ function submit() {
                     <ol class="space-y-2 text-xs text-ink-700">
                         <li class="flex gap-2">
                             <Badge tone="info" label="1" />
-                            <span>The product's <strong>approved artwork version</strong> is attached to the card.</span>
+                            <span>The product's <strong>approved artwork version</strong> is attached to the card, where the family needs one.</span>
                         </li>
                         <li class="flex gap-2">
                             <Badge tone="info" label="2" />
-                            <span>The material plan is worked out and <strong>fixed for this card</strong>: gross metres, ends and labels per metre. Later changes to the product do not alter it.</span>
+                            <span>For a label, the material plan is worked out and <strong>fixed for this card</strong>: gross metres, ends and labels per metre. Later changes to the product do not alter it.</span>
                         </li>
                         <li class="flex gap-2">
                             <Badge tone="info" label="3" />

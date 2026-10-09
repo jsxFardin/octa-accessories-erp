@@ -1066,6 +1066,7 @@ CREATE TABLE tools (
     code              VARCHAR(40) NOT NULL,
     colour_index      SMALLINT UNSIGNED,
     cavity_count      SMALLINT UNSIGNED,
+    tonnage           DECIMAL(9,2),                -- the press a mould needs (spec §2, family 07)
     owner_customer_id BIGINT UNSIGNED,
     location          VARCHAR(80),
     made_on           DATE,
@@ -1081,7 +1082,7 @@ CREATE TABLE tools (
     CONSTRAINT tools_spec_fk    FOREIGN KEY (product_spec_id)   REFERENCES product_specs(id),
     CONSTRAINT tools_item_fk    FOREIGN KEY (item_id)           REFERENCES items(id),
     CONSTRAINT tools_owner_fk   FOREIGN KEY (owner_customer_id) REFERENCES customers(id),
-    CONSTRAINT tools_kind_chk   CHECK (kind IN ('flexo_plate','screen','offset_plate','cutting_die','embossing_die','cad_pattern','mould')),
+    CONSTRAINT tools_kind_chk   CHECK (kind IN ('flexo_plate','screen','offset_plate','print_plate','cutting_die','embossing_die','slider_die','stamping_die','cad_pattern','mould','rubber_mould','loom_setting','shade_card','dot_roller','digitizing_file','artwork_file')),
     CONSTRAINT tools_status_chk CHECK (status IN ('in_production','available','in_use','worn','scrapped'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -2131,6 +2132,7 @@ CREATE TABLE material_requirements (
     on_order_qty     DECIMAL(18,6) NOT NULL DEFAULT 0,
     net_req_qty      DECIMAL(18,6) NOT NULL DEFAULT 0,
     suggested_po_qty DECIMAL(18,6) NOT NULL DEFAULT 0,
+    suggested_make_qty DECIMAL(18,6) NOT NULL DEFAULT 0,   -- a made item is planned, not bought: the job card to raise
     po_place_by      DATE,
     is_shortage      BOOLEAN NOT NULL DEFAULT FALSE,
     pr_line_id       BIGINT UNSIGNED,
@@ -2155,9 +2157,11 @@ CREATE TABLE job_cards (
     sales_order_line_id     BIGINT UNSIGNED,
     sample_request_line_id  BIGINT UNSIGNED,
     production_plan_line_id BIGINT UNSIGNED,
+    parent_job_card_id      BIGINT UNSIGNED,            -- a component made for another job (spec §1, family flow)
+    for_stock               BOOLEAN NOT NULL DEFAULT FALSE, -- made to stock: an MRP make order, or a running programme
     product_id              BIGINT UNSIGNED NOT NULL,
-    product_spec_id         BIGINT UNSIGNED NOT NULL,
-    artwork_version_id      BIGINT UNSIGNED NOT NULL,   -- Gate 1 / J1
+    product_spec_id         BIGINT UNSIGNED,            -- label geometry: only the label families have one
+    artwork_version_id      BIGINT UNSIGNED,            -- Gate 1 / J1, where the family needs artwork
     bom_id                  BIGINT UNSIGNED,
     routing_id              BIGINT UNSIGNED NOT NULL,
     colourway               VARCHAR(80),
@@ -2190,6 +2194,7 @@ CREATE TABLE job_cards (
     KEY job_cards_soline_idx (sales_order_line_id),
     KEY job_cards_sampleline_idx (sample_request_line_id),
     KEY job_cards_planline_idx (production_plan_line_id),
+    KEY job_cards_parent_idx (parent_job_card_id),
     KEY job_cards_spec_idx (product_spec_id),
     KEY job_cards_artwork_idx (artwork_version_id),
     KEY job_cards_bom_idx (bom_id),
@@ -2199,6 +2204,7 @@ CREATE TABLE job_cards (
     CONSTRAINT job_cards_soline_fk     FOREIGN KEY (sales_order_line_id)     REFERENCES sales_order_lines(id),
     CONSTRAINT job_cards_sampleline_fk FOREIGN KEY (sample_request_line_id)  REFERENCES sample_request_lines(id),
     CONSTRAINT job_cards_planline_fk   FOREIGN KEY (production_plan_line_id) REFERENCES production_plan_lines(id),
+    CONSTRAINT job_cards_parent_fk     FOREIGN KEY (parent_job_card_id)      REFERENCES job_cards(id),
     CONSTRAINT job_cards_product_fk    FOREIGN KEY (product_id)              REFERENCES products(id),
     CONSTRAINT job_cards_spec_fk       FOREIGN KEY (product_spec_id)         REFERENCES product_specs(id),
     CONSTRAINT job_cards_artwork_fk    FOREIGN KEY (artwork_version_id)      REFERENCES artwork_versions(id),
@@ -2207,7 +2213,7 @@ CREATE TABLE job_cards (
     CONSTRAINT job_cards_creator_fk    FOREIGN KEY (created_by)              REFERENCES users(id),
     CONSTRAINT job_cards_qty_chk    CHECK (planned_qty > 0),
     CONSTRAINT job_cards_status_chk CHECK (status IN ('draft','planned','material_pending','released','in_production','on_hold','qc_pending','completed','closed','cancelled')),
-    CONSTRAINT job_cards_source_chk CHECK (sales_order_line_id IS NOT NULL OR sample_request_line_id IS NOT NULL)
+    CONSTRAINT job_cards_source_chk CHECK (sales_order_line_id IS NOT NULL OR sample_request_line_id IS NOT NULL OR parent_job_card_id IS NOT NULL OR for_stock = TRUE)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- circular references resolved now that job_cards exists

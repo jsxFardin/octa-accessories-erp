@@ -169,7 +169,43 @@ class JobCardController extends Controller
             $preselect = (int) $fromOrder->first()->id;
         }
 
+        // A card can also be raised with no order behind it: a component another job needs
+        // (tape for a zipper), or stock for a running programme. Every active made product
+        // with a routing is a candidate; the form says what each still lacks.
+        $products = Product::query()
+            ->with(['item.family', 'item.baseUom'])
+            ->whereNotNull('routing_id')
+            ->whereHas('item', fn ($q) => $q->where('make_or_buy', 'make')->where('status', 'active'))
+            ->get()
+            ->map(function (Product $product): array {
+                $artworkRequired = $product->product_type !== 'other' || (bool) ($product->item->family?->requires_artwork ?? false);
+                $hasArtwork = DB::table('artworks as a')
+                    ->join('artwork_versions as av', 'av.artwork_id', '=', 'a.id')
+                    ->where('a.product_id', $product->id)
+                    ->where('av.status', ArtworkVersion::APPROVED)
+                    ->exists();
+
+                return [
+                    'id' => $product->id,
+                    'code' => $product->code,
+                    'name' => $product->name,
+                    'family' => $product->item->family?->name,
+                    'uom' => $product->item->baseUom?->code ?? 'pcs',
+                    'missing' => $artworkRequired && ! $hasArtwork ? ['approved artwork'] : [],
+                ];
+            })
+            ->sortBy('code')
+            ->values();
+
+        $productId = $request->integer('product') ?: null;
+        $parentId = $request->integer('parent') ?: null;
+
         return Inertia::render('Manufacturing/JobCards/Form', [
+            'products' => $products,
+            'mode' => $productId !== null || $request->boolean('for_stock') ? 'stock' : 'order',
+            'preselectProductId' => $products->contains('id', $productId) ? $productId : null,
+            'preselectQty' => $request->float('qty') > 0 ? $request->float('qty') : null,
+            'parent' => $parentId === null ? null : DB::table('job_cards')->where('id', $parentId)->first(['id', 'number', 'status']),
             // The asked-for order's lines first: on a factory with fifty open lines the one the
             // planner came in for was below the fold.
             'orderLines' => $orderId === null
@@ -218,13 +254,17 @@ class JobCardController extends Controller
     }
 
     /**
-     * Gate 1 is structural: `artwork_version_id` is NOT NULL, so a job card cannot even be
-     * created without naming an approved version. This resolves it rather than asking for it.
+     * Gate 1: a family that needs artwork cannot raise a card without an approved version.
+     * The version is resolved here rather than asked for. A family that does not need
+     * artwork — tape, zipper, cord, injection — raises its card without one.
      */
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'sales_order_line_id' => ['required', 'integer', 'exists:sales_order_lines,id'],
+            // One of two sources: an order line, or a product made for stock or for a parent job.
+            'sales_order_line_id' => ['nullable', 'integer', 'exists:sales_order_lines,id', 'required_without:product_id'],
+            'product_id' => ['nullable', 'integer', 'exists:products,id', 'required_without:sales_order_line_id'],
+            'parent_job_card_id' => ['nullable', 'integer', 'exists:job_cards,id'],
             'factory_unit_id' => ['required', 'integer', 'exists:factory_units,id'],
             'planned_qty' => ['required', 'numeric', 'gt:0'],
             'colourway' => ['nullable', 'string', 'max:80'],
@@ -232,76 +272,113 @@ class JobCardController extends Controller
             'priority' => ['nullable', 'integer', 'min:1', 'max:99'],
         ]);
 
-        $line = SalesOrderLine::query()->findOrFail($data['sales_order_line_id']);
+        $line = empty($data['sales_order_line_id']) ? null : SalesOrderLine::query()->findOrFail($data['sales_order_line_id']);
+        $field = $line === null ? 'product_id' : 'sales_order_line_id';
 
         /** @var Product $product */
-        $product = Product::query()->with(['routing.operations', 'activeBom'])->findOrFail($line->product_id);
+        $product = Product::query()->with(['routing.operations', 'activeBom', 'item.family'])
+            ->findOrFail($line?->product_id ?? $data['product_id']);
+
+        // The label families run on geometry: a spec, gross metres, ends. Every other family
+        // runs in the item's own unit. Artwork is a gate where the family says so (printed
+        // label, paper, packaging, decoration) and for every label type.
+        $labelGeometry = $product->product_type !== 'other';
+        $artworkRequired = $labelGeometry || (bool) ($product->item->family?->requires_artwork ?? false);
 
         $approvedVersion = ArtworkVersion::query()
             ->whereIn('artwork_id', $product->artworks()->select('id'))
             ->where('status', ArtworkVersion::APPROVED)
             ->first();
 
-        if ($approvedVersion === null) {
+        if ($artworkRequired && $approvedVersion === null) {
             throw ValidationException::withMessages([
-                'sales_order_line_id' => 'This product has no approved artwork version, and a job card cannot be raised without one. '
+                $field => 'This product has no approved artwork version, and a job card cannot be raised without one. '
                     .'Approve an artwork version on the product, then try again.',
             ]);
         }
 
         if ($product->routing === null) {
             throw ValidationException::withMessages([
-                'sales_order_line_id' => 'This product has no routing, so there are no steps to plan. Choose a routing on the product, then try again.',
+                $field => 'This product has no routing, so there are no steps to plan. Choose a routing on the product, then try again.',
             ]);
         }
 
-        $jobCard = DB::transaction(function () use ($data, $line, $product, $approvedVersion, $request): JobCard {
-            // BR-49 — the ceiling the form draws is also the one the server holds. A POST that
-            // never saw the form gets the same refusal, and a form whose outstanding figure
-            // went stale while it sat open is corrected here rather than trusted.
-            //
-            // Decided under a lock on the order line, inside the transaction that writes the
-            // card. The check used to run before the transaction against an unlocked
-            // `SUM(planned_qty)`, so two planners submitting at once both read the same
-            // headroom, both passed, and both inserted — the order ended up over-committed by
-            // the exact rule that exists to prevent it, and neither request did anything
-            // wrong. The lock is taken on `sales_order_lines` because that row is what the
-            // aggregate is grouped by: every competing card for this line serialises on it.
-            $locked = SalesOrderLine::query()->lockForUpdate()->findOrFail($line->id);
+        $spec = $labelGeometry ? $product->currentSpec : null;
 
-            $this->planning->assert($locked, (float) $data['planned_qty']);
+        if ($labelGeometry && $spec === null) {
+            throw ValidationException::withMessages([
+                $field => 'This product has no specification, so its consumption cannot be planned. Add a specification on the product, then try again.',
+            ]);
+        }
 
-            $spec = $product->currentSpec;
+        $jobCard = DB::transaction(function () use ($data, $line, $product, $spec, $labelGeometry, $approvedVersion, $request): JobCard {
+            $plan = null;
 
-            // The snapshot (02-database-schema §3.8): these three figures follow the card,
-            // not the spec, for the rest of its life.
-            $plan = $this->consumption->plan(
-                $spec->toCalculatorInput($product->product_type),
-                (int) $data['planned_qty'],
-                $product->routing->toCalculatorSteps(),
-                $spec->colourWeights(),
-            );
+            if ($line !== null) {
+                // BR-49 — the ceiling the form draws is also the one the server holds. A POST that
+                // never saw the form gets the same refusal, and a form whose outstanding figure
+                // went stale while it sat open is corrected here rather than trusted.
+                //
+                // Decided under a lock on the order line, inside the transaction that writes the
+                // card. The check used to run before the transaction against an unlocked
+                // `SUM(planned_qty)`, so two planners submitting at once both read the same
+                // headroom, both passed, and both inserted — the order ended up over-committed by
+                // the exact rule that exists to prevent it, and neither request did anything
+                // wrong. The lock is taken on `sales_order_lines` because that row is what the
+                // aggregate is grouped by: every competing card for this line serialises on it.
+                $locked = SalesOrderLine::query()->lockForUpdate()->findOrFail($line->id);
+
+                $this->planning->assert($locked, (float) $data['planned_qty']);
+            }
+
+            if ($labelGeometry) {
+                // The snapshot (02-database-schema §3.8): these three figures follow the card,
+                // not the spec, for the rest of its life.
+                $plan = $this->consumption->plan(
+                    $spec->toCalculatorInput($product->product_type),
+                    (int) $data['planned_qty'],
+                    $product->routing->toCalculatorSteps(),
+                    $spec->colourWeights(),
+                );
+            }
 
             $jobCard = JobCard::query()->create([
                 'factory_unit_id' => $data['factory_unit_id'],
-                'sales_order_line_id' => $line->id,
+                'sales_order_line_id' => $line?->id,
+                'parent_job_card_id' => $data['parent_job_card_id'] ?? null,
+                'for_stock' => $line === null && empty($data['parent_job_card_id']),
                 'product_id' => $product->id,
-                'product_spec_id' => $spec->id,
-                'artwork_version_id' => $approvedVersion->id,
+                'product_spec_id' => $spec?->id,
+                'artwork_version_id' => $approvedVersion?->id,
                 'bom_id' => $product->activeBom?->id,
                 'routing_id' => $product->routing_id,
                 'colourway' => $data['colourway'] ?? null,
                 'planned_qty' => $data['planned_qty'],
                 'due_date' => $data['due_date'] ?? null,
                 'priority' => $data['priority'] ?? 50,
-                'gross_metres' => $plan->grossMetres,
-                'ends' => $plan->ends,
-                'labels_per_metre' => $plan->labelsPerMetre,
+                'gross_metres' => $plan?->grossMetres,
+                'ends' => $plan?->ends,
+                'labels_per_metre' => $plan?->labelsPerMetre,
                 'status' => JobCard::DRAFT,
                 'created_by' => $request->user()->id,
             ]);
 
+            // In the item's own unit, each step must put out enough for every step after it:
+            // the planned input of a step is the next step's planned output grossed up by
+            // this step's wastage, walked back from the finished quantity.
+            $grossByStep = [];
+            $need = (float) $data['planned_qty'];
+
+            foreach ($product->routing->operations->sortByDesc('sequence_no') as $operation) {
+                $need = $need * (1 + (float) $operation->wastage_pct / 100);
+                $grossByStep[$operation->id] = round($need, 6);
+            }
+
             foreach ($product->routing->operations as $operation) {
+                $planned = $labelGeometry
+                    ? ($operation->consumes_web ? $plan->grossMetres : (float) $data['planned_qty'])
+                    : $grossByStep[$operation->id];
+
                 JobCardOperation::query()->create([
                     'job_card_id' => $jobCard->id,
                     'routing_operation_id' => $operation->id,
@@ -309,9 +386,9 @@ class JobCardController extends Controller
                     'code' => $operation->code,
                     'name' => $operation->name,
                     'machine_group_id' => $operation->machine_group_id,
-                    'planned_qty' => $operation->consumes_web ? $plan->grossMetres : $data['planned_qty'],
+                    'planned_qty' => $planned,
                     'planned_minutes' => $this->capacity->loadMinutes(
-                        $operation->consumes_web ? $plan->grossMetres : (float) $data['planned_qty'],
+                        $planned,
                         (float) ($operation->std_rate_per_hour ?? 0),
                         (float) $operation->setup_minutes,
                     ),
@@ -335,7 +412,7 @@ class JobCardController extends Controller
     public function show(Request $request, JobCard $jobCard): Response
     {
         $jobCard->load([
-            'product.customer', 'spec', 'artworkVersion.artwork', 'bom.lines.item', 'bom.lines.uom', 'routing',
+            'product.customer', 'spec', 'artworkVersion.artwork', 'bom.lines.item', 'bom.lines.uom', 'routing', 'parent',
             'operations.machine', 'operations.machineGroup', 'operations.tool', 'operations.routingOperation',
             'salesOrderLine.salesOrder:id,number,status',
         ]);
@@ -389,6 +466,8 @@ class JobCardController extends Controller
                 // Where this card sits in the order it is making — the way back up the chain.
                 'sales_order' => $jobCard->salesOrderLine?->salesOrder?->only(['id', 'number', 'status']),
                 'sales_order_line_no' => $jobCard->salesOrderLine?->line_no,
+                'for_stock' => (bool) $jobCard->for_stock,
+                'parent' => $jobCard->parent?->only(['id', 'number', 'status']),
                 'spec_version' => $jobCard->spec?->version_no,
                 'artwork' => [
                     'id' => $jobCard->artworkVersion?->artwork_id,

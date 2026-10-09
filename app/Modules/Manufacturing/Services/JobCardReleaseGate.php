@@ -30,7 +30,8 @@ class JobCardReleaseGate
      */
     public function evaluate(JobCard $jobCard, bool $materialWaived = false): array
     {
-        $artwork = $this->artworkCheck($jobCard);
+        $artworkCheck = $this->artworkCheck($jobCard);
+        $artwork = $artworkCheck['ok'];
         $bom = $this->bomCheck($jobCard);
         $tools = $this->toolCheck($jobCard);
         $machines = $this->machineCheck($jobCard);
@@ -44,9 +45,7 @@ class JobCardReleaseGate
                 'ok' => $artwork,
                 'label' => 'Approved artwork version',
                 'rule' => 'J1 · Gate 1',
-                'detail' => $artwork
-                    ? 'Version '.$jobCard->artworkVersion->version_no.' is approved.'
-                    : 'The bound artwork version is not approved. Production cannot run against it.',
+                'detail' => $artworkCheck['detail'],
             ],
             'bom' => [
                 'ok' => $bom,
@@ -92,12 +91,29 @@ class JobCardReleaseGate
     }
 
     /**
-     * Gate 1. The FK is NOT NULL, so the only remaining question is whether the version it
-     * points at is still approved — a version can be superseded after a card is planned.
+     * Gate 1. A label type, and any family that says it needs artwork, must carry an approved
+     * version — and a version can be superseded after a card is planned. Tape, zipper, cord
+     * and injection run without one.
+     *
+     * @return array{ok: bool, detail: string}
      */
-    private function artworkCheck(JobCard $jobCard): bool
+    private function artworkCheck(JobCard $jobCard): array
     {
-        return $jobCard->artworkVersion?->status === ArtworkVersion::APPROVED;
+        $version = $jobCard->artworkVersion;
+
+        if ($version !== null) {
+            return $version->status === ArtworkVersion::APPROVED
+                ? ['ok' => true, 'detail' => "Version {$version->version_no} is approved."]
+                : ['ok' => false, 'detail' => 'The bound artwork version is not approved. Production cannot run against it.'];
+        }
+
+        $product = $jobCard->product;
+        $required = ($product?->product_type ?? 'other') !== 'other'
+            || (bool) ($product?->item?->family?->requires_artwork ?? false);
+
+        return $required
+            ? ['ok' => false, 'detail' => 'No approved artwork version is bound, and this family does not run without one.']
+            : ['ok' => true, 'detail' => 'This family runs without artwork.'];
     }
 
     private function bomCheck(JobCard $jobCard): bool

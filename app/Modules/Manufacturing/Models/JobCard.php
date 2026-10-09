@@ -100,6 +100,8 @@ class JobCard extends Model
         'sales_order_line_id',
         'sample_request_line_id',
         'production_plan_line_id',
+        'parent_job_card_id',
+        'for_stock',
         'product_id',
         'product_spec_id',
         'artwork_version_id',
@@ -133,6 +135,8 @@ class JobCard extends Model
         return [
             'factory_unit_id' => 'integer',
             'sales_order_line_id' => 'integer',
+            'parent_job_card_id' => 'integer',
+            'for_stock' => 'boolean',
             'sample_request_line_id' => 'integer',
             'production_plan_line_id' => 'integer',
             'product_id' => 'integer',
@@ -197,6 +201,21 @@ class JobCard extends Model
     }
 
     /** @return BelongsTo<SalesOrderLine, $this> */
+    /** The job this card makes a component for, when it is one (tape for a zipper job). */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_job_card_id');
+    }
+
+    /**
+     * Whether this job runs on label geometry — a spec, gross metres, ends — or in the item's
+     * own unit. The label families are the ones the geometry calculators know by product type.
+     */
+    public function usesLabelGeometry(): bool
+    {
+        return ($this->product?->product_type ?? 'other') !== 'other';
+    }
+
     public function salesOrderLine(): BelongsTo
     {
         return $this->belongsTo(SalesOrderLine::class);

@@ -274,7 +274,18 @@ class JobCardOperation extends Model
      */
     public function unit(): string
     {
-        return ($this->routingOperation?->consumes_web ?? false) ? 'm' : 'pcs';
+        if ($this->routingOperation?->consumes_web ?? false) {
+            return 'm';
+        }
+
+        // A family routing counts in the item's own unit: metres of tape, pieces of zipper.
+        $card = $this->jobCard;
+
+        if ($card !== null && ! $card->usesLabelGeometry()) {
+            return (string) ($card->product?->item?->baseUom?->code ?? 'pcs');
+        }
+
+        return 'pcs';
     }
 
     /** True when this operation's figures may be compared with `$other`'s at all. */
