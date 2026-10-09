@@ -447,7 +447,7 @@ function submit() {
                     </Button>
                 </template>
 
-                <table class="min-w-full text-sm">
+                <div class="overflow-x-auto"><table class="min-w-full text-sm">
                     <thead class="text-xs text-ink-700">
                         <tr class="border-b border-slate-200 bg-slate-50">
                             <th class="px-3 py-2 text-left">Material</th>
@@ -493,7 +493,7 @@ function submit() {
                             </td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
 
                 <p v-if="pickNote" role="status" class="border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                     Could not fully cover: {{ pickNote }}. The rest of the lines were added.
@@ -578,7 +578,7 @@ function submit() {
                         </Button>
                     </div>
 
-                    <table class="min-w-full text-sm">
+                    <div class="overflow-x-auto"><table class="min-w-full text-sm">
                         <thead class="text-xs text-ink-700">
                             <tr>
                                 <th class="px-3 py-1.5 text-left">Lot</th>
@@ -605,7 +605,7 @@ function submit() {
                                 </td>
                             </tr>
                         </tbody>
-                    </table>
+                    </table></div>
 
                     <!-- BR-38 will refuse the posting anyway; saying it here saves a trip to the store. -->
                     <p v-if="suggestion.shortfall > 0" class="border-t border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
