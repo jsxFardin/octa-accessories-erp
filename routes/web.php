@@ -320,6 +320,8 @@ Route::middleware('auth')->group(function (): void {
 
     Route::post('sales-orders/{salesOrder}/transition', [SalesOrderController::class, 'transition'])
         ->middleware('can:sales_order.view')->name('sales-orders.transition');
+    Route::post('sales-orders/{salesOrder}/lines/{line}/cost-overrides', [SalesOrderController::class, 'costOverrides'])
+        ->middleware('can:cost_sheet.update')->name('sales-orders.cost-overrides');
 
     // ---- Supply --------------------------------------------------------------------
     Route::resource('purchase-requisitions', PurchaseRequisitionController::class)->except(['destroy'])

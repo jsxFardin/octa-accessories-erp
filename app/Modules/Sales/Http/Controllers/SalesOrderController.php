@@ -392,6 +392,43 @@ class SalesOrderController extends Controller
             ->with('success', 'Order updated.');
     }
 
+    /**
+     * Spec §4 — pre-production costing is the costing clerk's call, not only the item master's:
+     * before the order is confirmed a material's rate may be set by hand, with a reason, and
+     * the benchmark struck at confirm reads it.
+     */
+    public function costOverrides(Request $request, SalesOrder $salesOrder, SalesOrderLine $line): RedirectResponse
+    {
+        abort_unless($line->sales_order_id === $salesOrder->id, 404);
+
+        if (! in_array($salesOrder->status, ['draft', 'credit_hold'], true)) {
+            return back()->with('error', 'The benchmark is struck when the order is confirmed; after that it is locked.');
+        }
+
+        $data = $request->validate([
+            'rates' => ['nullable', 'array', 'max:50'],
+            'rates.*' => ['nullable', 'numeric', 'min:0'],
+            'reason' => ['required', 'string', 'max:255'],
+        ]);
+
+        $rates = [];
+
+        foreach ($data['rates'] ?? [] as $key => $rate) {
+            if ($rate !== null && $rate !== '' && (float) $rate > 0 && preg_match('/^(item:\d+|type:[a-z_]+)$/', (string) $key)) {
+                $rates[(string) $key] = round((float) $rate, 4);
+            }
+        }
+
+        $line->update(['cost_overrides' => $rates === [] ? null : [
+            'rates' => $rates,
+            'reason' => $data['reason'],
+            'by' => $request->user()?->name,
+            'at' => now()->toIso8601String(),
+        ]]);
+
+        return back()->with('success', $rates === [] ? 'Rate adjustments cleared; the benchmark will read the item master.' : 'Rates adjusted. The benchmark struck at confirm will read them.');
+    }
+
     public function transition(Request $request, SalesOrder $salesOrder): RedirectResponse
     {
         $data = $request->validate([

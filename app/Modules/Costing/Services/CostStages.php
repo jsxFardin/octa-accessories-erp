@@ -30,7 +30,7 @@ class CostStages
         'total_cost' => 'Total cost',
     ];
 
-    public function __construct(private readonly Settings $settings) {}
+    public function __construct(private readonly Settings $settings, private readonly PreProductionCosting $preProduction) {}
 
     /**
      * A job's actuals against its order line's benchmark.
@@ -76,7 +76,14 @@ class CostStages
         $floor = $this->settings->decimal('margin_floor_pct', 12);
         $rows = [];
 
+        // Before confirm: what the benchmark would be at today's rates, and the materials a
+        // clerk may re-rate before it is struck (spec §4: pre-production is the clerk's call).
+        $expected = in_array($order->status, ['draft', 'credit_hold'], true)
+            ? collect($this->preProduction->forOrder($order))->keyBy(fn (array $row): int => $row['line']->id)
+            : collect();
+
         foreach ($order->lines as $line) {
+            $preview = $expected->get($line->id);
             $pre = CostSheet::query()->where('sales_order_line_id', $line->id)->where('stage', CostSheet::PRE_PRODUCTION)->latest('id')->first();
             $posts = CostSheet::query()->where('sales_order_line_id', $line->id)->where('stage', CostSheet::POST_PRODUCTION)->get();
             $marketing = $this->marketingFor($line);
@@ -99,7 +106,47 @@ class CostStages
                     'jobs' => $posts->count(),
                 ],
                 'revenue_per_unit' => $revenue === null ? null : round((float) $revenue, 6),
-                'below_floor' => $pre !== null && $this->marginOf($pre) !== null && $this->marginOf($pre) < $floor,
+                'below_floor' => ($pre !== null && $this->marginOf($pre) !== null && $this->marginOf($pre) < $floor)
+                    || ($pre === null && $preview !== null && $preview['expected_margin_pct'] !== null && $preview['expected_margin_pct'] < $floor),
+                'expected' => $preview === null ? null : [
+                    'unit_cost' => round($preview['sheet']->unitCost, 6),
+                    'margin_pct' => $preview['expected_margin_pct'],
+                    'revenue_per_unit' => $preview['revenue_per_unit'],
+                ],
+                'materials' => $preview === null ? [] : $this->adjustableMaterials($preview['sheet'], $line->cost_overrides),
+                'overrides' => $line->cost_overrides,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The material lines of a would-be benchmark, each with the key a rate override is set
+     * under and the override already set, if any.
+     *
+     * @param  array<string, mixed>|null  $overrides
+     * @return list<array{key: string, description: ?string, qty: float, uom: string, rate: float, override: ?float}>
+     */
+    private function adjustableMaterials(\App\Support\Calculators\CostSheet $sheet, ?array $overrides): array
+    {
+        $rows = [];
+
+        foreach ($sheet->lines as $line) {
+            if (! str_starts_with($line->costType, 'material')) {
+                continue;
+            }
+
+            $key = $line->itemId !== null ? 'item:'.$line->itemId : 'type:'.$line->costType;
+            $set = $overrides['rates'][$key] ?? null;
+
+            $rows[] = [
+                'key' => $key,
+                'description' => $line->description ?? ucfirst(str_replace('_', ' ', $line->costType)),
+                'qty' => round($line->qty, 4),
+                'uom' => $line->basis,
+                'rate' => round($line->rate, 4),
+                'override' => $set === null ? null : (float) $set,
             ];
         }
 

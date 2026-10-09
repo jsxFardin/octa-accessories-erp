@@ -41,6 +41,7 @@ class QuotationLine extends Model
         'tax_id',
         'line_total',
         'lead_time_days',
+        'cost_overrides',
     ];
 
     /** @return array<string, string> */
@@ -57,6 +58,7 @@ class QuotationLine extends Model
             'tooling_charge' => 'decimal:4',
             'tax_id' => 'integer',
             'line_total' => 'decimal:4',
+            'cost_overrides' => 'array',
             'lead_time_days' => 'integer',
         ];
     }

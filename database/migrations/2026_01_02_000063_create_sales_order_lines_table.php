@@ -38,6 +38,7 @@ CREATE TABLE sales_order_lines (
     under_tolerance_pct DECIMAL(9,4) NOT NULL DEFAULT 5,
     promised_date       DATE,
     status              VARCHAR(20) NOT NULL DEFAULT 'open',
+    cost_overrides      JSON,                                          -- rates the clerk set before confirm, with the reason: {rates: {"item:7": 1490}, reason, by, at}
     UNIQUE KEY sales_order_lines_uq (sales_order_id, line_no),
     KEY sales_order_lines_product_idx (product_id),
     KEY sales_order_lines_spec_idx (product_spec_id),

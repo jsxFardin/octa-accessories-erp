@@ -101,6 +101,8 @@ class CostSheetPage
                 'approved_at' => $sheet->approved_at,
                 'approved_by' => $sheet->approver?->name,
                 'locked_at' => $sheet->locked_at,
+                // A benchmark struck on rates the clerk set by hand says so, and why.
+                'adjustment' => $sheet->stage === CostSheet::PRE_PRODUCTION ? ($sheet->salesOrderLine?->cost_overrides ?? null) : null,
             ],
             'product' => $sheet->product === null ? null : [
                 'id' => $sheet->product->id,

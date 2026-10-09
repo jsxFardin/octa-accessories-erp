@@ -53,6 +53,7 @@ class SalesOrderLine extends Model
         'under_tolerance_pct',
         'promised_date',
         'status',
+        'cost_overrides',
     ];
 
     /** @return array<string, string> */
@@ -73,6 +74,7 @@ class SalesOrderLine extends Model
             'tax_id' => 'integer',
             'line_total' => 'decimal:4',
             'over_tolerance_pct' => 'decimal:4',
+            'cost_overrides' => 'array',
             'under_tolerance_pct' => 'decimal:4',
             'promised_date' => 'date:Y-m-d',
         ];

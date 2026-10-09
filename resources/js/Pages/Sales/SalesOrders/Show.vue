@@ -9,8 +9,9 @@ import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
+import TextInput from '@/Components/Ui/TextInput.vue';
 import ActivityTrail from '@/Components/Ui/ActivityTrail.vue';
-import { baseCurrency, date, isoDate, money, moneyPerThousand, pcs, pct, rate, relative, titleCase, todayIso } from '@/plugins/formatting';
+import { baseCurrency, date, isoDate, money, moneyPerThousand, pcs, pct, qty, rate, relative, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -41,14 +42,36 @@ const props = defineProps({
     marginFloorPct: { type: Number, default: 12 },
 });
 
-const costingColumns = [
+const beforeConfirm = computed(() => ['draft', 'credit_hold'].includes(props.order.status));
+const costingColumns = computed(() => [
     { key: 'product', label: 'Line', wrap: true },
-    { key: 'marketing', label: 'Quoted cost / unit', align: 'right' },
-    { key: 'pre', label: 'Pre-production / unit', align: 'right' },
-    { key: 'post', label: 'Actual / unit', align: 'right' },
+    { key: 'marketing', label: 'Quoted / 1,000', align: 'right' },
+    beforeConfirm.value
+        ? { key: 'expected', label: 'At today\'s rates / 1,000', align: 'right' }
+        : { key: 'pre', label: 'Benchmark / 1,000', align: 'right' },
+    { key: 'post', label: 'Actual / 1,000', align: 'right' },
     { key: 'revenue_per_unit', label: 'Price / 1,000', align: 'right' },
     { key: 'margin', label: 'Margin', align: 'right' },
-];
+    ...(beforeConfirm.value && can('cost_sheet.update') ? [{ key: 'adjust', label: '', align: 'right' }] : []),
+]);
+
+/* --- rates set by hand before confirm (spec §4): the dialog and its form ------------------- */
+const adjusting = ref(null);
+const adjustForm = useForm({ rates: {}, reason: '' });
+
+function openAdjust(row) {
+    adjusting.value = row;
+    adjustForm.defaults({ rates: Object.fromEntries(row.materials.map((m) => [m.key, m.override ?? ''])), reason: row.overrides?.reason ?? '' });
+    adjustForm.reset();
+    adjustForm.clearErrors();
+}
+
+function saveAdjust() {
+    adjustForm.post(`/sales-orders/${props.order.id}/lines/${adjusting.value.line_id}/cost-overrides`, {
+        preserveScroll: true,
+        onSuccess: () => { adjusting.value = null; },
+    });
+}
 
 /** Whole calendar days from today to a date, negative when it has passed. */
 function daysFromToday(value) {
@@ -429,6 +452,14 @@ const lineColumns = [
                     </template>
                     <template #cell:marketing="{ value }"><Link v-if="value" :href="`/costing/sheets/${value.id}`" class="doc-link-quiet tnum">{{ moneyPerThousand(value.unit_cost) }}</Link><span v-else class="text-ink-400">—</span></template>
                     <template #cell:pre="{ value }"><Link v-if="value" :href="`/costing/sheets/${value.id}`" class="doc-link-quiet tnum">{{ moneyPerThousand(value.unit_cost) }}</Link><span v-else class="text-ink-400">—</span></template>
+                    <template #cell:expected="{ row }">
+                        <span v-if="row.expected" class="tnum">{{ moneyPerThousand(row.expected.unit_cost) }}</span>
+                        <span v-else class="text-ink-400">—</span>
+                        <span v-if="row.overrides" class="block text-xs text-amber-700" :title="row.overrides.reason">rates set by hand</span>
+                    </template>
+                    <template #cell:adjust="{ row }">
+                        <Button v-if="row.materials.length" size="xs" variant="ghost" @click="openAdjust(row)">{{ row.overrides ? 'Adjusted' : 'Adjust rates' }}</Button>
+                    </template>
                     <template #cell:post="{ value }">
                         <span v-if="value" class="tnum">{{ moneyPerThousand(value.unit_cost) }} <span class="text-xs text-ink-500">({{ value.jobs }} {{ value.jobs === 1 ? 'job' : 'jobs' }})</span></span>
                         <span v-else class="text-ink-400">—</span>
@@ -438,6 +469,7 @@ const lineColumns = [
                         <span class="tnum" :class="row.below_floor ? 'font-medium text-rose-700' : ''">
                             <template v-if="row.post?.margin_pct != null">{{ pct(row.post.margin_pct, 1) }} actual</template>
                             <template v-else-if="row.pre?.margin_pct != null">{{ pct(row.pre.margin_pct, 1) }} expected</template>
+                            <template v-else-if="row.expected?.margin_pct != null">{{ pct(row.expected.margin_pct, 1) }} at today's rates</template>
                             <template v-else-if="row.marketing?.margin_pct != null">{{ pct(row.marketing.margin_pct, 1) }} quoted</template>
                             <template v-else>—</template>
                         </span>
@@ -678,6 +710,39 @@ const lineColumns = [
                 >
                     Cancel the order
                 </Button>
+            </template>
+        </Modal>
+        <!-- Spec §4 — the clerk re-rates a material before the benchmark is struck, with a reason. -->
+        <Modal
+            :open="adjusting !== null"
+            :title="adjusting ? `Rates for line ${adjusting.line_no} · ${adjusting.product?.code ?? ''}` : ''"
+            subtitle="The benchmark struck at confirm reads these instead of the item master. Leave a rate blank to keep the master's."
+            width="max-w-2xl"
+            @update:open="adjusting = null"
+        >
+            <template v-if="adjusting">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-slate-50 text-xs text-ink-500">
+                        <tr><th class="px-3 py-2 text-left">Material</th><th class="px-3 py-2 text-right">Quantity</th><th class="px-3 py-2 text-right">Master rate</th><th class="px-3 py-2 text-right">Rate to use</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="m in adjusting.materials" :key="m.key" class="border-t border-slate-100">
+                            <td class="px-3 py-1.5">{{ m.description }}</td>
+                            <td class="px-3 py-1.5 text-right tnum whitespace-nowrap">{{ qty(m.qty) }} {{ m.uom }}</td>
+                            <td class="px-3 py-1.5 text-right tnum">{{ money(m.rate, false) }}</td>
+                            <td class="px-3 py-1.5 text-right">
+                                <TextInput v-model="adjustForm.rates[m.key]" type="number" step="0.0001" min="0" class="w-32 text-right" :aria-label="`Rate for ${m.description}`" :placeholder="money(m.rate, false)" />
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <FormField class="mt-3" label="Reason" required :error="adjustForm.errors.reason" hint="Why these rates: a quote from the supplier, a price rise, a lot already in stock.">
+                    <TextInput v-model="adjustForm.reason" maxlength="255" />
+                </FormField>
+            </template>
+            <template #footer>
+                <Button @click="adjusting = null">Back</Button>
+                <Button variant="primary" :loading="adjustForm.processing" :disabled="!adjustForm.reason.trim()" @click="saveAdjust">Use these rates</Button>
             </template>
         </Modal>
     </AppLayout>

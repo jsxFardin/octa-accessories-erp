@@ -31,6 +31,7 @@ CREATE TABLE quotation_lines (
     tax_id          BIGINT UNSIGNED,
     line_total      DECIMAL(18,4) NOT NULL DEFAULT 0,
     lead_time_days  SMALLINT UNSIGNED,
+    cost_overrides  JSON,                                              -- the knobs the merchandiser turned on this line: {overhead_pct, admin_pct, customer_pays_tooling}
     UNIQUE KEY quotation_lines_uq (quotation_id, line_no),
     KEY quotation_lines_product_idx (product_id),
     KEY quotation_lines_spec_idx (product_spec_id),

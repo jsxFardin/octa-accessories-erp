@@ -1196,6 +1196,7 @@ CREATE TABLE quotation_lines (
     tax_id          BIGINT UNSIGNED,
     line_total      DECIMAL(18,4) NOT NULL DEFAULT 0,
     lead_time_days  SMALLINT UNSIGNED,
+    cost_overrides  JSON,                                              -- the knobs the merchandiser turned on this line: {overhead_pct, admin_pct, customer_pays_tooling}
     UNIQUE KEY quotation_lines_uq (quotation_id, line_no),
     KEY quotation_lines_product_idx (product_id),
     KEY quotation_lines_spec_idx (product_spec_id),
@@ -1376,6 +1377,7 @@ CREATE TABLE sales_order_lines (
     under_tolerance_pct DECIMAL(9,4) NOT NULL DEFAULT 5,
     promised_date       DATE,
     status              VARCHAR(20) NOT NULL DEFAULT 'open',
+    cost_overrides      JSON,                                          -- rates the clerk set before confirm, with the reason: {rates: {"item:7": 1490}, reason, by, at}
     UNIQUE KEY sales_order_lines_uq (sales_order_id, line_no),
     KEY sales_order_lines_product_idx (product_id),
     KEY sales_order_lines_spec_idx (product_spec_id),

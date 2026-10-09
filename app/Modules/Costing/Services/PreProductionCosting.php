@@ -44,6 +44,7 @@ class PreProductionCosting
             $sheet = $this->sheets->estimate($line->product, (float) $line->ordered_qty, [
                 'marginPct' => $this->settings->decimal('default_margin_pct', 20),
                 'exchangeRate' => (float) ($order->exchange_rate ?? 1),
+                'materialRates' => self::materialRates($line->cost_overrides),
             ], $line->spec);
 
             if ($sheet === null) {
@@ -64,6 +65,32 @@ class PreProductionCosting
         }
 
         return $rows;
+    }
+
+    /**
+     * The rates a clerk set on the line before confirm, keyed the way the calculators read
+     * them: an item id for a product costed from its bill, a cost type for a label sheet.
+     *
+     * @param  array<string, mixed>|null  $overrides  {rates: {"item:7": 1490, "type:material_yarn": 1500}, reason}
+     * @return array<int|string, float>
+     */
+    public static function materialRates(?array $overrides): array
+    {
+        $rates = [];
+
+        foreach ($overrides['rates'] ?? [] as $key => $rate) {
+            if ($rate === null || $rate === '' || (float) $rate <= 0) {
+                continue;
+            }
+
+            if (str_starts_with((string) $key, 'item:')) {
+                $rates[(int) substr((string) $key, 5)] = (float) $rate;
+            } elseif (str_starts_with((string) $key, 'type:')) {
+                $rates[substr((string) $key, 5)] = (float) $rate;
+            }
+        }
+
+        return $rates;
     }
 
     /**

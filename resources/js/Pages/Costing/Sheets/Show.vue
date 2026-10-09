@@ -270,6 +270,10 @@ const revisionColumns = [
                         <div v-if="sheet.incoterm" class="flex justify-between gap-3"><dt class="text-ink-500">Terms</dt><dd>{{ sheet.incoterm }}</dd></div>
                         <div class="flex justify-between gap-3"><dt class="text-ink-500">Overhead</dt><dd class="tnum">{{ pct(sheet.overhead_pct, 0) }} factory + {{ pct(sheet.admin_pct, 0) }} admin</dd></div>
                         <div v-if="sheet.gross_metres" class="flex justify-between gap-3"><dt class="text-ink-500">Gross metres</dt><dd class="tnum">{{ number(sheet.gross_metres, 2) }} m · {{ pct(sheet.total_wastage_pct, 1) }} wastage</dd></div>
+                        <div v-if="sheet.adjustment" class="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
+                            <p class="font-medium">Rates set by hand before confirm</p>
+                            <p>{{ sheet.adjustment.reason }}<span v-if="sheet.adjustment.by" class="text-amber-800/80"> · {{ sheet.adjustment.by }}</span></p>
+                        </div>
                         <div class="flex justify-between gap-3 border-t border-slate-100 pt-2"><dt class="text-ink-500">Costed</dt><dd class="text-right">{{ date(sheet.created_at) }}<span v-if="sheet.created_by" class="block text-xs text-ink-500">{{ sheet.created_by }}</span></dd></div>
                         <div v-if="sheet.submitted_at" class="flex justify-between gap-3"><dt class="text-ink-500">Submitted</dt><dd class="text-right">{{ date(sheet.submitted_at) }}<span class="block text-xs text-ink-500">{{ sheet.submitted_by }}</span></dd></div>
                         <div v-if="sheet.approved_at" class="flex justify-between gap-3"><dt class="text-ink-500">Approved</dt><dd class="text-right">{{ date(sheet.approved_at) }}<span class="block text-xs text-ink-500">{{ sheet.approved_by ?? 'System' }}</span></dd></div>

@@ -229,7 +229,8 @@ class CostSheetService
             spec: $spec->toCalculatorInput($product->product_type),
             orderQtyPcs: $orderQtyPcs,
             routing: $this->routingSteps($product),
-            materialRates: $overrides['materialRates'] ?? $this->materialRates($product),
+            // A rate set by hand ("yarn is 1,500 this week") replaces the bill's for that type only.
+            materialRates: array_merge($this->materialRates($product), array_filter($overrides['materialRates'] ?? [], fn ($key): bool => is_string($key), ARRAY_FILTER_USE_KEY)),
             colourWeights: $spec->colourWeights(),
             labourRatePerHour: (float) ($overrides['labourRatePerHour'] ?? $this->settings->decimal('labour_rate_per_hour', 80)),
             tariffPerKwh: (float) ($overrides['tariffPerKwh'] ?? $this->settings->decimal('tariff_per_kwh', 12)),
