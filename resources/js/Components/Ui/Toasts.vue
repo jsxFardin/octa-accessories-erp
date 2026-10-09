@@ -40,14 +40,14 @@ const TONES = {
     <!-- aria-live: flash messages are the only confirmation most writes get; without a live
          region a screen-reader user saves and hears nothing. Errors interrupt (assertive). -->
     <div
-        class="pointer-events-none fixed right-4 bottom-4 z-[100] flex w-full max-w-sm flex-col gap-2"
+        class="pointer-events-none fixed top-16 right-4 left-4 z-[100] flex flex-col gap-2 sm:left-auto sm:w-full sm:max-w-sm"
         aria-live="polite"
     >
         <TransitionGroup
             enter-active-class="transition duration-200"
-            enter-from-class="translate-y-3 opacity-0"
+            enter-from-class="-translate-y-3 opacity-0"
             leave-active-class="transition duration-150"
-            leave-to-class="translate-y-3 opacity-0"
+            leave-to-class="-translate-y-3 opacity-0"
         >
             <div
                 v-for="toast in toasts"
