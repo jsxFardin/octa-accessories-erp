@@ -876,6 +876,7 @@ class ReferenceDataSeeder extends Seeder
         return [
             'inquiry' => ['INQ', 5],
             'quotation' => ['QTN', 5],
+            'cost_sheet' => ['CS', 5],
             'sales_order' => ['SO', 5],
             'job_card' => ['JC', 6],
             'purchase_requisition' => ['PR', 5],

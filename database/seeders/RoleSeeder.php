@@ -37,7 +37,7 @@ class RoleSeeder extends Seeder
             'grants' => [
                 '*:read',
                 'cost_sheet.override_margin', 'sales_order.release_credit_hold', 'sales_order.short_close',
-                'sales_order.confirm', 'sales_order.confirm_below_margin',
+                'sales_order.confirm', 'sales_order.confirm_below_margin', 'cost_sheet.approve',
                 'sales_order.override_tolerance',   // BR-44 — shipping outside the band is an MD sign-off
                 'delivery_challan.issue',           // …and the MD issues that exceptional challan personally
                 'sales_order.progress',             // whose side effect advances the order's fulfilment status
@@ -53,6 +53,23 @@ class RoleSeeder extends Seeder
                 'user.*', 'role.*', 'setting.*', 'number_sequence.*', 'audit_log.*', 'employee.*',
                 'item.*', 'machine.*', 'customer.*', 'supplier.*', 'warehouse.*', 'uom.*',
                 'currency.*', 'tax.*', 'reference_data.*', 'bank_account.*', 'report:read',
+            ],
+        ],
+
+        /*
+         * Spec §4 — costing is its own function. The clerk builds and submits sheets, explains
+         * variances and keeps the rate master; approving a sheet, and accepting a margin under
+         * the floor, stay with the sales manager and the Managing Director.
+         */
+        'costing' => [
+            'label' => 'Costing',
+            'grants' => [
+                'cost_sheet:read', 'cost_sheet.create', 'cost_sheet.update', 'cost_sheet.submit', 'cost_sheet.explain', 'cost_sheet.export',
+                'rate_master.*', 'report.view', 'report.view_any', 'report.export',
+                'quotation:read', 'sales_order:read', 'job_card:read', 'product:read', 'product_spec:read', 'bom:read',
+                'routing:read', 'item:read', 'machine:read', 'customer:read', 'supplier:read', 'purchase_order:read', 'grn:read',
+                // Feeding the job's wastage back to the item is the clerk's call (spec §4).
+                'item.update', 'setting:read',
             ],
         ],
 
@@ -73,7 +90,7 @@ class RoleSeeder extends Seeder
                 'inquiry.*', 'quotation.*', 'cost_sheet.*', 'sales_order.*', 'sample_request.*',
                 'price_list.*',
                 'customer.*', 'artwork.*', 'export_document.*',
-                'cost_sheet.override_margin', 'sales_order.short_close',
+                'cost_sheet.override_margin', 'cost_sheet.approve', 'sales_order.short_close',
                 'product:read', 'product_spec:read', 'bom:read', 'item:read', 'job_card:read',
                 'stock_lot:read', 'sales_invoice:read', 'credit_note:read', 'report.*',
             ],
@@ -347,7 +364,7 @@ class RoleSeeder extends Seeder
      *
      * @var list<string>
      */
-    private const EXPLICIT_ONLY = ['sales_order.confirm_below_margin'];
+    private const EXPLICIT_ONLY = ['sales_order.confirm_below_margin', 'cost_sheet.override_margin', 'cost_sheet.approve'];
 
     private function expand(array $grants, array $catalogue): array
     {

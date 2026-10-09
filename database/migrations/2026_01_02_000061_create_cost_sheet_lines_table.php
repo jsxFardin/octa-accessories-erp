@@ -30,6 +30,8 @@ CREATE TABLE cost_sheet_lines (
     qty              DECIMAL(18,6) NOT NULL DEFAULT 0,
     rate             DECIMAL(18,6) NOT NULL DEFAULT 0,
     amount           DECIMAL(18,4) NOT NULL DEFAULT 0,
+    per_unit         DECIMAL(18,6) NOT NULL DEFAULT 0,          -- cost per costing unit, stored so print and variance never recompute it apart
+    pct_of_price     DECIMAL(9,4)  NOT NULL DEFAULT 0,          -- this line's share of the price
     formula_ref      VARCHAR(20),
     UNIQUE KEY cost_sheet_lines_uq (cost_sheet_id, sequence_no),
     KEY cost_sheet_lines_item_idx (item_id),

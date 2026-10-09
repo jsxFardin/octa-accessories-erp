@@ -5,11 +5,33 @@ declare(strict_types=1);
 namespace App\Modules\Costing\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
+ * A cost sheet: one costing of one product at one quantity, at one of the three stages
+ * (spec §4). A marketing sheet is the quotation's; the pre-production sheet is the order's
+ * benchmark, locked at confirmation; the post-production sheet is the job's actuals.
+ *
  * @property int $id
+ * @property string|null $number
+ * @property int $revision_no
+ * @property string $stage
+ * @property string $status
  * @property int|null $quotation_line_id
+ * @property int|null $sales_order_line_id
+ * @property int|null $job_card_id
+ * @property string $costing_per
+ * @property int|null $currency_id
+ * @property string $exchange_rate
+ * @property string|null $incoterm
+ * @property string|null $revenue_per_unit
+ * @property string|null $variance_reason
+ * @property \Illuminate\Support\Carbon|null $locked_at
+ * @property int|null $submitted_by
+ * @property \Illuminate\Support\Carbon|null $submitted_at
+ * @property int|null $approved_by
+ * @property \Illuminate\Support\Carbon|null $approved_at
  * @property int|null $product_id
  * @property int|null $product_spec_id
  * @property string $basis_qty
@@ -35,6 +57,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class CostSheet extends Model
 {
+    use \App\Support\Audit\Auditable;
+
     protected $table = 'cost_sheets';
 
     public const UPDATED_AT = null;
@@ -45,14 +69,29 @@ class CostSheet extends Model
 
     public const POST_PRODUCTION = 'post_production';
 
+    public const DRAFT = 'draft';
+
+    public const SUBMITTED = 'submitted';
+
+    public const APPROVED = 'approved';
+
+    public const REJECTED = 'rejected';
+
     protected $fillable = [
+        'number',
+        'revision_no',
         'stage',
+        'status',
         'quotation_line_id',
         'sales_order_line_id',
         'job_card_id',
         'product_id',
         'product_spec_id',
         'basis_qty',
+        'costing_per',
+        'currency_id',
+        'exchange_rate',
+        'incoterm',
         'gross_metres',
         'total_wastage_pct',
         'overhead_pct',
@@ -73,6 +112,10 @@ class CostSheet extends Model
         'variance_reason',
         'is_locked',
         'locked_at',
+        'submitted_by',
+        'submitted_at',
+        'approved_by',
+        'approved_at',
         'created_by',
     ];
 
@@ -85,6 +128,14 @@ class CostSheet extends Model
             'job_card_id' => 'integer',
             'revenue_per_unit' => 'decimal:6',
             'locked_at' => 'datetime',
+            'revision_no' => 'integer',
+            'costing_per' => 'decimal:6',
+            'currency_id' => 'integer',
+            'exchange_rate' => 'decimal:6',
+            'submitted_by' => 'integer',
+            'submitted_at' => 'datetime',
+            'approved_by' => 'integer',
+            'approved_at' => 'datetime',
             'product_id' => 'integer',
             'product_spec_id' => 'integer',
             'basis_qty' => 'decimal:6',
@@ -114,5 +165,53 @@ class CostSheet extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(CostSheetLine::class, 'cost_sheet_id')->orderBy('sequence_no');
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Product\Models\Product::class);
+    }
+
+    public function quotationLine(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Sales\Models\QuotationLine::class);
+    }
+
+    public function salesOrderLine(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Sales\Models\SalesOrderLine::class);
+    }
+
+    public function jobCard(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Manufacturing\Models\JobCard::class);
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\Currency::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'created_by');
+    }
+
+    public function submitter(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'submitted_by');
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'approved_by');
+    }
+
+    /** The margin the price leaves, against the stored price per unit; null without a price. */
+    public function marginPct(): ?float
+    {
+        $revenue = $this->revenue_per_unit === null ? null : (float) $this->revenue_per_unit;
+
+        return $revenue === null || $revenue <= 0 ? null : round(($revenue - (float) $this->unit_cost) / $revenue * 100, 4);
     }
 }

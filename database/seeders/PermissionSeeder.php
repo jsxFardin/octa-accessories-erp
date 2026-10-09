@@ -62,7 +62,10 @@ class PermissionSeeder extends Seeder
         // Commercial
         'inquiry' => ['Commercial', ['submit', 'close']],
         'quotation' => ['Commercial', ['send', 'revise', 'accept', 'reject']],
-        'cost_sheet' => ['Commercial', ['override_margin']],
+        // A sheet is submitted by the costing clerk and approved by someone who may sign off
+        // the margin; `explain` records the reason behind a variance on a locked sheet.
+        'cost_sheet' => ['Commercial', ['override_margin', 'submit', 'approve', 'explain']],
+        'rate_master' => ['Commercial', []],
         'price_list' => ['Commercial', []],
         // `progress` moves an order along its fulfilment statuses (in_production,
         // partially_delivered, delivered) without granting line edits (P0-4.3).

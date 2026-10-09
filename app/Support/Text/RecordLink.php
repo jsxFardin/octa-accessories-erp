@@ -38,7 +38,7 @@ final class RecordLink
         'MaterialIssue' => '/material-issues', 'StockTransfer' => '/stock-transfers',
         'StockAdjustment' => '/stock-adjustments', 'PhysicalCount' => '/physical-counts',
         'QcInspection' => '/qc-inspections', 'Ncr' => '/ncrs', 'TestReport' => '/lab/reports',
-        'Artwork' => '/artworks', 'Bom' => '/boms', 'ProductionPlan' => '/planning',
+        'Artwork' => '/artworks', 'Bom' => '/boms', 'ProductionPlan' => '/planning', 'CostSheet' => '/costing/sheets',
     ];
 
     /** @var array<string, string> lists without a page per row */

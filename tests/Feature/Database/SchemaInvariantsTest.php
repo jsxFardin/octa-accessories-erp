@@ -284,8 +284,9 @@ it('loads every object the specification promises', function (): void {
     // 450: `job_cards.parent_job_card_id`, a component made for another job (family flow).
     // 452 and 191: the three costing stages (spec §4) — a sheet belongs to a quotation line,
     // a sales order line or a job card, and names its stage.
+    // 455 and 192: the cost sheet as a document (currency, submitter, approver; a status).
     expect($tables)->toBe(164)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(452)
-        ->and($checks)->toBe(191);
+        ->and($foreignKeys)->toBe(455)
+        ->and($checks)->toBe(192);
 });

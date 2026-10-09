@@ -38,6 +38,7 @@ class UserSeeder extends Seeder
         ['name' => 'Belal Uddin', 'email' => 'dispatch@octapussolution.com', 'role' => 'dispatch_officer', 'department' => 'DISP'],
         ['name' => 'Sohel Mia', 'email' => 'driver@octapussolution.com', 'role' => 'driver', 'department' => 'DISP'],
         ['name' => 'Ruma Chowdhury', 'email' => 'accounts@octapussolution.com', 'role' => 'accounts', 'department' => null],
+        ['name' => 'Farhana Islam', 'email' => 'costing@octapussolution.com', 'role' => 'costing', 'department' => null],
         ['name' => 'External Auditor', 'email' => 'auditor@octapussolution.com', 'role' => 'read_only', 'department' => null],
     ];
 

@@ -133,6 +133,20 @@ export const navigation = [
         ],
     },
     {
+        /*
+         * Costing is its own function (spec §4): the clerk's list of every sheet across the
+         * three stages, the variance between benchmark and actual, and the rates the sheets
+         * draw on. The sheets are still made where the work happens — on the quotation, at
+         * the order's confirmation, at the job's close.
+         */
+        label: 'Costing',
+        items: [
+            { label: 'Cost sheets', href: '/costing/sheets', icon: 'quote', aliases: ['costing', 'cost sheet'], permissions: ['cost_sheet.view_any'] },
+            { label: 'Cost variance', href: '/reports/cost-variance', icon: 'reports', aliases: ['variance'], permissions: ['report.view'], requires: ['cost_sheet.view_any'] },
+            { label: 'Rate master', href: '/costing/rates', icon: 'money', aliases: ['rates', 'labour rate', 'overhead'], permissions: ['rate_master.view_any'] },
+        ],
+    },
+    {
         label: 'Reports',
         /*
          * Each report also `requires` sight of the documents it is about. `report.view` alone

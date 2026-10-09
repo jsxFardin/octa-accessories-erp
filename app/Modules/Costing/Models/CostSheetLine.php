@@ -37,6 +37,8 @@ class CostSheetLine extends Model
         'qty',
         'rate',
         'amount',
+        'per_unit',
+        'pct_of_price',
         'formula_ref',
     ];
 

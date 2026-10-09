@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Modules\Compliance\Http\Controllers\ComplianceController;
+use App\Modules\Costing\Http\Controllers\CostingController;
 use App\Modules\Costing\Http\Controllers\CostSheetController;
 use App\Modules\Dispatch\Http\Controllers\DeliveryChallanController;
 use App\Modules\Dispatch\Http\Controllers\PackingListController;
@@ -297,7 +298,13 @@ Route::middleware('auth')->group(function (): void {
     Route::put('cost-sheets/{costSheet}', [CostSheetController::class, 'update'])
         ->middleware('can:cost_sheet.update')->name('cost-sheets.update');
     Route::post('cost-sheets/{costSheet}/reason', [CostSheetController::class, 'reason'])
-        ->middleware('can:cost_sheet.update')->name('cost-sheets.reason');
+        ->middleware('can:cost_sheet.explain')->name('cost-sheets.reason');
+
+    // Spec §4 — costing as its own function: every sheet in one list, every rate in one place.
+    Route::get('costing/sheets', [CostingController::class, 'sheets'])
+        ->middleware('can:cost_sheet.view_any')->name('costing.sheets');
+    Route::get('costing/rates', [CostingController::class, 'rates'])
+        ->middleware('can:rate_master.view_any')->name('costing.rates');
     Route::post('cost-sheets/{costSheet}/adopt-wastage', [CostSheetController::class, 'adoptWastage'])
         ->middleware('can:item.update')->name('cost-sheets.adopt-wastage');
 

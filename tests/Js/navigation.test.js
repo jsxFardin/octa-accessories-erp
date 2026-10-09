@@ -67,6 +67,7 @@ describe('sidebar visibility', () => {
             'Quality',
             'Dispatch',
             'Money',
+            'Costing',
             'Reports',
             'Setup',
             'Settings',
