@@ -424,6 +424,9 @@ class QuotationController extends Controller
         $payload['lines'] = $quotation->lines->map(fn ($line): array => [
             ...$line->toArray(),
             'extra_costs' => \App\Modules\Costing\CostComponents::fromLines($sheets->get($line->id)?->lines ?? []),
+            'overhead_pct' => $line->cost_overrides['overhead_pct'] ?? '',
+            'admin_pct' => $line->cost_overrides['admin_pct'] ?? '',
+            'customer_pays_tooling' => (bool) ($line->cost_overrides['customer_pays_tooling'] ?? false),
         ])->all();
 
         return Inertia::render('Sales/Quotations/Form', [
@@ -548,6 +551,11 @@ class QuotationController extends Controller
             'lines.*.tooling_charge' => ['nullable', 'numeric', 'min:0'],
             'lines.*.margin_pct' => ['nullable', 'numeric', 'min:0', 'lt:100'],
             'lines.*.lead_time_days' => ['nullable', 'integer', 'min:0'],
+            // Spec §4 — the knobs the engine already had: overhead and admin % for this line
+            // alone, and whether the buyer pays for the tool (then it leaves the rate).
+            'lines.*.overhead_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'lines.*.admin_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'lines.*.customer_pays_tooling' => ['nullable', 'boolean'],
             // Spec §4 — the other-cost components of the line's sheet.
             'lines.*.extra_costs' => ['nullable', 'array'],
             'lines.*.extra_costs.*.key' => ['required', 'string', 'max:40'],
@@ -632,6 +640,7 @@ class QuotationController extends Controller
                 'tooling_charge' => $line['tooling_charge'] ?? 0,
                 'line_total' => $lineTotal,
                 'lead_time_days' => $line['lead_time_days'] ?? null,
+                'cost_overrides' => self::lineKnobs($line),
             ]);
 
             $product = $line['product_id'] === null
@@ -651,6 +660,9 @@ class QuotationController extends Controller
                         'marginPct' => $line['margin_pct'] ?? $this->settings->decimal('default_margin_pct', 20),
                         'exchangeRate' => (float) $quotation->exchange_rate,
                         'extraCosts' => $line['extra_costs'] ?? [],
+                        'overheadPct' => $line['overhead_pct'] ?? null,
+                        'adminPct' => $line['admin_pct'] ?? null,
+                        'customerPaysTooling' => (bool) ($line['customer_pays_tooling'] ?? false),
                     ],
                     $model->id,
                 );
@@ -672,6 +684,23 @@ class QuotationController extends Controller
         ])->save();
     }
 
+    /**
+     * The knobs set on a line, or nothing when every one was left at the factory's setting.
+     *
+     * @param  array<string, mixed>  $line
+     * @return array<string, mixed>|null
+     */
+    private static function lineKnobs(array $line): ?array
+    {
+        $knobs = array_filter([
+            'overhead_pct' => isset($line['overhead_pct']) && $line['overhead_pct'] !== '' ? (float) $line['overhead_pct'] : null,
+            'admin_pct' => isset($line['admin_pct']) && $line['admin_pct'] !== '' ? (float) $line['admin_pct'] : null,
+            'customer_pays_tooling' => ! empty($line['customer_pays_tooling']) ? true : null,
+        ], fn ($value): bool => $value !== null);
+
+        return $knobs === [] ? null : $knobs;
+    }
+
     /** @return array<string, mixed> */
     private function formOptions(): array
     {
@@ -682,6 +711,8 @@ class QuotationController extends Controller
             'products' => Product::query()->active()->with('currentSpec:id,product_id,version_no')
                 ->get(['id', 'item_id', 'customer_id', 'product_type'])->sortBy('code')->values(),
             'defaultMarginPct' => $this->settings->decimal('default_margin_pct', 20),
+            'defaultOverheadPct' => $this->settings->decimal('overhead_pct', 12),
+            'defaultAdminPct' => $this->settings->decimal('admin_pct', 5),
             'marginFloorPct' => $this->settings->decimal('margin_floor_pct', 12),
             'costComponents' => \App\Modules\Costing\CostComponents::DEFAULTS,
         ];

@@ -29,6 +29,8 @@ const props = defineProps({
     currencies: { type: Array, default: () => [] },
     products: { type: Array, default: () => [] },
     defaultMarginPct: { type: [Number, String], default: 20 },
+    defaultOverheadPct: { type: [Number, String], default: 12 },
+    defaultAdminPct: { type: [Number, String], default: 5 },
     marginFloorPct: { type: [Number, String], default: 12 },
     /** Spec §4 — the other-cost components a line's sheet may carry: commission, finance, logistics… */
     costComponents: { type: Array, default: () => [] },
@@ -51,6 +53,10 @@ function blankLine() {
         lead_time_days: '',
         // Spec §4 — commission, finance, logistics, inspection…: `[{ key, label, basis, value }]`.
         extra_costs: [],
+        // The factory's overhead and admin % unless this line says otherwise; a tool the buyer pays for leaves the rate.
+        overhead_pct: '',
+        admin_pct: '',
+        customer_pays_tooling: false,
     };
 }
 
@@ -61,6 +67,7 @@ function blankLine() {
  */
 const otherCostsFor = ref(null);
 const otherCostsDraft = ref([]);
+const knobsDraft = ref({ overhead_pct: '', admin_pct: '', customer_pays_tooling: false });
 
 function openOtherCosts(index) {
     const line = form.lines[index];
@@ -75,11 +82,16 @@ function openOtherCosts(index) {
         })),
         ...(line.extra_costs ?? []).filter((entry) => !props.costComponents.some((c) => c.key === entry.key)),
     ];
+    knobsDraft.value = { overhead_pct: line.overhead_pct ?? '', admin_pct: line.admin_pct ?? '', customer_pays_tooling: Boolean(line.customer_pays_tooling) };
     otherCostsFor.value = index;
 }
 
 function saveOtherCosts() {
     const line = form.lines[otherCostsFor.value];
+
+    line.overhead_pct = knobsDraft.value.overhead_pct === '' ? '' : Number(knobsDraft.value.overhead_pct);
+    line.admin_pct = knobsDraft.value.admin_pct === '' ? '' : Number(knobsDraft.value.admin_pct);
+    line.customer_pays_tooling = Boolean(knobsDraft.value.customer_pays_tooling);
 
     line.extra_costs = otherCostsDraft.value
         .filter((entry) => Number(entry.value) > 0)
@@ -88,6 +100,14 @@ function saveOtherCosts() {
 }
 
 const BASIS_LABELS = { pct_of_price: '% of price', per_unit: 'per unit', amount: 'for the order' };
+
+/** How many things this line sets beyond material and conversion: components plus turned knobs. */
+function knobCount(line) {
+    return (line.extra_costs ?? []).length
+        + (line.overhead_pct !== '' && line.overhead_pct != null ? 1 : 0)
+        + (line.admin_pct !== '' && line.admin_pct != null ? 1 : 0)
+        + (line.customer_pays_tooling ? 1 : 0);
+}
 
 function otherCostsSummary(line) {
     const entries = line.extra_costs ?? [];
@@ -240,6 +260,9 @@ async function priceLine(line) {
                 qty: Number(line.qty),
                 margin_pct: Number(line.margin_pct),
                 extra_costs: line.extra_costs ?? [],
+                overhead_pct: line.overhead_pct === '' || line.overhead_pct == null ? null : Number(line.overhead_pct),
+                admin_pct: line.admin_pct === '' || line.admin_pct == null ? null : Number(line.admin_pct),
+                customer_pays_tooling: Boolean(line.customer_pays_tooling),
                 exchange_rate: Number(form.exchange_rate) || 1,
                 currency: props.currencies.find((c) => c.id === Number(form.currency_id))?.code,
             }),
@@ -268,7 +291,7 @@ async function priceLine(line) {
 const signatures = new WeakMap();
 
 watch(
-    () => form.lines.map((line) => `${line.product_id}|${line.qty}|${line.margin_pct}|${JSON.stringify(line.extra_costs ?? [])}`),
+    () => form.lines.map((line) => `${line.product_id}|${line.qty}|${line.margin_pct}|${JSON.stringify(line.extra_costs ?? [])}|${line.overhead_pct}|${line.admin_pct}|${line.customer_pays_tooling}`),
     (now) => {
         form.lines.forEach((line, index) => {
             if (signatures.get(line) !== now[index]) {
@@ -297,7 +320,7 @@ onMounted(() => {
     }
 
     form.lines.forEach((line) => {
-        signatures.set(line, `${line.product_id}|${line.qty}|${line.margin_pct}|${JSON.stringify(line.extra_costs ?? [])}`);
+        signatures.set(line, `${line.product_id}|${line.qty}|${line.margin_pct}|${JSON.stringify(line.extra_costs ?? [])}|${line.overhead_pct}|${line.admin_pct}|${line.customer_pays_tooling}`);
 
         if (line.product_id && line.qty) priceLine(line);
     });
@@ -633,7 +656,7 @@ const columns = [
                         <template #cell:other_costs="{ line, index }">
                             <div class="text-right">
                                 <Button size="xs" variant="ghost" :title="otherCostsSummary(line) ?? 'Commission, finance, logistics, inspection, development…'" @click="openOtherCosts(index)">
-                                    {{ (line.extra_costs ?? []).length ? `${line.extra_costs.length} set` : 'Add' }}
+                                    {{ knobCount(line) ? `${knobCount(line)} set` : 'Add' }}
                                 </Button>
                             </div>
                         </template>
@@ -859,6 +882,19 @@ const columns = [
             width="max-w-2xl"
             @update:open="otherCostsFor = null"
         >
+            <!-- The rates this line is costed at, when the factory's own are not right for it. -->
+            <div class="mb-4 grid gap-3 sm:grid-cols-3">
+                <FormField label="Factory overhead" hint="Blank: the setting.">
+                    <div class="flex items-center gap-2"><TextInput v-model="knobsDraft.overhead_pct" type="number" step="0.1" min="0" max="100" numeric :placeholder="String(defaultOverheadPct)" aria-label="Factory overhead %" /><span class="text-xs text-ink-500">%</span></div>
+                </FormField>
+                <FormField label="Administrative overhead" hint="Blank: the setting.">
+                    <div class="flex items-center gap-2"><TextInput v-model="knobsDraft.admin_pct" type="number" step="0.1" min="0" max="100" numeric :placeholder="String(defaultAdminPct)" aria-label="Administrative overhead %" /><span class="text-xs text-ink-500">%</span></div>
+                </FormField>
+                <FormField label="Tooling" hint="A tool the buyer pays for leaves the rate.">
+                    <label class="flex h-9 items-center gap-2 text-sm text-ink-700"><input v-model="knobsDraft.customer_pays_tooling" type="checkbox" class="form-checkbox" /> Customer pays for the tool</label>
+                </FormField>
+            </div>
+
             <table class="min-w-full text-sm">
                 <thead class="text-xs text-ink-500">
                     <tr><th class="py-1 text-left">Component</th><th class="py-1 text-left">Basis</th><th class="py-1 text-right">Value</th></tr>

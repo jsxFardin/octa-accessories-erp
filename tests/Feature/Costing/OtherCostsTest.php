@@ -86,6 +86,38 @@ it('persists the components with the quotation line and hands them back to the f
         ->assertInertia(fn ($page) => expect($page->toArray()['props']['quotation']['lines'][0]['extra_costs'])->toHaveCount(2));
 });
 
+it('lets a line set its own overhead and admin % and say the buyer pays for the tool, and hands them back to the form', function (): void {
+    $customer = DB::table('customers')->value('id');
+    $currency = DB::table('currencies')->where('code', 'BDT')->value('id') ?? DB::table('currencies')->value('id');
+
+    $this->post('/quotations', [
+        'customer_id' => $customer, 'currency_id' => $currency, 'exchange_rate' => 1,
+        'quotation_date' => now()->toDateString(), 'valid_until' => now()->addDays(30)->toDateString(),
+        'lines' => [[
+            'product_id' => $this->product->id, 'product_spec_id' => $this->product->currentSpec?->id,
+            'description' => 'Care label', 'qty' => 10000, 'margin_pct' => 20,
+            'overhead_pct' => 15, 'admin_pct' => 3, 'customer_pays_tooling' => true,
+        ]],
+    ])->assertSessionHasNoErrors();
+
+    $quotation = Quotation::query()->latest('id')->firstOrFail();
+    $line = $quotation->lines()->firstOrFail();
+    $sheet = CostSheet::query()->where('quotation_line_id', $line->id)->with('lines')->firstOrFail();
+
+    expect($line->cost_overrides)->toEqualCanonicalizing(['overhead_pct' => 15, 'admin_pct' => 3, 'customer_pays_tooling' => true])
+        ->and((float) $sheet->overhead_pct)->toBe(15.0)
+        ->and((float) $sheet->admin_pct)->toBe(3.0)
+        ->and((float) $sheet->tooling_cost)->toBe(0.0)
+        ->and($sheet->lines->where('cost_type', 'tooling'))->toBeEmpty();
+
+    $this->get("/quotations/{$quotation->id}/edit")
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('quotation.lines.0.overhead_pct', 15)
+            ->where('quotation.lines.0.admin_pct', 3)
+            ->where('quotation.lines.0.customer_pays_tooling', true));
+});
+
 it('sends a quotation under the margin floor only on an approved sheet, or by someone who may accept the margin', function (): void {
     $customer = DB::table('customers')->value('id');
     $currency = DB::table('currencies')->where('code', 'BDT')->value('id') ?? DB::table('currencies')->value('id');

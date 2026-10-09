@@ -79,8 +79,8 @@ class CostSheetService
                 'basis_qty' => $basisQty,
                 'gross_metres' => $attributes['gross_metres'] ?? null,
                 'total_wastage_pct' => $attributes['total_wastage_pct'] ?? 0,
-                'overhead_pct' => $this->settings->decimal('overhead_pct', 12),
-                'admin_pct' => $this->settings->decimal('admin_pct', 5),
+                'overhead_pct' => (float) ($attributes['overhead_pct'] ?? $this->settings->decimal('overhead_pct', 12)),
+                'admin_pct' => (float) ($attributes['admin_pct'] ?? $this->settings->decimal('admin_pct', 5)),
                 'margin_pct' => $sheet->marginPct,
                 'material_cost' => $sheet->materialCost,
                 'tooling_cost' => $sheet->toolingCost,
@@ -159,7 +159,7 @@ class CostSheetService
             $spec->colourWeights(),
         );
 
-        return DB::transaction(function () use ($sheet, $plan, $product, $spec, $orderQtyPcs, $quotationLineId): CostSheetModel {
+        return DB::transaction(function () use ($sheet, $plan, $product, $spec, $orderQtyPcs, $quotationLineId, $overrides): CostSheetModel {
             $model = CostSheetModel::query()->create([
                 'quotation_line_id' => $quotationLineId,
                 'product_id' => $product->id,
@@ -167,8 +167,9 @@ class CostSheetService
                 'basis_qty' => $orderQtyPcs,
                 'gross_metres' => $plan->grossMetres,
                 'total_wastage_pct' => $plan->totalWastagePct,
-                'overhead_pct' => $sheet->lines !== [] ? $this->settings->decimal('overhead_pct', 12) : 12,
-                'admin_pct' => $this->settings->decimal('admin_pct', 5),
+                // The rates this sheet was actually struck at: the line's own when it set them.
+                'overhead_pct' => (float) ($overrides['overheadPct'] ?? $this->settings->decimal('overhead_pct', 12)),
+                'admin_pct' => (float) ($overrides['adminPct'] ?? $this->settings->decimal('admin_pct', 5)),
                 'margin_pct' => $sheet->marginPct,
                 'material_cost' => $sheet->materialCost,
                 'tooling_cost' => $sheet->toolingCost,
