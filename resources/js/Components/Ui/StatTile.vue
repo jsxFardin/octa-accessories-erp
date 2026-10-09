@@ -40,8 +40,9 @@ const deltaView = computed(() => {
     const delta = props.delta;
 
     if (!delta) return null;
+    // Nothing to compare against yet: the row says so once, under the tiles.
     if (delta.value === null || delta.value === undefined) {
-        return { text: `No ${delta.vs} to compare`, class: 'text-ink-500', icon: null };
+        return null;
     }
 
     const value = Number(delta.value);

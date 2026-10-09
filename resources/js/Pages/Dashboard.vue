@@ -479,6 +479,10 @@ const nextStep = computed(() => props.setup?.steps.find((step) => !step.done) ??
                     :href="tile.href"
                 />
             </section>
+            <!-- Said once: four tiles each explaining "no previous 30 days" read as four problems. -->
+            <p v-if="kpis.some((tile) => tile.delta && (tile.delta.value === null || tile.delta.value === undefined))" class="-mt-2 text-xs text-ink-500">
+                Comparisons with the previous period appear once there is a previous period to compare.
+            </p>
 
             <!-- Where the book stands right now. One strip, still links, still filtered. -->
             <nav v-if="position.length" aria-label="Where the business stands" class="flex flex-wrap overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
