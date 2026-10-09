@@ -3,7 +3,7 @@ import { number } from '@/plugins/formatting';
 import { computed, reactive, ref } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import FloorLayout from '@/Layouts/FloorLayout.vue';
-import { idempotencyKey, queuedOutputFor, useOfflineQueue } from '@/Composables/useOfflineQueue';
+import { idempotencyKey, queuedOutputFor, useOfflineQueue } from '@/composables/useOfflineQueue';
 import NotSent from '@/Components/Floor/NotSent.vue';
 import { guide, label, refusal, unitLabel, WASTE_TYPES } from '@/floor/dictionary';
 

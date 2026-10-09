@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeRejected, rejectedRecords, splitExpired } from '../../resources/js/Composables/useOfflineQueue.js';
+import { describeRejected, rejectedRecords, splitExpired } from '../../resources/js/composables/useOfflineQueue.js';
 
 const HOUR = 60 * 60 * 1000;
 const now = Date.parse('2026-10-05T12:00:00.000Z');
@@ -38,7 +38,7 @@ describe('splitExpired', () => {
 describe('queuedOutputFor', () => {
     // UX audit H-32: a booking that was only queued did not show in the tiles.
     it('adds up what is waiting on this device for one operation', async () => {
-        const { queuedOutputFor } = await import('../../resources/js/Composables/useOfflineQueue.js');
+        const { queuedOutputFor } = await import('../../resources/js/composables/useOfflineQueue.js');
 
         const queue = [
             { url: '/api/v1/operations/7/log', payload: { good_qty: 500, waste_qty: 12, input_qty: 520 } },

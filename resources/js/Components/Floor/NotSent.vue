@@ -2,7 +2,7 @@
 import { number } from '@/plugins/formatting';
 import { computed, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
-import { rejectedRecords, removeRejected } from '@/Composables/useOfflineQueue';
+import { rejectedRecords, removeRejected } from '@/composables/useOfflineQueue';
 import { guide, label, refusal, unitLabel } from '@/floor/dictionary';
 
 /**
