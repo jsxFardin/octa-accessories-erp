@@ -59,8 +59,8 @@
                     ['Material', $money($prof['material']).($prof['material_pct'] !== null ? '  ('.number_format($prof['material_pct'], 1).' %)' : '')],
                     ['Other costs', $money($prof['other']).($prof['other_pct'] !== null ? '  ('.number_format($prof['other_pct'], 1).' %)' : '')],
                     ['Total cost', $money($prof['total_cost'])],
-                    ['Cost per unit', $money($prof['unit_cost'])],
-                    ['Price per unit', $prof['revenue_per_unit'] === null ? '—' : $money($prof['revenue_per_unit'])],
+                    ['Cost per 1,000', $money($prof['unit_cost'] * 1000)],
+                    ['Price per 1,000', $prof['revenue_per_unit'] === null ? '—' : $money($prof['revenue_per_unit'] * 1000)],
                     ['Margin', $prof['margin_pct'] === null ? '—' : $money($prof['margin_amount']).'  ('.number_format($prof['margin_pct'], 1).' %)'],
                 ];
             @endphp
@@ -80,7 +80,7 @@
             <tr class="grand">
                 <td>Total material</td><td class="num">{{ $money($prof['material']) }}</td><td class="num">{{ $pctOrDash($prof['material_pct']) }}</td>
                 <td>Total cost</td><td class="num">{{ $money($prof['total_cost']) }}</td><td class="num">100 %</td>
-                <td>Margin per unit</td><td class="num">{{ $prof['margin_per_unit'] === null ? '—' : $money($prof['margin_per_unit']) }}</td>
+                <td>Margin per 1,000</td><td class="num">{{ $prof['margin_per_unit'] === null ? '—' : $money($prof['margin_per_unit'] * 1000) }}</td>
             </tr>
         </tbody>
     </table>
@@ -95,7 +95,7 @@
                 <th>Unit</th>
                 <th class="num">Rate</th>
                 <th class="num">Amount</th>
-                <th class="num">Per unit</th>
+                <th class="num">Per 1,000</th>
                 <th class="num">% of price</th>
             </tr>
         </thead>
@@ -108,7 +108,7 @@
                     <td>{{ $line['basis'] === 'percentage' ? 'of '.$money($line['percentage_of']) : $line['basis_uom'] }}</td>
                     <td class="num">{{ $line['basis'] === 'percentage' ? '' : number_format($line['rate'], 4) }}</td>
                     <td class="num">{{ $money($line['amount']) }}</td>
-                    <td class="num">{{ number_format($line['per_unit'], 4) }}</td>
+                    <td class="num">{{ $line['basis'] === 'percentage' ? '' : $money($line['per_unit'] * 1000) }}</td>
                     <td class="num">{{ $pctOrDash($line['pct_of_price']) }}</td>
                 </tr>
             @endforeach
@@ -119,7 +119,7 @@
         <p class="label" style="margin-top:6mm">Deviation summary</p>
         <table class="lines">
             <thead>
-                <tr><th>Sheet</th><th>Stage</th><th class="num">Qty</th><th class="num">Material</th><th class="num">Conversion</th><th class="num">Overhead</th><th class="num">Total cost</th><th class="num">Per unit</th><th class="num">Price</th><th class="num">Margin</th></tr>
+                <tr><th>Sheet</th><th>Stage</th><th class="num">Qty</th><th class="num">Material</th><th class="num">Conversion</th><th class="num">Overhead</th><th class="num">Total cost</th><th class="num">Cost / 1,000</th><th class="num">Price / 1,000</th><th class="num">Margin</th></tr>
             </thead>
             <tbody>
                 @foreach ($revisions as $rev)
@@ -131,8 +131,8 @@
                         <td class="num">{{ $money($rev['conversion_cost']) }}</td>
                         <td class="num">{{ $money($rev['overhead_amount']) }}</td>
                         <td class="num">{{ $money($rev['total_cost']) }}</td>
-                        <td class="num">{{ number_format($rev['unit_cost'], 4) }}</td>
-                        <td class="num">{{ $rev['revenue_per_unit'] === null ? '—' : number_format($rev['revenue_per_unit'], 4) }}</td>
+                        <td class="num">{{ $money($rev['unit_cost'] * 1000) }}</td>
+                        <td class="num">{{ $rev['revenue_per_unit'] === null ? '—' : $money($rev['revenue_per_unit'] * 1000) }}</td>
                         <td class="num">{{ $pctOrDash($rev['margin_pct']) }}</td>
                     </tr>
                 @endforeach

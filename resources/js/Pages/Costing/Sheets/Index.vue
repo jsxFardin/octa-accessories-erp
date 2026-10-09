@@ -6,7 +6,7 @@ import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import ExportDialog from '@/Components/Ui/ExportDialog.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
-import { date, money, pcs, pct, titleCase } from '@/plugins/formatting';
+import { date, money, moneyPerThousand, pcs, pct, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
@@ -35,8 +35,8 @@ const columns = [
     { key: 'product_code', label: 'Product', sort: 'product', wrap: true },
     { key: 'customer_name', label: 'Buyer', sort: 'customer' },
     { key: 'basis_qty', label: 'Qty', align: 'right', sort: true },
-    { key: 'unit_cost', label: 'Cost / unit', align: 'right', sort: true },
-    { key: 'revenue_per_unit', label: 'Price / unit', align: 'right', sort: true },
+    { key: 'unit_cost', label: 'Cost / 1,000', align: 'right', sort: true },
+    { key: 'revenue_per_unit', label: 'Price / 1,000', align: 'right', sort: true },
     { key: 'margin', label: 'Margin', align: 'right' },
     { key: 'status', label: 'Status', sort: true },
     { key: 'created_at', label: 'Costed', sort: true },
@@ -106,13 +106,13 @@ function filterStage(key) {
                     <span v-else class="text-ink-400">—</span>
                 </template>
                 <template #cell:product_code="{ row, value }">
-                    <span class="font-medium text-ink-900">{{ value }}</span>
-                    <span class="block text-xs text-ink-500">{{ row.product_name }}</span>
+                    <span class="font-medium whitespace-nowrap text-ink-900">{{ value }}</span>
+                    <span class="block max-w-56 truncate text-xs text-ink-500" :title="row.product_name">{{ row.product_name }}</span>
                 </template>
                 <template #cell:customer_name="{ value }">{{ value ?? '—' }}</template>
                 <template #cell:basis_qty="{ value }">{{ pcs(value) }}</template>
-                <template #cell:unit_cost="{ row, value }">{{ money(value, row.currency) }}</template>
-                <template #cell:revenue_per_unit="{ row, value }">{{ value === null ? '—' : money(value, row.currency) }}</template>
+                <template #cell:unit_cost="{ row, value }">{{ moneyPerThousand(value, row.currency) }}</template>
+                <template #cell:revenue_per_unit="{ row, value }">{{ value === null ? '—' : moneyPerThousand(value, row.currency) }}</template>
                 <template #cell:margin="{ value }">
                     <span v-if="value === null" class="text-ink-400">—</span>
                     <span v-else class="tnum" :class="value < marginFloorPct ? 'font-medium text-rose-700' : ''">{{ pct(value, 1) }}</span>

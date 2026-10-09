@@ -6,7 +6,7 @@
  * and the post-production sheet so the two never disagree.
  */
 import { computed } from 'vue';
-import { money, number, pcs, pct, qty } from '@/plugins/formatting';
+import { baseCurrency, money, moneyPerThousand, number, pcs, pct, qty } from '@/plugins/formatting';
 
 const props = defineProps({
     comparison: { type: Object, required: true },
@@ -20,7 +20,10 @@ const lines = computed(() => props.comparison.line_variance ?? { scale: null, ma
 const showMarketing = computed(() => props.marketing && !!props.comparison.marketing);
 const varianceTone = (value) => (value === null || value === undefined ? '' : value > 0 ? 'text-rose-700' : value < 0 ? 'text-emerald-700' : '');
 const belowFloor = (value) => value != null && value < floor.value;
-const m = (value) => (value === null || value === undefined ? '—' : money(value, props.currency));
+// The currency is said once above the tables, so the cells hold figures only and stay on one line.
+const m = (value) => (value === null || value === undefined ? '—' : money(value, false));
+const k = (value) => (value === null || value === undefined ? '—' : moneyPerThousand(value, false));
+const currencyLabel = computed(() => props.currency ?? baseCurrency());
 // Inside the line tables the currency is said once in the caption, so the figures fit the column.
 const n = (value) => (value === null || value === undefined ? '—' : number(value, 2, 2));
 const scaled = computed(() => lines.value.scale !== null && Math.abs(lines.value.scale - 1) > 0.000001);
@@ -28,31 +31,32 @@ const scaled = computed(() => lines.value.scale !== null && Math.abs(lines.value
 
 <template>
     <div>
+        <p class="px-3 py-1.5 text-xs text-ink-500">Amounts in {{ currencyLabel }}. Rose is over the benchmark, green under.</p>
         <table class="min-w-full text-sm" data-testid="stage-elements">
             <thead class="bg-slate-50 text-xs text-ink-500">
                 <tr>
                     <th class="px-3 py-2 text-left">Element</th>
                     <th v-if="showMarketing" class="px-3 py-2 text-right">Marketing</th>
-                    <th class="px-3 py-2 text-right">Benchmark</th>
-                    <th class="px-3 py-2 text-right">Actual</th>
-                    <th class="px-3 py-2 text-right">Variance / unit</th>
+                    <th class="px-3 py-2 text-right">Benchmark / 1,000</th>
+                    <th class="px-3 py-2 text-right">Actual / 1,000</th>
+                    <th class="px-3 py-2 text-right">Variance / 1,000</th>
                     <th class="px-3 py-2 text-right">Variance, job</th>
                 </tr>
             </thead>
             <tbody>
                 <tr v-for="row in comparison.variance" :key="row.key" class="border-t border-slate-100" :class="row.key === 'total_cost' && 'font-semibold'">
                     <td class="px-3 py-1.5">{{ row.label }}</td>
-                    <td v-if="showMarketing" class="px-3 py-1.5 text-right tnum text-ink-500">{{ m(comparison.marketing.per_unit[row.key]) }}</td>
-                    <td class="px-3 py-1.5 text-right tnum">{{ m(row.pre) }}</td>
-                    <td class="px-3 py-1.5 text-right tnum">{{ m(row.post) }}</td>
-                    <td class="px-3 py-1.5 text-right tnum" :class="varianceTone(row.per_unit)">{{ m(row.per_unit) }}</td>
+                    <td v-if="showMarketing" class="px-3 py-1.5 text-right tnum text-ink-500">{{ k(comparison.marketing.per_unit[row.key]) }}</td>
+                    <td class="px-3 py-1.5 text-right tnum">{{ k(row.pre) }}</td>
+                    <td class="px-3 py-1.5 text-right tnum">{{ k(row.post) }}</td>
+                    <td class="px-3 py-1.5 text-right tnum" :class="varianceTone(row.per_unit)">{{ k(row.per_unit) }}</td>
                     <td class="px-3 py-1.5 text-right tnum" :class="varianceTone(row.total)">{{ m(row.total) }}</td>
                 </tr>
                 <tr class="border-t border-slate-200 bg-slate-50/60">
-                    <td class="px-3 py-1.5">Price per unit</td>
-                    <td v-if="showMarketing" class="px-3 py-1.5 text-right tnum text-ink-500">{{ m(comparison.marketing?.revenue_per_unit) }}</td>
-                    <td class="px-3 py-1.5 text-right tnum">{{ m(comparison.pre?.revenue_per_unit) }}</td>
-                    <td class="px-3 py-1.5 text-right tnum">{{ m(comparison.post?.revenue_per_unit) }}</td>
+                    <td class="px-3 py-1.5">Price / 1,000</td>
+                    <td v-if="showMarketing" class="px-3 py-1.5 text-right tnum text-ink-500">{{ k(comparison.marketing?.revenue_per_unit) }}</td>
+                    <td class="px-3 py-1.5 text-right tnum">{{ k(comparison.pre?.revenue_per_unit) }}</td>
+                    <td class="px-3 py-1.5 text-right tnum">{{ k(comparison.post?.revenue_per_unit) }}</td>
                     <td class="px-3 py-1.5" colspan="2"></td>
                 </tr>
                 <tr class="bg-slate-50/60 font-semibold">
@@ -69,7 +73,7 @@ const scaled = computed(() => lines.value.scale !== null && Math.abs(lines.value
             <div class="border-t border-slate-200 px-3 pt-3 pb-1">
                 <h3 class="text-sm font-semibold text-ink-900">Materials, line by line</h3>
                 <p class="text-xs text-ink-600">
-                    Planned → actual. Usage: more or less of it than planned, at the planned rate. Price: the planned quantity at a different rate. Amounts in {{ currency ?? 'the base currency' }}.
+                    Planned → actual. Usage: more or less of it than planned, at the planned rate. Price: the planned quantity at a different rate.
                     <span v-if="scaled">The benchmark is scaled to the {{ pcs(comparison.post.basis_qty) }} the job made.</span>
                 </p>
             </div>

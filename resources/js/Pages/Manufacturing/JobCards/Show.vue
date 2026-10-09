@@ -1594,7 +1594,7 @@ const bomColumns = [
                 <div v-if="!costing" class="text-sm text-ink-600">Loading…</div>
                 <template v-else>
                     <div class="grid gap-4 lg:grid-cols-3">
-                        <Card class="lg:col-span-2" title="Cost per unit" rule="CS-2" subtitle="Pre-production: this order at the rates of the day it was confirmed. Actual: what was issued, run and received." :padded="false">
+                        <Card class="lg:col-span-2" title="Cost per 1,000 pieces" rule="CS-2" subtitle="Pre-production: this order at the rates of the day it was confirmed. Actual: what was issued, run and received." :padded="false">
                             <StageComparison :comparison="costing" marketing />
                             <p v-if="!costing.post" class="px-3 py-3 text-xs text-ink-600">
                                 The actuals are struck when the job is closed. Until then this shows the benchmark alone.

@@ -49,12 +49,12 @@ class CostSheetPage
         $value = $revenue === null ? null : $revenue * $basis;
 
         // Lines, each with what it costs per costing unit and what share of the price it takes.
-        $lines = array_map(function (array $line) use ($basis, $per, $value): array {
+        $lines = array_map(function (array $line) use ($basis, $value): array {
             $amount = (float) $line['amount'];
 
             return [
                 ...$line,
-                'per_unit' => round($amount / $basis * $per, 6),
+                'per_unit' => round($amount / $basis, 6),
                 'pct_of_price' => $value !== null && $value > 0 && $line['basis'] !== 'percentage' ? round($amount / $value * 100, 2) : null,
                 'is_material' => isset(self::MATERIAL_TYPES[$line['cost_type']]),
                 'is_waste' => in_array($line['cost_type'], ['wastage', 'scrap_credit'], true),
@@ -66,7 +66,7 @@ class CostSheetPage
         $overhead = (float) $sheet->overhead_amount;
         $materialTotal = (float) $sheet->material_cost;
         $otherTotal = (float) $sheet->total_cost - $materialTotal;
-        $unitCost = (float) $sheet->unit_cost * $per;
+        $unitCost = (float) $sheet->unit_cost;
         $marginAmount = $value === null ? null : round($value - (float) $sheet->total_cost, 4);
         $floor = $this->settings->decimal('margin_floor_pct', 12);
 
@@ -118,14 +118,14 @@ class CostSheetPage
                 'breakdown' => $this->breakdown($lines, (float) $sheet->total_cost, $value),
                 'materials' => $materials,
                 'profitability' => [
-                    'revenue_per_unit' => $revenue === null ? null : $revenue * $per,
+                    'revenue_per_unit' => $revenue,
                     'value' => $value,
                     'material' => $materialTotal,
                     'other' => $otherTotal,
                     'overhead' => $overhead,
                     'total_cost' => (float) $sheet->total_cost,
                     'unit_cost' => $unitCost,
-                    'margin_per_unit' => $revenue === null ? null : round($revenue * $per - $unitCost, 6),
+                    'margin_per_unit' => $revenue === null ? null : round($revenue - $unitCost, 6),
                     'margin_amount' => $marginAmount,
                     'margin_pct' => $sheet->marginPct(),
                     'margin_floor_pct' => $floor,
@@ -336,8 +336,8 @@ class CostSheetPage
             'other_cost' => (float) $row->tooling_cost + (float) $row->packing_cost + (float) $row->other_cost,
             'overhead_amount' => (float) $row->overhead_amount,
             'total_cost' => (float) $row->total_cost,
-            'unit_cost' => (float) $row->unit_cost * (float) $row->costing_per,
-            'revenue_per_unit' => $row->revenue_per_unit === null ? null : (float) $row->revenue_per_unit * (float) $row->costing_per,
+            'unit_cost' => (float) $row->unit_cost,
+            'revenue_per_unit' => $row->revenue_per_unit === null ? null : (float) $row->revenue_per_unit,
             'margin_pct' => $row->marginPct(),
             'created_at' => $row->created_at,
             'approved_by' => $row->approver?->name,

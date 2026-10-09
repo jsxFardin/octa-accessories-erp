@@ -10,7 +10,7 @@ import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import StageComparison from '@/Components/Costing/StageComparison.vue';
-import { date, datetime, money, number, pcs, pct, titleCase } from '@/plugins/formatting';
+import { date, datetime, money, moneyPerThousand, number, pcs, pct, qty, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -103,8 +103,7 @@ const lineColumns = [
     { key: 'basis_uom', label: 'Unit' },
     { key: 'rate', label: 'Rate', align: 'right' },
     { key: 'amount', label: 'Amount', align: 'right' },
-    { key: 'per_unit', label: 'Per unit', align: 'right' },
-    { key: 'pct_of_price', label: '% of price', align: 'right' },
+    { key: 'per_unit', label: 'Per 1,000', align: 'right' },
 ];
 
 const revisionColumns = [
@@ -115,8 +114,8 @@ const revisionColumns = [
     { key: 'conversion_cost', label: 'Conversion', align: 'right' },
     { key: 'other_cost', label: 'Other', align: 'right' },
     { key: 'overhead_amount', label: 'Overhead', align: 'right' },
-    { key: 'unit_cost', label: 'Per unit', align: 'right' },
-    { key: 'revenue_per_unit', label: 'Price', align: 'right' },
+    { key: 'unit_cost', label: 'Cost / 1,000', align: 'right' },
+    { key: 'revenue_per_unit', label: 'Price / 1,000', align: 'right' },
     { key: 'margin_pct', label: 'Margin', align: 'right' },
     { key: 'created_at', label: 'Costed' },
 ];
@@ -156,8 +155,8 @@ const revisionColumns = [
                     <dl class="grid grid-cols-3 divide-x divide-slate-100 text-sm lg:grid-cols-6">
                         <div class="px-3 py-2"><dt class="text-xs text-ink-500">Margin</dt><dd class="tnum text-lg font-semibold" :class="belowFloor ? 'text-rose-700' : 'text-ink-900'">{{ prof.margin_pct === null ? '—' : pct(prof.margin_pct, 1) }}</dd></div>
                         <div class="px-3 py-2"><dt class="text-xs text-ink-500">{{ prof.margin_amount === null || prof.margin_amount >= 0 ? 'Margin on the order' : 'Loss on the order' }}</dt><dd class="tnum font-medium" :class="belowFloor ? 'text-rose-700' : 'text-ink-900'">{{ prof.margin_amount === null ? '—' : money(Math.abs(prof.margin_amount), cur) }}</dd></div>
-                        <div class="px-3 py-2"><dt class="text-xs text-ink-500">Cost per unit</dt><dd class="tnum font-medium text-ink-900">{{ money(prof.unit_cost, cur) }}</dd></div>
-                        <div class="px-3 py-2 max-lg:border-t max-lg:border-slate-100"><dt class="text-xs text-ink-500">Price per unit</dt><dd class="tnum font-medium text-ink-900">{{ prof.revenue_per_unit === null ? '—' : money(prof.revenue_per_unit, cur) }}</dd></div>
+                        <div class="px-3 py-2"><dt class="text-xs text-ink-500">Cost / 1,000</dt><dd class="tnum font-medium text-ink-900">{{ moneyPerThousand(prof.unit_cost, cur) }}</dd></div>
+                        <div class="px-3 py-2 max-lg:border-t max-lg:border-slate-100"><dt class="text-xs text-ink-500">Price / 1,000</dt><dd class="tnum font-medium text-ink-900">{{ prof.revenue_per_unit === null ? '—' : moneyPerThousand(prof.revenue_per_unit, cur) }}</dd></div>
                         <div class="px-3 py-2 max-lg:border-t max-lg:border-slate-100"><dt class="text-xs text-ink-500">Total cost</dt><dd class="tnum font-medium text-ink-900">{{ money(prof.total_cost, cur) }}</dd></div>
                         <div class="px-3 py-2 max-lg:border-t max-lg:border-slate-100"><dt class="text-xs text-ink-500">Value at price</dt><dd class="tnum font-medium text-ink-900">{{ prof.value === null ? '—' : money(prof.value, cur) }}</dd></div>
                     </dl>
@@ -223,12 +222,11 @@ const revisionColumns = [
                                 {{ value }}
                                 <span class="block text-xs text-ink-500">{{ titleCase(row.cost_type) }}<template v-if="row.formula_ref"> · {{ row.formula_ref }}</template></span>
                             </template>
-                            <template #cell:qty="{ row, value }">{{ row.basis === 'percentage' ? pct(value, 2) : number(value, 4) }}</template>
+                            <template #cell:qty="{ row, value }">{{ row.basis === 'percentage' ? pct(value, 1) : row.basis_uom === 'pcs' ? pcs(value) : qty(value, 2) }}</template>
                             <template #cell:basis_uom="{ row, value }">{{ row.basis === 'percentage' ? `of ${money(row.percentage_of, cur)}` : (value ?? '—') }}</template>
-                            <template #cell:rate="{ row, value }"><template v-if="row.basis !== 'percentage'">{{ number(value, 4) }}<span v-if="row.rate_is_derived" class="text-ink-400" title="Recovered from amount ÷ qty">*</span></template><span v-else>—</span></template>
+                            <template #cell:rate="{ row, value }"><template v-if="row.basis !== 'percentage'">{{ number(value, 2) }}<span v-if="row.rate_is_derived" class="text-ink-400" title="Recovered from amount ÷ qty">*</span></template><span v-else>—</span></template>
                             <template #cell:amount="{ value }">{{ money(value, cur) }}</template>
-                            <template #cell:per_unit="{ value }">{{ number(value, 4) }}</template>
-                            <template #cell:pct_of_price="{ value }">{{ value === null ? '—' : pct(value, 2) }}</template>
+                            <template #cell:per_unit="{ row, value }">{{ row.basis === 'percentage' ? '—' : moneyPerThousand(value, false) }}</template>
                         </DataTable>
                     </div>
                 </Card>
@@ -242,8 +240,8 @@ const revisionColumns = [
                         <template #cell:conversion_cost="{ value }">{{ money(value, cur) }}</template>
                         <template #cell:other_cost="{ value }">{{ money(value, cur) }}</template>
                         <template #cell:overhead_amount="{ value }">{{ money(value, cur) }}</template>
-                        <template #cell:unit_cost="{ value }">{{ number(value, 4) }}</template>
-                        <template #cell:revenue_per_unit="{ value }">{{ value === null ? '—' : number(value, 4) }}</template>
+                        <template #cell:unit_cost="{ value }">{{ moneyPerThousand(value, false) }}</template>
+                        <template #cell:revenue_per_unit="{ value }">{{ value === null ? '—' : moneyPerThousand(value, false) }}</template>
                         <template #cell:margin_pct="{ value }"><span :class="value !== null && value < marginFloorPct ? 'text-rose-700' : ''">{{ value === null ? '—' : pct(value, 1) }}</span></template>
                         <template #cell:created_at="{ value }">{{ date(value) }}</template>
                     </DataTable>

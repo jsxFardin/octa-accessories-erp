@@ -365,6 +365,23 @@ export function money(value, currency = undefined) {
     return code ? `${code} ${formatted}` : formatted;
 }
 
+/**
+ * Money per 1,000 pieces, from a per-piece figure. Labels, tapes and buttons are quoted per
+ * thousand: "BDT 320" reads at a glance where "BDT 0.3175" never did. Whole taka once the
+ * figure is in the hundreds; two decimals below that, where the pennies still matter.
+ */
+export function moneyPerThousand(value, currency = undefined) {
+    const n = toNumber(value) * 1000;
+    const digits = Math.abs(n) >= 100 ? 0 : 2;
+    const formatted = n.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
+    if (currency === false) return formatted;
+
+    const code = currencyCode(currency) ?? settings.baseCurrency;
+
+    return code ? `${code} ${formatted}` : formatted;
+}
+
 /** The code out of whatever a page happens to hold: a string, a currency row, or nothing. */
 export function currencyCode(currency) {
     if (!currency) return null;

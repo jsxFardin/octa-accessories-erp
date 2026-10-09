@@ -10,7 +10,7 @@ import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import ActivityTrail from '@/Components/Ui/ActivityTrail.vue';
-import { baseCurrency, date, isoDate, money, pcs, pct, rate, relative, titleCase, todayIso } from '@/plugins/formatting';
+import { baseCurrency, date, isoDate, money, moneyPerThousand, pcs, pct, rate, relative, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -46,7 +46,7 @@ const costingColumns = [
     { key: 'marketing', label: 'Quoted cost / unit', align: 'right' },
     { key: 'pre', label: 'Pre-production / unit', align: 'right' },
     { key: 'post', label: 'Actual / unit', align: 'right' },
-    { key: 'revenue_per_unit', label: 'Price / unit', align: 'right' },
+    { key: 'revenue_per_unit', label: 'Price / 1,000', align: 'right' },
     { key: 'margin', label: 'Margin', align: 'right' },
 ];
 
@@ -427,13 +427,13 @@ const lineColumns = [
                         <span class="text-ink-500">{{ row.line_no }}</span>
                         <span class="ml-1.5 font-medium text-ink-900">{{ row.product?.code }}</span>
                     </template>
-                    <template #cell:marketing="{ value }"><Link v-if="value" :href="`/costing/sheets/${value.id}`" class="doc-link-quiet tnum">{{ money(value.unit_cost) }}</Link><span v-else class="text-ink-400">—</span></template>
-                    <template #cell:pre="{ value }"><Link v-if="value" :href="`/costing/sheets/${value.id}`" class="doc-link-quiet tnum">{{ money(value.unit_cost) }}</Link><span v-else class="text-ink-400">—</span></template>
+                    <template #cell:marketing="{ value }"><Link v-if="value" :href="`/costing/sheets/${value.id}`" class="doc-link-quiet tnum">{{ moneyPerThousand(value.unit_cost) }}</Link><span v-else class="text-ink-400">—</span></template>
+                    <template #cell:pre="{ value }"><Link v-if="value" :href="`/costing/sheets/${value.id}`" class="doc-link-quiet tnum">{{ moneyPerThousand(value.unit_cost) }}</Link><span v-else class="text-ink-400">—</span></template>
                     <template #cell:post="{ value }">
-                        <span v-if="value" class="tnum">{{ money(value.unit_cost) }} <span class="text-xs text-ink-500">({{ value.jobs }} {{ value.jobs === 1 ? 'job' : 'jobs' }})</span></span>
+                        <span v-if="value" class="tnum">{{ moneyPerThousand(value.unit_cost) }} <span class="text-xs text-ink-500">({{ value.jobs }} {{ value.jobs === 1 ? 'job' : 'jobs' }})</span></span>
                         <span v-else class="text-ink-400">—</span>
                     </template>
-                    <template #cell:revenue_per_unit="{ value }"><span class="tnum">{{ value === null ? '—' : money(value) }}</span></template>
+                    <template #cell:revenue_per_unit="{ value }"><span class="tnum">{{ value === null ? '—' : moneyPerThousand(value) }}</span></template>
                     <template #cell:margin="{ row }">
                         <span class="tnum" :class="row.below_floor ? 'font-medium text-rose-700' : ''">
                             <template v-if="row.post?.margin_pct != null">{{ pct(row.post.margin_pct, 1) }} actual</template>
