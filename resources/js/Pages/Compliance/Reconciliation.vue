@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue';
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -84,7 +84,7 @@ function submitClose() {
             <DataTable
                 :columns="columns"
                 :rows="rows"
-                row-key="period"
+                row-key="key"
                 empty="No chain-of-custody movements recorded yet. Certified input is recorded when its goods receipt is posted."
             >
                 <template #cell:scheme="{ value }">
@@ -133,7 +133,20 @@ function submitClose() {
 
                 <p class="text-sm text-ink-700">
                     A receipt, an issue or a dispatch dated into this month will be refused once it is closed.
-                    Reopening a certified period is a compliance decision, not a data entry one.
+                    <strong>Closing is final:</strong> there is no reopen. A wrong figure after closing is
+                    corrected by a movement in the current period, not by editing this one.
+                </p>
+
+                <!-- The dialog asks for a review; the review needs the rows. Opened beside the dialog. -->
+                <p class="text-sm">
+                    <Link
+                        :href="`/compliance?scheme=${encodeURIComponent(closing.scheme)}&period=${closing.period}`"
+                        target="_blank"
+                        class="doc-link"
+                    >
+                        Read the movements in this period
+                    </Link>
+                    <span class="text-ink-500"> (opens in a new tab)</span>
                 </p>
 
                 <!--

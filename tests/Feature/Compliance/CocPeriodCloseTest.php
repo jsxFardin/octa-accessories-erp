@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Inertia\Testing\AssertableInertia;
 
 /**
  * CP-5 AC3 / C3 — closing a chain-of-custody period locks its transactions.
@@ -118,4 +119,39 @@ it('coc: makes someone say so before signing off an impossible conversion factor
         ->toBeFalse();
 
     ($this->close)(['acknowledge_breach' => true])->assertSessionHas('success');
+});
+
+it('keys every reconciliation row by scheme and period, and scopes the movements the close dialog links to', function (): void {
+    // A second scheme in the same month: two rows, one period, two keys.
+    DB::table('coc_transactions')->insert([
+        'scheme' => 'FSC',
+        'direction' => 'input',
+        'period_year' => $this->period['year'],
+        'period_month' => $this->period['month'],
+        'qty' => 40,
+        'claim_pct' => 100,
+        'is_locked' => false,
+    ]);
+
+    $this->actingAs($this->officer)
+        ->get('/compliance/reconciliation')
+        ->assertOk()
+        ->assertInertia(function (AssertableInertia $page): void {
+            $keys = collect($page->toArray()['props']['rows'])->pluck('key');
+
+            expect($keys->count())->toBe($keys->unique()->count())
+                ->and($keys->all())->toContain(sprintf('GRS-%04d-%02d', $this->period['year'], $this->period['month']));
+        });
+
+    $period = sprintf('%04d-%02d', $this->period['year'], $this->period['month']);
+
+    $this->actingAs($this->officer)
+        ->get("/compliance?scheme=GRS&period={$period}")
+        ->assertOk()
+        ->assertInertia(function (AssertableInertia $page) use ($period): void {
+            $props = $page->toArray()['props'];
+
+            expect($props['scope'])->toBe(['scheme' => 'GRS', 'period' => $period])
+                ->and(collect($props['recentTransactions'])->pluck('scheme')->unique()->all())->toBe(['GRS']);
+        });
 });

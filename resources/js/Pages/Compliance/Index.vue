@@ -11,6 +11,8 @@ defineProps({
     certifications: { type: Array, default: () => [] },
     certifiedStock: { type: Array, default: () => [] },
     recentTransactions: { type: Array, default: () => [] },
+    /** `{ scheme, period }` when the card is narrowed to one period's movements. */
+    scope: { type: Object, default: null },
 });
 
 const certColumns = [
@@ -27,6 +29,7 @@ const certColumns = [
 const txColumns = [
     { key: 'scheme', label: 'Scheme' },
     { key: 'direction', label: 'Direction' },
+    { key: 'document_no', label: 'Document' },
     { key: 'qty', label: 'Certified qty', align: 'right' },
     { key: 'claim_pct', label: 'Claim %', align: 'right' },
     { key: 'period', label: 'Period' },
@@ -79,14 +82,33 @@ const txColumns = [
                     </ul>
                 </Card>
 
-                <Card class="lg:col-span-2" title="Recent chain-of-custody movements" rule="C1 · C3" :padded="false">
-                    <DataTable :columns="txColumns" :rows="recentTransactions" row-key="id" empty="No transactions yet." dense>
+                <Card
+                    class="lg:col-span-2"
+                    :title="scope ? `Movements: ${scope.scheme.replace('_', ' ')} ${scope.period}` : 'Recent chain-of-custody movements'"
+                    :subtitle="scope ? 'Every certified movement booked into this period — the rows a close locks.' : null"
+                    rule="C1 · C3"
+                    :padded="false"
+                >
+                    <template v-if="scope" #actions>
+                        <Button size="sm" href="/compliance">Show recent</Button>
+                    </template>
+                    <DataTable
+                        :columns="txColumns"
+                        :rows="recentTransactions"
+                        row-key="id"
+                        :empty="scope ? 'No certified movement is booked into this period.' : 'No transactions yet.'"
+                        dense
+                    >
                         <template #cell:scheme="{ value }">{{ value.replace('_', ' ') }}</template>
                         <template #cell:direction="{ value }">
                             <Badge
                                 :tone="value === 'input' ? 'info' : value === 'output' ? 'success' : 'progress'"
                                 :label="titleCase(value)"
                             />
+                        </template>
+                        <template #cell:document_no="{ value }">
+                            <span v-if="value" class="tnum">{{ value }}</span>
+                            <span v-else class="text-ink-400">—</span>
                         </template>
                         <template #cell:qty="{ value }">{{ qty(value) }}</template>
                         <template #cell:period="{ row }">{{ row.period_year }}-{{ String(row.period_month).padStart(2, '0') }}</template>

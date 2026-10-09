@@ -28,9 +28,17 @@ class ComplianceController extends Controller
         private readonly AuditLogger $audit,
     ) {}
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        // The reconciliation's close dialog sends the officer here to read the movements of
+        // one scheme and period before locking them. Unscoped, the card shows the latest 25.
+        $scheme = (string) $request->query('scheme', '');
+        $period = (string) $request->query('period', '');
+        [$year, $month] = preg_match('/^(\d{4})-(\d{2})$/', $period, $m) ? [(int) $m[1], (int) $m[2]] : [null, null];
+        $scoped = $scheme !== '' && $year !== null;
+
         return Inertia::render('Compliance/Index', [
+            'scope' => $scoped ? ['scheme' => $scheme, 'period' => $period] : null,
             'certifications' => DB::table('certifications as c')
                 ->leftJoin('certification_scopes as s', 's.certification_id', '=', 'c.id')
                 ->orderBy('c.expires_on')
@@ -63,8 +71,9 @@ class ComplianceController extends Controller
                 ->groupBy('cert_scheme')
                 ->get(['cert_scheme', DB::raw('SUM(balance_qty) as qty'), DB::raw('COUNT(*) as lots')]),
             'recentTransactions' => DB::table('coc_transactions')
-                ->orderByDesc('id')->limit(25)
-                ->get(['id', 'scheme', 'direction', 'qty', 'claim_pct', 'period_year', 'period_month', 'is_locked']),
+                ->when($scoped, fn ($q) => $q->where('scheme', $scheme)->where('period_year', $year)->where('period_month', $month))
+                ->orderByDesc('id')->limit($scoped ? 500 : 25)
+                ->get(['id', 'scheme', 'direction', 'qty', 'claim_pct', 'period_year', 'period_month', 'is_locked', 'document_no']),
         ]);
     }
 
@@ -87,6 +96,8 @@ class ComplianceController extends Controller
                 $max = (float) ($scopes[$row->scheme] ?? 1);
 
                 return [
+                    // Two schemes share a period; the row key must not.
+                    'key' => sprintf('%s-%04d-%02d', $row->scheme, $row->period_year, $row->period_month),
                     'scheme' => $row->scheme,
                     'period' => sprintf('%04d-%02d', $row->period_year, $row->period_month),
                     // Receipts stay on the row as context; the balance is struck against what
