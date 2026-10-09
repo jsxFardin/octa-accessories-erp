@@ -14,6 +14,7 @@ import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
+import StageComparison from '@/Components/Costing/StageComparison.vue';
 import { date, datetime, isoDate, money, pcs, pct, qty, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import DropdownMenu from '@/Components/Ui/DropdownMenu.vue';
@@ -121,7 +122,6 @@ function adoptWastage() {
     router.post(`/cost-sheets/${props.costing.post_sheet_id}/adopt-wastage`, {}, { preserveScroll: true });
 }
 
-const varianceTone = (value) => (value === null ? '' : value > 0 ? 'text-rose-700' : value < 0 ? 'text-emerald-700' : '');
 
 /** Waste by cause, from the booked waste rows: the half of the figure that can be acted on. */
 const wasteByCause = computed(() => {
@@ -1595,42 +1595,7 @@ const bomColumns = [
                 <template v-else>
                     <div class="grid gap-4 lg:grid-cols-3">
                         <Card class="lg:col-span-2" title="Cost per unit" rule="CS-2" subtitle="Pre-production: this order at the rates of the day it was confirmed. Actual: what was issued, run and received." :padded="false">
-                            <table class="min-w-full text-sm">
-                                <thead class="bg-slate-50 text-xs text-ink-500">
-                                    <tr>
-                                        <th class="px-3 py-2 text-left">Element</th>
-                                        <th class="px-3 py-2 text-right">Marketing</th>
-                                        <th class="px-3 py-2 text-right">Pre-production</th>
-                                        <th class="px-3 py-2 text-right">Actual</th>
-                                        <th class="px-3 py-2 text-right">Variance / unit</th>
-                                        <th class="px-3 py-2 text-right">Variance, job</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="row in costing.variance" :key="row.key" class="border-t border-slate-100" :class="row.key === 'total_cost' && 'font-semibold'">
-                                        <td class="px-3 py-1.5">{{ row.label }}</td>
-                                        <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ costing.marketing ? money(costing.marketing.per_unit[row.key]) : '—' }}</td>
-                                        <td class="px-3 py-1.5 text-right tnum">{{ row.pre === null ? '—' : money(row.pre) }}</td>
-                                        <td class="px-3 py-1.5 text-right tnum">{{ row.post === null ? '—' : money(row.post) }}</td>
-                                        <td class="px-3 py-1.5 text-right tnum" :class="varianceTone(row.per_unit)">{{ row.per_unit === null ? '—' : money(row.per_unit) }}</td>
-                                        <td class="px-3 py-1.5 text-right tnum" :class="varianceTone(row.total)">{{ row.total === null ? '—' : money(row.total) }}</td>
-                                    </tr>
-                                    <tr class="border-t border-slate-200 bg-slate-50/60">
-                                        <td class="px-3 py-1.5">Price per unit</td>
-                                        <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ costing.marketing?.revenue_per_unit != null ? money(costing.marketing.revenue_per_unit) : '—' }}</td>
-                                        <td class="px-3 py-1.5 text-right tnum">{{ costing.pre?.revenue_per_unit != null ? money(costing.pre.revenue_per_unit) : '—' }}</td>
-                                        <td class="px-3 py-1.5 text-right tnum">{{ costing.post?.revenue_per_unit != null ? money(costing.post.revenue_per_unit) : '—' }}</td>
-                                        <td class="px-3 py-1.5" colspan="2"></td>
-                                    </tr>
-                                    <tr class="bg-slate-50/60 font-semibold">
-                                        <td class="px-3 py-1.5">Margin</td>
-                                        <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ costing.marketing?.margin_pct != null ? pct(costing.marketing.margin_pct, 1) : '—' }}</td>
-                                        <td class="px-3 py-1.5 text-right tnum" :class="costing.pre?.margin_pct != null && costing.pre.margin_pct < costing.margin_floor_pct ? 'text-rose-700' : ''">{{ costing.pre?.margin_pct != null ? pct(costing.pre.margin_pct, 1) : '—' }}</td>
-                                        <td class="px-3 py-1.5 text-right tnum" :class="costing.post?.margin_pct != null && costing.post.margin_pct < costing.margin_floor_pct ? 'text-rose-700' : ''">{{ costing.post?.margin_pct != null ? pct(costing.post.margin_pct, 1) : '—' }}</td>
-                                        <td class="px-3 py-1.5" colspan="2"></td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                            <StageComparison :comparison="costing" marketing />
                             <p v-if="!costing.post" class="px-3 py-3 text-xs text-ink-600">
                                 The actuals are struck when the job is closed. Until then this shows the benchmark alone.
                                 <Link v-if="costing.pre?.id" :href="`/costing/sheets/${costing.pre.id}`" class="doc-link-quiet">Open the benchmark sheet</Link>

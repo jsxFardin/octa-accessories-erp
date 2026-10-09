@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Reporting;
 
+use App\Modules\Reporting\Queries\CostVarianceReport;
 use App\Modules\Reporting\Queries\DispatchReport;
 use App\Modules\Reporting\Queries\FulfilmentReport;
 use App\Modules\Reporting\Queries\NcrCapaReport;
@@ -15,7 +16,7 @@ use App\Modules\Reporting\Queries\ReportQuery;
 use App\Modules\Reporting\Queries\StockReport;
 
 /**
- * The six operational reports. Each class is the query; this catalogue is the menu.
+ * The operational reports. Each class is the query; this catalogue is the menu.
  *
  * Permission is `report.view` for every report — the catalogue already has a single Reporting
  * resource. Finer splits can wait until a role needs to see production and not receivables.
@@ -36,6 +37,7 @@ final class ReportCatalogue
             'payables' => PayablesReport::class,
             'purchases' => PurchaseReport::class,
             'ncr-capa' => NcrCapaReport::class,
+            'cost-variance' => CostVarianceReport::class,
         ];
     }
 

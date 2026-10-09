@@ -9,6 +9,7 @@ import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
+import StageComparison from '@/Components/Costing/StageComparison.vue';
 import { date, datetime, money, number, pcs, pct, titleCase } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -113,7 +114,6 @@ const revisionColumns = [
     { key: 'created_at', label: 'Costed' },
 ];
 
-const varianceTone = (value) => (value === null ? '' : value > 0 ? 'text-rose-700' : value < 0 ? 'text-emerald-700' : '');
 </script>
 
 <template>
@@ -228,21 +228,8 @@ const varianceTone = (value) => (value === null ? '' : value > 0 ? 'text-rose-70
                     </DataTable>
                 </Card>
 
-                <Card v-if="comparison" title="Against the benchmark" rule="CS-2" subtitle="Per unit: what the order was confirmed at, what the job actually cost, and the difference by element." :padded="false">
-                    <table class="min-w-full text-sm">
-                        <thead class="bg-slate-50 text-xs text-ink-500">
-                            <tr><th class="px-3 py-2 text-left">Element</th><th class="px-3 py-2 text-right">Benchmark</th><th class="px-3 py-2 text-right">Actual</th><th class="px-3 py-2 text-right">Variance / unit</th><th class="px-3 py-2 text-right">Variance, job</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="row in comparison.variance" :key="row.key" class="border-t border-slate-100" :class="row.key === 'total_cost' && 'font-semibold'">
-                                <td class="px-3 py-1.5">{{ row.label }}</td>
-                                <td class="px-3 py-1.5 text-right tnum">{{ row.pre === null ? '—' : money(row.pre, cur) }}</td>
-                                <td class="px-3 py-1.5 text-right tnum">{{ row.post === null ? '—' : money(row.post, cur) }}</td>
-                                <td class="px-3 py-1.5 text-right tnum" :class="varianceTone(row.per_unit)">{{ row.per_unit === null ? '—' : money(row.per_unit, cur) }}</td>
-                                <td class="px-3 py-1.5 text-right tnum" :class="varianceTone(row.total)">{{ row.total === null ? '—' : money(row.total, cur) }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <Card v-if="comparison" title="Against the benchmark" rule="CS-2" subtitle="What the order was confirmed at, what the job actually cost, and the difference: by element per unit, then material by material and operation by operation." :padded="false">
+                    <StageComparison :comparison="comparison" :currency="cur" />
                     <p v-if="!comparison.pre" class="px-3 py-3 text-xs text-ink-600">No benchmark: this job was made for stock, not for an order confirmed with costing.</p>
                 </Card>
             </div>

@@ -22,6 +22,8 @@ final readonly class CostLine
         public float $amount,
         public string $formulaRef,
         public ?string $description = null,
+        /** The item a material line consumes, so a post-production line finds its benchmark line. */
+        public ?int $itemId = null,
     ) {}
 
     public static function of(
@@ -32,6 +34,7 @@ final readonly class CostLine
         float $rate,
         string $formulaRef,
         ?string $description = null,
+        ?int $itemId = null,
     ): self {
         // BR-47: money is rounded half-up at line level, then summed, so the printed
         // document always foots.
@@ -44,6 +47,7 @@ final readonly class CostLine
             round($qty * $rate, 4),
             $formulaRef,
             $description,
+            $itemId,
         );
     }
 
@@ -59,6 +63,7 @@ final readonly class CostLine
             'amount' => round($this->amount, 4),
             'formula_ref' => $this->formulaRef,
             'description' => $this->description,
+            'item_id' => $this->itemId,
         ];
     }
 }

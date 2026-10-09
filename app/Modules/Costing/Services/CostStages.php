@@ -53,6 +53,7 @@ class CostStages
             'post' => $this->summary($post),
             'marketing' => $this->summary($marketing),
             'variance' => $this->variance($pre, $post),
+            'line_variance' => $this->lineVariance($pre, $post),
             'lines' => $post?->lines->map(fn ($line): array => $line->only(['sequence_no', 'cost_type', 'description', 'basis_uom', 'qty', 'rate', 'amount']))->all() ?? [],
             'reason' => $post?->variance_reason,
             'post_sheet_id' => $post?->id,
@@ -149,6 +150,144 @@ class CostStages
             'locked_at' => $sheet->locked_at,
             'created_at' => $sheet->created_at,
         ];
+    }
+
+    /**
+     * Post against pre, line by line, so a material that cost more is told apart from a
+     * material of which more was used (spec §4: price variance vs usage variance).
+     *
+     * The benchmark was struck for the order's quantity and the actuals for what the job
+     * made, so the benchmark is scaled to the job's output before the two are compared.
+     * Materials match on the item when the benchmark names one (a product costed from its
+     * bill), and on the cost type otherwise (a label sheet costs yarn, ribbon, ink by type).
+     *
+     *   usage variance = (actual qty − planned qty) × planned rate
+     *   price variance = (actual rate − planned rate) × actual qty
+     *
+     * The two sum to the amount variance exactly. Conversion is compared per operation:
+     * planned hours against the minutes actually run, with machine, labour and energy together.
+     *
+     * @return array{scale: ?float, materials: list<array<string, mixed>>, conversion: list<array<string, mixed>>}
+     */
+    public function lineVariance(?CostSheet $pre, ?CostSheet $post): array
+    {
+        if ($post === null) {
+            return ['scale' => null, 'materials' => [], 'conversion' => []];
+        }
+
+        $pre?->loadMissing('lines');
+        $post->loadMissing('lines');
+
+        $scale = $pre === null || (float) $pre->basis_qty <= 0 ? null : (float) $post->basis_qty / (float) $pre->basis_qty;
+        $preMaterials = $pre === null ? collect() : $pre->lines->filter(fn ($line): bool => str_starts_with((string) $line->cost_type, 'material'));
+        $postMaterials = $post->lines->filter(fn ($line): bool => str_starts_with((string) $line->cost_type, 'material'));
+        $byItem = $preMaterials->contains(fn ($line): bool => $line->item_id !== null);
+        $key = fn ($line): string => $byItem && $line->item_id !== null ? 'item:'.$line->item_id : 'type:'.$line->cost_type;
+
+        $group = function ($lines, float $factor) use ($key): array {
+            $rows = [];
+
+            foreach ($lines as $line) {
+                $k = $key($line);
+                $rows[$k] ??= ['description' => $line->description, 'cost_type' => $line->cost_type, 'item_id' => $line->item_id, 'uom' => $line->basis_uom, 'qty' => 0.0, 'amount' => 0.0];
+                $rows[$k]['qty'] += (float) $line->qty * $factor;
+                $rows[$k]['amount'] += (float) $line->amount * $factor;
+            }
+
+            return $rows;
+        };
+
+        $planned = $group($preMaterials, $scale ?? 1.0);
+        $actual = $group($postMaterials, 1.0);
+        $materials = [];
+
+        foreach (array_unique([...array_keys($actual), ...array_keys($planned)]) as $k) {
+            $p = $planned[$k] ?? null;
+            $a = $actual[$k] ?? null;
+            $plannedRate = $p !== null && $p['qty'] > 0 ? $p['amount'] / $p['qty'] : null;
+            $actualRate = $a !== null && $a['qty'] > 0 ? $a['amount'] / $a['qty'] : null;
+            $plannedQty = $p['qty'] ?? 0.0;
+            $actualQty = $a['qty'] ?? 0.0;
+            // No benchmark rate for a material the plan never named: its whole cost is usage.
+            $usage = $plannedRate === null ? ($a['amount'] ?? 0.0) : ($actualQty - $plannedQty) * $plannedRate;
+            $price = $plannedRate === null || $actualRate === null ? 0.0 : ($actualRate - $plannedRate) * $actualQty;
+
+            $materials[] = [
+                'key' => $k,
+                'description' => $a['description'] ?? $p['description'],
+                'cost_type' => $a['cost_type'] ?? $p['cost_type'],
+                'item_id' => $a['item_id'] ?? $p['item_id'],
+                'uom' => $a['uom'] ?? $p['uom'],
+                'planned' => $p === null ? null : ['qty' => round($plannedQty, 6), 'rate' => round((float) $plannedRate, 6), 'amount' => round($p['amount'], 4)],
+                'actual' => $a === null ? null : ['qty' => round($actualQty, 6), 'rate' => round((float) $actualRate, 6), 'amount' => round($a['amount'], 4)],
+                'qty_variance' => round($actualQty - $plannedQty, 6),
+                'rate_variance' => $plannedRate === null || $actualRate === null ? null : round($actualRate - $plannedRate, 6),
+                'usage_variance' => round($usage, 4),
+                'price_variance' => round($price, 4),
+                'total_variance' => round(($a['amount'] ?? 0.0) - ($p['amount'] ?? 0.0), 4),
+            ];
+        }
+
+        // Conversion by operation: "Printing: machine" and "Printing: labour" fold into "Printing".
+        $operations = function ($lines, float $factor): array {
+            $rows = [];
+
+            foreach ($lines as $line) {
+                if (! in_array($line->cost_type, ['machine', 'labour', 'energy'], true)) {
+                    continue;
+                }
+
+                $name = trim((string) strstr((string) $line->description, ':', true)) ?: (string) $line->description;
+                $rows[$name] ??= ['hours' => 0.0, 'labour_hours' => 0.0, 'amount' => 0.0];
+                $rows[$name]['amount'] += (float) $line->amount * $factor;
+
+                // Hours come from the machine line; a step with no machine rate has only labour.
+                if ($line->cost_type === 'machine') {
+                    $rows[$name]['hours'] += (float) $line->qty * $factor;
+                } elseif ($line->cost_type === 'labour') {
+                    $rows[$name]['labour_hours'] += (float) $line->qty * $factor;
+                }
+            }
+
+            foreach ($rows as &$row) {
+                $row['hours'] = $row['hours'] > 0 ? $row['hours'] : $row['labour_hours'];
+            }
+
+            return $rows;
+        };
+
+        $plannedOps = $operations($pre?->lines ?? collect(), $scale ?? 1.0);
+        $actualOps = $operations($post->lines, 1.0);
+
+        // A label sheet benchmarks conversion as one blended line across its operations, not
+        // step by step; when no step name is shared, the comparison is the run as a whole.
+        if ($plannedOps !== [] && $actualOps !== [] && array_intersect_key($plannedOps, $actualOps) === []) {
+            $fold = fn (array $rows): array => [
+                'hours' => array_sum(array_column($rows, 'hours')),
+                'labour_hours' => 0.0,
+                'amount' => array_sum(array_column($rows, 'amount')),
+            ];
+            $plannedOps = ['All operations' => $fold($plannedOps)];
+            $actualOps = ['All operations' => $fold($actualOps)];
+        }
+
+        $conversion = [];
+
+        foreach (array_unique([...array_keys($actualOps), ...array_keys($plannedOps)]) as $name) {
+            $p = $plannedOps[$name] ?? null;
+            $a = $actualOps[$name] ?? null;
+
+            $conversion[] = [
+                'key' => $name,
+                'operation' => $name,
+                'planned' => $p === null ? null : ['hours' => round($p['hours'], 4), 'amount' => round($p['amount'], 4)],
+                'actual' => $a === null ? null : ['hours' => round($a['hours'], 4), 'amount' => round($a['amount'], 4)],
+                'hours_variance' => round(($a['hours'] ?? 0.0) - ($p['hours'] ?? 0.0), 4),
+                'total_variance' => round(($a['amount'] ?? 0.0) - ($p['amount'] ?? 0.0), 4),
+            ];
+        }
+
+        return ['scale' => $scale === null ? null : round($scale, 6), 'materials' => $materials, 'conversion' => $conversion];
     }
 
     private function marginOf(CostSheet $sheet): ?float

@@ -328,9 +328,10 @@ onUnmounted(() => {
                             ]"
                             @click="rowHref && columnIndex > 0 && openRow(row, $event)"
                         >
+                            <!-- A row-href that returns nothing for a row (the current revision, say) leaves it a plain row. -->
                             <component
-                                :is="rowHref && columnIndex === 0 ? Link : 'div'"
-                                v-bind="rowHref && columnIndex === 0 ? { href: rowHref(row) } : {}"
+                                :is="rowHref && columnIndex === 0 && rowHref(row) ? Link : 'div'"
+                                v-bind="rowHref && columnIndex === 0 && rowHref(row) ? { href: rowHref(row) } : {}"
                                 class="block rounded focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                             >
                                 <slot :name="`cell:${column.key}`" :row="row" :value="row[column.key]">

@@ -57,6 +57,7 @@ class ProductCostEstimate
                 amount: round($amount, 4),
                 formulaRef: 'CS-M',
                 description: "{$item->code} {$item->name}",
+                itemId: $item->id,
             );
         }
 

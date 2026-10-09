@@ -65,6 +65,7 @@ class PostProductionCosting
                 amount: round($amount, 4),
                 formulaRef: 'CS-A',
                 description: "{$row->code} {$row->name}",
+                itemId: (int) $row->item_id,
             );
         }
 
