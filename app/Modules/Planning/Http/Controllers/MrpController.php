@@ -41,12 +41,15 @@ class MrpController extends Controller
             'requirements' => $runId
                 ? DB::table('material_requirements as mr')
                     ->join('items as i', 'i.id', '=', 'mr.item_id')
+                    // A made item's product is what a job card is raised for.
+                    ->leftJoin('products as p', 'p.item_id', '=', 'i.id')
                     ->where('mr.mrp_run_id', $runId)
                     ->orderByDesc('mr.net_req_qty')
                     ->get([
                         'mr.id', 'i.code as item_code', 'i.name as item_name', 'i.make_or_buy', 'mr.gross_req_qty',
                         'mr.on_hand_qty', 'mr.on_order_qty', 'mr.reserved_qty', 'mr.net_req_qty',
-                        'mr.suggested_po_qty', 'mr.need_date', 'mr.po_place_by', 'mr.is_shortage',
+                        'mr.suggested_po_qty', 'mr.suggested_make_qty', 'mr.need_date', 'mr.po_place_by', 'mr.is_shortage',
+                        'p.id as product_id',
                     ])
                 : [],
         ]);
@@ -131,14 +134,14 @@ class MrpController extends Controller
                     'on_order_qty' => $onOrder,
                     'reserved_qty' => $reserved,
                     'net_req_qty' => $result['net_req'],
-                    // A made item is not bought: the shortage stands, but nothing is suggested
-                    // for a purchase order. Planning a make order for it is the production
-                    // module's job.
+                    // A made item is not bought: the shortage stands, and the suggestion is a
+                    // job card for the net requirement rather than a purchase order.
                     'suggested_po_qty' => $item->isMade() ? 0 : $this->mrp->suggestedPurchaseQty(
                         $result['net_req'],
                         (float) $item->min_order_qty,
                         (float) $item->order_multiple,
                     ),
+                    'suggested_make_qty' => $item->isMade() ? max(0.0, (float) $result['net_req']) : 0,
                     'need_date' => $needDate->toDateString(),
                     'po_place_by' => $this->mrp->placeByDate($needDate, $leadTime)->toDateString(),
                     'is_shortage' => $result['has_shortage'],

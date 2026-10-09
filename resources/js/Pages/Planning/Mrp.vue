@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
 import Card from '@/Components/Ui/Card.vue';
@@ -27,7 +27,7 @@ const columns = [
     { key: 'reserved_qty', label: 'Reserved', align: 'right' },
     { key: 'on_order_qty', label: 'On order', align: 'right' },
     { key: 'net_req_qty', label: 'Net', align: 'right' },
-    { key: 'suggested_po_qty', label: 'Suggested PO', align: 'right' },
+    { key: 'suggested_po_qty', label: 'Suggested', align: 'right' },
     { key: 'need_date', label: 'Need by' },
     { key: 'po_place_by', label: 'Place by' },
     { key: 'is_shortage', label: 'Status' },
@@ -102,8 +102,18 @@ const columns = [
                         <span :class="Number(value) > 0 ? 'font-medium text-rose-600' : ''">{{ qty(value) }}</span>
                     </template>
                     <template #cell:suggested_po_qty="{ row, value }">
-                        <!-- A made item is planned, not bought. -->
-                        <Badge v-if="row.make_or_buy === 'make'" tone="info" label="Make" />
+                        <!-- A made item is planned, not bought: the suggestion is a job card. -->
+                        <template v-if="row.make_or_buy === 'make'">
+                            <span v-if="Number(row.suggested_make_qty) > 0" class="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                <Badge tone="info" :label="`Make ${qty(row.suggested_make_qty)}`" />
+                                <Link
+                                    v-if="row.product_id && can('job_card.create')"
+                                    :href="`/job-cards/create?product=${row.product_id}&qty=${Math.ceil(Number(row.suggested_make_qty))}&for_stock=1`"
+                                    class="doc-link-quiet text-xs"
+                                >Raise job card</Link>
+                            </span>
+                            <Badge v-else tone="info" label="Make" />
+                        </template>
                         <template v-else>{{ qty(value) }}</template>
                     </template>
                     <template #cell:need_date="{ value }">{{ date(value) }}</template>

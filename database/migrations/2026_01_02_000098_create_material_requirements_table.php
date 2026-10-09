@@ -30,6 +30,7 @@ CREATE TABLE material_requirements (
     on_order_qty     DECIMAL(18,6) NOT NULL DEFAULT 0,
     net_req_qty      DECIMAL(18,6) NOT NULL DEFAULT 0,
     suggested_po_qty DECIMAL(18,6) NOT NULL DEFAULT 0,
+    suggested_make_qty DECIMAL(18,6) NOT NULL DEFAULT 0,   -- a made item is planned, not bought: the job card to raise
     po_place_by      DATE,
     is_shortage      BOOLEAN NOT NULL DEFAULT FALSE,
     pr_line_id       BIGINT UNSIGNED,
