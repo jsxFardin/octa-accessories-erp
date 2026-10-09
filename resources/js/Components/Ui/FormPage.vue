@@ -16,8 +16,6 @@
  * stretching a single input across the monitor.
  */
 defineProps({
-    /** Section navigation is only worth its space past three groups. */
-    sections: { type: Array, default: () => [] },
     wide: { type: Boolean, default: false },
     full: { type: Boolean, default: false },
 });
@@ -25,23 +23,6 @@ defineProps({
 
 <template>
     <div class="flex gap-8">
-        <!--
-            A rail of anchors rather than a scroll-and-hunt: on the specification screens a
-            field can be four sections down, and "where was the cut gap?" should be one click.
-        -->
-        <nav v-if="sections.length > 2" class="sticky top-20 hidden h-fit w-44 shrink-0 xl:block" aria-label="Sections">
-            <ul class="space-y-0.5 border-l border-slate-200">
-                <li v-for="section in sections" :key="section">
-                    <a
-                        :href="`#${section.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`"
-                        class="-ml-px block border-l-2 border-transparent py-1 pl-3 text-xs text-ink-500 transition hover:border-brand-400 hover:text-ink-900"
-                    >
-                        {{ section }}
-                    </a>
-                </li>
-            </ul>
-        </nav>
-
         <!--
             Tall enough to reach the bottom of the window even when the form is three fields
             long. The action bar is `sticky bottom-0 mt-auto`, which pins it while a long
