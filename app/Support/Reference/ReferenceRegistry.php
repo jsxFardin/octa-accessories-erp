@@ -43,6 +43,60 @@ class ReferenceRegistry
         'vocabularies' => 'Vocabularies',
     ];
 
+    /** @var array<string, string> the icon each group wears in the sidebar */
+    public const GROUP_ICONS = [
+        'organisation' => 'building',
+        'people' => 'users',
+        'commercial' => 'customers',
+        'measurement' => 'money',
+        'inventory' => 'warehouse',
+        'production' => 'machine',
+        'quality' => 'inspection',
+        'vocabularies' => 'sliders',
+    ];
+
+    /**
+     * The lists as a sidebar tree: Setup › Factory › Factory units.
+     *
+     * One source. The sidebar used to point at a directory page that listed these; the
+     * directory was one more screen between a person and the list they came for. Each
+     * entry names the permission that shows it, and the sidebar applies that the way the
+     * directory did, so the two never disagree about who sees what.
+     *
+     * @return list<array{key: string, label: string, icon: string, lists: list<array{slug: string, label: string, icon: string, href: string, permission: string}>}>
+     */
+    public static function menu(): array
+    {
+        $lists = [];
+
+        foreach (self::all() as $slug => $definition) {
+            $lists[$definition['group']][] = [
+                'slug' => $slug,
+                'label' => $definition['label'],
+                'icon' => $definition['icon'],
+                'href' => '/setup/'.$slug,
+                'permission' => self::permissionResource($slug).'.view_any',
+            ];
+        }
+
+        $menu = [];
+
+        foreach (self::GROUPS as $key => $label) {
+            if (! isset($lists[$key])) {
+                continue;
+            }
+
+            $menu[] = [
+                'key' => $key,
+                'label' => $label,
+                'icon' => self::GROUP_ICONS[$key] ?? 'sliders',
+                'lists' => $lists[$key],
+            ];
+        }
+
+        return $menu;
+    }
+
     /**
      * @return array<string, array<string, mixed>>
      */

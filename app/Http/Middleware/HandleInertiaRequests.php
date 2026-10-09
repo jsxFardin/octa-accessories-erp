@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use App\Models\User;
 use App\Support\Print\DocumentRegistry;
+use App\Support\Reference\ReferenceRegistry;
 use App\Support\Settings\Organisation;
 use App\Support\Settings\Settings;
 use App\Support\Text\Plain;
@@ -86,6 +87,12 @@ class HandleInertiaRequests extends Middleware
                 'base_currency' => app(Settings::class)->get('base_currency', 'BDT'),
                 'locale' => app()->getLocale(),
             ],
+
+            /*
+             * The Setup group of the sidebar: every reference list under its group. Static
+             * data; the sidebar filters it by the same permissions the list pages enforce.
+             */
+            'setupMenu' => fn (): array => $user === null ? [] : ReferenceRegistry::menu(),
 
             /*
              * What each printable document is called, where it lives and the statuses in which it

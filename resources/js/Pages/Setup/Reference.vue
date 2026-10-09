@@ -118,11 +118,8 @@ function rowActions(row) {
         <template #title>{{ reference.label }}</template>
         <template #subtitle>{{ reference.description }}</template>
 
+        <!-- The sidebar is the directory now (Setup › Factory › Departments); no way-back button. -->
         <template #actions>
-            <Button href="/setup">
-                <Icon name="left" size="size-3.5" />
-                All lists
-            </Button>
             <Button v-if="can.create" variant="primary" @click="create">
                 <Icon name="add" size="size-3.5" />
                 New {{ reference.singular }}

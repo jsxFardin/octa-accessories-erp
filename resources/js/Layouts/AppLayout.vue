@@ -9,7 +9,7 @@ import NotificationBell from '@/Components/Ui/NotificationBell.vue';
 import SessionExpired from '@/Components/Ui/SessionExpired.vue';
 import Toasts from '@/Components/Ui/Toasts.vue';
 import { canAny } from '@/plugins/permissions';
-import { navigation, visibleSections } from '@/navigation';
+import { navigation, visibleSections, withSetupLists } from '@/navigation';
 
 /**
  * The desk layout: dense, keyboard-driven, built for people who live in it all day
@@ -35,7 +35,16 @@ const organisation = computed(() => page.props.app ?? {});
 const currentUrl = computed(() => page.url);
 
 /** A section the user can open nothing inside is not shown at all. */
-const sections = computed(() => visibleSections(navigation, canAny));
+/*
+ * The Setup group is filled from the registry the server shares: Setup › Factory › Factory
+ * units. The tree itself stays static and testable; only that one group is composed here.
+ */
+const sections = computed(() => visibleSections(withSetupLists(navigation, page.props.setupMenu ?? []), canAny));
+
+/** Every row that is a destination: a parent row stands in for its children. */
+function leaves(section) {
+    return section.items.flatMap((item) => (item.children?.length ? item.children : [item]));
+}
 
 const path = computed(() => currentUrl.value.split('?')[0]);
 
@@ -50,7 +59,7 @@ const activeItem = computed(() => {
     let best = null;
 
     for (const section of sections.value) {
-        for (const item of section.items) {
+        for (const item of leaves(section)) {
             if (matches(item.href) && (!best || item.href.length > best.href.length)) {
                 best = item;
             }
@@ -61,7 +70,22 @@ const activeItem = computed(() => {
 });
 
 function isActive(item) {
+    if (item.children?.length) {
+        return item.children.some((child) => isActive(child));
+    }
+
     return activeItem.value?.href === item.href;
+}
+
+/** The parent row of a nested screen (Factory, for Factory units), or null. */
+function parentOf(item) {
+    for (const section of sections.value) {
+        const parent = section.items.find((candidate) => candidate.children?.some((child) => child.href === item.href));
+
+        if (parent) return parent;
+    }
+
+    return null;
 }
 
 /**
@@ -86,12 +110,13 @@ const crumbs = computed(() => {
     }
 
     const section = sections.value.find((candidate) =>
-        candidate.items.some((entry) => entry.href === item.href),
+        leaves(candidate).some((entry) => entry.href === item.href),
     );
+    const parent = parentOf(item);
 
     const trail = !section || section.heading === false || section.label === item.label
         ? [{ label: item.label, href: item.href }]
-        : [{ label: section.label }, { label: item.label, href: item.href }];
+        : [{ label: section.label }, ...(parent ? [{ label: parent.label }] : []), { label: item.label, href: item.href }];
 
     // Anything below the list itself — a detail page, a form — is the current page.
     const path = currentUrl.value.replace(/\?.*$/, '');
@@ -123,6 +148,7 @@ watch(railed, (value) => localStorage.setItem('octa.sidebar.railed', value ? '1'
 watch(currentUrl, () => {
     mobileOpen.value = false;
     openSection.value = null;
+    openItem.value = null;
 });
 
 // The old multi-open state is no longer read; clearing it keeps a stale key from confusing
@@ -131,6 +157,24 @@ localStorage.removeItem('octa.sidebar.open');
 
 function isSectionActive(section) {
     return section.items.some((item) => isActive(item));
+}
+
+/*
+ * A parent row (Setup › Factory) opens like a heading does: one at a time, the one holding
+ * the current page by default, cleared when the page changes.
+ */
+const openItem = ref(null);
+
+function toggleItem(item) {
+    openItem.value = openItem.value === item.label ? null : item.label;
+}
+
+function isItemOpen(item) {
+    if (openItem.value !== null) {
+        return openItem.value === item.label;
+    }
+
+    return isActive(item);
 }
 
 function toggleSection(section) {
@@ -333,13 +377,58 @@ const paletteHint = computed(() =>
                     </button>
 
                     <ul v-show="railed || isOpen(section)" class="mt-0.5 space-y-px">
-                        <li v-for="item in section.items" :key="item.href">
+                        <li v-for="item in section.items" :key="item.label + item.href">
+                            <!--
+                                A row with children (Setup › Factory) is a toggle in the full
+                                sidebar and its children sit indented under it. In the rail
+                                there is no room for a second level, so the row is a link to its
+                                first child, like a heading in the rail.
+                            -->
+                            <template v-if="item.children?.length && !railed">
+                                <button
+                                    type="button"
+                                    class="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                    :class="isActive(item) ? 'font-medium text-ink-900' : 'text-ink-800 hover:bg-slate-100 hover:text-ink-900'"
+                                    :aria-expanded="isItemOpen(item)"
+                                    @click="toggleItem(item)"
+                                >
+                                    <Icon
+                                        :name="item.icon"
+                                        class="shrink-0 transition-colors"
+                                        :class="isActive(item) ? 'text-brand-600' : 'text-ink-500 group-hover:text-ink-700'"
+                                    />
+                                    <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+                                    <Icon
+                                        name="down"
+                                        size="size-3"
+                                        class="shrink-0 text-ink-500 transition"
+                                        :class="isItemOpen(item) ? '' : '-rotate-90'"
+                                    />
+                                </button>
+
+                                <ul v-show="isItemOpen(item)" class="mt-px ml-4 space-y-px border-l border-slate-200 pl-2">
+                                    <li v-for="child in item.children" :key="child.href">
+                                        <Link
+                                            :href="child.href"
+                                            :aria-current="isActive(child) ? 'page' : undefined"
+                                            class="flex items-center rounded-md px-2 py-1.5 text-sm transition focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                                            :class="isActive(child)
+                                                ? 'bg-brand-50 font-medium text-brand-700 shadow-[inset_2px_0_0_0_var(--color-brand-600)]'
+                                                : 'text-ink-700 hover:bg-slate-100 hover:text-ink-900'"
+                                        >
+                                            <span class="min-w-0 flex-1 truncate">{{ child.label }}</span>
+                                        </Link>
+                                    </li>
+                                </ul>
+                            </template>
+
                             <!--
                                 An external entry leaves this application (the floor terminal
                                 runs its own shell), so it is a plain anchor in a new tab
                                 rather than an Inertia visit that would replace the desk.
                             -->
                             <component
+                                v-else
                                 :is="item.external ? 'a' : Link"
                                 :href="item.href"
                                 v-bind="item.external ? { target: '_blank', rel: 'noopener' } : {}"

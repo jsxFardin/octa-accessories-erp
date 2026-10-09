@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { SETUP_GROUPS, navigation, visibleSections } from '../../resources/js/navigation.js';
+import { SETUP_GROUPS, navigation, visibleSections, withSetupLists } from '../../resources/js/navigation.js';
+
+/** What the server shares as `setupMenu`: the reference lists by group. */
+const menu = [
+    {
+        key: 'organisation',
+        label: 'Factory',
+        icon: 'building',
+        lists: [
+            { slug: 'factory-units', label: 'Factory units', icon: 'building', href: '/setup/factory-units', permission: 'reference_data.view_any' },
+            { slug: 'departments', label: 'Departments', icon: 'users', href: '/setup/departments', permission: 'reference_data.view_any' },
+            { slug: 'shifts', label: 'Shifts', icon: 'planning', href: '/setup/shifts', permission: 'reference_data.view_any' },
+        ],
+    },
+    {
+        key: 'people',
+        label: 'People',
+        icon: 'users',
+        lists: [{ slug: 'employees', label: 'Employees', icon: 'users', href: '/setup/employees', permission: 'employee.view_any' }],
+    },
+];
+
+const tree = withSetupLists(navigation, menu);
 
 const all = () => true;
 const none = () => false;
@@ -17,7 +39,7 @@ describe('sidebar visibility', () => {
     it('renders leaf items, not just hubs', () => {
         // The regression this exists for: a filter meant to drop empty hubs dropped every leaf
         // item too, so the whole sidebar rendered blank while every page still answered 200.
-        const labels = rows(visibleSections(navigation, all));
+        const labels = rows(visibleSections(tree, all));
 
         expect(labels).toContain('Inquiries');
         expect(labels).toContain('Suppliers');
@@ -33,7 +55,7 @@ describe('sidebar visibility', () => {
     });
 
     it('groups the factory sequence into collapsible sections', () => {
-        const labels = visibleSections(navigation, all).map((section) => section.label);
+        const labels = visibleSections(tree, all).map((section) => section.label);
 
         expect(labels).toEqual([
             'Overview',
@@ -47,10 +69,11 @@ describe('sidebar visibility', () => {
             'Money',
             'Reports',
             'Setup',
+            'Settings',
             'Access',
             'Activity',
         ]);
-        expect(visibleSections(navigation, all).find((section) => section.label === 'Overview')?.heading).toBe(false);
+        expect(visibleSections(tree, all).find((section) => section.label === 'Overview')?.heading).toBe(false);
     });
 
     it('puts every screen on its own row, not behind a folder or a tab strip', () => {
@@ -66,12 +89,34 @@ describe('sidebar visibility', () => {
         expect(itemsOf('Buying')).toContain('Import shipments');
         expect(itemsOf('Buying')).toContain('Letters of credit');
 
+        // Setup is the one place a row opens to a second level: a list group to its lists.
         for (const section of navigation) {
             for (const item of section.items) {
                 expect(item.children).toBeUndefined();
                 expect(item.sidebar).toBeUndefined();
             }
         }
+    });
+
+    it('builds Setup from the shared list registry: Setup › Factory › Factory units', () => {
+        const setup = tree.find((section) => section.label === 'Setup');
+
+        expect(setup.items.map((item) => item.label)).toEqual(['Factory', 'People']);
+        expect(setup.items[0].href).toBe('/setup/factory-units');
+        expect(setup.items[0].children.map((child) => child.label)).toEqual(['Factory units', 'Departments', 'Shifts']);
+        expect(setup.items[0].children[1].href).toBe('/setup/departments');
+        expect(setup.items[0].aliases).toContain('setup');
+        // Nothing else in the tree is touched, and the static tree has no directory row.
+        expect(navigation.find((section) => section.label === 'Setup').items).toEqual([]);
+        expect(tree.flatMap((section) => section.items).map((item) => item.href)).not.toContain('/setup');
+    });
+
+    it('shows a list group only when the user may read a list inside it', () => {
+        // A planner reads the factory lists but not employees: People goes, Factory stays.
+        const setup = visibleSections(tree, only('reference_data.view_any')).find((section) => section.label === 'Setup');
+
+        expect(setup.items.map((item) => item.label)).toEqual(['Factory']);
+        expect(visibleSections(tree, none)).toEqual([]);
     });
 
     it('lists the shop-floor terminal once, under one name', () => {
@@ -88,8 +133,8 @@ describe('sidebar visibility', () => {
     it('lists setup, access and activity as groups after the day\'s work', () => {
         // Configuration used to be a separate shell entered from the footer and left through
         // an "Exit configuration" header. It is three ordinary groups now, last in the tree.
-        expect(navigation.slice(-3).map((section) => section.label)).toEqual(SETUP_GROUPS);
-        expect(itemsOf('Setup')).toEqual(['Lists', 'Settings', 'Number sequences']);
+        expect(navigation.slice(-4).map((section) => section.label)).toEqual(SETUP_GROUPS);
+        expect(itemsOf('Settings')).toEqual(['Settings', 'Number sequences']);
         expect(itemsOf('Access')).toEqual(['Users', 'Roles & permissions']);
         expect(itemsOf('Activity')).toEqual(['Audit log']);
         expect(navigation.every((section) => section.open !== true)).toBe(true);
@@ -115,8 +160,8 @@ describe('sidebar visibility', () => {
     });
 
     it('keeps every screen reachable by its own URL', () => {
-        for (const section of navigation) {
-            for (const item of section.items) {
+        for (const section of tree) {
+            for (const item of section.items.flatMap((entry) => [entry, ...(entry.children ?? [])])) {
                 expect(item.href.startsWith('/')).toBe(true);
                 expect(item.permissions.length).toBeGreaterThan(0);
                 expect(item.icon).toBeTruthy();
@@ -132,14 +177,13 @@ describe('sidebar visibility', () => {
         expect(byHref['/stock'].aliases).toContain('stock enquiry');
         expect(byHref['/items'].aliases).toContain('items');
         expect(byHref['/delivery-challans'].aliases).toContain('challans');
-        expect(byHref['/setup'].aliases).toContain('setup');
-        expect(byHref['/setup'].aliases).toContain('configuration');
+        expect(byHref['/admin/settings'].aliases).toContain('configuration');
         expect(byHref['/boms']).toBeTruthy();
     });
 });
 
 describe('list URLs', () => {
-    const hrefs = navigation.flatMap((section) => section.items).map((item) => item.href);
+    const hrefs = tree.flatMap((section) => section.items.flatMap((item) => [item, ...(item.children ?? [])])).map((item) => item.href);
 
     it('knows a list URL from a form URL', () => {
         expect(hrefs).toContain('/products');

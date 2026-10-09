@@ -1,11 +1,11 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useFocusTrap } from '@/composables/useFocusTrap';
-import { router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
 import Icon from '@/Components/Ui/Icon.vue';
 import { canAny } from '@/plugins/permissions';
-import { navigation } from '@/navigation';
+import { navigation, withSetupLists } from '@/navigation';
 
 /**
  * ⌘K / Ctrl-K: go anywhere, find anything.
@@ -17,6 +17,7 @@ import { navigation } from '@/navigation';
  */
 const open = ref(false);
 const query = ref('');
+const page = usePage();
 const activeIndex = ref(0);
 const results = ref([]);
 const loading = ref(false);
@@ -48,7 +49,7 @@ const screens = computed(() => {
             }),
     );
 
-    return flatten(navigation);
+    return flatten(withSetupLists(navigation, page.props.setupMenu ?? []));
 });
 
 const matchedScreens = computed(() => {

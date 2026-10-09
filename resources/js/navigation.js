@@ -10,6 +10,8 @@
  * money, reports. Setup, Access and Activity sit last: the lists, settings, users and audit
  * log are groups like any other, collapsed until opened, so an administrator reaches them
  * from where they are rather than through a separate shell they have to enter and leave.
+ * Setup's rows are the list groups themselves (Factory, People …), each opening to its lists;
+ * Settings holds the company profile and the number sequences.
  *
  * Each entry names the permissions that make it visible. Visibility is a courtesy; the route
  * middleware is the boundary (06-rbac §7).
@@ -150,10 +152,18 @@ export const navigation = [
         ],
     },
     {
+        /*
+         * Filled at runtime by `withSetupLists` from the registry the server shares
+         * (`setupMenu`): one row per group — Factory, People, Commercial … — each opening to
+         * its lists. Setup › Factory › Factory units, with no directory page in between.
+         */
         label: 'Setup',
+        items: [],
+    },
+    {
+        label: 'Settings',
         items: [
-            { label: 'Lists', href: '/setup', icon: 'sliders', aliases: ['setup', 'configuration', 'reference data'], permissions: ['reference_data.view_any'] },
-            { label: 'Settings', href: '/admin/settings', icon: 'settings', aliases: ['configuration'], permissions: ['setting.view_any'] },
+            { label: 'Settings', href: '/admin/settings', icon: 'settings', aliases: ['configuration', 'company'], permissions: ['setting.view_any'] },
             { label: 'Number sequences', href: '/admin/number-sequences', icon: 'sequence', permissions: ['number_sequence.view_any'] },
         ],
     },
@@ -173,7 +183,42 @@ export const navigation = [
 ];
 
 /** The groups that configure the system rather than run it; listed after the day's work. */
-export const SETUP_GROUPS = ['Setup', 'Access', 'Activity'];
+export const SETUP_GROUPS = ['Setup', 'Settings', 'Access', 'Activity'];
+
+/**
+ * The tree with the Setup group filled from the server's list registry.
+ *
+ * @param {Array} sections  a navigation tree
+ * @param {Array} menu  `[{ key, label, icon, lists: [{ slug, label, icon, href, permission }] }]`
+ */
+export function withSetupLists(sections, menu = []) {
+    return sections.map((section) => {
+        if (section.label !== 'Setup') {
+            return section;
+        }
+
+        const items = (menu ?? []).map((group, index) => {
+            const children = (group.lists ?? []).map((list) => ({
+                label: list.label,
+                href: list.href,
+                icon: list.icon,
+                permissions: [list.permission],
+            }));
+
+            return {
+                label: group.label,
+                href: children[0]?.href ?? '/setup',
+                icon: group.icon,
+                // Any list in the group shows the group; `visibleSections` then narrows the children.
+                permissions: [...new Set(children.flatMap((child) => child.permissions))],
+                aliases: index === 0 ? ['setup', 'configuration', 'reference data', 'lists'] : [],
+                children,
+            };
+        });
+
+        return { ...section, items };
+    });
+}
 
 /**
  * The sections a user may actually open.

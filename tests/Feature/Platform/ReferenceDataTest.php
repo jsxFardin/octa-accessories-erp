@@ -336,3 +336,31 @@ it('lists the vocabularies on Setup so they can be opened and edited', function 
 
     expect($vocabularies['lists'] ?? [])->toHaveCount(8);
 });
+
+// --- The sidebar ---------------------------------------------------------------------------
+
+it('shares the lists as a sidebar tree, grouped, with the permission that shows each', function (): void {
+    // Setup › Factory › Factory units: the registry is the one source for the sidebar and the
+    // list pages, so a list cannot appear in one and be refused by the other.
+    $menu = $this->actingAs($this->admin)->get('/dashboard')->viewData('page')['props']['setupMenu'];
+
+    expect(collect($menu)->pluck('key')->all())->toBe(array_keys(ReferenceRegistry::GROUPS))
+        ->and($menu[0]['label'])->toBe('Factory')
+        ->and($menu[0]['lists'][0])->toMatchArray([
+            'slug' => 'factory-units',
+            'href' => '/setup/factory-units',
+            'permission' => 'reference_data.view_any',
+        ]);
+
+    $employees = collect($menu)->firstWhere('key', 'people')['lists'][0];
+
+    expect($employees['permission'])->toBe('employee.view_any');
+
+    foreach ($menu as $group) {
+        expect($group['icon'])->not->toBeEmpty();
+
+        foreach ($group['lists'] as $list) {
+            expect(ReferenceRegistry::find($list['slug']))->not->toBeNull();
+        }
+    }
+});
