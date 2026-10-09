@@ -87,7 +87,7 @@ const groups = computed(() => {
         { key: 'material', label: 'Material', test: (l) => l.is_material },
         { key: 'conversion', label: 'Conversion', test: (l) => ['machine', 'labour', 'energy'].includes(l.cost_type) },
         { key: 'waste', label: 'Waste', test: (l) => l.is_waste },
-        { key: 'other', label: 'Tooling, packing, subcontract, development, logistics, finance, commission', test: (l) => l.basis !== 'percentage' },
+        { key: 'other', label: 'Other direct costs', test: (l) => l.basis !== 'percentage' },
         { key: 'percentage', label: 'Overhead and margin', test: () => true },
     ];
     const taken = new Set();
@@ -98,7 +98,7 @@ const groups = computed(() => {
 });
 
 const lineColumns = [
-    { key: 'description', label: 'Line', wrap: true },
+    { key: 'description', label: 'Item', wrap: true },
     { key: 'qty', label: 'Qty', align: 'right' },
     { key: 'basis_uom', label: 'Unit' },
     { key: 'rate', label: 'Rate', align: 'right' },
@@ -220,7 +220,8 @@ const revisionColumns = [
                         <DataTable :columns="lineColumns" :rows="group.rows" row-key="sequence_no" dense>
                             <template #cell:description="{ row, value }">
                                 {{ value }}
-                                <span class="block text-xs text-ink-500">{{ titleCase(row.cost_type) }}<template v-if="row.formula_ref"> · {{ row.formula_ref }}</template></span>
+                                <!-- The rule reference is for support conversations, not the clerk: a tooltip, and a footnote on the print. -->
+                                <span class="block text-xs text-ink-500" :title="row.formula_ref ? `Rule ${row.formula_ref}` : null">{{ titleCase(row.cost_type) }}</span>
                             </template>
                             <template #cell:qty="{ row, value }">{{ row.basis === 'percentage' ? pct(value, 1) : row.basis_uom === 'pcs' ? pcs(value) : qty(value, 2) }}</template>
                             <template #cell:basis_uom="{ row, value }">{{ row.basis === 'percentage' ? `of ${money(row.percentage_of, cur)}` : (value ?? '—') }}</template>
@@ -262,12 +263,13 @@ const revisionColumns = [
                         <div v-if="product?.spec_version" class="flex justify-between gap-3"><dt class="text-ink-500">Specification</dt><dd class="text-right">v{{ product.spec_version }}</dd></div>
                         <div v-if="buyer" class="flex justify-between gap-3"><dt class="text-ink-500">Buyer</dt><dd class="text-right"><Link :href="`/customers/${buyer.id}`" class="doc-link-quiet">{{ buyer.name }}</Link></dd></div>
                         <div v-if="document" class="flex justify-between gap-3"><dt class="text-ink-500">Document</dt><dd class="text-right"><Link :href="document.href" class="doc-link-quiet">{{ document.label }}</Link><span v-if="document.line_no" class="text-ink-500"> line {{ document.line_no }}</span></dd></div>
-                        <div class="flex justify-between gap-3"><dt class="text-ink-500">Quantity</dt><dd class="tnum">{{ pcs(sheet.basis_qty) }}</dd></div>
-                        <div class="flex justify-between gap-3"><dt class="text-ink-500">Costing per</dt><dd class="tnum">{{ pcs(sheet.costing_per) }}</dd></div>
-                        <div class="flex justify-between gap-3"><dt class="text-ink-500">Currency</dt><dd class="tnum">{{ sheet.currency ?? '—' }}<template v-if="Number(sheet.exchange_rate) !== 1"> · {{ number(sheet.exchange_rate, 4) }}</template></dd></div>
+                        <div class="flex justify-between gap-3"><dt class="text-ink-500">Quantity</dt><dd class="tnum">{{ pcs(sheet.basis_qty) }} pcs</dd></div>
+                        <div v-if="Number(sheet.costing_per) !== 1" class="flex justify-between gap-3"><dt class="text-ink-500">Priced per</dt><dd class="tnum">{{ pcs(sheet.costing_per) }} pcs</dd></div>
+                        <div class="flex justify-between gap-3"><dt class="text-ink-500">Currency</dt><dd class="tnum">{{ sheet.currency ?? '—' }}</dd></div>
+                        <div v-if="Number(sheet.exchange_rate) !== 1" class="flex justify-between gap-3"><dt class="text-ink-500">Exchange rate</dt><dd class="tnum">{{ number(sheet.exchange_rate, 2) }}</dd></div>
                         <div v-if="sheet.incoterm" class="flex justify-between gap-3"><dt class="text-ink-500">Terms</dt><dd>{{ sheet.incoterm }}</dd></div>
-                        <div class="flex justify-between gap-3"><dt class="text-ink-500">Overheads</dt><dd class="tnum">{{ pct(sheet.overhead_pct, 1) }} + {{ pct(sheet.admin_pct, 1) }}</dd></div>
-                        <div v-if="sheet.gross_metres" class="flex justify-between gap-3"><dt class="text-ink-500">Gross metres</dt><dd class="tnum">{{ number(sheet.gross_metres, 2) }} m · {{ pct(sheet.total_wastage_pct, 2) }} wastage</dd></div>
+                        <div class="flex justify-between gap-3"><dt class="text-ink-500">Overhead</dt><dd class="tnum">{{ pct(sheet.overhead_pct, 0) }} factory + {{ pct(sheet.admin_pct, 0) }} admin</dd></div>
+                        <div v-if="sheet.gross_metres" class="flex justify-between gap-3"><dt class="text-ink-500">Gross metres</dt><dd class="tnum">{{ number(sheet.gross_metres, 2) }} m · {{ pct(sheet.total_wastage_pct, 1) }} wastage</dd></div>
                         <div class="flex justify-between gap-3 border-t border-slate-100 pt-2"><dt class="text-ink-500">Costed</dt><dd class="text-right">{{ date(sheet.created_at) }}<span v-if="sheet.created_by" class="block text-xs text-ink-500">{{ sheet.created_by }}</span></dd></div>
                         <div v-if="sheet.submitted_at" class="flex justify-between gap-3"><dt class="text-ink-500">Submitted</dt><dd class="text-right">{{ date(sheet.submitted_at) }}<span class="block text-xs text-ink-500">{{ sheet.submitted_by }}</span></dd></div>
                         <div v-if="sheet.approved_at" class="flex justify-between gap-3"><dt class="text-ink-500">Approved</dt><dd class="text-right">{{ date(sheet.approved_at) }}<span class="block text-xs text-ink-500">{{ sheet.approved_by ?? 'System' }}</span></dd></div>

@@ -347,7 +347,7 @@ class CostSheetPage
 
     /**
      * Who did what to the sheet, from the audit log: made, submitted, approved, rejected,
-     * reopened, printed — with the reason where one was given.
+     * reopened — with the reason where one was given. Prints stay in the audit log.
      *
      * @return list<array<string, mixed>>
      */
@@ -358,8 +358,8 @@ class CostSheetPage
             ->whereIn('a.auditable_type', [CostSheet::class, 'cost_sheets'])
             ->where('a.auditable_id', $sheet->id)
             // The model's own `updated` rows are the bookkeeping behind a transition, not
-            // an act of their own; the history is the acts.
-            ->whereIn('a.event', ['created', 'status_changed', 'printed'])
+            // an act of their own, and a print is not an approval; the history is the signatures.
+            ->whereIn('a.event', ['created', 'status_changed'])
             ->orderBy('a.id')
             ->get(['a.id', 'a.event', 'a.old_values', 'a.new_values', 'a.created_at', 'u.name as user'])
             ->map(function ($row): array {

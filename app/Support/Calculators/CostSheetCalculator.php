@@ -79,7 +79,7 @@ class CostSheetCalculator
             $directCost,
             round($factoryOverhead, 4),
             'BR-19',
-            'Factory overhead on direct cost',
+            'Factory overhead',
         );
 
         $preAdminSubtotal = $this->sum($lines);
@@ -93,7 +93,7 @@ class CostSheetCalculator
             $preAdminSubtotal,
             round($adminOverhead, 4),
             'BR-19',
-            'Administrative overhead on subtotal',
+            'Administrative overhead',
         );
 
         $subtotal = $this->sum($lines);
@@ -144,7 +144,7 @@ class CostSheetCalculator
             $totalCost,
             round($marginAmount, 4),
             'BR-20',
-            'Margin on price (÷ (1 − margin)), not on cost',
+            'Margin on the price',
         );
 
         return new CostSheet(
@@ -355,7 +355,7 @@ class CostSheetCalculator
             ? round($amount / $quantity, 6)
             : 0.0;
 
-        $across = $steps > 1 ? " · blended across {$steps} operations" : null;
+        $across = $steps > 1 ? " across {$steps} operations" : null;
 
         if ($machineCost > 0) {
             $lines[] = new CostLine(
@@ -366,7 +366,7 @@ class CostSheetCalculator
                 $blend($machineCost, $totalHours),
                 round($machineCost, 4),
                 'BR-16',
-                'Machine hours at the weighted average machine rate'.$across,
+                'Machine time'.$across,
             );
         }
 
@@ -379,7 +379,7 @@ class CostSheetCalculator
                 $blend($labourCost, $totalHours),
                 round($labourCost, 4),
                 'BR-17',
-                'Machine hours at the weighted average manned labour rate'.$across,
+                'Labour'.$across,
             );
         }
 
@@ -392,7 +392,7 @@ class CostSheetCalculator
                 $input->tariffPerKwh,
                 round($energyCost, 4),
                 'BR-18',
-                'Connected load over the run at the energy tariff',
+                'Energy over the run',
             );
         }
 
