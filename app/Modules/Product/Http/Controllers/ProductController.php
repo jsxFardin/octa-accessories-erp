@@ -116,7 +116,7 @@ class ProductController extends Controller
     public function updateRouting(Request $request, Product $product): RedirectResponse
     {
         $data = $request->validate([
-            'routing_id' => ['required', 'integer', $this->routingOfType($product->product_type)],
+            'routing_id' => ['required', 'integer', $this->routingOfType($product->product_type, $product->item?->production_family_id)],
         ]);
 
         $product->update($data);
@@ -287,7 +287,7 @@ class ProductController extends Controller
                     ->whereNull('customer_id')
                     ->orWhere('customer_id', (int) $request->input('customer_id')))),
             ],
-            'routing_id' => ['nullable', 'integer', $this->routingOfType((string) $request->input('product_type'))],
+            'routing_id' => ['nullable', 'integer', $this->routingOfType((string) $request->input('product_type'), $request->integer('production_family_id') ?: null)],
             // Typed codes are for catalogues that already have them; left empty, the family's
             // series assigns one.
             'code' => ['nullable', 'string', 'max:40', Rule::unique('items', 'code')->ignore($product?->item_id)],
@@ -342,16 +342,20 @@ class ProductController extends Controller
         return [$item, $profile];
     }
 
-    /** A woven label run down a flexo routing is costed at the wrong machines' rates. */
-    private function routingOfType(string $productType): \Closure
+    /**
+     * A woven label run down a flexo routing is costed at the wrong machines' rates, and a
+     * drawcord run down a zipper routing on the wrong ones too. A routing fits by its
+     * family or by its label type (Routing::fits).
+     */
+    private function routingOfType(string $productType, ?int $familyId): \Closure
     {
-        return function (string $attribute, mixed $value, \Closure $fail) use ($productType): void {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($productType, $familyId): void {
             $routing = Routing::query()->find($value);
 
             if ($routing === null) {
                 $fail('Choose a routing from the list.');
-            } elseif ($routing->product_type !== null && $routing->product_type !== $productType) {
-                $fail("{$routing->code} is a routing for another product type. Choose one that matches this product.");
+            } elseif (! $routing->fits($productType, $familyId === null ? null : (int) $familyId)) {
+                $fail("{$routing->code} is a routing for another family or product type. Choose one that matches this product.");
             }
         };
     }
@@ -362,9 +366,9 @@ class ProductController extends Controller
         return [
             'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
             'brands' => Brand::query()->orderBy('name')->get(['id', 'code', 'name', 'customer_id']),
-            'routings' => Routing::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name', 'product_type', 'max_lot_size'])
+            'routings' => Routing::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name', 'product_type', 'production_family_id', 'max_lot_size'])
                 ->map(fn (Routing $routing): array => [
-                    ...$routing->only(['id', 'code', 'name', 'product_type', 'max_lot_size']),
+                    ...$routing->only(['id', 'code', 'name', 'product_type', 'production_family_id', 'max_lot_size']),
                     'label' => "{$routing->code} · {$routing->name}",
                 ]),
             'productTypes' => Vocabulary::options('product_type'),

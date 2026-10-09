@@ -351,7 +351,7 @@ CREATE TABLE machine_groups (
     process_type VARCHAR(30)  NOT NULL,
     output_uom   VARCHAR(20)  NOT NULL DEFAULT 'metre',
     UNIQUE KEY machine_groups_code_uq (code),
-    CONSTRAINT machine_groups_process_chk CHECK (process_type IN ('design','warping','weaving','flexo','screen','heat_transfer','offset','thermal','slitting','cutting','folding','curing','lamination','packing'))
+    CONSTRAINT machine_groups_process_chk CHECK (process_type IN ('design','digitizing','warping','weaving','knitting','braiding','twisting','heat_setting','dyeing','finishing','coating','adhesive','drying','flexo','screen','heat_transfer','offset','thermal','printing','curing','lamination','slitting','cutting','die_cutting','creasing','punching','folding','barcode_verify','eyeleting','stringing','tipping','chain_forming','assembly','slider_fitting','stopping','puller_fitting','moulding','injection','trimming','polishing','drilling','logo_marking','stamping','die_casting','forming','deburring','plating','mixing','cooling','extrusion','sealing','gluing','embroidery','inspection','packing'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE machines (
@@ -512,6 +512,7 @@ CREATE TABLE production_families (
     code        CHAR(2)      NOT NULL,
     name        VARCHAR(120) NOT NULL,
     code_prefix VARCHAR(4)   NOT NULL,
+    requires_artwork BOOLEAN NOT NULL DEFAULT FALSE,   -- 02, 03, 08, 10: no job without an approved artwork
     sort_order  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     UNIQUE KEY production_families_code_uq (code),
@@ -817,16 +818,41 @@ CREATE TABLE price_list_lines (
 -- 3. PRODUCT, ARTWORK, BOM, ROUTING, TOOLING
 -- =====================================================================
 
+-- Operation master (spec §2). A process shared by several families — dyeing for narrow
+-- textile and cord, printing for label, paper, packaging and decoration, plating for
+-- fasteners, cutting for nearly all — is one row here, and every family routing that runs
+-- it points at that row. Its rate and machine group are the defaults a routing step starts from.
+CREATE TABLE operations (
+    id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code             VARCHAR(30)  NOT NULL,
+    name             VARCHAR(120) NOT NULL,
+    process_type     VARCHAR(30)  NOT NULL,
+    machine_group_id BIGINT UNSIGNED,
+    output_uom       VARCHAR(20)  NOT NULL DEFAULT 'pcs',
+    is_shared        BOOLEAN NOT NULL DEFAULT FALSE,   -- (S): one operation master used across families
+    requires_qc      BOOLEAN NOT NULL DEFAULT FALSE,
+    sort_order       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active        BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE KEY operations_code_uq (code),
+    KEY operations_group_idx (machine_group_id),
+    CONSTRAINT operations_group_fk   FOREIGN KEY (machine_group_id) REFERENCES machine_groups(id),
+    CONSTRAINT operations_process_chk CHECK (process_type IN ('design','digitizing','warping','weaving','knitting','braiding','twisting','heat_setting','dyeing','finishing','coating','adhesive','drying','flexo','screen','heat_transfer','offset','thermal','printing','curing','lamination','slitting','cutting','die_cutting','creasing','punching','folding','barcode_verify','eyeleting','stringing','tipping','chain_forming','assembly','slider_fitting','stopping','puller_fitting','moulding','injection','trimming','polishing','drilling','logo_marking','stamping','die_casting','forming','deburring','plating','mixing','cooling','extrusion','sealing','gluing','embroidery','inspection','packing'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE routings (
-    id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    code         VARCHAR(30)  NOT NULL,
-    name         VARCHAR(120) NOT NULL,
-    product_type VARCHAR(20)  NOT NULL,
-    max_lot_size DECIMAL(18,6),
-    is_default   BOOLEAN NOT NULL DEFAULT FALSE,
-    is_active    BOOLEAN NOT NULL DEFAULT TRUE,
+    id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code                 VARCHAR(30)  NOT NULL,
+    name                 VARCHAR(120) NOT NULL,
+    production_family_id BIGINT UNSIGNED,            -- the family whose process this is (spec §2)
+    product_type         VARCHAR(20),                -- label routings also name the label type
+    max_lot_size         DECIMAL(18,6),
+    is_default           BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active            BOOLEAN NOT NULL DEFAULT TRUE,
     UNIQUE KEY routings_code_uq (code),
-    CONSTRAINT routings_type_fk FOREIGN KEY (product_type) REFERENCES product_types(code)
+    KEY routings_family_idx (production_family_id),
+    CONSTRAINT routings_type_fk   FOREIGN KEY (product_type)         REFERENCES product_types(code),
+    CONSTRAINT routings_family_fk FOREIGN KEY (production_family_id) REFERENCES production_families(id),
+    CONSTRAINT routings_scope_chk CHECK (production_family_id IS NOT NULL OR product_type IS NOT NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE routing_operations (
@@ -845,11 +871,15 @@ CREATE TABLE routing_operations (
     consumes_web      BOOLEAN NOT NULL DEFAULT TRUE,
     allow_parallel    BOOLEAN NOT NULL DEFAULT FALSE,
     requires_qc       BOOLEAN NOT NULL DEFAULT FALSE,
+    operation_id      BIGINT UNSIGNED,                 -- the operation master this step runs; shared processes point at one row
+    is_optional       BOOLEAN NOT NULL DEFAULT FALSE,  -- [ ] in the family process: a job may skip it
     UNIQUE KEY routing_operations_uq (routing_id, sequence_no),
     KEY routing_operations_group_idx (machine_group_id),
     KEY routing_operations_dept_idx (department_id),
+    KEY routing_operations_operation_idx (operation_id),
     CONSTRAINT routing_operations_routing_fk FOREIGN KEY (routing_id)        REFERENCES routings(id) ON DELETE CASCADE,
     CONSTRAINT routing_operations_group_fk   FOREIGN KEY (machine_group_id)  REFERENCES machine_groups(id),
+    CONSTRAINT routing_operations_op_fk      FOREIGN KEY (operation_id)      REFERENCES operations(id),
     CONSTRAINT routing_operations_dept_fk    FOREIGN KEY (department_id)     REFERENCES departments(id),
     CONSTRAINT routing_operations_seq_chk     CHECK (sequence_no > 0),
     CONSTRAINT routing_operations_wastage_chk CHECK (wastage_pct >= 0)
@@ -2209,6 +2239,7 @@ CREATE TABLE job_card_operations (
     started_at           DATETIME(3),
     finished_at          DATETIME(3),
     requires_qc          BOOLEAN NOT NULL DEFAULT FALSE,
+    is_optional          BOOLEAN NOT NULL DEFAULT FALSE,  -- copied from the routing; a planner may skip it
     status               VARCHAR(20) NOT NULL DEFAULT 'pending',
     UNIQUE KEY job_card_operations_uq (job_card_id, sequence_no),
     KEY job_card_operations_machine_idx (machine_id, status, scheduled_start),

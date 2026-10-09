@@ -277,8 +277,12 @@ it('loads every object the specification promises', function (): void {
     // and the attribute data type.
     // 163 is `accounting_periods`: a closed month takes no stock movement, invoice, bill,
     // receipt or payment. Two foreign keys (closer, reopener) and two CHECKs (status, month).
-    expect($tables)->toBe(163)
+    // 164 is `operations`, the operation master (spec §2): a process shared by several
+    // families is one row, and family routings point at it. Three more foreign keys
+    // (operations.machine_group, routings.production_family, routing_operations.operation)
+    // and two more CHECKs (the operation's process, and a routing naming a family or a type).
+    expect($tables)->toBe(164)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(446)
-        ->and($checks)->toBe(188);
+        ->and($foreignKeys)->toBe(449)
+        ->and($checks)->toBe(190);
 });

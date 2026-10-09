@@ -83,6 +83,7 @@ class JobCardOperation extends Model
         'started_at',
         'finished_at',
         'requires_qc',
+        'is_optional',
         'status',
     ];
 
@@ -107,6 +108,7 @@ class JobCardOperation extends Model
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
             'requires_qc' => 'boolean',
+            'is_optional' => 'boolean',
         ];
     }
 

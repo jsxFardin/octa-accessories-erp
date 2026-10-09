@@ -6,6 +6,8 @@ namespace App\Modules\Product\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\MachineGroup;
+use App\Modules\MasterData\Models\ProductionFamily;
+use App\Modules\Product\Models\Operation;
 use App\Modules\Product\Models\Routing;
 use App\Support\Http\ListsResources;
 use App\Support\Reference\Vocabulary;
@@ -30,20 +32,21 @@ class RoutingController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = Routing::query()->with('operations');
+        $query = Routing::query()->with(['operations', 'family:id,code,name']);
 
         $this->applyListing(
             $query,
             $request,
             searchable: ['code', 'name'],
-            filters: ['product_type' => 'product_type'],
+            filters: ['product_type' => 'product_type', 'family' => 'production_family_id'],
             sortable: ['code', 'name', 'product_type'],
             defaultSort: 'code',
         );
 
         return Inertia::render('Product/Routings/Index', [
             'routings' => $query->paginate($this->perPage($request))->withQueryString(),
-            'filters' => $this->listingFilters($request, ['product_type']),
+            'filters' => $this->listingFilters($request, ['product_type', 'family']),
+            'families' => $this->families(),
         ]);
     }
 
@@ -71,17 +74,20 @@ class RoutingController extends Controller
 
     public function show(Routing $routing): Response
     {
-        $routing->load('operations.machineGroup');
+        $routing->load(['operations.machineGroup', 'operations.operation', 'family']);
 
         return Inertia::render('Product/Routings/Show', [
             'routing' => $routing,
+            'family' => $routing->family?->only(['id', 'code', 'name']),
             'operations' => $routing->operations->map(fn ($operation): array => [
                 ...$operation->only([
                     'id', 'sequence_no', 'code', 'name', 'std_rate_per_hour', 'setup_minutes',
                     'setup_qty', 'wastage_pct', 'manning_level', 'consumes_web', 'allow_parallel',
-                    'requires_qc',
+                    'requires_qc', 'is_optional',
                 ]),
                 'machine_group' => $operation->machineGroup?->name,
+                // The master this step runs; shared processes carry the same code on several routings.
+                'operation' => $operation->operation?->only(['id', 'code', 'name', 'is_shared']),
             ]),
             // BR-8 — additive across the operations that consume the web, and only those.
             'totalWastagePct' => $routing->totalWastagePct(),
@@ -131,7 +137,10 @@ class RoutingController extends Controller
         return $request->validate([
             'code' => ['required', 'string', 'max:30', Rule::unique('routings', 'code')->ignore($routing?->id)],
             'name' => ['required', 'string', 'max:120'],
-            'product_type' => ['required', Rule::in(Vocabulary::codes('product_type'))],
+            // A routing belongs to a family (spec §2) or, for the label types the geometry
+            // calculators know, to a product type — or both. Never neither.
+            'production_family_id' => ['nullable', 'integer', 'exists:production_families,id', 'required_without:product_type'],
+            'product_type' => ['nullable', Rule::in(Vocabulary::codes('product_type')), 'required_without:production_family_id'],
             'max_lot_size' => ['nullable', 'numeric', 'gt:0'],
             'is_default' => ['boolean'],
             'is_active' => ['boolean'],
@@ -147,6 +156,8 @@ class RoutingController extends Controller
             'operations.*.consumes_web' => ['boolean'],
             'operations.*.allow_parallel' => ['boolean'],
             'operations.*.requires_qc' => ['boolean'],
+            'operations.*.operation_id' => ['nullable', 'integer', 'exists:operations,id'],
+            'operations.*.is_optional' => ['boolean'],
         ]);
     }
 
@@ -171,8 +182,19 @@ class RoutingController extends Controller
                 'consumes_web' => $operation['consumes_web'] ?? true,
                 'allow_parallel' => $operation['allow_parallel'] ?? false,
                 'requires_qc' => $operation['requires_qc'] ?? false,
+                'operation_id' => $operation['operation_id'] ?? null,
+                'is_optional' => $operation['is_optional'] ?? false,
             ]);
         }
+    }
+
+    /** @return list<array{value: int, label: string, code: string}> */
+    private function families(): array
+    {
+        return ProductionFamily::query()->where('is_active', true)->orderBy('sort_order')
+            ->get(['id', 'code', 'name'])
+            ->map(fn (ProductionFamily $family): array => ['value' => $family->id, 'label' => $family->name, 'code' => $family->code])
+            ->all();
     }
 
     /** @return array<string, mixed> */
@@ -181,6 +203,10 @@ class RoutingController extends Controller
         return [
             'machineGroups' => MachineGroup::query()->orderBy('code')->get(['id', 'code', 'name', 'process_type']),
             'productTypes' => Vocabulary::options('product_type'),
+            'families' => $this->families(),
+            // The operation master: a step is picked from it and starts from its settings.
+            'operations' => Operation::query()->where('is_active', true)->orderBy('sort_order')
+                ->get(['id', 'code', 'name', 'process_type', 'machine_group_id', 'output_uom', 'is_shared', 'requires_qc']),
         ];
     }
 }

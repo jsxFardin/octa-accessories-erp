@@ -16,6 +16,9 @@ const props = defineProps({
     routing: { type: Object, default: null },
     machineGroups: { type: Array, default: () => [] },
     productTypes: { type: Array, default: () => [] },
+    families: { type: Array, default: () => [] },
+    /** The operation master; a step picked from it starts from the master's settings. */
+    operations: { type: Array, default: () => [] },
 });
 
 const isEdit = computed(() => Boolean(props.routing));
@@ -33,12 +36,41 @@ function blankOperation() {
         consumes_web: true,
         allow_parallel: false,
         requires_qc: false,
+        operation_id: '',
+        is_optional: false,
     };
 }
+
+/*
+ * Choosing a master operation fills the step from it — code, name, machine group, whether
+ * it ends in an inspection — and the planner then adjusts the rate. A shared process
+ * (dyeing, printing, plating, cutting) is the same master row on every family that runs it.
+ */
+function applyOperation(line) {
+    const master = props.operations.find((operation) => String(operation.id) === String(line.operation_id));
+
+    if (!master) return;
+
+    line.code = line.code || master.code.toLowerCase();
+    line.name = master.name;
+    line.machine_group_id = master.machine_group_id ?? '';
+    line.requires_qc = Boolean(master.requires_qc);
+    line.consumes_web = master.output_uom === 'metre' && !form.production_family_id ? line.consumes_web : false;
+}
+
+const operationOptions = computed(() =>
+    props.operations.map((operation) => ({
+        value: operation.id,
+        label: operation.name,
+        code: operation.code,
+        hint: operation.is_shared ? 'Shared across families' : undefined,
+    })),
+);
 
 const form = useForm({
     code: props.routing?.code ?? '',
     name: props.routing?.name ?? '',
+    production_family_id: props.routing?.production_family_id ?? '',
     product_type: props.routing?.product_type ?? '',
     max_lot_size: props.routing?.max_lot_size ?? '',
     is_default: props.routing?.is_default ?? false,
@@ -100,6 +132,7 @@ function submit() {
  */
 const columns = [
     { key: 'order', label: 'Move', width: '4.5rem' },
+    { key: 'operation_id', label: 'From master', width: '11rem' },
     { key: 'code', label: 'Code', width: '7rem', required: true },
     { key: 'name', label: 'Name', width: '11rem', required: true },
     { key: 'machine_group_id', label: 'Machine group', width: '11rem' },
@@ -108,7 +141,7 @@ const columns = [
     { key: 'setup_qty', label: 'Make-ready (m)', width: '7rem', align: 'right' },
     { key: 'wastage_pct', label: 'Wastage %', width: '6.5rem', align: 'right' },
     { key: 'manning_level', label: 'People', width: '6rem', align: 'right' },
-    { key: 'flags', label: 'Options', width: '12rem', errorKeys: ['requires_qc', 'allow_parallel', 'consumes_web'] },
+    { key: 'flags', label: 'Options', width: '12rem', errorKeys: ['requires_qc', 'allow_parallel', 'consumes_web', 'is_optional'] },
 ];
 </script>
 
@@ -117,12 +150,12 @@ const columns = [
         <Head :title="isEdit ? `Edit ${routing.code}` : 'New routing'" />
 
         <template #title>{{ isEdit ? `Routing ${routing.code}` : 'New routing' }}</template>
-        <template #subtitle>The steps a product of this type goes through, in order</template>
+        <template #subtitle>The steps a product of this family goes through, in order</template>
 
         <FormLayout @submit="submit">
 
             <Card title="Routing">
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                     <FormField label="Code" :error="form.errors.code" required>
                         <TextInput v-model="form.code" placeholder="RT-WOVEN-2" />
                     </FormField>
@@ -131,8 +164,12 @@ const columns = [
                         <TextInput v-model="form.name" />
                     </FormField>
 
-                    <FormField label="Product type" :error="form.errors.product_type" required>
-                        <SelectInput v-model="form.product_type" placeholder="— select —" :options="productTypes" />
+                    <FormField label="Family" :error="form.errors.production_family_id" hint="The production family whose process this is.">
+                        <SelectInput v-model="form.production_family_id" placeholder="— select —" :options="families" clearable />
+                    </FormField>
+
+                    <FormField label="Label type" :error="form.errors.product_type" hint="Only for the label kinds the geometry calculators know.">
+                        <SelectInput v-model="form.product_type" placeholder="None" :options="productTypes" clearable />
                     </FormField>
 
                     <FormField
@@ -147,7 +184,7 @@ const columns = [
                     <div class="space-y-1 pt-5">
                         <label class="flex items-center gap-2 text-sm text-ink-700">
                             <input v-model="form.is_default" type="checkbox" class="form-checkbox">
-                            Default for this type
+                            Default for this family or type
                         </label>
                         <label class="flex items-center gap-2 text-sm text-ink-700">
                             <input v-model="form.is_active" type="checkbox" class="form-checkbox">
@@ -180,6 +217,16 @@ const columns = [
                                     :aria-label="`Move step ${index + 1} down`" data-move-down @click="moveOperation(index, 1)"
                                 >↓</Button>
                             </div>
+                        </template>
+
+                        <template #cell:operation_id="{ line }">
+                            <SelectInput
+                                v-model="line.operation_id"
+                                :options="operationOptions"
+                                placeholder="Typed by hand"
+                                clearable
+                                @update:model-value="applyOperation(line)"
+                            />
                         </template>
 
                         <template #cell:code="{ line }">
@@ -230,6 +277,11 @@ const columns = [
                                 <label class="flex items-center gap-1.5 text-ink-700">
                                     <input v-model="line.requires_qc" type="checkbox" class="form-checkbox" :aria-label="`Needs a QC check, step ${index + 1}`">
                                     Needs a QC check
+                                </label>
+                                <!-- [ ] in the family process: a job may skip it. -->
+                                <label class="flex items-center gap-1.5 text-ink-700">
+                                    <input v-model="line.is_optional" type="checkbox" class="form-checkbox" :aria-label="`Optional, step ${index + 1}`">
+                                    Optional step
                                 </label>
                             </div>
                         </template>

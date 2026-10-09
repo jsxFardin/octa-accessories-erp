@@ -32,6 +32,7 @@ CREATE TABLE production_families (
     code        CHAR(2)      NOT NULL,
     name        VARCHAR(120) NOT NULL,
     code_prefix VARCHAR(4)   NOT NULL,
+    requires_artwork BOOLEAN NOT NULL DEFAULT FALSE,   -- 02, 03, 08, 10: no job without an approved artwork
     sort_order  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     UNIQUE KEY production_families_code_uq (code),

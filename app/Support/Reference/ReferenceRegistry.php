@@ -436,6 +436,7 @@ class ReferenceRegistry
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'size:2'], 'unique' => true, 'hint' => 'Two digits, 01 to 99.'],
                     ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
                     ['name' => 'code_prefix', 'label' => 'Code prefix', 'type' => 'text', 'rules' => ['required', 'string', 'max:4', 'not_in:L,ITM'], 'unique' => true, 'hint' => 'Starts every item code in the family, e.g. BC for BC-06-00012.'],
+                    ['name' => 'requires_artwork', 'label' => 'Needs approved artwork', 'type' => 'boolean', 'default' => false, 'hint' => 'A job in this family is not raised without an approved artwork version: printed label, paper, packaging, decoration.'],
                     ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
                     ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
                 ],
@@ -559,9 +560,32 @@ class ReferenceRegistry
                 'fields' => [
                     ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'unique' => true],
                     ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
-                    ['name' => 'process_type', 'label' => 'Process', 'type' => 'select', 'options' => ['design', 'warping', 'weaving', 'flexo', 'screen', 'heat_transfer', 'offset', 'thermal', 'slitting', 'cutting', 'folding', 'curing', 'lamination', 'packing']],
+                    ['name' => 'process_type', 'label' => 'Process', 'type' => 'select', 'options' => ProcessVocabulary::TYPES],
                     ['name' => 'output_uom', 'label' => 'Output unit', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'default' => 'metre', 'hint' => 'What this group’s standard rate is measured in — metres for a loom, pieces for a folder.'],
                 ],
+            ],
+
+            'operations' => [
+                'table' => 'operations',
+                'group' => 'production',
+                'label' => 'Operations',
+                'singular' => 'operation',
+                'icon' => 'routing',
+                'permission' => 'routing',
+                'description' => 'The operation master. A process several families share — dyeing, printing, plating, cutting — is one operation here, and every family routing that runs it points at it. A routing step starts from the operation\'s machine group and settings.',
+                'searchable' => ['code', 'name'],
+                'fields' => [
+                    ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:30'], 'unique' => true],
+                    ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:120']],
+                    ['name' => 'process_type', 'label' => 'Process', 'type' => 'select', 'options' => ProcessVocabulary::TYPES],
+                    ['name' => 'machine_group_id', 'label' => 'Machine group', 'type' => 'reference', 'reference' => 'machine_groups', 'rules' => ['nullable', 'integer', 'exists:machine_groups,id']],
+                    ['name' => 'output_uom', 'label' => 'Output unit', 'type' => 'text', 'rules' => ['required', 'string', 'max:20'], 'default' => 'pcs', 'hint' => 'What the step counts out in: metres for a dye range, pieces for a press.'],
+                    ['name' => 'is_shared', 'label' => 'Shared across families', 'type' => 'boolean', 'default' => false],
+                    ['name' => 'requires_qc', 'label' => 'Ends in an inspection', 'type' => 'boolean', 'default' => false],
+                    ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
+                    ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],
+                ],
+                'defaultSort' => 'sort_order',
             ],
 
             'downtime-reasons' => [

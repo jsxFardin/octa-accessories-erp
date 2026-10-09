@@ -23,12 +23,12 @@ class ProductionFamily extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['code', 'name', 'code_prefix', 'sort_order', 'is_active'];
+    protected $fillable = ['code', 'name', 'code_prefix', 'requires_artwork', 'sort_order', 'is_active'];
 
     /** @return array<string, string> */
     protected function casts(): array
     {
-        return ['sort_order' => 'integer', 'is_active' => 'boolean'];
+        return ['requires_artwork' => 'boolean', 'sort_order' => 'integer', 'is_active' => 'boolean'];
     }
 
     /** @return HasMany<ItemGroup, $this> */

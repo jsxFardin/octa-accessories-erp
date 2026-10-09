@@ -39,6 +39,7 @@ CREATE TABLE job_card_operations (
     started_at           DATETIME(3),
     finished_at          DATETIME(3),
     requires_qc          BOOLEAN NOT NULL DEFAULT FALSE,
+    is_optional          BOOLEAN NOT NULL DEFAULT FALSE,  -- copied from the routing; a planner may skip it
     status               VARCHAR(20) NOT NULL DEFAULT 'pending',
     UNIQUE KEY job_card_operations_uq (job_card_id, sequence_no),
     KEY job_card_operations_machine_idx (machine_id, status, scheduled_start),

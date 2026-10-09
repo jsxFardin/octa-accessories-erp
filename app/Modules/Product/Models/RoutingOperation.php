@@ -45,6 +45,8 @@ class RoutingOperation extends Model
         'consumes_web',
         'allow_parallel',
         'requires_qc',
+        'operation_id',
+        'is_optional',
     ];
 
     /** @return array<string, string> */
@@ -63,6 +65,8 @@ class RoutingOperation extends Model
             'consumes_web' => 'boolean',
             'allow_parallel' => 'boolean',
             'requires_qc' => 'boolean',
+            'operation_id' => 'integer',
+            'is_optional' => 'boolean',
         ];
     }
 
@@ -76,6 +80,12 @@ class RoutingOperation extends Model
     public function machineGroup(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\MachineGroup::class, 'machine_group_id');
+    }
+
+    /** The master this step runs; a shared process is the same row on several routings. */
+    public function operation(): BelongsTo
+    {
+        return $this->belongsTo(Operation::class, 'operation_id');
     }
 
     /**

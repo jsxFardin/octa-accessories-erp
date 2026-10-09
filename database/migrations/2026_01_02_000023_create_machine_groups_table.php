@@ -25,7 +25,7 @@ CREATE TABLE machine_groups (
     process_type VARCHAR(30)  NOT NULL,
     output_uom   VARCHAR(20)  NOT NULL DEFAULT 'metre',
     UNIQUE KEY machine_groups_code_uq (code),
-    CONSTRAINT machine_groups_process_chk CHECK (process_type IN ('design','warping','weaving','flexo','screen','heat_transfer','offset','thermal','slitting','cutting','folding','curing','lamination','packing'))
+    CONSTRAINT machine_groups_process_chk CHECK (process_type IN ('design','digitizing','warping','weaving','knitting','braiding','twisting','heat_setting','dyeing','finishing','coating','adhesive','drying','flexo','screen','heat_transfer','offset','thermal','printing','curing','lamination','slitting','cutting','die_cutting','creasing','punching','folding','barcode_verify','eyeleting','stringing','tipping','chain_forming','assembly','slider_fitting','stopping','puller_fitting','moulding','injection','trimming','polishing','drilling','logo_marking','stamping','die_casting','forming','deburring','plating','mixing','cooling','extrusion','sealing','gluing','embroidery','inspection','packing'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 SQL);
     }

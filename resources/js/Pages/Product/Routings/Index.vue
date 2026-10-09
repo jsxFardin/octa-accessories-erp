@@ -14,7 +14,11 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 
 const { confirm } = useConfirm();
 
-const props = defineProps({ routings: Object, filters: Object });
+const props = defineProps({
+    routings: Object,
+    filters: Object,
+    families: { type: Array, default: () => [] },
+});
 
 async function remove(row) {
     if (!await confirm({
@@ -43,7 +47,8 @@ function rowActions(row) {
 const columns = [
     { key: 'code', label: 'Code', sort: true },
     { key: 'name', label: 'Name', sort: true },
-    { key: 'product_type', label: 'Product type', sort: true },
+    { key: 'family', label: 'Family' },
+    { key: 'product_type', label: 'Label type', sort: true },
     { key: 'operations_count', label: 'Operations', align: 'center' },
     { key: 'wastage', label: 'Total wastage', align: 'right' },
     { key: 'max_lot_size', label: 'Max lot', align: 'right' },
@@ -55,7 +60,7 @@ const columns = [
         <Head title="Routings" />
 
         <template #title>Routings</template>
-        <template #subtitle>One default routing per product type, carrying the wastage defaults</template>
+        <template #subtitle>One default routing per family — its standard process — plus the label types' own</template>
 
         <template #actions>
             <ExportDialog v-if="can('routing.export')" resource="routings" />
@@ -63,7 +68,14 @@ const columns = [
         </template>
 
         <Card :padded="false">
-            <FilterBar :filters="filters" :fields="[{ key: 'product_type', label: 'Product type', options: ['woven','flexo','screen','heat_transfer','offset_tag','thermal'].map((s) => ({ value: s, label: titleCase(s) })) }]" placeholder="Search routing code or name…" />
+            <FilterBar
+                :filters="filters"
+                :fields="[
+                    { key: 'family', label: 'Family', options: families },
+                    { key: 'product_type', label: 'Label type', options: ['woven','flexo','screen','heat_transfer','offset_tag','thermal'].map((s) => ({ value: s, label: titleCase(s) })) },
+                ]"
+                placeholder="Search routing code or name…"
+            />
 
             <DataTable
                 :columns="columns"
@@ -72,7 +84,11 @@ const columns = [
                 empty="No routings defined."
             >
                 <template #cell:code="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
-                <template #cell:product_type="{ row, value }">{{ titleCase(value) }}</template>
+                <template #cell:family="{ row }">
+                    <span v-if="row.family">{{ row.family.code }} · {{ row.family.name }}</span>
+                    <span v-else class="text-ink-400">—</span>
+                </template>
+                <template #cell:product_type="{ value }">{{ value ? titleCase(value) : '—' }}</template>
                 <template #cell:operations_count="{ row, value }">{{ row.operations?.length ?? 0 }}</template>
                 <template #cell:wastage="{ row, value }"><span class="tnum">{{ pct((row.operations ?? []).filter((o) => o.consumes_web).reduce((sum, o) => sum + Number(o.wastage_pct), 0), 2) }}</span></template>
                 <template #cell:max_lot_size="{ row, value }">{{ value ? pcs(value) : "—" }}</template>

@@ -146,12 +146,17 @@ class ItemMasterService
         $profile['product_type'] ??= 'other';
 
         // A product with no routing is costed with no machine time, and nothing said so. The
-        // type's default routing is what was going to be picked anyway.
-        $profile['routing_id'] ??= Routing::query()
-            ->where('product_type', $profile['product_type'])
-            ->where('is_active', true)
-            ->where('is_default', true)
-            ->value('id');
+        // family's default routing is what was going to be picked anyway (spec §2); a label
+        // type's default stands in for the label families the geometry calculators know.
+        $profile['routing_id'] ??= ($profile['product_type'] !== 'other'
+            ? Routing::query()->where('product_type', $profile['product_type'])->where('is_active', true)->where('is_default', true)->value('id')
+            : null)
+            ?? ($item->production_family_id === null ? null : Routing::query()
+                ->where('production_family_id', $item->production_family_id)
+                ->whereNull('product_type')
+                ->where('is_active', true)
+                ->where('is_default', true)
+                ->value('id'));
 
         /** @var Product $product */
         $product = Product::query()->create([

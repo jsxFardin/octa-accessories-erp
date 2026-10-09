@@ -34,11 +34,15 @@ CREATE TABLE routing_operations (
     consumes_web      BOOLEAN NOT NULL DEFAULT TRUE,
     allow_parallel    BOOLEAN NOT NULL DEFAULT FALSE,
     requires_qc       BOOLEAN NOT NULL DEFAULT FALSE,
+    operation_id      BIGINT UNSIGNED,                 -- the operation master this step runs; shared processes point at one row
+    is_optional       BOOLEAN NOT NULL DEFAULT FALSE,  -- [ ] in the family process: a job may skip it
     UNIQUE KEY routing_operations_uq (routing_id, sequence_no),
     KEY routing_operations_group_idx (machine_group_id),
     KEY routing_operations_dept_idx (department_id),
+    KEY routing_operations_operation_idx (operation_id),
     CONSTRAINT routing_operations_routing_fk FOREIGN KEY (routing_id)        REFERENCES routings(id) ON DELETE CASCADE,
     CONSTRAINT routing_operations_group_fk   FOREIGN KEY (machine_group_id)  REFERENCES machine_groups(id),
+    CONSTRAINT routing_operations_op_fk      FOREIGN KEY (operation_id)      REFERENCES operations(id),
     CONSTRAINT routing_operations_dept_fk    FOREIGN KEY (department_id)     REFERENCES departments(id),
     CONSTRAINT routing_operations_seq_chk     CHECK (sequence_no > 0),
     CONSTRAINT routing_operations_wastage_chk CHECK (wastage_pct >= 0)

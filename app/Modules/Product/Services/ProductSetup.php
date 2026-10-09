@@ -199,8 +199,8 @@ class ProductSetup
             return [...$step, 'state' => 'todo', 'detail' => 'No routing chosen, so no machine time is costed.', 'action' => ['type' => 'choose_routing']];
         }
 
-        if ($routing->product_type !== null && $routing->product_type !== $product->product_type) {
-            return [...$step, 'state' => 'attention', 'detail' => "{$routing->code} is a routing for another product type.", 'action' => ['type' => 'choose_routing']];
+        if (! $routing->fits($product->product_type, $product->item?->production_family_id)) {
+            return [...$step, 'state' => 'attention', 'detail' => "{$routing->code} is a routing for another family or product type.", 'action' => ['type' => 'choose_routing']];
         }
 
         if (! $routing->operations->contains(fn ($operation): bool => (float) $operation->std_rate_per_hour > 0)) {

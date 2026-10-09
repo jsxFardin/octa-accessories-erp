@@ -316,6 +316,7 @@ class JobCardController extends Controller
                         (float) $operation->setup_minutes,
                     ),
                     'requires_qc' => $operation->requires_qc,
+                    'is_optional' => $operation->is_optional,
                     'status' => JobCardOperation::PENDING,
                 ]);
             }

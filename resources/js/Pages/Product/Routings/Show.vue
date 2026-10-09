@@ -10,6 +10,7 @@ import { can } from '@/plugins/permissions';
 
 const props = defineProps({
     routing: { type: Object, required: true },
+    family: { type: Object, default: null },
     operations: { type: Array, default: () => [] },
     totalWastagePct: { type: [Number, String], default: 0 },
     products: { type: Array, default: () => [] },
@@ -32,7 +33,11 @@ const columns = [
         <Head :title="routing.code" />
 
         <template #title>{{ routing.code }}</template>
-        <template #subtitle>{{ routing.name }} · {{ titleCase(routing.product_type) }}</template>
+        <template #subtitle>
+            {{ routing.name }}
+            <template v-if="family"> · {{ family.code }} {{ family.name }}</template>
+            <template v-if="routing.product_type"> · {{ titleCase(routing.product_type) }}</template>
+        </template>
 
         <template #actions>
             <Badge v-if="routing.is_default" tone="info" label="Default" />
@@ -74,6 +79,7 @@ const columns = [
                     <template #cell:code="{ row }">
                         <span class="font-medium text-ink-900">{{ row.code }}</span>
                         <span class="text-ink-500"> {{ row.name }}</span>
+                        <span v-if="row.operation?.is_shared" class="ml-1 text-xs text-ink-500">(shared)</span>
                     </template>
                     <template #cell:machine_group="{ value }">{{ value ?? '—' }}</template>
                     <template #cell:std_rate_per_hour="{ value }">
@@ -96,6 +102,7 @@ const columns = [
                             <Badge v-if="!row.consumes_web" tone="neutral" label="no web" />
                             <Badge v-if="row.allow_parallel" tone="info" label="parallel" />
                             <Badge v-if="row.requires_qc" tone="warning" label="QC" />
+                            <Badge v-if="row.is_optional" tone="neutral" label="optional" />
                         </div>
                     </template>
                 </DataTable>

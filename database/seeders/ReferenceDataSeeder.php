@@ -30,7 +30,9 @@ class ReferenceDataSeeder extends Seeder
         $this->itemCategories();
         $this->itemClassification();
         $this->expenseCategories();
+        $this->operations();
         $this->routings();
+        $this->familyRoutings();
         $this->aqlPlans();
         $this->labTests();
         $this->defects();
@@ -264,7 +266,208 @@ class ReferenceDataSeeder extends Seeder
             ['code' => 'CUT', 'name' => 'Cutting', 'process_type' => 'cutting', 'output_uom' => 'metre'],
             ['code' => 'FOLD', 'name' => 'Folding', 'process_type' => 'folding', 'output_uom' => 'pcs'],
             ['code' => 'PACK', 'name' => 'Packing', 'process_type' => 'packing', 'output_uom' => 'pcs'],
+            // The other families (spec §2). Shared processes have one group: dyeing serves
+            // narrow textile and cord, printing serves paper, packaging and decoration,
+            // plating serves fasteners.
+            ['code' => 'DYE', 'name' => 'Dyeing', 'process_type' => 'dyeing', 'output_uom' => 'metre'],
+            ['code' => 'HEATSET', 'name' => 'Heat setting', 'process_type' => 'heat_setting', 'output_uom' => 'metre'],
+            ['code' => 'FINISH', 'name' => 'Finishing', 'process_type' => 'finishing', 'output_uom' => 'metre'],
+            ['code' => 'PRINT', 'name' => 'Printing', 'process_type' => 'printing', 'output_uom' => 'sheet'],
+            ['code' => 'CURE', 'name' => 'Curing', 'process_type' => 'curing', 'output_uom' => 'metre'],
+            ['code' => 'LAM', 'name' => 'Lamination', 'process_type' => 'lamination', 'output_uom' => 'sheet'],
+            ['code' => 'DIECUT', 'name' => 'Die cutting', 'process_type' => 'die_cutting', 'output_uom' => 'pcs'],
+            ['code' => 'CREASE', 'name' => 'Creasing & punching', 'process_type' => 'creasing', 'output_uom' => 'pcs'],
+            ['code' => 'CHAIN', 'name' => 'Chain forming', 'process_type' => 'chain_forming', 'output_uom' => 'metre'],
+            ['code' => 'ASSY', 'name' => 'Assembly', 'process_type' => 'assembly', 'output_uom' => 'pcs'],
+            ['code' => 'MOULD', 'name' => 'Moulding', 'process_type' => 'moulding', 'output_uom' => 'pcs'],
+            ['code' => 'INJ', 'name' => 'Injection presses', 'process_type' => 'injection', 'output_uom' => 'pcs'],
+            ['code' => 'TRIM', 'name' => 'Trimming & polishing', 'process_type' => 'trimming', 'output_uom' => 'pcs'],
+            ['code' => 'STAMP', 'name' => 'Stamping & die casting', 'process_type' => 'stamping', 'output_uom' => 'pcs'],
+            ['code' => 'PLATE', 'name' => 'Plating', 'process_type' => 'plating', 'output_uom' => 'pcs'],
+            ['code' => 'BRAID', 'name' => 'Braiding & twisting', 'process_type' => 'braiding', 'output_uom' => 'metre'],
+            ['code' => 'EXTRUDE', 'name' => 'Extrusion', 'process_type' => 'extrusion', 'output_uom' => 'metre'],
+            ['code' => 'SEAL', 'name' => 'Cutting & sealing', 'process_type' => 'sealing', 'output_uom' => 'pcs'],
+            ['code' => 'GLUE', 'name' => 'Folding & gluing', 'process_type' => 'gluing', 'output_uom' => 'pcs'],
+            ['code' => 'COAT', 'name' => 'Coating', 'process_type' => 'coating', 'output_uom' => 'metre'],
+            ['code' => 'DRY', 'name' => 'Drying', 'process_type' => 'drying', 'output_uom' => 'metre'],
+            ['code' => 'EMB', 'name' => 'Embroidery', 'process_type' => 'embroidery', 'output_uom' => 'pcs'],
+            ['code' => 'QC', 'name' => 'Inspection', 'process_type' => 'inspection', 'output_uom' => 'pcs'],
         ]);
+    }
+
+    /**
+     * The operation master (spec §2). Shared processes — (S) in the specification — are one
+     * row each; a family routing runs them by pointing at the row.
+     *
+     * @return list<array{code: string, name: string, process_type: string, group: ?string, output_uom: string, is_shared: bool, requires_qc: bool}>
+     */
+    public static function operationMaster(): array
+    {
+        $op = fn (string $code, string $name, string $process, ?string $group, string $uom = 'pcs', bool $shared = false, bool $qc = false): array => ['code' => $code, 'name' => $name, 'process_type' => $process, 'group' => $group, 'output_uom' => $uom, 'is_shared' => $shared, 'requires_qc' => $qc];
+
+        return [
+            // Shared
+            $op('DYE', 'Dyeing', 'dyeing', 'DYE', 'metre', true),
+            $op('PRINT', 'Printing', 'printing', 'PRINT', 'sheet', true),
+            $op('PLATE', 'Plating', 'plating', 'PLATE', 'pcs', true),
+            $op('CUT', 'Cutting', 'cutting', 'CUT', 'pcs', true),
+            $op('QC', 'Final inspection', 'inspection', 'QC', 'pcs', true, true),
+            $op('PACK', 'Packing', 'packing', 'PACK', 'pcs', true),
+            // 01 Narrow textile
+            $op('WARP', 'Warping', 'warping', 'WARP', 'metre'),
+            $op('WEAVE', 'Weaving / knitting', 'weaving', 'LOOM', 'metre'),
+            $op('INSPECT', 'Greige inspection', 'inspection', 'QC', 'metre'),
+            $op('HEATSET', 'Heat setting', 'heat_setting', 'HEATSET', 'metre'),
+            $op('FINISH', 'Finishing', 'finishing', 'FINISH', 'metre'),
+            $op('ROLL', 'Cut / roll', 'cutting', 'CUT', 'metre'),
+            // 02 Printed label
+            $op('CURE', 'Curing', 'curing', 'CURE', 'metre'),
+            $op('FOLD', 'Folding', 'folding', 'FOLD'),
+            $op('BARCODE', 'Barcode verification', 'barcode_verify', 'QC'),
+            // 03 Paper
+            $op('LAM', 'Lamination', 'lamination', 'LAM', 'sheet'),
+            $op('DIECUT', 'Die cutting', 'die_cutting', 'DIECUT'),
+            $op('CREASE', 'Creasing', 'creasing', 'CREASE'),
+            $op('PUNCH', 'Punching', 'punching', 'CREASE'),
+            $op('EYELET', 'Eyelet / string', 'eyeleting', 'ASSY'),
+            // 04 Zipper
+            $op('CHAIN', 'Chain formation', 'chain_forming', 'CHAIN', 'metre'),
+            $op('ASSY', 'Assembly', 'assembly', 'ASSY'),
+            $op('SLIDER', 'Slider fitting', 'slider_fitting', 'ASSY'),
+            $op('STOP', 'Stop fitting', 'stopping', 'ASSY'),
+            $op('PULLER', 'Puller fitting', 'puller_fitting', 'ASSY'),
+            // 05 Fastener
+            $op('MOULD', 'Moulding', 'moulding', 'MOULD'),
+            $op('TRIM', 'Trimming', 'trimming', 'TRIM'),
+            $op('POLISH', 'Polishing', 'polishing', 'TRIM'),
+            $op('DRILL', 'Drilling', 'drilling', 'TRIM'),
+            $op('LOGO', 'Logo marking', 'logo_marking', 'TRIM'),
+            $op('STAMP', 'Stamping / die casting', 'stamping', 'STAMP'),
+            $op('FORM', 'Forming', 'forming', 'STAMP'),
+            $op('DEBURR', 'Deburring', 'deburring', 'TRIM'),
+            // 06 Braiding & cord
+            $op('BRAID', 'Braiding / twisting', 'braiding', 'BRAID', 'metre'),
+            $op('TIP', 'Tip attachment', 'tipping', 'ASSY'),
+            // 07 Plastic injection
+            $op('MIX', 'Mixing', 'mixing', 'INJ', 'kg'),
+            $op('INJECT', 'Injection', 'injection', 'INJ'),
+            $op('COOL', 'Cooling / ejection', 'cooling', 'INJ'),
+            // 08 Packaging
+            $op('EXTRUDE', 'Extrusion', 'extrusion', 'EXTRUDE', 'metre'),
+            $op('SEAL', 'Cut / seal', 'sealing', 'SEAL'),
+            $op('GLUE', 'Fold / glue', 'gluing', 'GLUE'),
+            // 09 Textile support
+            $op('COAT', 'Coating', 'coating', 'COAT', 'metre'),
+            $op('ADHESIVE', 'Adhesive application', 'adhesive', 'COAT', 'metre'),
+            $op('DRY', 'Drying', 'drying', 'DRY', 'metre'),
+            // 10 Decoration
+            $op('DIGITIZE', 'Digitizing / mould making', 'digitizing', 'DESIGN'),
+            $op('EMB', 'Embroidery / production', 'embroidery', 'EMB'),
+        ];
+    }
+
+    private function operations(): void
+    {
+        $groups = DB::table('machine_groups')->pluck('id', 'code');
+        $rows = [];
+
+        foreach (self::operationMaster() as $index => $operation) {
+            $rows[] = [
+                'code' => $operation['code'],
+                'name' => $operation['name'],
+                'process_type' => $operation['process_type'],
+                'machine_group_id' => $operation['group'] === null ? null : ($groups[$operation['group']] ?? null),
+                'output_uom' => $operation['output_uom'],
+                'is_shared' => $operation['is_shared'],
+                'requires_qc' => $operation['requires_qc'],
+                'sort_order' => ($index + 1) * 10,
+            ];
+        }
+
+        $this->upsert('operations', 'code', $rows);
+    }
+
+    /**
+     * The standard process of each family (spec §2), as a routing of operation-master steps.
+     * `[` marks an optional step. Rates are placeholders a factory replaces with its own; the
+     * shape — which steps, in what order, which shared, which optional — is the specification's.
+     *
+     * @return array<string, array{family: string, name: string, steps: list<string>}>
+     */
+    public static function familyProcesses(): array
+    {
+        return [
+            'RT-01-TAPE' => ['family' => '01', 'name' => 'Narrow textile — weave / knit', 'steps' => ['WARP', 'WEAVE', 'INSPECT', '[HEATSET', 'DYE', 'FINISH', 'ROLL', 'QC']],
+            'RT-02-LABEL' => ['family' => '02', 'name' => 'Printed label — standard', 'steps' => ['PRINT', 'CURE', 'CUT', '[FOLD', '[BARCODE', 'QC']],
+            'RT-03-PAPER' => ['family' => '03', 'name' => 'Paper — tag / sticker', 'steps' => ['PRINT', '[LAM', 'DIECUT', 'CREASE', '[PUNCH', '[EYELET', 'QC']],
+            'RT-04-ZIPPER' => ['family' => '04', 'name' => 'Zipper — standard', 'steps' => ['CHAIN', 'ASSY', 'SLIDER', 'STOP', 'CUT', 'PULLER', 'QC']],
+            'RT-05-PLASTIC' => ['family' => '05', 'name' => 'Fastener — plastic', 'steps' => ['MOULD', 'TRIM', 'POLISH', 'DRILL', '[LOGO', 'QC']],
+            'RT-05-METAL' => ['family' => '05', 'name' => 'Fastener — metal', 'steps' => ['STAMP', 'FORM', 'DEBURR', 'PLATE', 'POLISH', 'ASSY', 'QC']],
+            'RT-06-CORD' => ['family' => '06', 'name' => 'Braiding & cord — standard', 'steps' => ['BRAID', 'DYE', 'FINISH', 'CUT', '[TIP', 'QC']],
+            'RT-07-INJECT' => ['family' => '07', 'name' => 'Plastic injection — standard', 'steps' => ['MIX', 'INJECT', 'COOL', 'TRIM', '[ASSY', 'QC']],
+            'RT-08-POLYBAG' => ['family' => '08', 'name' => 'Packaging — polybag', 'steps' => ['EXTRUDE', 'PRINT', 'SEAL', 'QC']],
+            'RT-08-CARTON' => ['family' => '08', 'name' => 'Packaging — carton', 'steps' => ['PRINT', 'DIECUT', 'GLUE', 'QC']],
+            'RT-08-TISSUE' => ['family' => '08', 'name' => 'Packaging — tissue', 'steps' => ['PRINT', 'CUT', 'QC']],
+            'RT-09-SUPPORT' => ['family' => '09', 'name' => 'Textile support — interlining / stay tape', 'steps' => ['COAT', 'ADHESIVE', 'DRY', 'HEATSET', 'FINISH', 'CUT', 'QC']],
+            'RT-10-DECOR' => ['family' => '10', 'name' => 'Decoration — patch / badge', 'steps' => ['DIGITIZE', 'EMB', 'FINISH', 'QC', 'PACK']],
+        ];
+    }
+
+    private function familyRoutings(): void
+    {
+        $families = DB::table('production_families')->pluck('id', 'code');
+        $operations = DB::table('operations')->get()->keyBy('code');
+
+        foreach (self::familyProcesses() as $code => $process) {
+            // The first family process seeded is the family's default; a second (metal
+            // fasteners, cartons) is chosen on the product. The label-type routings carry
+            // their own default per type and do not count here.
+            $isDefault = ! DB::table('routings')
+                ->where('production_family_id', $families[$process['family']])
+                ->whereNull('product_type')
+                ->where('code', '!=', $code)
+                ->where('is_default', true)
+                ->exists();
+
+            DB::table('routings')->updateOrInsert(
+                ['code' => $code],
+                [
+                    'name' => $process['name'],
+                    'production_family_id' => $families[$process['family']],
+                    'product_type' => null,
+                    'max_lot_size' => null,
+                    'is_default' => $isDefault,
+                    'is_active' => true,
+                ],
+            );
+
+            $routingId = DB::table('routings')->where('code', $code)->value('id');
+
+            foreach ($process['steps'] as $seq => $step) {
+                $optional = str_starts_with($step, '[');
+                $operation = $operations[ltrim($step, '[')];
+
+                DB::table('routing_operations')->updateOrInsert(
+                    ['routing_id' => $routingId, 'sequence_no' => $seq + 1],
+                    [
+                        'code' => strtolower($operation->code),
+                        'name' => $operation->name,
+                        'operation_id' => $operation->id,
+                        'machine_group_id' => $operation->machine_group_id,
+                        'std_rate_per_hour' => 500,
+                        'setup_minutes' => 30,
+                        'setup_qty' => 0,
+                        'wastage_pct' => 1.0,
+                        'manning_level' => 1,
+                        // Family routings count in the item's own unit, not label metres.
+                        'consumes_web' => false,
+                        'allow_parallel' => false,
+                        'requires_qc' => $operation->requires_qc,
+                        'is_optional' => $optional,
+                    ],
+                );
+            }
+        }
     }
 
     private function warehouses(): void
@@ -319,15 +522,15 @@ class ReferenceDataSeeder extends Seeder
     {
         return [
             ['code' => '01', 'name' => 'Narrow textile', 'code_prefix' => 'NT'],
-            ['code' => '02', 'name' => 'Printed label', 'code_prefix' => 'PL'],
-            ['code' => '03', 'name' => 'Paper', 'code_prefix' => 'PA'],
+            ['code' => '02', 'name' => 'Printed label', 'code_prefix' => 'PL', 'requires_artwork' => true],
+            ['code' => '03', 'name' => 'Paper', 'code_prefix' => 'PA', 'requires_artwork' => true],
             ['code' => '04', 'name' => 'Zipper', 'code_prefix' => 'ZP'],
             ['code' => '05', 'name' => 'Fastener', 'code_prefix' => 'FS'],
             ['code' => '06', 'name' => 'Braiding & cord', 'code_prefix' => 'BC'],
             ['code' => '07', 'name' => 'Plastic injection', 'code_prefix' => 'PI'],
-            ['code' => '08', 'name' => 'Packaging', 'code_prefix' => 'PK'],
+            ['code' => '08', 'name' => 'Packaging', 'code_prefix' => 'PK', 'requires_artwork' => true],
             ['code' => '09', 'name' => 'Textile support', 'code_prefix' => 'TS'],
-            ['code' => '10', 'name' => 'Decoration', 'code_prefix' => 'DC'],
+            ['code' => '10', 'name' => 'Decoration', 'code_prefix' => 'DC', 'requires_artwork' => true],
         ];
     }
 
@@ -488,6 +691,10 @@ class ReferenceDataSeeder extends Seeder
                 [
                     'name' => $routing['name'],
                     'product_type' => $routing['product_type'],
+                    // Woven labels are narrow textile; every printed kind is a printed label.
+                    'production_family_id' => DB::table('production_families')
+                        ->where('code', $routing['product_type'] === 'woven' ? '01' : '02')
+                        ->value('id'),
                     'max_lot_size' => $routing['max_lot_size'],
                     'is_default' => true,
                     'is_active' => true,

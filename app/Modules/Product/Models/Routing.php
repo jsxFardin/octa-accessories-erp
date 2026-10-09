@@ -25,6 +25,7 @@ class Routing extends Model
     protected $fillable = [
         'code',
         'name',
+        'production_family_id',
         'product_type',
         'max_lot_size',
         'is_default',
@@ -35,6 +36,7 @@ class Routing extends Model
     protected function casts(): array
     {
         return [
+            'production_family_id' => 'integer',
             'max_lot_size' => 'decimal:6',
             'is_default' => 'boolean',
             'is_active' => 'boolean',
@@ -45,6 +47,25 @@ class Routing extends Model
     public function operations(): HasMany
     {
         return $this->hasMany(RoutingOperation::class)->orderBy('sequence_no');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Modules\MasterData\Models\ProductionFamily, $this> */
+    public function family(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\MasterData\Models\ProductionFamily::class, 'production_family_id');
+    }
+
+    /**
+     * Whether a product may run down this routing: a label routing names the label type, a
+     * family routing names the family, and a product matches on either.
+     */
+    public function fits(?string $productType, ?int $familyId): bool
+    {
+        if ($this->production_family_id !== null && $familyId !== null && (int) $this->production_family_id === $familyId) {
+            return true;
+        }
+
+        return $this->product_type !== null && $productType !== null && $this->product_type === $productType;
     }
 
     /**

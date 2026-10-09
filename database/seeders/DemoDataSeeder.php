@@ -677,6 +677,7 @@ class DemoDataSeeder extends Seeder
                 'scheduled_start' => $scheduledStart,
                 'scheduled_finish' => $scheduledStart->copy()->addMinutes((int) $minutes),
                 'requires_qc' => $operation->requires_qc,
+                'is_optional' => $operation->is_optional,
                 'status' => JobCardOperation::PENDING,
             ]);
 
