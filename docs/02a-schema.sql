@@ -1212,7 +1212,10 @@ CREATE TABLE quotation_lines (
 
 CREATE TABLE cost_sheets (
     id                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    stage             VARCHAR(20) NOT NULL DEFAULT 'marketing',  -- spec §4: marketing → pre_production (locked at confirm) → post_production (actuals at close)
     quotation_line_id BIGINT UNSIGNED,
+    sales_order_line_id BIGINT UNSIGNED,                        -- the pre-production benchmark of this line
+    job_card_id       BIGINT UNSIGNED,                          -- the post-production actuals of this job
     product_id        BIGINT UNSIGNED,
     product_spec_id   BIGINT UNSIGNED,
     basis_qty         DECIMAL(18,6) NOT NULL,
@@ -1232,17 +1235,25 @@ CREATE TABLE cost_sheets (
     total_cost        DECIMAL(18,4) NOT NULL DEFAULT 0,
     unit_cost         DECIMAL(18,6) NOT NULL DEFAULT 0,
     rate_per_m        DECIMAL(18,4) NOT NULL DEFAULT 0,
+    revenue_per_unit  DECIMAL(18,6),                            -- quoted, agreed or invoiced price per unit: what the margin is against
+    variance_reason   VARCHAR(255),                             -- why actual differed from the benchmark, in the costing clerk's words
     is_locked         BOOLEAN NOT NULL DEFAULT FALSE,
+    locked_at         DATETIME(3),
     created_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     created_by        BIGINT UNSIGNED,
     KEY cost_sheets_qline_idx (quotation_line_id),
+    KEY cost_sheets_soline_idx (sales_order_line_id),
+    KEY cost_sheets_job_idx (job_card_id),
     KEY cost_sheets_product_idx (product_id),
     KEY cost_sheets_spec_idx (product_spec_id),
     KEY cost_sheets_creator_idx (created_by),
     CONSTRAINT cost_sheets_qline_fk   FOREIGN KEY (quotation_line_id) REFERENCES quotation_lines(id) ON DELETE CASCADE,
+    CONSTRAINT cost_sheets_soline_fk  FOREIGN KEY (sales_order_line_id) REFERENCES sales_order_lines(id) ON DELETE CASCADE,
+    CONSTRAINT cost_sheets_job_fk     FOREIGN KEY (job_card_id)        REFERENCES job_cards(id) ON DELETE CASCADE,
     CONSTRAINT cost_sheets_product_fk FOREIGN KEY (product_id)        REFERENCES products(id),
     CONSTRAINT cost_sheets_spec_fk    FOREIGN KEY (product_spec_id)   REFERENCES product_specs(id),
     CONSTRAINT cost_sheets_creator_fk FOREIGN KEY (created_by)        REFERENCES users(id),
+    CONSTRAINT cost_sheets_stage_chk  CHECK (stage IN ('marketing','pre_production','post_production')),
     CONSTRAINT cost_sheets_basis_chk  CHECK (basis_qty > 0),
     CONSTRAINT cost_sheets_margin_chk CHECK (margin_pct < 100)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -1268,8 +1279,9 @@ CREATE TABLE cost_sheet_lines (
     CONSTRAINT cost_sheet_lines_group_fk FOREIGN KEY (machine_group_id) REFERENCES machine_groups(id),
     CONSTRAINT cost_sheet_lines_type_chk CHECK (cost_type IN (
         'material_yarn','material_ribbon','material_ink','material_chemical',
-        'material_paper','material_film','material_packing','tooling','machine',
-        'labour','energy','outsourcing','freight','overhead','margin','minimum_charge','other'))
+        'material_paper','material_film','material_packing','material_component','material_other',
+        'tooling','machine','labour','energy','outsourcing','subcontract','freight','overhead',
+        'development','finance','commission','wastage','scrap_credit','margin','minimum_charge','other'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE sales_orders (

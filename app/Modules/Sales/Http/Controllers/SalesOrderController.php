@@ -229,6 +229,9 @@ class SalesOrderController extends Controller
                 'billing_address' => $salesOrder->billingAddress?->only(['id', 'label', 'line1', 'city', 'country']),
                 'delivery_address' => $salesOrder->deliveryAddress?->only(['id', 'label', 'line1', 'city', 'country', 'transit_days']),
             ],
+            // Spec §4 — marketing, pre-production and actual cost per line, with the margin each implies.
+            'costing' => app(\App\Modules\Costing\Services\CostStages::class)->forOrder($salesOrder),
+            'marginFloorPct' => $this->settings->decimal('margin_floor_pct', 12),
             'billing' => [
                 'invoiced' => round((float) $invoices->where('status', '!=', 'draft')->sum('total'), 2),
                 'received' => round((float) $invoices->sum('received_amount'), 2),

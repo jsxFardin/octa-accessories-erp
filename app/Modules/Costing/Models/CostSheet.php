@@ -39,8 +39,17 @@ class CostSheet extends Model
 
     public const UPDATED_AT = null;
 
+    public const MARKETING = 'marketing';
+
+    public const PRE_PRODUCTION = 'pre_production';
+
+    public const POST_PRODUCTION = 'post_production';
+
     protected $fillable = [
+        'stage',
         'quotation_line_id',
+        'sales_order_line_id',
+        'job_card_id',
         'product_id',
         'product_spec_id',
         'basis_qty',
@@ -60,7 +69,10 @@ class CostSheet extends Model
         'total_cost',
         'unit_cost',
         'rate_per_m',
+        'revenue_per_unit',
+        'variance_reason',
         'is_locked',
+        'locked_at',
         'created_by',
     ];
 
@@ -69,6 +81,10 @@ class CostSheet extends Model
     {
         return [
             'quotation_line_id' => 'integer',
+            'sales_order_line_id' => 'integer',
+            'job_card_id' => 'integer',
+            'revenue_per_unit' => 'decimal:6',
+            'locked_at' => 'datetime',
             'product_id' => 'integer',
             'product_spec_id' => 'integer',
             'basis_qty' => 'decimal:6',

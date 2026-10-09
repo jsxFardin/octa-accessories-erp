@@ -296,6 +296,10 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:cost_sheet.view_any')->name('cost-sheets.calculate');
     Route::put('cost-sheets/{costSheet}', [CostSheetController::class, 'update'])
         ->middleware('can:cost_sheet.update')->name('cost-sheets.update');
+    Route::post('cost-sheets/{costSheet}/reason', [CostSheetController::class, 'reason'])
+        ->middleware('can:cost_sheet.update')->name('cost-sheets.reason');
+    Route::post('cost-sheets/{costSheet}/adopt-wastage', [CostSheetController::class, 'adoptWastage'])
+        ->middleware('can:item.update')->name('cost-sheets.adopt-wastage');
 
     Route::resource('sales-orders', SalesOrderController::class)->except(['destroy'])
         ->middlewareFor(['index', 'show'], 'can:sales_order.view_any')

@@ -66,7 +66,9 @@ class PermissionSeeder extends Seeder
         'price_list' => ['Commercial', []],
         // `progress` moves an order along its fulfilment statuses (in_production,
         // partially_delivered, delivered) without granting line edits (P0-4.3).
-        'sales_order' => ['Commercial', ['confirm', 'cancel', 'close', 'short_close', 'release_credit_hold', 'override_tolerance', 'amend', 'progress']],
+        // `confirm_below_margin`: spec §4 — an order whose pre-production margin is under the
+        // floor is confirmed by someone who may accept that margin.
+        'sales_order' => ['Commercial', ['confirm', 'cancel', 'close', 'short_close', 'release_credit_hold', 'override_tolerance', 'amend', 'progress', 'confirm_below_margin']],
         'sample_request' => ['Commercial', ['dispatch']],
 
         // Supply

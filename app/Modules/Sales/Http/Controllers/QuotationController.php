@@ -629,7 +629,7 @@ class QuotationController extends Controller
 
             // The sheet is what makes the rate defensible; a line without one cannot be sent.
             if ($product !== null && $spec !== null) {
-                $this->costSheets->persist(
+                $sheet = $this->costSheets->persist(
                     $product,
                     $spec,
                     (int) $line['qty'],
@@ -639,6 +639,12 @@ class QuotationController extends Controller
                     ],
                     $model->id,
                 );
+
+                // Spec §4 — the marketing stage, with the quoted price the margin is against.
+                $sheet->update([
+                    'stage' => CostSheet::MARKETING,
+                    'revenue_per_unit' => (int) $line['qty'] > 0 ? round($lineTotal * (float) $quotation->exchange_rate / (int) $line['qty'], 6) : null,
+                ]);
             }
         }
 

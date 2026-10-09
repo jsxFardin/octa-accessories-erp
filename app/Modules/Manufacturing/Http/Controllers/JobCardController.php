@@ -407,7 +407,7 @@ class JobCardController extends Controller
     }
 
     /** The sections under the operations table, and which one a card at each stage opens on. */
-    private const TABS = ['bookings', 'waste', 'materials', 'finished-goods', 'ncrs'];
+    private const TABS = ['bookings', 'waste', 'materials', 'finished-goods', 'ncrs', 'costing'];
 
     public function show(Request $request, JobCard $jobCard): Response
     {
@@ -443,6 +443,8 @@ class JobCardController extends Controller
 
         return Inertia::render('Manufacturing/JobCards/Show', [
             'tab' => $tab,
+            // Spec §4 — the job's actuals against the order's benchmark, loaded with the tab.
+            'costing' => $tab === 'costing' ? app(\App\Modules\Costing\Services\CostStages::class)->forJobCard($jobCard) : null,
             'jobCard' => [
                 ...$jobCard->only([
                     'id', 'number', 'colourway', 'planned_qty',

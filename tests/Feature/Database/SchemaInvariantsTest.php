@@ -282,8 +282,10 @@ it('loads every object the specification promises', function (): void {
     // (operations.machine_group, routings.production_family, routing_operations.operation)
     // and two more CHECKs (the operation's process, and a routing naming a family or a type).
     // 450: `job_cards.parent_job_card_id`, a component made for another job (family flow).
+    // 452 and 191: the three costing stages (spec §4) — a sheet belongs to a quotation line,
+    // a sales order line or a job card, and names its stage.
     expect($tables)->toBe(164)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(450)
-        ->and($checks)->toBe(190);
+        ->and($foreignKeys)->toBe(452)
+        ->and($checks)->toBe(191);
 });

@@ -85,15 +85,18 @@ it('cannot release a job card without an approved artwork version', function ():
         ->toThrow(TransitionDenied::class, 'Approved artwork version');
 });
 
-it('binds a job card to an approved version through a not-null foreign key', function (): void {
+it('binds a label job card to an approved version, and refuses to run one without', function (): void {
     $jobCard = JobCard::query()->firstOrFail();
 
     expect($jobCard->artwork_version_id)->not->toBeNull()
         ->and($jobCard->artworkVersion->status)->toBe(ArtworkVersion::APPROVED);
 
-    // There is no code path that nulls it: the column itself refuses.
-    expect(fn () => DB::table('job_cards')->where('id', $jobCard->id)->update(['artwork_version_id' => null]))
-        ->toThrow(Illuminate\Database\QueryException::class);
+    // The column admits NULL now — a cord or a zipper runs without artwork — but a label
+    // family does not: the gate refuses a card with nothing bound.
+    DB::table('job_cards')->where('id', $jobCard->id)->update(['artwork_version_id' => null]);
+
+    expect(fn () => app(JobCardStateMachine::class)->transition($jobCard->refresh(), JobCard::RELEASED))
+        ->toThrow(TransitionDenied::class, 'Approved artwork version');
 });
 
 it('names every failed condition when a release is blocked', function (): void {

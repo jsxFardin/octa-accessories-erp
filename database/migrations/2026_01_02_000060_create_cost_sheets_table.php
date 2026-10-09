@@ -20,7 +20,10 @@ return new class extends Migration
         DB::unprepared(<<<'SQL'
 CREATE TABLE cost_sheets (
     id                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    stage             VARCHAR(20) NOT NULL DEFAULT 'marketing',  -- spec §4: marketing → pre_production (locked at confirm) → post_production (actuals at close)
     quotation_line_id BIGINT UNSIGNED,
+    sales_order_line_id BIGINT UNSIGNED,                        -- the pre-production benchmark of this line
+    job_card_id       BIGINT UNSIGNED,                          -- the post-production actuals of this job
     product_id        BIGINT UNSIGNED,
     product_spec_id   BIGINT UNSIGNED,
     basis_qty         DECIMAL(18,6) NOT NULL,
@@ -40,10 +43,15 @@ CREATE TABLE cost_sheets (
     total_cost        DECIMAL(18,4) NOT NULL DEFAULT 0,
     unit_cost         DECIMAL(18,6) NOT NULL DEFAULT 0,
     rate_per_m        DECIMAL(18,4) NOT NULL DEFAULT 0,
+    revenue_per_unit  DECIMAL(18,6),                            -- quoted, agreed or invoiced price per unit: what the margin is against
+    variance_reason   VARCHAR(255),                             -- why actual differed from the benchmark, in the costing clerk's words
     is_locked         BOOLEAN NOT NULL DEFAULT FALSE,
+    locked_at         DATETIME(3),
     created_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     created_by        BIGINT UNSIGNED,
     KEY cost_sheets_qline_idx (quotation_line_id),
+    KEY cost_sheets_soline_idx (sales_order_line_id),
+    KEY cost_sheets_job_idx (job_card_id),
     KEY cost_sheets_product_idx (product_id),
     KEY cost_sheets_spec_idx (product_spec_id),
     KEY cost_sheets_creator_idx (created_by),
@@ -51,6 +59,7 @@ CREATE TABLE cost_sheets (
     CONSTRAINT cost_sheets_product_fk FOREIGN KEY (product_id)        REFERENCES products(id),
     CONSTRAINT cost_sheets_spec_fk    FOREIGN KEY (product_spec_id)   REFERENCES product_specs(id),
     CONSTRAINT cost_sheets_creator_fk FOREIGN KEY (created_by)        REFERENCES users(id),
+    CONSTRAINT cost_sheets_stage_chk  CHECK (stage IN ('marketing','pre_production','post_production')),
     CONSTRAINT cost_sheets_basis_chk  CHECK (basis_qty > 0),
     CONSTRAINT cost_sheets_margin_chk CHECK (margin_pct < 100)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4

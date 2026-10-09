@@ -30,6 +30,8 @@ const props = defineProps({
     issues: { type: Array, default: () => [] },
     // Sent after the page has drawn: `null` means still loading, an empty list means there are none.
     wasteLogs: { type: Array, default: null },
+    /** Spec §4 — pre-production benchmark against post-production actuals; only on its tab. */
+    costing: { type: Object, default: null },
     fgPosition: { type: Object, default: () => ({ produced: 0, received: 0, available: 0, quarantined: 0, remaining_receivable: 0 }) },
     fgReceipts: { type: Array, default: () => [] },
     fgWarehouses: { type: Array, default: () => [] },
@@ -100,7 +102,26 @@ const tabs = computed(() => [
     { key: 'bookings', label: 'Output', state: outputState.value ?? undefined },
     { key: 'finished-goods', label: 'Finished goods', state: finishedGoodsState.value },
     { key: 'ncrs', label: 'Quality', state: qualityState.value ?? undefined, tone: openNcrs.value > 0 ? 'warning' : undefined },
+    { key: 'costing', label: 'Costing', state: ['completed', 'closed'].includes(props.jobCard.status) ? undefined : 'at close' },
 ].map((entry) => ({ ...entry, href: `/job-cards/${props.jobCard.id}?tab=${entry.key}` })));
+
+/*
+ * Spec §4 — the variance is explained by the person who costed it. The figures are locked;
+ * the reading is theirs.
+ */
+const reasonForm = useForm({ variance_reason: '' });
+
+watch(() => props.costing, (value) => { reasonForm.variance_reason = value?.reason ?? ''; }, { immediate: true });
+
+function saveReason() {
+    reasonForm.post(`/cost-sheets/${props.costing.post_sheet_id}/reason`, { preserveScroll: true });
+}
+
+function adoptWastage() {
+    router.post(`/cost-sheets/${props.costing.post_sheet_id}/adopt-wastage`, {}, { preserveScroll: true });
+}
+
+const varianceTone = (value) => (value === null ? '' : value > 0 ? 'text-rose-700' : value < 0 ? 'text-emerald-700' : '');
 
 /** Waste by cause, from the booked waste rows: the half of the figure that can be acted on. */
 const wasteByCause = computed(() => {
@@ -754,7 +775,7 @@ const nextStep = computed(() => {
             return { tone: 'neutral', text: 'A draft. Schedule it on the planning board, then mark it planned.' };
         case 'planned':
             return props.releaseGate.ready
-                ? { tone: 'good', text: 'Ready to release: artwork, BOM, tools and material are all in place.' }
+                ? { tone: 'good', text: 'Ready to release: artwork, BOM, tools, machines, QC plan and material are all in place.' }
                 : { tone: 'warn', text: `Release is blocked: ${failingChecks.value.map((c) => c.label.toLowerCase()).join(', ')}.` };
         case 'material_pending':
             return { tone: 'warn', text: props.releaseGate.shortages.length
@@ -1566,6 +1587,111 @@ const bomColumns = [
                         </li>
                     </ul>
                 </Card>
+            </div>
+
+            <!-- Spec §4–5 — what the job cost against what the order was confirmed at. -->
+            <div v-if="tab === 'costing'" data-tab="costing">
+                <div v-if="!costing" class="text-sm text-ink-600">Loading…</div>
+                <template v-else>
+                    <div class="grid gap-4 lg:grid-cols-3">
+                        <Card class="lg:col-span-2" title="Cost per unit" rule="CS-2" subtitle="Pre-production: this order at the rates of the day it was confirmed. Actual: what was issued, run and received." :padded="false">
+                            <table class="min-w-full text-sm">
+                                <thead class="bg-slate-50 text-xs text-ink-500">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left">Element</th>
+                                        <th class="px-3 py-2 text-right">Marketing</th>
+                                        <th class="px-3 py-2 text-right">Pre-production</th>
+                                        <th class="px-3 py-2 text-right">Actual</th>
+                                        <th class="px-3 py-2 text-right">Variance / unit</th>
+                                        <th class="px-3 py-2 text-right">Variance, job</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="row in costing.variance" :key="row.key" class="border-t border-slate-100" :class="row.key === 'total_cost' && 'font-semibold'">
+                                        <td class="px-3 py-1.5">{{ row.label }}</td>
+                                        <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ costing.marketing ? money(costing.marketing.per_unit[row.key]) : '—' }}</td>
+                                        <td class="px-3 py-1.5 text-right tnum">{{ row.pre === null ? '—' : money(row.pre) }}</td>
+                                        <td class="px-3 py-1.5 text-right tnum">{{ row.post === null ? '—' : money(row.post) }}</td>
+                                        <td class="px-3 py-1.5 text-right tnum" :class="varianceTone(row.per_unit)">{{ row.per_unit === null ? '—' : money(row.per_unit) }}</td>
+                                        <td class="px-3 py-1.5 text-right tnum" :class="varianceTone(row.total)">{{ row.total === null ? '—' : money(row.total) }}</td>
+                                    </tr>
+                                    <tr class="border-t border-slate-200 bg-slate-50/60">
+                                        <td class="px-3 py-1.5">Price per unit</td>
+                                        <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ costing.marketing?.revenue_per_unit != null ? money(costing.marketing.revenue_per_unit) : '—' }}</td>
+                                        <td class="px-3 py-1.5 text-right tnum">{{ costing.pre?.revenue_per_unit != null ? money(costing.pre.revenue_per_unit) : '—' }}</td>
+                                        <td class="px-3 py-1.5 text-right tnum">{{ costing.post?.revenue_per_unit != null ? money(costing.post.revenue_per_unit) : '—' }}</td>
+                                        <td class="px-3 py-1.5" colspan="2"></td>
+                                    </tr>
+                                    <tr class="bg-slate-50/60 font-semibold">
+                                        <td class="px-3 py-1.5">Margin</td>
+                                        <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ costing.marketing?.margin_pct != null ? pct(costing.marketing.margin_pct, 1) : '—' }}</td>
+                                        <td class="px-3 py-1.5 text-right tnum" :class="costing.pre?.margin_pct != null && costing.pre.margin_pct < costing.margin_floor_pct ? 'text-rose-700' : ''">{{ costing.pre?.margin_pct != null ? pct(costing.pre.margin_pct, 1) : '—' }}</td>
+                                        <td class="px-3 py-1.5 text-right tnum" :class="costing.post?.margin_pct != null && costing.post.margin_pct < costing.margin_floor_pct ? 'text-rose-700' : ''">{{ costing.post?.margin_pct != null ? pct(costing.post.margin_pct, 1) : '—' }}</td>
+                                        <td class="px-3 py-1.5" colspan="2"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <p v-if="!costing.post" class="px-3 py-3 text-xs text-ink-600">
+                                The actuals are struck when the job is closed. Until then this shows the benchmark alone.
+                            </p>
+                            <p v-else-if="!costing.pre" class="px-3 py-3 text-xs text-ink-600">
+                                No pre-production benchmark: this job was made for stock, not for an order confirmed with costing.
+                            </p>
+                        </Card>
+
+                        <div class="space-y-4">
+                            <Card title="Why it differed" subtitle="In the costing clerk's words: price, usage, yield, efficiency, overhead, subcontract, exchange.">
+                                <template v-if="costing.post_sheet_id">
+                                    <p v-if="costing.reason && !can('cost_sheet.update')" class="text-sm text-ink-800">{{ costing.reason }}</p>
+                                    <form v-else-if="can('cost_sheet.update')" class="space-y-2" @submit.prevent="saveReason">
+                                        <FormField label="Reason" :error="reasonForm.errors.variance_reason">
+                                            <TextInput v-model="reasonForm.variance_reason" placeholder="Yarn price up 3%; 1.5 kg extra at setup" maxlength="255" />
+                                        </FormField>
+                                        <Button type="submit" size="sm" variant="primary" :loading="reasonForm.processing">Save reason</Button>
+                                    </form>
+                                    <p v-else class="text-sm text-ink-500">Not yet explained.</p>
+                                </template>
+                                <p v-else class="text-sm text-ink-500">Available once the job is closed.</p>
+                            </Card>
+
+                            <Card title="Back to the standards" subtitle="What this job teaches the masters.">
+                                <dl class="space-y-1.5 text-sm">
+                                    <div class="flex justify-between"><dt class="text-ink-500">Wastage this job</dt><dd class="tnum">{{ costing.wastage.actual_pct === null ? '—' : pct(costing.wastage.actual_pct, 2) }}</dd></div>
+                                    <div class="flex justify-between"><dt class="text-ink-500">Standard wastage on the item</dt><dd class="tnum">{{ costing.wastage.standard_pct === null ? '—' : pct(costing.wastage.standard_pct, 2) }}</dd></div>
+                                </dl>
+                                <Button
+                                    v-if="costing.post_sheet_id && costing.wastage.actual_pct !== null && can('item.update')"
+                                    class="mt-3"
+                                    size="sm"
+                                    @click="adoptWastage"
+                                >
+                                    Adopt as the item's standard wastage
+                                </Button>
+                            </Card>
+                        </div>
+                    </div>
+
+                    <Card v-if="costing.lines.length" class="mt-4" title="Actual cost lines" :padded="false">
+                        <DataTable
+                            :columns="[
+                                { key: 'description', label: 'Line', wrap: true },
+                                { key: 'cost_type', label: 'Element' },
+                                { key: 'qty', label: 'Qty', align: 'right' },
+                                { key: 'basis_uom', label: 'Unit' },
+                                { key: 'rate', label: 'Rate', align: 'right' },
+                                { key: 'amount', label: 'Amount', align: 'right' },
+                            ]"
+                            :rows="costing.lines"
+                            row-key="sequence_no"
+                            dense
+                        >
+                            <template #cell:cost_type="{ value }">{{ titleCase(value) }}</template>
+                            <template #cell:qty="{ value }">{{ qty(value) }}</template>
+                            <template #cell:rate="{ value }">{{ money(value) }}</template>
+                            <template #cell:amount="{ value }">{{ money(value) }}</template>
+                        </DataTable>
+                    </Card>
+                </template>
             </div>
         </div>
 

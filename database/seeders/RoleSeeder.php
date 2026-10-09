@@ -37,6 +37,7 @@ class RoleSeeder extends Seeder
             'grants' => [
                 '*:read',
                 'cost_sheet.override_margin', 'sales_order.release_credit_hold', 'sales_order.short_close',
+                'sales_order.confirm', 'sales_order.confirm_below_margin',
                 'sales_order.override_tolerance',   // BR-44 — shipping outside the band is an MD sign-off
                 'delivery_challan.issue',           // …and the MD issues that exceptional challan personally
                 'sales_order.progress',             // whose side effect advances the order's fulfilment status
@@ -340,6 +341,14 @@ class RoleSeeder extends Seeder
      * @param  list<string>  $catalogue
      * @return list<string>
      */
+    /**
+     * Rights a wildcard never confers. Accepting a margin under the floor (spec §4) is an
+     * approval someone is named for; `sales_order.*` on a merchandiser must not carry it.
+     *
+     * @var list<string>
+     */
+    private const EXPLICIT_ONLY = ['sales_order.confirm_below_margin'];
+
     private function expand(array $grants, array $catalogue): array
     {
         $granted = [];
@@ -376,7 +385,7 @@ class RoleSeeder extends Seeder
                 $prefix = substr($grant, 0, -1);
 
                 foreach ($catalogue as $permission) {
-                    if (str_starts_with($permission, $prefix)) {
+                    if (str_starts_with($permission, $prefix) && ! in_array($permission, self::EXPLICIT_ONLY, true)) {
                         $granted[] = $permission;
                     }
                 }

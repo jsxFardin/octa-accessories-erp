@@ -148,6 +148,15 @@ class SalesOrderStateMachine extends StateMachine
             throw TransitionDenied::guard('S3', "This order is not ready to confirm.\n• ".implode("\n• ", $blocked));
         }
 
+        // Spec §4 — pre-production costing at confirmation. A line whose expected margin at
+        // today's rates sits below the floor is confirmed by someone allowed to accept that,
+        // not by whoever happened to press the button.
+        $short = app(\App\Modules\Costing\Services\PreProductionCosting::class)->belowFloor($order);
+
+        if ($short !== [] && ! (auth()->user()?->hasPermission('sales_order.confirm_below_margin') ?? false)) {
+            throw TransitionDenied::guard('CS-2', "Confirming this order needs margin approval.\n• ".implode("\n• ", $short));
+        }
+
         // BR-46 — a draft that breaches the credit limit does not become `confirmed`.
         //
         // The decision itself is taken in `SalesOrderController::transition()`, which diverts
@@ -208,6 +217,9 @@ class SalesOrderStateMachine extends StateMachine
         }
 
         $order->forceFill(['confirmed_at' => now()])->save();
+
+        // Spec §4 — the pre-production benchmark: this order, at today's rates, locked.
+        app(\App\Modules\Costing\Services\PreProductionCosting::class)->snapshot($order);
 
         // BR-29 — every open order shows a system-computed ETA (goal G3). Computed here so
         // it exists from the moment the order is confirmed, not when someone opens a report.

@@ -41,7 +41,81 @@ class CostSheetService
     public function __construct(
         private readonly CostSheetCalculator $calculator,
         private readonly Settings $settings,
+        private readonly ProductCostEstimate $generic,
     ) {}
+
+    /**
+     * The estimate for any made product (spec §4): a label through its geometry, everything
+     * else through its bill and routing. Null when a label has no specification to cost.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    public function estimate(Product $product, float $qty, array $overrides = [], ?ProductSpec $spec = null): ?CostSheet
+    {
+        if ($product->product_type !== 'other') {
+            $spec ??= $product->currentSpec;
+
+            return $spec === null ? null : $this->calculate($product, $spec, (int) round($qty), $overrides);
+        }
+
+        return $this->generic->build($product, $qty, $overrides);
+    }
+
+    /**
+     * Store a sheet with the references and stage it belongs to.
+     *
+     * @param  array<string, mixed>  $attributes  stage, sales_order_line_id, job_card_id, product_spec_id, revenue_per_unit, is_locked, locked_at
+     */
+    public function persistEstimate(Product $product, CostSheet $sheet, float $basisQty, array $attributes = []): CostSheetModel
+    {
+        return DB::transaction(function () use ($sheet, $product, $basisQty, $attributes): CostSheetModel {
+            $model = CostSheetModel::query()->create([
+                'stage' => $attributes['stage'] ?? CostSheetModel::MARKETING,
+                'quotation_line_id' => $attributes['quotation_line_id'] ?? null,
+                'sales_order_line_id' => $attributes['sales_order_line_id'] ?? null,
+                'job_card_id' => $attributes['job_card_id'] ?? null,
+                'product_id' => $product->id,
+                'product_spec_id' => $attributes['product_spec_id'] ?? null,
+                'basis_qty' => $basisQty,
+                'gross_metres' => $attributes['gross_metres'] ?? null,
+                'total_wastage_pct' => $attributes['total_wastage_pct'] ?? 0,
+                'overhead_pct' => $this->settings->decimal('overhead_pct', 12),
+                'admin_pct' => $this->settings->decimal('admin_pct', 5),
+                'margin_pct' => $sheet->marginPct,
+                'material_cost' => $sheet->materialCost,
+                'tooling_cost' => $sheet->toolingCost,
+                'machine_cost' => $sheet->machineCost,
+                'labour_cost' => $sheet->labourCost,
+                'energy_cost' => $sheet->energyCost,
+                'packing_cost' => $this->sumOf($sheet, 'packing'),
+                'other_cost' => $this->sumOf($sheet, 'outsourcing') + $this->sumOf($sheet, 'freight'),
+                'overhead_amount' => $sheet->factoryOverhead + $sheet->adminOverhead,
+                'total_cost' => $sheet->totalCost,
+                'unit_cost' => $sheet->unitCost,
+                'rate_per_m' => $sheet->ratePerM,
+                'revenue_per_unit' => $attributes['revenue_per_unit'] ?? null,
+                'is_locked' => (bool) ($attributes['is_locked'] ?? false),
+                'locked_at' => $attributes['locked_at'] ?? null,
+                'created_by' => auth()->id(),
+            ]);
+
+            foreach ($sheet->lines as $line) {
+                CostSheetLine::query()->create([
+                    'cost_sheet_id' => $model->id,
+                    'sequence_no' => $line->seq,
+                    'cost_type' => self::TYPE_MAP[$line->costType] ?? $line->costType,
+                    'description' => $line->description ?? ucfirst(str_replace('_', ' ', $line->costType)),
+                    'basis_uom' => $line->basis,
+                    'qty' => $line->qty,
+                    'rate' => $line->rate,
+                    'amount' => $line->amount,
+                    'formula_ref' => $line->formulaRef,
+                ]);
+            }
+
+            return $model;
+        });
+    }
 
     /**
      * @param  array<string, mixed>  $overrides

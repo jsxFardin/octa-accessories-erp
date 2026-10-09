@@ -466,6 +466,9 @@ class JobCardStateMachine extends StateMachine
     {
         $jobCard->forceFill(['closed_at' => now()])->save();
 
+        // Spec §4 — post-production costing: what the job actually cost, locked at close.
+        app(\App\Modules\Costing\Services\PostProductionCosting::class)->snapshot($jobCard);
+
         // P1-2 — leftover claims of a finished job go back to the pool; history rows stay.
         app(\App\Modules\Inventory\Services\ReservationService::class)->releaseForJob((int) $jobCard->getKey());
     }

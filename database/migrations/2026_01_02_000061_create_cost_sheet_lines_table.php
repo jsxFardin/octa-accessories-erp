@@ -39,8 +39,9 @@ CREATE TABLE cost_sheet_lines (
     CONSTRAINT cost_sheet_lines_group_fk FOREIGN KEY (machine_group_id) REFERENCES machine_groups(id),
     CONSTRAINT cost_sheet_lines_type_chk CHECK (cost_type IN (
         'material_yarn','material_ribbon','material_ink','material_chemical',
-        'material_paper','material_film','material_packing','tooling','machine',
-        'labour','energy','outsourcing','freight','overhead','margin','minimum_charge','other'))
+        'material_paper','material_film','material_packing','material_component','material_other',
+        'tooling','machine','labour','energy','outsourcing','subcontract','freight','overhead',
+        'development','finance','commission','wastage','scrap_credit','margin','minimum_charge','other'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 SQL);
     }

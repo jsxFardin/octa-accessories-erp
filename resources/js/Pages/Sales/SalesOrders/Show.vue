@@ -10,7 +10,7 @@ import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
 import ActivityTrail from '@/Components/Ui/ActivityTrail.vue';
-import { baseCurrency, date, isoDate, money, pcs, rate, relative, titleCase, todayIso } from '@/plugins/formatting';
+import { baseCurrency, date, isoDate, money, pcs, pct, rate, relative, titleCase, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
@@ -36,7 +36,19 @@ const props = defineProps({
     challans: { type: Array, default: () => [] },
     /** What has been invoiced and received against this order, and the invoices themselves. */
     billing: { type: Object, default: () => ({ invoiced: 0, received: 0, invoices: [] }) },
+    /** Spec §4 — marketing, pre-production and actual cost per line. */
+    costing: { type: Array, default: () => [] },
+    marginFloorPct: { type: Number, default: 12 },
 });
+
+const costingColumns = [
+    { key: 'product', label: 'Line', wrap: true },
+    { key: 'marketing', label: 'Quoted cost / unit', align: 'right' },
+    { key: 'pre', label: 'Pre-production / unit', align: 'right' },
+    { key: 'post', label: 'Actual / unit', align: 'right' },
+    { key: 'revenue_per_unit', label: 'Price / unit', align: 'right' },
+    { key: 'margin', label: 'Margin', align: 'right' },
+];
 
 /** Whole calendar days from today to a date, negative when it has passed. */
 function daysFromToday(value) {
@@ -401,6 +413,38 @@ const lineColumns = [
                 <span class="font-medium">{{ order.status === 'cancelled' ? 'Cancelled' : 'Closed' }}<template v-if="order.closed_at"> {{ date(order.closed_at) }}</template>:</span>
                 {{ order.close_reason }}
             </div>
+
+            <!-- Spec §4–5 — what the order was quoted at, confirmed at, and actually cost. -->
+            <Card
+                v-if="costing.length"
+                title="Costing"
+                rule="CS-2"
+                subtitle="Quoted: the marketing estimate. Pre-production: this order at the rates on the day it was confirmed, locked. Actual: the closed jobs that filled it."
+                :padded="false"
+            >
+                <DataTable :columns="costingColumns" :rows="costing" row-key="line_id" empty="No costing yet." dense>
+                    <template #cell:product="{ row }">
+                        <span class="text-ink-500">{{ row.line_no }}</span>
+                        <span class="ml-1.5 font-medium text-ink-900">{{ row.product?.code }}</span>
+                    </template>
+                    <template #cell:marketing="{ value }"><span class="tnum">{{ value ? money(value.unit_cost) : '—' }}</span></template>
+                    <template #cell:pre="{ value }"><span class="tnum">{{ value ? money(value.unit_cost) : '—' }}</span></template>
+                    <template #cell:post="{ value }">
+                        <span v-if="value" class="tnum">{{ money(value.unit_cost) }} <span class="text-xs text-ink-500">({{ value.jobs }} {{ value.jobs === 1 ? 'job' : 'jobs' }})</span></span>
+                        <span v-else class="text-ink-400">—</span>
+                    </template>
+                    <template #cell:revenue_per_unit="{ value }"><span class="tnum">{{ value === null ? '—' : money(value) }}</span></template>
+                    <template #cell:margin="{ row }">
+                        <span class="tnum" :class="row.below_floor ? 'font-medium text-rose-700' : ''">
+                            <template v-if="row.post?.margin_pct != null">{{ pct(row.post.margin_pct, 1) }} actual</template>
+                            <template v-else-if="row.pre?.margin_pct != null">{{ pct(row.pre.margin_pct, 1) }} expected</template>
+                            <template v-else-if="row.marketing?.margin_pct != null">{{ pct(row.marketing.margin_pct, 1) }} quoted</template>
+                            <template v-else>—</template>
+                        </span>
+                        <span v-if="row.below_floor" class="block text-xs text-rose-700">below the {{ marginFloorPct }}% floor</span>
+                    </template>
+                </DataTable>
+            </Card>
 
             <!--
                 The dossier: who it is for and who handles it, where it came from, when it was

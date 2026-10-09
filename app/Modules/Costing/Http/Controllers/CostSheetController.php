@@ -118,4 +118,45 @@ class CostSheetController extends Controller
 
         return back()->with('success', 'Cost sheet updated.');
     }
+
+    /**
+     * Spec §4 — the variance is explained, with a reason code, by the person who costed it.
+     * Allowed on a locked post-production sheet: the figures are final, the reading is not.
+     */
+    public function reason(Request $request, CostSheet $costSheet): RedirectResponse
+    {
+        if ($costSheet->stage !== CostSheet::POST_PRODUCTION) {
+            return back()->with('error', 'Only a post-production sheet carries a variance reason.');
+        }
+
+        $data = $request->validate(['variance_reason' => ['required', 'string', 'max:255']]);
+        $costSheet->update($data);
+
+        return back()->with('success', 'Variance reason recorded.');
+    }
+
+    /**
+     * Spec §4 — post-production results feed the standards: the wastage this job actually
+     * ran at becomes the item's standard wastage, by an engineer's decision, not by itself.
+     */
+    public function adoptWastage(Request $request, CostSheet $costSheet): RedirectResponse
+    {
+        $job = $costSheet->job_card_id === null ? null : \App\Modules\Manufacturing\Models\JobCard::query()->with('product.item')->find($costSheet->job_card_id);
+
+        if ($job === null || $job->product?->item === null) {
+            return back()->with('error', 'This sheet is not a job\'s actuals.');
+        }
+
+        $waste = (float) \Illuminate\Support\Facades\DB::table('waste_logs')->where('job_card_id', $job->id)->sum('qty');
+        $produced = $job->finalOperationOutput()['good'] + $waste;
+
+        if ($produced <= 0) {
+            return back()->with('error', 'The job made nothing to measure wastage against.');
+        }
+
+        $pct = round($waste / $produced * 100, 4);
+        $job->product->item->update(['standard_wastage_pct' => $pct]);
+
+        return back()->with('success', "Standard wastage of {$job->product->item->code} set to {$pct}% from this job.");
+    }
 }
