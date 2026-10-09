@@ -107,6 +107,10 @@ class PreProductionCosting
                 'sales_order_line_id' => $row['line']->id,
                 'product_spec_id' => $row['line']->product_spec_id,
                 'revenue_per_unit' => $row['revenue_per_unit'],
+                'exchange_rate' => (float) ($order->exchange_rate ?? 1),
+                'incoterm' => $order->incoterm ?? null,
+                // Struck by the system at confirmation: it arrives approved and locked.
+                'status' => CostSheetModel::APPROVED,
                 'is_locked' => true,
                 'locked_at' => now(),
             ]);

@@ -181,6 +181,8 @@ class PostProductionCosting
             'sales_order_line_id' => $jobCard->sales_order_line_id,
             'product_spec_id' => $jobCard->product_spec_id,
             'revenue_per_unit' => $this->revenuePerUnit($jobCard),
+            'exchange_rate' => (float) ($jobCard->salesOrderLine?->salesOrder?->exchange_rate ?? 1),
+            'status' => CostSheetModel::APPROVED,
             'is_locked' => true,
             'locked_at' => now(),
         ]);

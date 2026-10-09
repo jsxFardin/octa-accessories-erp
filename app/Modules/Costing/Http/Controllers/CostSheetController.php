@@ -119,6 +119,28 @@ class CostSheetController extends Controller
         return back()->with('success', 'Cost sheet updated.');
     }
 
+    /** CS-3 — the sheet's workflow; a refusal comes back as the sentence the machine wrote. */
+    public function transition(Request $request, CostSheet $costSheet, \App\Modules\Costing\States\CostSheetStateMachine $states): RedirectResponse
+    {
+        $data = $request->validate([
+            'to' => ['required', 'string', 'in:draft,submitted,approved,rejected'],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        try {
+            $states->transition($costSheet, $data['to'], ['reason' => $data['reason'] ?? null]);
+        } catch (\App\Support\States\TransitionDenied $denied) {
+            return back()->with('error', $denied->getMessage());
+        }
+
+        return back()->with('success', match ($data['to']) {
+            'submitted' => "Cost sheet {$costSheet->fresh()->number} submitted for approval.",
+            'approved' => 'Cost sheet approved.',
+            'rejected' => 'Cost sheet rejected; the clerk sees the reason.',
+            default => 'Cost sheet reopened as a draft.',
+        });
+    }
+
     /**
      * Spec §4 — the variance is explained, with a reason code, by the person who costed it.
      * Allowed on a locked post-production sheet: the figures are final, the reading is not.

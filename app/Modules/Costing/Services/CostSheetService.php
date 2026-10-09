@@ -94,6 +94,15 @@ class CostSheetService
                 'unit_cost' => $sheet->unitCost,
                 'rate_per_m' => $sheet->ratePerM,
                 'revenue_per_unit' => $attributes['revenue_per_unit'] ?? null,
+                'costing_per' => $attributes['costing_per'] ?? 1,
+                // Costs are struck in the base currency whatever the quote is in; the rate on
+                // the sheet is the one that turned the document's price into it.
+                'currency_id' => $attributes['currency_id'] ?? $this->baseCurrencyId(),
+                'exchange_rate' => $attributes['exchange_rate'] ?? 1,
+                'incoterm' => $attributes['incoterm'] ?? null,
+                'status' => $attributes['status'] ?? CostSheetModel::DRAFT,
+                'approved_by' => ($attributes['status'] ?? null) === CostSheetModel::APPROVED ? auth()->id() : null,
+                'approved_at' => ($attributes['status'] ?? null) === CostSheetModel::APPROVED ? now() : null,
                 'is_locked' => (bool) ($attributes['is_locked'] ?? false),
                 'locked_at' => $attributes['locked_at'] ?? null,
                 'created_by' => auth()->id(),
@@ -109,6 +118,8 @@ class CostSheetService
                     'qty' => $line->qty,
                     'rate' => $line->rate,
                     'amount' => $line->amount,
+                    'per_unit' => $basisQty > 0 ? round($line->amount / $basisQty * (float) ($attributes['costing_per'] ?? 1), 6) : 0,
+                    'pct_of_price' => ! empty($attributes['revenue_per_unit']) && $basisQty > 0 ? round($line->amount / ((float) $attributes['revenue_per_unit'] * $basisQty) * 100, 4) : 0,
                     'formula_ref' => $line->formulaRef,
                 ]);
             }
@@ -189,6 +200,13 @@ class CostSheetService
 
             return $model;
         });
+    }
+
+    public function baseCurrencyId(): ?int
+    {
+        $id = DB::table('currencies')->where('code', (string) $this->settings->get('base_currency', 'BDT'))->value('id');
+
+        return $id === null ? null : (int) $id;
     }
 
     /** Q1 — a sent quotation's sheet is read-only. */

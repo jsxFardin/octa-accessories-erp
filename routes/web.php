@@ -305,6 +305,11 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:cost_sheet.view_any')->name('costing.sheets');
     Route::get('costing/rates', [CostingController::class, 'rates'])
         ->middleware('can:rate_master.view_any')->name('costing.rates');
+    Route::get('costing/sheets/{costSheet}', [CostingController::class, 'show'])
+        ->middleware('can:cost_sheet.view')->name('costing.sheets.show');
+    // CS-3 — submit, approve, reject, reopen. The machine checks the finer right.
+    Route::post('cost-sheets/{costSheet}/transition', [CostSheetController::class, 'transition'])
+        ->middleware('can:cost_sheet.view')->name('cost-sheets.transition');
     Route::post('cost-sheets/{costSheet}/adopt-wastage', [CostSheetController::class, 'adoptWastage'])
         ->middleware('can:item.update')->name('cost-sheets.adopt-wastage');
 

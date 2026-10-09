@@ -264,6 +264,7 @@ async function transition(to) {
                 <template #actions>
                     <span class="text-sm font-semibold tnum text-ink-900">{{ money(line.line_total, quotation.currency) }}</span>
                     <Badge v-if="line.cost_sheet?.is_locked" tone="neutral" label="Locked" />
+                    <Button v-if="line.cost_sheet && can('cost_sheet.view')" size="xs" variant="ghost" :href="`/costing/sheets/${line.cost_sheet.id}`">Cost sheet</Button>
                 </template>
 
                 <!-- What else was entered on this line, and what the customer asked for. Tooling

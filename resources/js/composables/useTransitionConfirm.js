@@ -125,6 +125,10 @@ const BY_DOCUMENT = {
         on_hold: { verb: 'Put on hold', title: (name) => `Put ${name} on hold?`, label: 'Put on hold', message: 'It stays readable on the documents that name it, but no new order, purchase or bill of materials may use it until it is made active again.' },
         discontinued: { verb: 'Discontinue', message: 'It is retired for good and cannot be brought back. Documents that already name it keep working.', tone: 'danger', cancelLabel: 'Keep it' },
     },
+    cost_sheet: {
+        submitted: { verb: 'Submit', label: 'Submit for approval', message: 'The sheet gets its number and goes to whoever may approve the margin. Its figures stay as they are.' },
+        approved: { verb: 'Approve', message: 'The quotation may then be sent at this price. Below the margin floor only someone who may accept that margin can approve.' },
+    },
     test_report: {
         issued: { verb: 'Issue', label: 'Issue test report', message: 'The report is given its number and its results can no longer be changed.' },
         cancelled: { ...CANCEL, message: 'The report is withdrawn and cannot be issued.' },

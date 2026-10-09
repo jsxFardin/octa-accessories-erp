@@ -54,6 +54,19 @@ class DocumentRegistry
                 'load' => self::inquiry(...),
             ],
 
+            'cost-sheets' => [
+                'label' => 'Cost sheet',
+                'segment' => 'costing/sheets',
+                'table' => 'cost_sheets',
+                'permission' => 'cost_sheet.view',
+                'view' => 'print.cost-sheet',
+                'orientation' => 'portrait',
+                // A draft sheet prints: the clerk reads it on paper before submitting it.
+                'withheld' => [],
+                'withheld_reason' => '',
+                'load' => self::costSheet(...),
+            ],
+
             'quotations' => [
                 'label' => 'Quotation',
                 'segment' => 'quotations',
@@ -261,6 +274,23 @@ class DocumentRegistry
             ]);
 
         return ['document' => $document, 'lines' => $lines];
+    }
+
+    /** @return array<string, mixed> */
+    private static function costSheet(int $id): array
+    {
+        $sheet = \App\Modules\Costing\Models\CostSheet::query()->with([
+            'lines', 'product.item.family', 'product.customer', 'currency', 'creator:id,name', 'submitter:id,name', 'approver:id,name',
+            'quotationLine.quotation.customer', 'salesOrderLine.salesOrder.customer', 'jobCard',
+        ])->findOrFail($id);
+
+        $page = app(\App\Modules\Costing\Services\CostSheetPage::class)->forSheet($sheet);
+
+        // The composer reads `number` and `status` off `document`; the view reads the rest.
+        return [
+            'document' => (object) ['number' => $sheet->number, 'status' => $sheet->status, 'id' => $sheet->id],
+            ...$page,
+        ];
     }
 
     /** @return array<string, mixed> */

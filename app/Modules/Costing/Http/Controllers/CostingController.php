@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace App\Modules\Costing\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Costing\Models\CostSheet;
+use App\Modules\Costing\Services\CostSheetPage;
+use App\Modules\Costing\Services\CostStages;
+use App\Modules\Costing\States\CostSheetStateMachine;
 use App\Support\Http\ListsResources;
 use App\Support\Settings\SettingCatalogue;
 use App\Support\Settings\Settings;
@@ -22,7 +26,12 @@ class CostingController extends Controller
 {
     use ListsResources;
 
-    public function __construct(private readonly Settings $settings) {}
+    public function __construct(
+        private readonly Settings $settings,
+        private readonly CostSheetPage $pages,
+        private readonly CostStages $stages,
+        private readonly CostSheetStateMachine $states,
+    ) {}
 
     public function sheets(Request $request): Response
     {
@@ -153,6 +162,30 @@ class CostingController extends Controller
                 ->get(['m.id', 'm.code', 'm.name', 'g.name as group_name', 'm.std_rate_per_hour', 'm.hourly_rate', 'm.kw_rating', 'm.efficiency_pct', 'm.status']),
             'materials' => $materials,
             'filters' => $request->only(['q']),
+        ]);
+    }
+
+    /**
+     * The sheet as a document: header, three summaries, line detail, the revisions it sits
+     * among, and who signed it — the shape a costing clerk expects, on screen and on paper.
+     */
+    public function show(CostSheet $costSheet): Response
+    {
+        $costSheet->load([
+            'lines', 'product.item.family', 'product.customer', 'currency', 'creator:id,name', 'submitter:id,name', 'approver:id,name',
+            'quotationLine.quotation.customer', 'salesOrderLine.salesOrder.customer', 'jobCard',
+        ]);
+
+        $page = $this->pages->forSheet($costSheet);
+
+        return Inertia::render('Costing/Sheets/Show', [
+            ...$page,
+            'marginFloorPct' => $this->settings->decimal('margin_floor_pct', 12),
+            // A job's actuals read against its benchmark, line by line (spec §4).
+            'comparison' => $costSheet->stage === CostSheet::POST_PRODUCTION && $costSheet->jobCard !== null
+                ? $this->stages->forJobCard($costSheet->jobCard)
+                : null,
+            'transitions' => $this->states->available($costSheet),
         ]);
     }
 

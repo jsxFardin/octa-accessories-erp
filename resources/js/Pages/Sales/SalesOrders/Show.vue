@@ -427,8 +427,8 @@ const lineColumns = [
                         <span class="text-ink-500">{{ row.line_no }}</span>
                         <span class="ml-1.5 font-medium text-ink-900">{{ row.product?.code }}</span>
                     </template>
-                    <template #cell:marketing="{ value }"><span class="tnum">{{ value ? money(value.unit_cost) : '—' }}</span></template>
-                    <template #cell:pre="{ value }"><span class="tnum">{{ value ? money(value.unit_cost) : '—' }}</span></template>
+                    <template #cell:marketing="{ value }"><Link v-if="value" :href="`/costing/sheets/${value.id}`" class="doc-link-quiet tnum">{{ money(value.unit_cost) }}</Link><span v-else class="text-ink-400">—</span></template>
+                    <template #cell:pre="{ value }"><Link v-if="value" :href="`/costing/sheets/${value.id}`" class="doc-link-quiet tnum">{{ money(value.unit_cost) }}</Link><span v-else class="text-ink-400">—</span></template>
                     <template #cell:post="{ value }">
                         <span v-if="value" class="tnum">{{ money(value.unit_cost) }} <span class="text-xs text-ink-500">({{ value.jobs }} {{ value.jobs === 1 ? 'job' : 'jobs' }})</span></span>
                         <span v-else class="text-ink-400">—</span>

@@ -643,6 +643,9 @@ class QuotationController extends Controller
                 // Spec §4 — the marketing stage, with the quoted price the margin is against.
                 $sheet->update([
                     'stage' => CostSheet::MARKETING,
+                    'revision_no' => (int) $quotation->revision_no,
+                    'currency_id' => $this->costSheets->baseCurrencyId(),
+                    'exchange_rate' => (float) $quotation->exchange_rate,
                     'revenue_per_unit' => (int) $line['qty'] > 0 ? round($lineTotal * (float) $quotation->exchange_rate / (int) $line['qty'], 6) : null,
                 ]);
             }

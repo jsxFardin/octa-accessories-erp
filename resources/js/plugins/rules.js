@@ -38,6 +38,7 @@ export const RULES = {
     'S2': 'Any change after confirmation writes an amendment row with reason and user — no silent edits.',
     'S3': 'A line cannot be confirmed without a current spec and an approved artwork version.',
     'J1': 'Release needs approved artwork where the family uses it, a BOM, available tools, a machine on every operation, a QC plan, and material in stock or waived with a reason.',
+    'CS-3': 'A cost sheet is submitted by the clerk who built it and approved by someone who may sign off the margin; below the floor the approver must also hold the override. Reopening an approved sheet needs a reason, kept in its approval history.',
     'CS-2': 'An order is costed again on the day it is confirmed and that sheet is locked as the benchmark; below the margin floor, only someone allowed to accept the margin may confirm. The closed job is costed from its actuals against that benchmark.',
     'J2': 'Operations run in routing sequence; the next one becomes ready only when its predecessor finishes.',
     'J3': 'Good plus waste quantity cannot exceed the quantity handed to the operation.',

@@ -1633,9 +1633,15 @@ const bomColumns = [
                             </table>
                             <p v-if="!costing.post" class="px-3 py-3 text-xs text-ink-600">
                                 The actuals are struck when the job is closed. Until then this shows the benchmark alone.
+                                <Link v-if="costing.pre?.id" :href="`/costing/sheets/${costing.pre.id}`" class="doc-link-quiet">Open the benchmark sheet</Link>
                             </p>
                             <p v-else-if="!costing.pre" class="px-3 py-3 text-xs text-ink-600">
                                 No pre-production benchmark: this job was made for stock, not for an order confirmed with costing.
+                                <Link :href="`/costing/sheets/${costing.post_sheet_id}`" class="doc-link-quiet">Open the cost sheet</Link>
+                            </p>
+                            <p v-else class="px-3 py-3 text-xs text-ink-600">
+                                <Link :href="`/costing/sheets/${costing.post_sheet_id}`" class="doc-link-quiet">Open the cost sheet</Link>
+                                · <Link :href="`/costing/sheets/${costing.pre.id}`" class="doc-link-quiet">benchmark</Link>
                             </p>
                         </Card>
 
