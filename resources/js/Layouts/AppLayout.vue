@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import CommandPalette from '@/Components/Ui/CommandPalette.vue';
 import ConfirmDialog from '@/Components/Ui/ConfirmDialog.vue';
+import HelpMenu from '@/Components/Ui/HelpMenu.vue';
 import Icon from '@/Components/Ui/Icon.vue';
 import NotificationBell from '@/Components/Ui/NotificationBell.vue';
 import SessionExpired from '@/Components/Ui/SessionExpired.vue';
@@ -465,6 +466,8 @@ const paletteHint = computed(() =>
                         <slot name="actions" />
 
                         <NotificationBell />
+
+                        <HelpMenu />
 
                         <!--
                             Shown at every width. Hidden below `sm` there was no way at all to

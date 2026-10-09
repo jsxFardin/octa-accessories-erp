@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import {
-    Activity, ArchiveRestore, Award, BadgeCheck, Banknote, BarChart3, Barcode, Beaker, Bell, Blocks,
+    Activity, ArchiveRestore, Award, BadgeCheck, Banknote, BarChart3, Barcode, Beaker, Bell, Blocks, CircleHelp,
     Boxes, Building2, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
     ClipboardCheck, ClipboardList, Cog, Command, Copy, CreditCard, Download, Factory,
     FileSpreadsheet, FileText, Filter, Gauge, Inbox, Info, Layers, LayoutDashboard, LogOut,
@@ -94,6 +94,7 @@ const REGISTRY = {
     settings: Settings2,
     mail: Mail,
     bell: Bell,
+    help: CircleHelp,
     command: Command,
     warehouse: Warehouse,
     card: CreditCard,
