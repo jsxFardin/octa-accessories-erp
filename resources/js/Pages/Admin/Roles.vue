@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '@/Components/Ui/Icon.vue';
 import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -174,7 +175,7 @@ function accessPct(role) {
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex min-w-0 items-start gap-3">
                         <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                            ⛊
+                            <Icon name="roles" />
                         </div>
                         <div class="min-w-0">
                             <p class="truncate text-sm font-semibold text-ink-900">{{ role.label }}</p>
