@@ -8,6 +8,7 @@ use App\Modules\Manufacturing\Exceptions\OperationRefused;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\States\JobCardStateMachine;
+use App\Modules\Product\Http\Controllers\ToolController;
 use App\Support\Audit\AuditLogger;
 use App\Support\States\StateMachine;
 use Carbon\CarbonImmutable;
@@ -220,7 +221,7 @@ class OperationBookingService
             $this->refuse('operation', 'J3: nothing has been booked against this operation. Record the output, or finish with a reason.', 'nothing_booked');
         }
 
-        DB::transaction(function () use ($operation, $occurredAt): void {
+        DB::transaction(function () use ($operation, $occurredAt, $booked): void {
             $operation->forceFill([
                 'status' => JobCardOperation::COMPLETED,
                 'finished_at' => $occurredAt,
@@ -228,6 +229,8 @@ class OperationBookingService
                     ? round($operation->started_at->diffInMinutes($occurredAt), 2)
                     : $operation->actual_minutes,
             ])->save();
+
+            $this->countShots($operation, $booked);
 
             // The next operation joins the queue as soon as this one closes — the floor
             // should not need the planner to advance it.
@@ -254,6 +257,25 @@ class OperationBookingService
                 StateMachine::asSystem(fn () => $this->jobCards->transition($jobCard, JobCard::QC_PENDING));
             }
         });
+    }
+
+    /**
+     * A mould's life is counted in shots (spec §2, family 07): every shot fills each cavity
+     * once, so the pieces an operation put out, good and waste alike, divided by the cavity
+     * count is the shots it took. Counted when the operation finishes, atomically, so the
+     * release gate's "worn out" check (BR-13) sees the wear the last job caused.
+     */
+    private function countShots(JobCardOperation $operation, float $pieces): void
+    {
+        $tool = $operation->tool;
+
+        if ($tool === null || $pieces <= 0 || ! in_array($tool->kind, ToolController::SHOT_COUNTED, true)) {
+            return;
+        }
+
+        $shots = (int) ceil($pieces / max(1, (int) ($tool->cavity_count ?? 1)));
+
+        DB::table('tools')->where('id', $tool->id)->increment('used_impressions', $shots);
     }
 
     /**

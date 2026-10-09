@@ -30,6 +30,7 @@ CREATE TABLE tools (
     code              VARCHAR(40) NOT NULL,
     colour_index      SMALLINT UNSIGNED,
     cavity_count      SMALLINT UNSIGNED,
+    tonnage           DECIMAL(9,2),                -- the press a mould needs (spec §2, family 07)
     owner_customer_id BIGINT UNSIGNED,
     location          VARCHAR(80),
     made_on           DATE,
@@ -45,7 +46,7 @@ CREATE TABLE tools (
     CONSTRAINT tools_spec_fk    FOREIGN KEY (product_spec_id)   REFERENCES product_specs(id),
     CONSTRAINT tools_item_fk    FOREIGN KEY (item_id)           REFERENCES items(id),
     CONSTRAINT tools_owner_fk   FOREIGN KEY (owner_customer_id) REFERENCES customers(id),
-    CONSTRAINT tools_kind_chk   CHECK (kind IN ('flexo_plate','screen','offset_plate','cutting_die','embossing_die','cad_pattern','mould')),
+    CONSTRAINT tools_kind_chk   CHECK (kind IN ('flexo_plate','screen','offset_plate','print_plate','cutting_die','embossing_die','slider_die','stamping_die','cad_pattern','mould','rubber_mould','loom_setting','shade_card','dot_roller','digitizing_file','artwork_file')),
     CONSTRAINT tools_status_chk CHECK (status IN ('in_production','available','in_use','worn','scrapped'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 SQL);

@@ -37,6 +37,15 @@ const KIND_LABELS = {
     embossing_die: 'Embossing die',
     cad_pattern: 'CAD pattern',
     mould: 'Mould',
+    print_plate: 'Print plate',
+    slider_die: 'Slider die',
+    stamping_die: 'Stamping die',
+    rubber_mould: 'Rubber mould',
+    loom_setting: 'Loom setting',
+    shade_card: 'Shade card',
+    dot_roller: 'Dot roller',
+    digitizing_file: 'Digitizing file',
+    artwork_file: 'Artwork file',
 };
 
 const STATUS_LABELS = {
@@ -97,6 +106,7 @@ const blank = () => ({
     life_impressions: null,
     status: 'available',
     cavity_count: null,
+    tonnage: null,
     owner_customer_id: null,
     item_id: null,
 });
@@ -126,6 +136,7 @@ function openEdit(tool) {
         life_impressions: tool.life_impressions,
         status: tool.status === 'in_use' ? 'available' : tool.status,
         cavity_count: tool.cavity_count,
+        tonnage: tool.tonnage === null ? null : Number(tool.tonnage),
         owner_customer_id: tool.owner_customer_id,
         item_id: tool.item_id,
     });
@@ -138,7 +149,7 @@ function openEdit(tool) {
 const perColour = computed(() => ['flexo_plate', 'screen', 'offset_plate'].includes(form.kind));
 
 /** A mould is defined by how many pieces one shot gives; a plate is not. */
-const isMould = computed(() => form.kind === 'mould');
+const isMould = computed(() => ['mould', 'rubber_mould'].includes(form.kind));
 
 const blockedBy = computed(() => {
     if (!form.code.trim()) return 'Enter the tool code.';
@@ -272,6 +283,9 @@ function retire(tool) {
                     </FormField>
                     <FormField v-if="isMould" label="Cavities" :error="form.errors.cavity_count" required hint="Pieces one shot gives.">
                         <TextInput v-model="form.cavity_count" type="number" min="1" numeric />
+                    </FormField>
+                    <FormField v-if="isMould" label="Tonnage" :error="form.errors.tonnage" hint="The press it needs.">
+                        <TextInput v-model="form.tonnage" type="number" min="0" step="0.5" numeric />
                     </FormField>
                     <FormField label="Owned by" :error="form.errors.owner_customer_id" hint="Empty: the factory owns it.">
                         <SelectInput v-model="form.owner_customer_id" :options="customers" value-key="id" label-key="name" placeholder="The factory" clearable />

@@ -37,6 +37,7 @@ class Tool extends Model
         'code',
         'colour_index',
         'cavity_count',
+        'tonnage',
         'owner_customer_id',
         'location',
         'made_on',

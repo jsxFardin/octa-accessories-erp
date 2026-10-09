@@ -22,7 +22,19 @@ class ToolController extends Controller
     use ListsResources;
 
     /** The kinds and statuses the table itself allows (`tools_kind_chk`, `tools_status_chk`). */
-    public const KINDS = ['flexo_plate', 'screen', 'offset_plate', 'cutting_die', 'embossing_die', 'cad_pattern', 'mould'];
+    /**
+     * Every tool the ten families name (spec §2): plates and screens for printing, dies for
+     * cutting, stamping and sliders, moulds for fasteners and injection, and the settings a
+     * loom, a dye range or an embroidery head runs from.
+     */
+    public const KINDS = [
+        'flexo_plate', 'screen', 'offset_plate', 'print_plate', 'cutting_die', 'embossing_die', 'slider_die',
+        'stamping_die', 'cad_pattern', 'mould', 'rubber_mould', 'loom_setting', 'shade_card', 'dot_roller',
+        'digitizing_file', 'artwork_file',
+    ];
+
+    /** The kinds whose life is counted in shots: each shot fills every cavity once. */
+    public const SHOT_COUNTED = ['mould', 'rubber_mould', 'stamping_die', 'slider_die'];
 
     public const STATUSES = ['in_production', 'available', 'in_use', 'worn', 'scrapped'];
 
@@ -47,7 +59,7 @@ class ToolController extends Controller
                 fn (Tool $tool): array => [
                     ...$tool->only(['id', 'code', 'kind', 'product_spec_id', 'colour_index', 'location',
                         'made_on', 'cost', 'life_impressions', 'used_impressions', 'status',
-                        'cavity_count', 'owner_customer_id', 'item_id']),
+                        'cavity_count', 'tonnage', 'owner_customer_id', 'item_id']),
                     'owner' => $tool->ownerCustomer?->name,
                     'product' => $tool->spec?->product?->only(['id', 'code', 'name']),
                     'spec_version' => $tool->spec?->version_no,
@@ -132,7 +144,8 @@ class ToolController extends Controller
             'product_spec_id' => ['nullable', 'integer', 'exists:product_specs,id'],
             'colour_index' => ['nullable', 'integer', 'min:1', 'max:20'],
             // A mould is defined by how many pieces one shot gives.
-            'cavity_count' => ['nullable', 'integer', 'min:1', Rule::requiredIf($request->input('kind') === 'mould')],
+            'cavity_count' => ['nullable', 'integer', 'min:1', Rule::requiredIf(in_array($request->input('kind'), ['mould', 'rubber_mould'], true))],
+            'tonnage' => ['nullable', 'numeric', 'min:0'],
             'owner_customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'item_id' => ['nullable', 'integer', 'exists:items,id'],
             'location' => ['nullable', 'string', 'max:80'],
