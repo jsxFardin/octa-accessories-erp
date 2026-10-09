@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Inventory\Models\StockLot;
 use App\Modules\Inventory\Services\LotHoldExplainer;
 use App\Support\Http\ListsResources;
+use App\Support\Text\RecordLink;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -68,10 +69,7 @@ class StockLotController extends Controller
             'lot' => $lot,
             // I1/I3 — the ledger is the truth; this is the audit trail a traceability query
             // walks. Append-only, so it reads as a history rather than a current state.
-            'ledger' => DB::table('stock_ledger')
-                ->where('lot_id', $lot->id)
-                ->orderBy('occurred_at')
-                ->get(['id', 'movement_type', 'qty', 'unit_cost', 'value', 'source_type', 'source_id', 'occurred_at', 'remarks']),
+            'ledger' => $this->ledger($lot),
             'ledgerBalance' => (float) DB::table('stock_ledger')->where('lot_id', $lot->id)->sum('qty'),
             // G6 — any carton to its lots to its GRNs, in three clicks.
             'genealogy' => [
@@ -90,6 +88,28 @@ class StockLotController extends Controller
                     : null,
             ],
         ]);
+    }
+
+    /**
+     * The movements, each naming the document that made it. The ledger stores a class name
+     * and an id; "Grn #7" is not a source a store keeper recognises, and nothing on the page
+     * led to the receipt.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function ledger(StockLot $lot): array
+    {
+        $rows = DB::table('stock_ledger')
+            ->where('lot_id', $lot->id)
+            ->orderBy('occurred_at')
+            ->get(['id', 'movement_type', 'qty', 'unit_cost', 'value', 'source_type', 'source_id', 'occurred_at', 'remarks']);
+
+        $numbers = RecordLink::numbers($rows);
+
+        return $rows->map(fn (object $row): array => [
+            ...(array) $row,
+            'source' => RecordLink::describe($row->source_type, $row->source_id === null ? null : (int) $row->source_id, $numbers),
+        ])->all();
     }
 
     /** The printable label for one lot — the barcode the scan fields read. */

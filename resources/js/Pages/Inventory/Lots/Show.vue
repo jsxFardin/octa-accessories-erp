@@ -5,6 +5,7 @@ import Badge from '@/Components/Ui/Badge.vue';
 import Card from '@/Components/Ui/Card.vue';
 import DataTable from '@/Components/Ui/DataTable.vue';
 import { date, datetime, money, pcs, qty, titleCase } from '@/plugins/formatting';
+import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -29,6 +30,20 @@ const props = defineProps({
              something on the goods a scanner can read. -->
         <template #actions>
             <Button :href="`/lots/${lot.id}/label`" external target="_blank">Print label</Button>
+            <!-- The two things done to a lot from its page: move it, or correct its balance.
+                 Each form opens on this lot's warehouse with the lot already found. -->
+            <Button
+                v-if="can('stock_transfer.create') && Number(lot.balance_qty) > 0"
+                :href="`/stock-transfers/create?warehouse=${lot.warehouse_id}&lot_search=${encodeURIComponent(lot.lot_no)}`"
+            >
+                Transfer
+            </Button>
+            <Button
+                v-if="can('stock_adjustment.create')"
+                :href="`/stock-adjustments/create?warehouse=${lot.warehouse_id}&lot_search=${encodeURIComponent(lot.lot_no)}`"
+            >
+                Adjust
+            </Button>
         </template>
 
         <!--
@@ -153,7 +168,9 @@ const props = defineProps({
                     <template #cell:unit_cost="{ value }">{{ money(value) }}</template>
                     <template #cell:value="{ value }">{{ money(value) }}</template>
                     <template #cell:source_type="{ row }">
-                        <span class="text-xs text-ink-500">{{ row.source_type?.split('\\\\').pop() }} #{{ row.source_id }}</span>
+                        <Link v-if="row.source?.href" :href="row.source.href" class="doc-link-quiet">{{ row.source.label }}</Link>
+                        <span v-else-if="row.source" class="text-ink-700">{{ row.source.label }}</span>
+                        <span v-else class="text-ink-400">—</span>
                     </template>
                 </DataTable>
             </Card>
