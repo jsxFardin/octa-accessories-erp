@@ -457,7 +457,11 @@ const paletteHint = computed(() =>
                         line, and the notification panel — anchored `right-0` to the bell — then
                         opened off the left of the screen.
                     -->
-                    <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+                    <!--
+                        On a phone the strip is one row that scrolls sideways rather than three
+                        wrapped rows: a sales order's six actions took half the first screen.
+                    -->
+                    <div class="quiet-scroll ml-auto flex items-center gap-2 max-sm:w-full max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:pb-1 max-sm:[&>*]:shrink-0 max-sm:[&>*]:whitespace-nowrap sm:flex-wrap sm:justify-end">
                         <slot name="actions" />
 
                         <NotificationBell />

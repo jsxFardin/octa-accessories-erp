@@ -303,7 +303,7 @@ onUnmounted(() => {
                             v-for="(column, columnIndex) in columns"
                             :key="column.key"
                             class="px-3 text-ink-700"
-                            :class="[column.wrap ? 'whitespace-normal' : 'whitespace-nowrap', alignClass(column), rowPadding, rowHref && columnIndex > 0 && 'cursor-pointer']"
+                            :class="[column.wrap ? 'whitespace-nowrap sm:whitespace-normal' : 'whitespace-nowrap', alignClass(column), rowPadding, rowHref && columnIndex > 0 && 'cursor-pointer']"
                             @click="rowHref && columnIndex > 0 && openRow(row, $event)"
                         >
                             <component
