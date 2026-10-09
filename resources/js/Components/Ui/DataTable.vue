@@ -288,14 +288,6 @@ onUnmounted(() => {
                         </tr>
                     </template>
 
-                    <tr v-else-if="items(rows).length === 0">
-                        <td :colspan="columns.length + (actions ? 1 : 0) + (selectable ? 1 : 0)" class="px-3 py-12 text-center">
-                            <slot name="empty">
-                                <!-- One empty state, not 52 different strings in a grey paragraph. -->
-                                <EmptyState :title="empty" icon="inbox" />
-                            </slot>
-                        </td>
-                    </tr>
 
                     <tr
                         v-for="row in loading ? [] : items(rows)"
@@ -354,6 +346,17 @@ onUnmounted(() => {
                     <slot name="footer" />
                 </tfoot>
             </table>
+        </div>
+
+        <!--
+            Outside the scrolling box: inside a cell that spans a wide table, the message sat
+            centred on a table twice the width of a phone, so a phone saw its right-hand half.
+        -->
+        <div v-if="!loading && items(rows).length === 0" class="px-3 py-10 text-center">
+            <slot name="empty">
+                <!-- One empty state, not 52 different strings in a grey paragraph. -->
+                <EmptyState :title="empty" icon="inbox" />
+            </slot>
         </div>
 
         <Pagination v-if="rows && !Array.isArray(rows)" v-model:compact="compact" :meta="rows" />
