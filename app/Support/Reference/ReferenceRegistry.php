@@ -479,7 +479,7 @@ class ReferenceRegistry
                     ['name' => 'label', 'label' => 'Label', 'type' => 'text', 'rules' => ['required', 'string', 'max:80']],
                     ['name' => 'data_type', 'label' => 'Type', 'type' => 'select', 'options' => ['text', 'number', 'select', 'boolean']],
                     ['name' => 'unit', 'label' => 'Unit', 'type' => 'text', 'rules' => ['nullable', 'string', 'max:20']],
-                    ['name' => 'options', 'label' => 'Choices', 'type' => 'textarea', 'rules' => ['nullable', 'string'], 'jsonLines' => true, 'hint' => 'For a select: one choice per line.'],
+                    ['name' => 'options', 'label' => 'Choices', 'type' => 'list', 'rules' => ['nullable', 'array', 'max:50'], 'itemRules' => ['nullable', 'string', 'max:80'], 'hint' => 'For a select: the choices an item of this family may pick from.'],
                     ['name' => 'is_required', 'label' => 'Required', 'type' => 'boolean', 'default' => false],
                     ['name' => 'sort_order', 'label' => 'Order', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 0],
                     ['name' => 'is_active', 'label' => 'Active', 'type' => 'boolean', 'default' => true],

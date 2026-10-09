@@ -1,6 +1,8 @@
 <script setup>
+import Button from '@/Components/Ui/Button.vue';
 import DateInput from '@/Components/Ui/DateInput.vue';
 import FormField from '@/Components/Ui/FormField.vue';
+import Icon from '@/Components/Ui/Icon.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { titleCase } from '@/plugins/formatting';
@@ -18,6 +20,21 @@ import { titleCase } from '@/plugins/formatting';
  */
 function optionLabel(option) {
     return /^[a-z0-9_]+$/.test(String(option)) ? titleCase(option) : String(option);
+}
+
+/* --- a list field: one row per entry, add one, take one away ------------------------------ */
+function listOf(form, field) {
+    if (!Array.isArray(form[field.name])) form[field.name] = [];
+
+    return form[field.name];
+}
+
+function addEntry(form, field) {
+    listOf(form, field).push('');
+}
+
+function removeEntry(form, field, index) {
+    listOf(form, field).splice(index, 1);
 }
 
 defineProps({
@@ -38,7 +55,7 @@ defineProps({
             :label="field.label"
             :hint="field.hint"
             :error="form.errors[field.name]"
-            :class="field.type === 'textarea' && 'sm:col-span-2'"
+            :class="['textarea', 'list'].includes(field.type) && 'sm:col-span-2'"
         >
             <!-- A switch reads as a setting; a bare checkbox in a form grid reads as a mistake. -->
             <button
@@ -73,6 +90,23 @@ defineProps({
             />
 
             <DateInput v-else-if="field.type === 'date'" v-model="form[field.name]" />
+
+            <!-- A list of choices as rows, not as text the clerk has to punctuate. -->
+            <div v-else-if="field.type === 'list'" class="space-y-2">
+                <div v-for="(entry, index) in listOf(form, field)" :key="index" class="flex items-start gap-2">
+                    <div class="min-w-0 flex-1">
+                        <TextInput v-model="listOf(form, field)[index]" :aria-label="`${field.label} ${index + 1}`" :placeholder="`Choice ${index + 1}`" />
+                        <p v-if="form.errors[`${field.name}.${index}`]" class="mt-1 text-xs text-rose-700">{{ form.errors[`${field.name}.${index}`] }}</p>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" :aria-label="`Remove choice ${index + 1}`" @click="removeEntry(form, field, index)">
+                        <Icon name="remove" size="size-3.5" />
+                    </Button>
+                </div>
+                <Button type="button" variant="secondary" size="sm" @click="addEntry(form, field)">
+                    <Icon name="add" size="size-3.5" />
+                    Add {{ listOf(form, field).length ? 'another' : 'a' }} choice
+                </Button>
+            </div>
 
             <textarea
                 v-else-if="field.type === 'textarea'"

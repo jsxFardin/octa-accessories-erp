@@ -33,7 +33,7 @@ const editing = ref(null);
 
 function blank() {
     return Object.fromEntries(
-        props.reference.fields.map((field) => [field.name, field.default ?? (field.type === 'boolean' ? false : '')]),
+        props.reference.fields.map((field) => [field.name, field.default ?? (field.type === 'boolean' ? false : field.type === 'list' ? [] : '')]),
     );
 }
 
@@ -53,7 +53,7 @@ function edit(row) {
     const values = Object.fromEntries(
         props.reference.fields.map((field) => [
             field.name,
-            field.type === 'boolean' ? Boolean(row[field.name]) : (row[field.name] ?? ''),
+            field.type === 'boolean' ? Boolean(row[field.name]) : field.type === 'list' ? [...(row[field.name] ?? [])] : (row[field.name] ?? ''),
         ]),
     );
 
@@ -152,6 +152,9 @@ function rowActions(row) {
                     </span>
                     <span v-else-if="column.field.type === 'date'">
                         {{ $fmt.date(value) }}
+                    </span>
+                    <span v-else-if="column.field.type === 'list'">
+                        {{ value?.length ? value.join(', ') : '—' }}
                     </span>
                     <span v-else-if="['number', 'decimal'].includes(column.field.type)" class="tnum">
                         {{ value ?? '—' }}<span v-if="column.field.unit" class="ml-0.5 text-ink-400">{{ column.field.unit }}</span>

@@ -121,6 +121,43 @@ it('creates, edits and deletes a lookup row', function (): void {
     expect(DB::table('departments')->where('id', $id)->exists())->toBeFalse();
 });
 
+it('keeps a family attribute\'s choices as a list, dropping blank entries', function (): void {
+    $family = DB::table('production_families')->value('id');
+
+    $this->actingAs($this->admin)->post('/setup/family-attributes', [
+        'production_family_id' => $family,
+        'attr_key' => 'finish_test',
+        'label' => 'Finish',
+        'data_type' => 'select',
+        'options' => ['matte', '  ', 'gloss'],
+        'is_required' => false,
+        'sort_order' => 99,
+        'is_active' => true,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $row = DB::table('family_attributes')->where('attr_key', 'finish_test')->first();
+
+    expect(json_decode((string) $row->options, true))->toBe(['matte', 'gloss']);
+
+    // The screen gets the list as a list, and a choice that is too long is refused on its own row.
+    $this->actingAs($this->admin)->get('/setup/family-attributes')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('rows.data', fn ($rows) => collect($rows)->firstWhere('id', $row->id)['options'] === ['matte', 'gloss']));
+
+    $this->actingAs($this->admin)->from('/setup/family-attributes')->put("/setup/family-attributes/{$row->id}", [
+        'production_family_id' => $family,
+        'attr_key' => 'finish_test',
+        'label' => 'Finish',
+        'data_type' => 'select',
+        'options' => ['matte', str_repeat('x', 81)],
+        'is_required' => false,
+        'sort_order' => 99,
+        'is_active' => true,
+    ])->assertSessionHasErrors(['options.1']);
+
+    DB::table('family_attributes')->where('id', $row->id)->delete();
+});
+
 it('records every lookup edit in the audit log', function (): void {
     // These tables have no Eloquent model, which is exactly why the audit row is easy to
     // forget — a changed tax rate has to leave a trace like anything else.

@@ -103,7 +103,16 @@ class ReferenceController extends Controller
                 'fields' => $definition['fields'],
                 'searchable' => ($definition['searchable'] ?? []) !== [],
             ],
-            'rows' => $query->paginate(50)->withQueryString(),
+            // A list is stored as a JSON array; the screen gets the array, not the text of it.
+            'rows' => $query->paginate(50)->withQueryString()->through(function (object $row) use ($definition): object {
+                foreach ($definition['fields'] as $field) {
+                    if ($field['type'] === 'list') {
+                        $row->{$field['name']} = $row->{$field['name']} === null ? [] : (json_decode((string) $row->{$field['name']}, true) ?: []);
+                    }
+                }
+
+                return $row;
+            }),
             'filters' => $request->only(['q', 'sort']),
             // Every `reference` field needs its options; resolved here so the form never has
             // to fetch, and a 12-row table renders as fast as a 1200-row one.
@@ -241,6 +250,11 @@ class ReferenceController extends Controller
             }
 
             $rules[$field['name']] = $fieldRules;
+
+            // A list validates each entry on its own, so "choice 3 is too long" lands on choice 3.
+            if ($field['type'] === 'list') {
+                $rules[$field['name'].'.*'] = $field['itemRules'] ?? ['string'];
+            }
         }
 
         $validated = $request->validate($rules);
@@ -253,8 +267,8 @@ class ReferenceController extends Controller
                 $field['type'] === 'boolean' => (bool) $value,
                 $field['type'] === 'number' => $value === null || $value === '' ? null : (int) $value,
                 $field['type'] === 'decimal' => $value === null || $value === '' ? null : (float) $value,
-                // A list typed one per line, stored as a JSON array; a JSON array typed as such is kept.
-                ($field['jsonLines'] ?? false) === true => $this->jsonLines($value),
+                // A list of choices, stored as a JSON array; blank entries are dropped, none at all is null.
+                $field['type'] === 'list' => $this->listValue($value),
                 default => $value === '' ? null : $value,
             };
         }
@@ -262,19 +276,14 @@ class ReferenceController extends Controller
         return $row;
     }
 
-    private function jsonLines(mixed $value): ?string
+    private function listValue(mixed $value): ?string
     {
-        if ($value === null || trim((string) $value) === '') {
-            return null;
-        }
+        $list = array_values(array_filter(
+            array_map(fn ($item): string => trim((string) $item), is_array($value) ? $value : []),
+            fn (string $item): bool => $item !== '',
+        ));
 
-        $decoded = json_decode((string) $value, true);
-
-        $list = is_array($decoded)
-            ? array_values(array_map('strval', $decoded))
-            : array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $value) ?: []), fn (string $line): bool => $line !== ''));
-
-        return json_encode($list, JSON_THROW_ON_ERROR);
+        return $list === [] ? null : json_encode($list, JSON_THROW_ON_ERROR);
     }
 
     /**
