@@ -76,8 +76,9 @@ const columns = [
                 empty="No items match these filters."
             >
                 <template #cell:code="{ row, value }"><span class="font-medium text-ink-900">{{ value }}</span></template>
-                <template #cell:avg_rate="{ row, value }">{{ money(value) }}</template>
-                <template #cell:reorder_level="{ row, value }">{{ qty(value) }}</template>
+                <!-- A made item is not bought: no average purchase rate and no reorder level to show. -->
+                <template #cell:avg_rate="{ row, value }"><span v-if="row.make_or_buy === 'make'" class="text-ink-400">—</span><template v-else>{{ money(value) }}</template></template>
+                <template #cell:reorder_level="{ row, value }"><span v-if="row.make_or_buy === 'make'" class="text-ink-400">—</span><template v-else>{{ qty(value) }}</template></template>
                 <template #cell:flags="{ row, value }"><span class="flex gap-1">
                         <Badge v-if="row.is_shade_critical" tone="warning" label="Shade" />
                         <Badge v-if="row.has_expiry" tone="info" label="Expiry" />
