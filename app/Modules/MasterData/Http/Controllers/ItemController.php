@@ -112,10 +112,21 @@ class ItemController extends Controller
     {
         $item->loadMissing('product');
 
-        $item->load(['category', 'family', 'group', 'baseUom', 'purchaseUom', 'orderUom', 'defaultSupplier', 'defaultWarehouse', 'customer', 'toolOwner', 'product']);
+        $item->load(['category', 'family', 'group', 'baseUom', 'purchaseUom', 'orderUom', 'defaultSupplier', 'defaultWarehouse', 'customer', 'toolOwner', 'product', 'creator:id,name', 'activator:id,name']);
 
         return Inertia::render('MasterData/Items/Show', [
             'item' => $item,
+            // The products whose active bill draws on this item: where a change to it lands.
+            'usedOn' => DB::table('bom_lines as bl')
+                ->join('boms as b', 'b.id', '=', 'bl.bom_id')
+                ->join('products as p', 'p.id', '=', 'b.product_id')
+                ->join('items as pi', 'pi.id', '=', 'p.item_id')
+                ->where('bl.item_id', $item->id)
+                ->where('b.status', 'active')
+                ->whereNull('p.deleted_at')
+                ->distinct()
+                ->orderBy('pi.code')
+                ->get(['p.id', 'pi.code', 'pi.name']),
             // IM-1 — what it still needs before it is active, and which status changes the
             // reader may make from here.
             'activation' => $this->checklist->steps($item),

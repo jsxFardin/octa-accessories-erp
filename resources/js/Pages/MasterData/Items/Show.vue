@@ -9,7 +9,17 @@ import { date, datetime, money, pcs, qty, titleCase } from '@/plugins/formatting
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
-const props = defineProps({ item: Object, stock: Array, lots: Array, labels: { type: Object, default: () => ({}) }, activation: { type: Array, default: () => [] }, transitions: { type: Array, default: () => [] }, attributeDefinitions: { type: Array, default: () => [] } });
+const props = defineProps({
+    item: Object,
+    stock: Array,
+    lots: Array,
+    labels: { type: Object, default: () => ({}) },
+    activation: { type: Array, default: () => [] },
+    transitions: { type: Array, default: () => [] },
+    attributeDefinitions: { type: Array, default: () => [] },
+    /** The products whose bill of materials draws on this item. */
+    usedOn: { type: Array, default: () => [] },
+});
 
 /** The fixed vocabularies, worded. Never the raw key. */
 function label(list, value) {
@@ -44,10 +54,16 @@ const attributeRows = (() => {
             <Button v-if="can('item.update')" size="sm" :href="`/items/${item.id}/edit`">Edit</Button>
         </template>
 
-        <div class="grid gap-4 lg:grid-cols-3">
-            <ActivationCard class="lg:col-span-3" :steps="activation" :transitions="transitions" :status="item.status" :code="item.code" :action="`/items/${item.id}/transition`" />
+        <!--
+            Two columns, as the product page: what the item is on the left, where it stands on
+            the right, sticky. The lifecycle used to run the whole width with one step per row
+            and pushed every fact below the fold.
+        -->
+        <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+            <div class="min-w-0 space-y-4">
+            <div class="grid gap-4 lg:grid-cols-2">
 
-            <Card title="Classification" rule="IM-1" class="lg:col-span-1">
+            <Card title="Classification" rule="IM-1">
                 <dl class="space-y-2 text-sm">
                     <div class="flex justify-between gap-4"><dt class="text-ink-500">Family</dt><dd class="text-right">{{ item.family ? `${item.family.code} ${item.family.name}` : '—' }}</dd></div>
                     <div class="flex justify-between gap-4"><dt class="text-ink-500">Group</dt><dd class="text-right">{{ item.group?.name ?? '—' }}</dd></div>
@@ -68,7 +84,7 @@ const attributeRows = (() => {
                 </dl>
             </Card>
 
-            <Card title="Master data" class="lg:col-span-1">
+            <Card title="Master data">
                 <dl class="space-y-2 text-sm">
                     <div class="flex justify-between"><dt class="text-ink-500">Standard rate</dt><dd class="tnum">{{ money(item.std_rate) }}</dd></div>
                     <div class="flex justify-between"><dt class="text-ink-500">Weighted average</dt><dd class="tnum font-medium">{{ money(item.avg_rate) }}</dd></div>
@@ -87,21 +103,23 @@ const attributeRows = (() => {
                 </dl>
             </Card>
 
-            <Card class="lg:col-span-1" title="Stock by warehouse" rule="BR-24" subtitle="Some warehouses hold stock the material plan does not count, such as quarantine">
-                <ul class="divide-y divide-slate-100 text-sm">
-                    <li v-for="row in stock" :key="row.warehouse_code" class="flex items-center justify-between py-2">
-                        <span>
+            </div>
+
+            <Card title="Stock by warehouse" rule="BR-24" subtitle="Some warehouses hold stock the material plan does not count, such as quarantine">
+                <ul class="grid gap-x-8 text-sm sm:grid-cols-2">
+                    <li v-for="row in stock" :key="row.warehouse_code" class="flex items-center justify-between border-b border-slate-100 py-2 last:border-0">
+                        <span class="min-w-0 truncate">
                             <span class="font-medium">{{ row.warehouse_code }}</span>
-                            <span class="text-ink-500"> {{ row.warehouse_name }}</span>
+                            <span class="text-ink-500"> · {{ row.warehouse_name }}</span>
                             <Badge v-if="!row.is_nettable" tone="neutral" label="non-net" class="ml-1" />
                         </span>
                         <span class="tnum font-medium">{{ qty(row.balance_qty) }}</span>
                     </li>
-                    <li v-if="stock.length === 0" class="py-6 text-center text-ink-500">No stock on hand.</li>
+                    <li v-if="stock.length === 0" class="py-4 text-ink-500 sm:col-span-2">No stock on hand.</li>
                 </ul>
             </Card>
 
-            <Card class="lg:col-span-3" title="Open lots" rule="BR-37 · I5" :padded="false">
+            <Card title="Open lots" rule="BR-37 · I5" :padded="false">
                 <DataTable
                     :columns="[
                         { key: 'lot_no', label: 'Lot' },
@@ -129,6 +147,52 @@ const attributeRows = (() => {
                     <template #cell:status="{ value }"><Badge :status="value" /></template>
                 </DataTable>
             </Card>
+            </div>
+
+            <!-- On a phone, where the item stands comes before the cards it stands on. -->
+            <aside class="order-first space-y-4 xl:order-none xl:sticky xl:top-20">
+                <ActivationCard :steps="activation" :transitions="transitions" :status="item.status" :code="item.code" :action="`/items/${item.id}/transition`" />
+
+                <Card title="Where it goes" subtitle="The records this item is tied to.">
+                    <dl class="space-y-2 text-sm">
+                        <div class="flex justify-between gap-4">
+                            <dt class="text-ink-500">Product page</dt>
+                            <dd class="text-right">
+                                <Link v-if="item.product && can('product.view')" :href="`/products/${item.product.id}`" class="doc-link-quiet">Open</Link>
+                                <span v-else class="text-ink-400">{{ item.make_or_buy === 'make' ? '—' : 'Bought, not made' }}</span>
+                            </dd>
+                        </div>
+                        <div class="flex justify-between gap-4">
+                            <dt class="text-ink-500">Default supplier</dt>
+                            <dd class="text-right">
+                                <Link v-if="item.default_supplier && can('supplier.view')" :href="`/suppliers/${item.default_supplier.id}`" class="doc-link-quiet">{{ item.default_supplier.name }}</Link>
+                                <span v-else>{{ item.default_supplier?.name ?? '—' }}</span>
+                            </dd>
+                        </div>
+                        <div v-if="item.customer" class="flex justify-between gap-4">
+                            <dt class="text-ink-500">Buyer</dt>
+                            <dd class="text-right"><Link v-if="can('customer.view')" :href="`/customers/${item.customer.id}`" class="doc-link-quiet">{{ item.customer.name }}</Link><span v-else>{{ item.customer.name }}</span></dd>
+                        </div>
+                        <div class="flex justify-between gap-4">
+                            <dt class="text-ink-500">On bills of material</dt>
+                            <dd class="text-right">
+                                <template v-if="usedOn.length">
+                                    <Link v-for="(use, index) in usedOn" :key="use.id" :href="`/products/${use.id}`" class="doc-link-quiet">{{ use.code }}<template v-if="index < usedOn.length - 1">, </template></Link>
+                                </template>
+                                <span v-else class="text-ink-400">None</span>
+                            </dd>
+                        </div>
+                        <div class="flex justify-between gap-4">
+                            <dt class="text-ink-500">Created</dt>
+                            <dd class="text-right">{{ date(item.created_at) }}<span v-if="item.creator"> · {{ item.creator.name }}</span></dd>
+                        </div>
+                        <div v-if="item.activated_at" class="flex justify-between gap-4">
+                            <dt class="text-ink-500">Activated</dt>
+                            <dd class="text-right">{{ date(item.activated_at) }}<span v-if="item.activator"> · {{ item.activator.name }}</span></dd>
+                        </div>
+                    </dl>
+                </Card>
+            </aside>
         </div>
     </AppLayout>
 </template>

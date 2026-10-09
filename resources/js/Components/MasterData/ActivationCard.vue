@@ -38,7 +38,16 @@ const props = defineProps({
 });
 
 const shown = computed(() => props.steps.filter((step) => !props.omit.includes(step.key)));
-const listed = computed(() => shown.value.filter((step) => step.state !== 'skipped' && step.key !== 'approver'));
+const relevant = computed(() => shown.value.filter((step) => step.state !== 'skipped' && step.key !== 'approver'));
+
+/*
+ * A draft reads the whole list: it is the work to do. An active item reads one line — the
+ * steps are done, and six green rows said so at the cost of a screen — unless the reader
+ * opens them, or a step has since slipped, which stays visible on its own.
+ */
+const expanded = ref(props.status === 'draft');
+const done = computed(() => relevant.value.filter((step) => step.state === 'done'));
+const listed = computed(() => (expanded.value ? relevant.value : relevant.value.filter((step) => step.state !== 'done')));
 const skipped = computed(() => shown.value.filter((step) => step.state === 'skipped'));
 const approver = computed(() => props.steps.find((step) => step.key === 'approver') ?? null);
 
@@ -98,6 +107,18 @@ const ICONS = { done: 'check', attention: 'warning' };
         </template>
 
         <slot name="before" />
+
+        <!-- The folded line for an item past draft: what is in place, and the way to read it. -->
+        <div v-if="!expanded && done.length" class="flex items-center justify-between gap-3 px-4 py-2 text-sm" :class="listed.length ? 'border-b border-slate-100' : ''">
+            <span class="flex items-center gap-2 text-ink-700">
+                <span class="grid size-5 shrink-0 place-items-center rounded-full bg-emerald-600 text-white" aria-hidden="true"><Icon name="check" class="size-3" /></span>
+                {{ done.length }} of {{ relevant.length }} steps in place
+            </span>
+            <button type="button" class="text-xs font-medium text-brand-700 hover:underline" @click="expanded = true">Show steps</button>
+        </div>
+        <div v-else-if="expanded && status !== 'draft' && done.length" class="flex justify-end px-4 pt-2">
+            <button type="button" class="text-xs font-medium text-brand-700 hover:underline" @click="expanded = false">Hide done steps</button>
+        </div>
 
         <ol class="divide-y divide-slate-100">
             <li v-for="step in listed" :key="step.key" class="flex items-start gap-2.5 px-4 py-2 text-sm">

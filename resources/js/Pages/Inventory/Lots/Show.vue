@@ -85,7 +85,43 @@ const props = defineProps({
             </p>
         </div>
 
-        <div class="grid gap-4 lg:grid-cols-3">
+        <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+
+            <div class="min-w-0">
+            <Card title="Stock movements" rule="I1 · I3" subtitle="Movements are never edited. A correction is a new entry that reverses the wrong one." :padded="false">
+                <DataTable
+                    :columns="[
+                        { key: 'occurred_at', label: 'When' },
+                        { key: 'movement_type', label: 'Movement' },
+                        { key: 'qty', label: 'Qty', align: 'right' },
+                        { key: 'unit_cost', label: 'Unit cost', align: 'right' },
+                        { key: 'value', label: 'Value', align: 'right' },
+                        { key: 'source_type', label: 'Source' },
+                        { key: 'remarks', label: 'Remarks' },
+                    ]"
+                    :rows="ledger"
+                    row-key="id"
+                    empty="No movements."
+                    dense
+                >
+                    <template #cell:occurred_at="{ value }">{{ datetime(value) }}</template>
+                    <template #cell:movement_type="{ value }">{{ titleCase(value) }}</template>
+                    <template #cell:qty="{ value }">
+                        <span :class="Number(value) < 0 ? 'text-rose-600' : 'text-emerald-700'">{{ qty(value) }}</span>
+                    </template>
+                    <template #cell:unit_cost="{ value }">{{ money(value) }}</template>
+                    <template #cell:value="{ value }">{{ money(value) }}</template>
+                    <template #cell:source_type="{ row }">
+                        <Link v-if="row.source?.href" :href="row.source.href" class="doc-link-quiet">{{ row.source.label }}</Link>
+                        <span v-else-if="row.source" class="text-ink-700">{{ row.source.label }}</span>
+                        <span v-else class="text-ink-400">—</span>
+                    </template>
+                </DataTable>
+            </Card>
+            </div>
+
+            <!-- On a phone the lot's facts come first; on a wide screen they sit beside its history. -->
+            <aside class="order-first space-y-4 xl:order-none xl:sticky xl:top-20">
             <Card title="Lot" rule="I5">
                 <dl class="space-y-2 text-sm">
                     <div class="flex justify-between"><dt class="text-ink-500">Cached balance</dt><dd class="tnum">{{ qty(lot.balance_qty) }}</dd></div>
@@ -132,7 +168,7 @@ const props = defineProps({
                 </div>
             </Card>
 
-            <Card class="lg:col-span-1" title="Certification" rule="Gate 2 · I5">
+            <Card title="Certification" rule="Gate 2 · I5">
                 <p v-if="lot.cert_scheme" class="text-sm text-ink-700">
                     This lot carries a <strong>{{ lot.cert_scheme }}</strong> claim of
                     <strong>{{ lot.cert_claim_pct }}%</strong>, taken from the goods receipt it came in on. Output made from
@@ -144,36 +180,7 @@ const props = defineProps({
                 </p>
             </Card>
 
-            <Card class="lg:col-span-3" title="Stock movements" rule="I1 · I3" subtitle="Movements are never edited. A correction is a new entry that reverses the wrong one." :padded="false">
-                <DataTable
-                    :columns="[
-                        { key: 'occurred_at', label: 'When' },
-                        { key: 'movement_type', label: 'Movement' },
-                        { key: 'qty', label: 'Qty', align: 'right' },
-                        { key: 'unit_cost', label: 'Unit cost', align: 'right' },
-                        { key: 'value', label: 'Value', align: 'right' },
-                        { key: 'source_type', label: 'Source' },
-                        { key: 'remarks', label: 'Remarks' },
-                    ]"
-                    :rows="ledger"
-                    row-key="id"
-                    empty="No movements."
-                    dense
-                >
-                    <template #cell:occurred_at="{ value }">{{ datetime(value) }}</template>
-                    <template #cell:movement_type="{ value }">{{ titleCase(value) }}</template>
-                    <template #cell:qty="{ value }">
-                        <span :class="Number(value) < 0 ? 'text-rose-600' : 'text-emerald-700'">{{ qty(value) }}</span>
-                    </template>
-                    <template #cell:unit_cost="{ value }">{{ money(value) }}</template>
-                    <template #cell:value="{ value }">{{ money(value) }}</template>
-                    <template #cell:source_type="{ row }">
-                        <Link v-if="row.source?.href" :href="row.source.href" class="doc-link-quiet">{{ row.source.label }}</Link>
-                        <span v-else-if="row.source" class="text-ink-700">{{ row.source.label }}</span>
-                        <span v-else class="text-ink-400">—</span>
-                    </template>
-                </DataTable>
-            </Card>
+            </aside>
         </div>
     </AppLayout>
 </template>
