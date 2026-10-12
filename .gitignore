@@ -29,3 +29,4 @@ package-lock.json
 composer.lock
 .claude
 docs/ux-evidence
+.impeccable

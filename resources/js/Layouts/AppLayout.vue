@@ -649,7 +649,7 @@ const paletteHint = computed(() =>
                 </Link>
             </div> -->
 
-            <main class="mx-auto w-full max-w-[90rem] p-4">
+            <main class="mx-auto w-full p-4">
                 <slot />
             </main>
         </div>
