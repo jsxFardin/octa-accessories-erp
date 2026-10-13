@@ -96,7 +96,7 @@ class LocalProcessSeeder extends Seeder
         $this->unitId = (int) DB::table('factory_units')->where('code', 'ML-1')->value('id');
         $this->product = Product::query()
             ->with(['routing.operations', 'activeBom'])
-            ->where('code', 'PRD-NFJ-CARE-01')
+            ->whereCode('PRD-NFJ-CARE-01')
             ->firstOrFail();
         $this->spec = $this->product->currentSpec()->firstOrFail();
         $this->artwork = Artwork::query()->where('code', 'ART-NFJ-CARE-01')->firstOrFail();
@@ -469,7 +469,7 @@ class LocalProcessSeeder extends Seeder
         $product = Product::query()
             ->with(['routing.operations', 'activeBom'])
             ->where('customer_id', $buyer['id'])
-            ->where('code', 'like', 'PRD-L-%')
+            ->whereHas('item', fn ($item) => $item->where('code', 'like', 'PRD-L-%'))
             ->first();
 
         if ($product === null) {
