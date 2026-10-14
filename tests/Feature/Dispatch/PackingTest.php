@@ -283,3 +283,20 @@ it('shows a B-grade lot to the packer and never counts it as certified', functio
             ->where('cartons.0.contents.0.grade', 'B')
             ->where('availableLots', fn ($lots) => collect($lots)->contains(fn ($row) => (int) $row['id'] === (int) $lot->id && $row['grade'] === 'B')));
 });
+
+// GAP E-04 — carton edits and removals had no behavioural test.
+it('edits a carton\'s weights, removes a content line, and removes an empty carton', function (): void {
+    $lot = makeFgLot($this, 1000);
+    $list = draftPackingList($this, $lot, 400);
+    $carton = DB::table('cartons')->where('packing_list_id', $list->id)->firstOrFail();
+    $content = DB::table('carton_contents')->where('carton_id', $carton->id)->firstOrFail();
+
+    $this->put("/packing-lists/{$list->id}/cartons/{$carton->id}", ['gross_weight_kg' => 12.5, 'net_weight_kg' => 11.8])->assertSessionHasNoErrors();
+    expect((float) DB::table('cartons')->where('id', $carton->id)->value('gross_weight_kg'))->toBe(12.5);
+
+    $this->delete("/packing-lists/{$list->id}/cartons/{$carton->id}/contents/{$content->id}")->assertSessionHasNoErrors();
+    expect(DB::table('carton_contents')->where('id', $content->id)->exists())->toBeFalse();
+
+    $this->delete("/packing-lists/{$list->id}/cartons/{$carton->id}")->assertSessionHasNoErrors();
+    expect(DB::table('cartons')->where('id', $carton->id)->exists())->toBeFalse();
+});

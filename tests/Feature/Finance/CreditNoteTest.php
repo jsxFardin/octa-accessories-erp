@@ -322,3 +322,31 @@ it('keeps the NCR a quality claim points at, and only for quality claims', funct
 
     expect(CreditNote::query()->latest('id')->firstOrFail()->ncr_id)->toBeNull();
 });
+
+// GAP E-04 — the apply and refund routes were only ever exercised through the service.
+it('applies an approved credit to another open invoice through the route, within what is left', function (): void {
+    $first = roundInvoice($this, 1000);
+    $second = roundInvoice($this, 500);
+    $note = creditAndApply($this, $first, 300, apply: false);
+
+    $this->actingAs(User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail());
+
+    // More than the note holds is refused; the invoice is untouched.
+    $this->post("/credit-notes/{$note->id}/apply", ['sales_invoice_id' => $second->id, 'amount' => 400])->assertSessionHasErrors();
+    expect((float) app(SalesInvoiceStateMachine::class)->outstanding($second->fresh()))->toBeMoney(500.0);
+
+    $this->post("/credit-notes/{$note->id}/apply", ['sales_invoice_id' => $second->id, 'amount' => 200])->assertSessionHas('success');
+
+    expect((float) app(SalesInvoiceStateMachine::class)->outstanding($second->fresh()))->toBeMoney(300.0);
+});
+
+it('refunds an approved credit through the route and records the refund', function (): void {
+    $invoice = roundInvoice($this, 1000);
+    $note = creditAndApply($this, $invoice, 250, apply: false);
+
+    $this->actingAs(User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail());
+    $this->post("/credit-notes/{$note->id}/refund", ['amount' => 250, 'method' => 'bank_transfer', 'reference_no' => 'TRF-1', 'reason' => 'Customer asked for the money back'])
+        ->assertSessionHas('success');
+
+    expect((float) DB::table('refunds')->where('credit_note_id', $note->id)->sum('amount'))->toBeMoney(250.0);
+});
