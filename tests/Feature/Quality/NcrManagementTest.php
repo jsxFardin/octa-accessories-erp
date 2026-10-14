@@ -305,3 +305,14 @@ it('refuses investigation without an owner', function (): void {
     expect($ncr->refresh()->status)->toBe(Ncr::OPEN)
         ->and(Capa::query()->where('ncr_id', $ncr->id)->count())->toBe(0);
 });
+
+// GAP Q-06 — QL-7 AC2: the CAPA deadline follows the severity unless the investigator sets one.
+it('dates the CAPA from the severity when the investigator gives no due date', function (): void {
+    postRejectedInspection($this, majors: 50, disposition: 'rework');
+    $ncr = walkNcr($this, latestNcr(), 'investigating');
+    $days = (int) DB::table('settings')->where('key', 'ncr_capa_days_'.$ncr->severity)->value('value');
+
+    expect($days)->toBeGreaterThan(0)
+        ->and(DB::table('capas')->where('ncr_id', $ncr->id)->value('due_date'))
+        ->toBe(Illuminate\Support\Carbon::parse((string) $ncr->raised_on)->addDays($days)->toDateString());
+});
