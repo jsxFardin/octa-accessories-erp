@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { configDefaults, defineConfig } from 'vitest/config';
 import laravel from 'laravel-vite-plugin';
 import vue from '@vitejs/plugin-vue';
 import tailwindcss from '@tailwindcss/vite';
@@ -24,5 +24,10 @@ export default defineConfig({
         alias: {
             '@': path.resolve(__dirname, 'resources/js'),
         },
+    },
+    test: {
+        // Agent worktrees under .claude/ carry their own copy of the suite; running those
+        // against this checkout's sources fails for reasons that have nothing to do with it.
+        exclude: [...configDefaults.exclude, '.claude/**'],
     },
 });
