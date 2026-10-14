@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import Button from '@/Components/Ui/Button.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
@@ -16,6 +16,8 @@ const productName = computed(() => organisation.value.short_name || 'Trimflow');
 
 /** Who to ask, from the organisation profile — whichever of phone and email is filled in. */
 const contact = computed(() => [organisation.value.phone, organisation.value.email].filter(Boolean).join(' · '));
+
+const props = defineProps({ canResetPassword: { type: Boolean, default: false } });
 
 const showPassword = ref(false);
 const helpOpen = ref(false);
@@ -76,7 +78,16 @@ function submit() {
                         Show password
                     </label>
 
+                    <!-- Self-service when mail is configured; otherwise, who to ask. -->
+                    <Link
+                        v-if="props.canResetPassword"
+                        href="/forgot-password"
+                        class="min-h-6 rounded text-brand-700 hover:underline focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                    >
+                        Forgot your password?
+                    </Link>
                     <button
+                        v-else
                         type="button"
                         class="min-h-6 rounded text-brand-700 hover:underline focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
                         :aria-expanded="helpOpen"
@@ -87,13 +98,8 @@ function submit() {
                     </button>
                 </div>
 
-                <!--
-                    There is no self-service reset: accounts are created by an administrator and
-                    this installation sends no mail. What was missing was any sign of that — a
-                    locked-out user had a form and nothing else.
-                -->
                 <p
-                    v-if="helpOpen"
+                    v-if="helpOpen && !props.canResetPassword"
                     id="password-help"
                     class="rounded-md bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-700"
                 >

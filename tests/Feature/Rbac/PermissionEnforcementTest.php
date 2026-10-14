@@ -62,6 +62,8 @@ it('guards every application route with a permission', function (): void {
         // some icon paths, and a list of hashed asset filenames the build already serves
         // publicly under /build.
         'floor/manifest.webmanifest', 'floor/sw.js',
+        // Self-service password reset (NFR-19): guest routes by nature, throttled like login.
+        'forgot-password', 'reset-password/{token}', 'reset-password',
         'profile', 'profile/password', 'profile/locale', 'search',
         // Own-user inbox: the row belongs to the caller, so a route-level `can:` would
         // either lock everyone out or say nothing (same reasoning as profile).
