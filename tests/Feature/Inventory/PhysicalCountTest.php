@@ -643,6 +643,7 @@ it('keeps IN-3 returns, IN-4 transfers and IN-5 adjustments functional', functio
 
     $this->actingAs($this->keeper)->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'IN-6 regression smoke',
         'lines' => [['lot_id' => $sibling->id, 'qty_delta' => 0]],
     ])->assertSessionHasErrors('lines.0.qty_delta');

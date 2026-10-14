@@ -2012,7 +2012,8 @@ CREATE TABLE stock_adjustments (
     number       VARCHAR(30),
     warehouse_id BIGINT UNSIGNED NOT NULL,
     adjusted_on  DATE NOT NULL DEFAULT (CURRENT_DATE),
-    reason       VARCHAR(500) NOT NULL,
+    reason_code  VARCHAR(30)  NOT NULL DEFAULT 'other',   -- IN-5: the controlled list (StockAdjustmentController::REASONS)
+    reason       VARCHAR(500) NOT NULL,                   -- the detail behind the code
     status       VARCHAR(20)  NOT NULL DEFAULT 'draft',
     approved_by  BIGINT UNSIGNED,
     created_by   BIGINT UNSIGNED,

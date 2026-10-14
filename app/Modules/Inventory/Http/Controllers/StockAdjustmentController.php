@@ -17,6 +17,7 @@ use App\Support\States\TransitionDenied;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,6 +28,18 @@ use Inertia\Response;
  */
 class StockAdjustmentController extends Controller
 {
+    /** IN-5 — the controlled reasons; the detail goes in `reason`. */
+    public const REASONS = [
+        'count_variance' => 'Count variance',
+        'damage' => 'Damaged',
+        'expiry' => 'Expired',
+        'shortage' => 'Shortage found',
+        'excess' => 'Excess found',
+        'data_entry_error' => 'Data-entry correction',
+        'sample' => 'Taken as sample',
+        'other' => 'Other',
+    ];
+
     use ListsResources;
 
     public function __construct(
@@ -50,7 +63,7 @@ class StockAdjustmentController extends Controller
         return Inertia::render('Inventory/Adjustments/Index', [
             'adjustments' => $query->paginate($this->perPage($request))->withQueryString()->through(
                 fn (StockAdjustment $row): array => [
-                    ...$row->only(['id', 'number', 'adjusted_on', 'reason', 'status']),
+                    ...$row->only(['id', 'number', 'adjusted_on', 'reason_code', 'reason', 'status']),
                     'warehouse' => $row->warehouse?->name,
                     'creator' => $row->creator?->name,
                 ],
@@ -70,6 +83,7 @@ class StockAdjustmentController extends Controller
             'warehouses' => $warehouses,
             ...$this->pickerProps($request, $firstId === null ? null : (int) $firstId, []),
             'band' => $this->settings->decimal('adjustment_approval_band_manager', 25000),
+            'reasons' => collect(self::REASONS)->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])->values()->all(),
         ]);
     }
 
@@ -83,6 +97,7 @@ class StockAdjustmentController extends Controller
             $adjustment->forceFill([
                 'warehouse_id' => $data['warehouse_id'],
                 'adjusted_on' => now()->toDateString(),
+                'reason_code' => $data['reason_code'],
                 'reason' => $data['reason'],
                 'status' => StockAdjustment::DRAFT,
                 'created_by' => $request->user()?->id,
@@ -123,7 +138,7 @@ class StockAdjustmentController extends Controller
 
         return Inertia::render('Inventory/Adjustments/Show', [
             'adjustment' => [
-                ...$adjustment->only(['id', 'number', 'warehouse_id', 'adjusted_on', 'reason', 'status', 'approved_by', 'created_by']),
+                ...$adjustment->only(['id', 'number', 'warehouse_id', 'adjusted_on', 'reason_code', 'reason', 'status', 'approved_by', 'created_by']),
                 'warehouse' => $adjustment->warehouse?->only(['id', 'code', 'name']),
                 'creator' => $adjustment->creator?->only(['id', 'name']),
                 'approver' => $adjustment->approver?->only(['id', 'name']),
@@ -176,6 +191,7 @@ class StockAdjustmentController extends Controller
             'warehouses' => $this->warehouses(),
             ...$this->pickerProps($request, (int) $adjustment->warehouse_id, $adjustment->lines->pluck('lot_id')->all()),
             'band' => $this->settings->decimal('adjustment_approval_band_manager', 25000),
+            'reasons' => collect(self::REASONS)->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])->values()->all(),
         ]);
     }
 
@@ -191,6 +207,7 @@ class StockAdjustmentController extends Controller
         DB::transaction(function () use ($adjustment, $data, $lines): void {
             $adjustment->forceFill([
                 'warehouse_id' => $data['warehouse_id'],
+                'reason_code' => $data['reason_code'],
                 'reason' => $data['reason'],
             ])->save();
 
@@ -222,12 +239,15 @@ class StockAdjustmentController extends Controller
     }
 
     /**
-     * @return array{warehouse_id: int, reason: string, lines: list<array<string, mixed>>}
+     * @return array{warehouse_id: int, reason_code: string, reason: string, lines: list<array<string, mixed>>}
      */
     private function validated(Request $request): array
     {
         $data = $request->validate([
             'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
+            // IN-5 AC1 — a controlled reason, then the detail. Free text alone cannot be
+            // reported on: "damaged" and "broken in transit" were two rows in every count.
+            'reason_code' => ['required', Rule::in(array_keys(self::REASONS))],
             'reason' => ['required', 'string', 'max:500'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.lot_id' => ['required', 'integer', 'exists:stock_lots,id'],

@@ -193,6 +193,7 @@ it('still allows a documented write-off of blocked stock, which is not a dispatc
     $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail())
         ->post('/stock-adjustments', [
             'warehouse_id' => $this->lot->warehouse_id,
+            'reason_code' => 'count_variance',
             'reason' => 'Damaged during the physical count; written off.',
             'lines' => [['lot_id' => $this->lot->id, 'qty_delta' => -100, 'remarks' => 'Damaged in the count aisle']],
         ])->assertSessionHasNoErrors();

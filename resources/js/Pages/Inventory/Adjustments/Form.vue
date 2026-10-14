@@ -14,6 +14,7 @@ import FormLayout from '@/Components/Ui/FormLayout.vue';
 import { money, qty } from '@/plugins/formatting';
 
 const props = defineProps({
+    reasons: { type: Array, default: () => [] },
     adjustment: { type: Object, default: null },
     warehouses: { type: Array, default: () => [] },
     lots: { type: Array, default: () => [] },
@@ -26,6 +27,7 @@ const isEdit = computed(() => Boolean(props.adjustment?.id));
 
 const form = useForm({
     warehouse_id: props.adjustment?.warehouse_id ?? props.warehouses[0]?.id ?? '',
+    reason_code: props.adjustment?.reason_code ?? '',
     reason: props.adjustment?.reason ?? '',
     lines: (props.adjustment?.lines ?? []).map((line) => ({
         lot_id: line.lot_id,
@@ -162,6 +164,7 @@ const zeroLine = computed(() =>
 function submit() {
     const payload = {
         warehouse_id: form.warehouse_id,
+        reason_code: form.reason_code,
         reason: form.reason,
         lines: form.lines.map((line) => ({
             lot_id: line.lot_id,
@@ -198,7 +201,10 @@ function submit() {
                             label-key="name"
                         />
                     </FormField>
-                    <FormField label="Reason" :error="form.errors.reason" required hint="Free text — why this correction exists.">
+                    <FormField label="Reason" :error="form.errors.reason_code" required>
+                        <SelectInput v-model="form.reason_code" :options="reasons" placeholder="— pick a reason —" />
+                    </FormField>
+                    <FormField label="Detail" :error="form.errors.reason" required hint="What happened, in a sentence — the reason above is what the reports group by.">
                         <textarea v-model="form.reason" rows="2" class="form-textarea" maxlength="500" />
                     </FormField>
                 </div>
@@ -367,7 +373,7 @@ function submit() {
             <template #footer>
                 <FormFooter
                     :form="form"
-                    :disabled="form.lines.length === 0 || !form.reason || zeroLine || overdrawn"
+                    :disabled="form.lines.length === 0 || !form.reason || !form.reason_code || zeroLine || overdrawn"
                     :disabled-reason="form.lines.length === 0
                         ? 'Add at least one lot to adjust.'
                         : !form.reason

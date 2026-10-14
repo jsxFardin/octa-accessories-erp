@@ -224,4 +224,12 @@ One row per finding as it is closed. `Done (sha)` names the commit; `Deferred` a
 | C-06 | Done — BR-42 in the business rules now says the input side is consumption with a receipt fallback |
 | E-10 | Done — README, overview, architecture and roadmap name Laravel 13 / Inertia 3, the real test and CI stack, no Reverb/Horizon/spatie/Pinia/Docker; `VocabularySeedTest` now exists |
 | E-12 | Done — build plugin is a dev dependency; `engines.node >= 22` |
+| M-11 | Done — retiring a tool needs a reason, recorded on its audit row; the dashboard lists tools past 90 % of their rated life. Shot counting for plates/screens/dies and BR-13 colour-index pairing remain open |
+| Q-05 | Partly done — a report issues only when every test the customer requires (for the product or for everything they buy) has a result. Supersedes link and reports-by-lot remain open |
+| Q-06 | Partly done — the CAPA due date follows the NCR severity (settings `ncr_capa_days_*`) when the investigator sets none. Customer complaints (QL-8) remain open |
+| F-02 | Partly done — a bill whose total exceeds the receipt at order rates beyond `supplier_bill_value_tolerance_pct` is refused. Matching is still keyed by item |
+| F-06 | Partly done — a trip over the vehicle's capacity needs a reason to start, shown before Start is pressed. POD signature/photo and offline remain open |
+| P-15 | Done for adjustments — a controlled reason code plus detail (`stock_adjustments.reason_code`). Stock-ageing and valuation reports remain open |
+| P-16 | Partly done — open inquiries idle past `inquiry_follow_up_days` appear on the dashboard. Price lists on quotations, order book and domain events remain open |
+| D-04 | Partly done — notifications go by mail as well as the inbox once a real mailer is configured. The spec'd missing events remain open |
 | E-02 | Done — PHPStan level 6 reports 0 errors; Pint clean. Agent cleared the costing, master-data, product, quality, finance, support and seeder files; the rest was relation generics on the models |

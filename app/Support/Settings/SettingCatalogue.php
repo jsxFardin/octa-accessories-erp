@@ -73,6 +73,11 @@ class SettingCatalogue
         'credit_note_approval_band_accounts' => ['approval', 'Credit note — accounts band', 'BDT', 'Accounts may approve credit notes up to this value.'],
 
         'expiry_alert_days' => ['inventory', 'Expiry warning', 'days', 'Ink and chemical lots flag this many days before they expire (BR-39).'],
+        'supplier_bill_value_tolerance_pct' => ['approval', 'Bill value tolerance', '%', 'How far a supplier bill total may sit above the received value at order rates before it is refused (FN-4).'],
+        'ncr_capa_days_critical' => ['quality', 'CAPA deadline, critical NCR', 'days', 'Days from raising a critical NCR to its CAPA due date when the investigator sets none (QL-7).'],
+        'ncr_capa_days_major' => ['quality', 'CAPA deadline, major NCR', 'days', 'Days from raising a major NCR to its CAPA due date when the investigator sets none (QL-7).'],
+        'ncr_capa_days_minor' => ['quality', 'CAPA deadline, minor NCR', 'days', 'Days from raising a minor NCR to its CAPA due date when the investigator sets none (QL-7).'],
+        'inquiry_follow_up_days' => ['sales', 'Inquiry follow-up', 'days', 'An open inquiry with nothing quoted for this long is listed for follow-up on the dashboard (SL-1).'],
         'item_activation_requires_qc_plan' => ['inventory', 'Activation needs a QC plan', null, 'When on, an item cannot be made active until a QC plan reference is recorded on it (IM-1). Turn on once inspection plans are in use.'],
         'item_activation_requires_accounts' => ['inventory', 'Activation needs account mapping', null, 'When on, an item cannot be made active until its inventory and cost-of-sales accounts are set (IM-1). Turn on once the chart of accounts is in use.'],
 

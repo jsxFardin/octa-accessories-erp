@@ -63,6 +63,7 @@ function p25Draft(object $test, StockLot $lot, float $qty = 1, array $overrides 
 
     $test->post('/stock-adjustments', [
         'warehouse_id' => $overrides['warehouse_id'] ?? $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => $overrides['reason'] ?? 'Cycle count variance on the roll.',
         'status' => $overrides['status'] ?? 'posted',
         'approved_by' => $overrides['approved_by'] ?? $test->md->id,
@@ -142,6 +143,7 @@ it('lets keepers and managers create, and refuses MD, operators and drivers', fu
 
     $this->actingAs($this->operator)->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'no',
         'lines' => [['lot_id' => $lot->id, 'qty_delta' => 1]],
     ])->assertForbidden();
@@ -149,6 +151,7 @@ it('lets keepers and managers create, and refuses MD, operators and drivers', fu
     $this->actingAs($this->md)->get('/stock-adjustments/create')->assertForbidden();
     $this->actingAs($this->md)->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'MD must not enter adjustments.',
         'lines' => [['lot_id' => $lot->id, 'qty_delta' => 1]],
     ])->assertForbidden();
@@ -157,6 +160,7 @@ it('lets keepers and managers create, and refuses MD, operators and drivers', fu
     $this->actingAs($this->manager)->get('/stock-adjustments/create')->assertOk();
     $this->actingAs($this->manager)->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'Manager-raised correction.',
         'lines' => [['lot_id' => $lot->id, 'qty_delta' => 1]],
     ])->assertSessionHasNoErrors();
@@ -190,6 +194,7 @@ it('updates a draft and refuses posted mutation', function (): void {
 
     $this->actingAs($this->keeper)->put("/stock-adjustments/{$adjustment->id}", [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'Recounted after shade check.',
         'lines' => [['lot_id' => $lot->id, 'qty_delta' => 3, 'remarks' => 'shade']],
     ])->assertSessionHasNoErrors();
@@ -200,6 +205,7 @@ it('updates a draft and refuses posted mutation', function (): void {
     $submitted = p25Submit($this, $adjustment);
     $this->actingAs($this->keeper)->put("/stock-adjustments/{$submitted->id}", [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'should not stick',
         'lines' => [['lot_id' => $lot->id, 'qty_delta' => 9]],
     ])->assertSessionHas('error');
@@ -215,36 +221,42 @@ it('rejects missing reason, empty lines, zero qty, unknown lots and cross-wareho
 
     $this->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => '',
         'lines' => [['lot_id' => $lot->id, 'qty_delta' => 1]],
     ])->assertSessionHasErrors('reason');
 
     $this->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'no lines',
         'lines' => [],
     ])->assertSessionHasErrors('lines');
 
     $this->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'zero',
         'lines' => [['lot_id' => $lot->id, 'qty_delta' => 0]],
     ])->assertSessionHasErrors('lines.0.qty_delta');
 
     $this->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'ghost lot',
         'lines' => [['lot_id' => 9_999_999, 'qty_delta' => 1]],
     ])->assertSessionHasErrors('lines.0.lot_id');
 
     $this->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'wrong warehouse',
         'lines' => [['lot_id' => $foreign->id, 'qty_delta' => 1]],
     ])->assertSessionHasErrors('lines.0.lot_id');
 
     $this->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'injection',
         'lines' => [['lot_id' => '1 OR 1=1', 'qty_delta' => 1]],
     ])->assertSessionHasErrors('lines.0.lot_id');
@@ -261,6 +273,7 @@ it('rejects forbidden lot statuses and a positive adjustment into a blocked lot'
 
         $this->post('/stock-adjustments', [
             'warehouse_id' => $lot->warehouse_id,
+            'reason_code' => 'count_variance',
             'reason' => "into {$status}",
             'lines' => [['lot_id' => $lot->id, 'qty_delta' => 1]],
         ])->assertSessionHasErrors('lines.0.lot_id');
@@ -270,6 +283,7 @@ it('rejects forbidden lot statuses and a positive adjustment into a blocked lot'
 
     $this->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'positive blocked',
         'lines' => [['lot_id' => $lot->id, 'qty_delta' => 1]],
     ])->assertSessionHasErrors('lines.0.lot_id');
@@ -308,6 +322,7 @@ it('posts a negative adjustment as adjustment_out and will not exceed balance', 
 
     $this->actingAs($this->keeper)->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'too much',
         'lines' => [['lot_id' => $lot->id, 'qty_delta' => -($before + 1)]],
     ])->assertSessionHasErrors('lines.0.qty_delta');
@@ -369,6 +384,7 @@ it('posts multiple lines in one warehouse and rejects a mixed-warehouse document
 
     $this->actingAs($this->keeper)->post('/stock-adjustments', [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'two warehouses',
         'lines' => [
             ['lot_id' => $lot->id, 'qty_delta' => 1],
@@ -489,6 +505,7 @@ it('does not write stock from a draft-to-posted shortcut and refuses posted edit
 
     $this->actingAs($this->keeper)->put("/stock-adjustments/{$posted->id}", [
         'warehouse_id' => $lot->warehouse_id,
+        'reason_code' => 'count_variance',
         'reason' => 'rewrite history',
         'lines' => [['lot_id' => $lot->id, 'qty_delta' => 99]],
     ])->assertSessionHas('error');
