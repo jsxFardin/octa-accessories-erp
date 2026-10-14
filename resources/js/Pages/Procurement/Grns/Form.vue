@@ -45,6 +45,7 @@ function blankLine() {
         cert_scheme: '',
         cert_claim_pct: '',
         cert_document_no: '',
+        over_receipt_reason: '',
     };
 }
 
@@ -241,6 +242,7 @@ const columns = [
     { key: 'landed_rate', label: 'Landed rate', width: '8rem', align: 'right' },
     { key: 'lot', label: 'Lot identity', width: '14rem', errorKeys: ['supplier_batch_no', 'shade_code', 'expiry_date', 'roll_length_m'] },
     { key: 'cert', label: 'Certification claim', width: '16rem', errorKeys: ['cert_scheme', 'cert_claim_pct', 'cert_document_no'] },
+    { key: 'over_receipt_reason', label: 'Reason if over the order', width: '14rem', errorKeys: ['over_receipt_reason'] },
 ];
 </script>
 
@@ -393,6 +395,11 @@ const columns = [
                                     v-model="line.expiry_date"
                                 />
                             </div>
+                        </template>
+
+                        <!-- Asked for only when the line would pass the order plus tolerance (PR-4 AC2). -->
+                        <template #cell:over_receipt_reason="{ line }">
+                            <TextInput cell v-model="line.over_receipt_reason" placeholder="Only if more than ordered" />
                         </template>
 
                         <template #cell:cert="{ line }">

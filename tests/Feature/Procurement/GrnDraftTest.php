@@ -264,3 +264,25 @@ it('refuses to approve a bill worth more than the receipt at the order rates', f
 
     $this->post("/supplier-bills/{$fair->id}/transition", ['to' => 'approved'])->assertSessionHas('success');
 });
+
+// GAP P-07 — PR-4 AC2: receiving past the order line plus tolerance needs a reason.
+it('asks why when a receipt would exceed the order line beyond the tolerance', function (): void {
+    $lines = ($this->payload)()['lines'];
+    // The order line is 1,000; 5 % tolerance allows 1,050.
+    $lines[0]['qty'] = 1100;
+
+    $this->actingAs($this->store)->post('/grns', ($this->payload)(['lines' => $lines, 'post' => false]))
+        ->assertSessionHasErrors('lines.0.over_receipt_reason');
+
+    $lines[0]['qty'] = 1040;
+    $this->actingAs($this->store)->post('/grns', ($this->payload)(['lines' => $lines, 'post' => false]))->assertSessionHasNoErrors();
+
+    $lines[0]['qty'] = 1100;
+    $lines[0]['over_receipt_reason'] = 'Supplier shipped full cones; accepted at the same rate.';
+    $this->actingAs($this->store)->post('/grns', ($this->payload)(['lines' => $lines, 'post' => false]))->assertSessionHasNoErrors();
+
+    $grn = Grn::query()->latest('id')->firstOrFail();
+
+    expect(DB::table('grn_lines')->where('grn_id', $grn->id)->where('line_no', 1)->value('over_receipt_reason'))
+        ->toBe('Supplier shipped full cones; accepted at the same rate.');
+});

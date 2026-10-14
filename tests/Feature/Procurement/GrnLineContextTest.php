@@ -199,6 +199,8 @@ it('records an over-receipt against the line rather than losing it', function ()
         'uom_id' => $first->uom_id,
         'qty' => (float) $first->qty + 25,
         'rate' => $first->rate,
+        // PR-4 AC2 — past the tolerance the store keeper says why; the receipt is still taken.
+        'over_receipt_reason' => 'Supplier shipped full cones; accepted.',
     ]])->assertSessionHasNoErrors();
 
     expect((float) DB::table('purchase_order_lines')->where('id', $first->id)->value('received_qty'))

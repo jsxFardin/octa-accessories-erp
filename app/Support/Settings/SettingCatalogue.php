@@ -73,6 +73,7 @@ class SettingCatalogue
         'credit_note_approval_band_accounts' => ['approval', 'Credit note — accounts band', 'BDT', 'Accounts may approve credit notes up to this value.'],
 
         'expiry_alert_days' => ['inventory', 'Expiry warning', 'days', 'Ink and chemical lots flag this many days before they expire (BR-39).'],
+        'over_receipt_tolerance_pct' => ['approval', 'Over-receipt tolerance', '%', 'How far a goods receipt may exceed the purchase-order line before the store keeper has to say why (PR-4 AC2).'],
         'supplier_bill_value_tolerance_pct' => ['approval', 'Bill value tolerance', '%', 'How far a supplier bill total may sit above the received value at order rates before it is refused (FN-4).'],
         'ncr_capa_days_critical' => ['quality', 'CAPA deadline, critical NCR', 'days', 'Days from raising a critical NCR to its CAPA due date when the investigator sets none (QL-7).'],
         'ncr_capa_days_major' => ['quality', 'CAPA deadline, major NCR', 'days', 'Days from raising a major NCR to its CAPA due date when the investigator sets none (QL-7).'],

@@ -959,6 +959,7 @@ class ReferenceDataSeeder extends Seeder
             ['po_approval_band_manager', 100000, 'approval', 'PO value up to which purchase_manager may approve (06-rbac §5)'],
             ['rfq_three_quote_value_threshold', 50000, 'approval', 'Quoted value above which three supplier quotations are required before selecting a winner (PR-2)'],
             ['supplier_bill_rate_tolerance_pct', 2, 'approval', 'Rate variance above which supplier_bill.approve_variance is needed (06-procurement §3-way match)'],
+            ['over_receipt_tolerance_pct', 5, 'approval', 'How far a receipt may exceed the purchase-order line before a reason is required (PR-4 AC2)'],
             ['supplier_bill_value_tolerance_pct', 2, 'approval', 'How far a bill total may sit above the received value at order rates before it is refused (FN-4)'],
             ['ncr_capa_days_critical', 7, 'quality', 'Days from raising to the CAPA due date for a critical NCR (QL-7)'],
             ['ncr_capa_days_major', 14, 'quality', 'Days from raising to the CAPA due date for a major NCR (QL-7)'],

@@ -433,12 +433,15 @@ class GrnController extends Controller
             'lines.*.cert_scheme' => ['nullable', Rule::in(['GRS', 'FSC', 'OEKO_TEX', 'SCOPE'])],
             'lines.*.cert_claim_pct' => ['nullable', 'numeric', 'min:0', 'max:100', 'required_with:lines.*.cert_scheme'],
             'lines.*.cert_document_no' => ['nullable', 'string', 'max:80', 'required_with:lines.*.cert_scheme'],
+            // PR-4 AC2 — more than the order line plus tolerance needs saying why.
+            'lines.*.over_receipt_reason' => ['nullable', 'string', 'max:255'],
         ], [
             'lines.*.cert_claim_pct.required_with' => 'A certified line needs its claimed percentage.',
             'lines.*.cert_document_no.required_with' => 'A certified line needs the supplier\'s transaction-certificate number.',
         ]);
 
         $this->assertClaimsMatchOrder($data['lines']);
+        $this->assertWithinOrderTolerance($data['lines']);
 
         // A line id belonging to a different order would read that order's quantities onto
         // this receipt. Ids that do not belong are dropped rather than refused: the pairing is
@@ -530,7 +533,59 @@ class GrnController extends Controller
                 'cert_scheme' => $line['cert_scheme'] ?? null,
                 'cert_claim_pct' => $line['cert_claim_pct'] ?? 0,
                 'cert_document_no' => $line['cert_document_no'] ?? null,
+                'over_receipt_reason' => $line['over_receipt_reason'] ?? null,
             ]);
+        }
+    }
+
+    /**
+     * PR-4 AC2 — a receipt may run over the order line by the tolerance; past that the store
+     * keeper says why, and the reason stays on the line. Suppliers round up to a pack, which
+     * is the tolerance's job; a pallet nobody ordered is not.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function assertWithinOrderTolerance(array $lines): void
+    {
+        $poLineIds = collect($lines)->pluck('po_line_id')->filter()->map(fn ($id): int => (int) $id);
+
+        if ($poLineIds->isEmpty()) {
+            return;
+        }
+
+        $tolerance = (float) (DB::table('settings')->where('key', 'over_receipt_tolerance_pct')->value('value') ?? 5);
+        $poLines = DB::table('purchase_order_lines')->whereIn('id', $poLineIds)->get(['id', 'qty', 'received_qty'])->keyBy('id');
+
+        $adding = [];
+
+        foreach ($lines as $line) {
+            $adding[(int) ($line['po_line_id'] ?? 0)] = ($adding[(int) ($line['po_line_id'] ?? 0)] ?? 0) + (float) $line['qty'];
+        }
+
+        $errors = [];
+
+        foreach ($lines as $index => $line) {
+            $poLine = $poLines->get((int) ($line['po_line_id'] ?? 0));
+
+            if ($poLine === null || filled($line['over_receipt_reason'] ?? null)) {
+                continue;
+            }
+
+            $after = (float) $poLine->received_qty + $adding[(int) $line['po_line_id']];
+            $ceiling = (float) $poLine->qty * (1 + $tolerance / 100);
+
+            if ($after > $ceiling + 0.000001) {
+                $errors["lines.{$index}.over_receipt_reason"] = sprintf(
+                    'This would bring the order line to %s received against %s ordered — past the %s%% tolerance. Say why the extra is being accepted, or receive less.',
+                    rtrim(rtrim(number_format($after, 6, '.', ''), '0'), '.'),
+                    rtrim(rtrim(number_format((float) $poLine->qty, 6, '.', ''), '0'), '.'),
+                    rtrim(rtrim(number_format($tolerance, 2, '.', ''), '0'), '.'),
+                );
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
         }
     }
 
