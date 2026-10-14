@@ -156,6 +156,39 @@ class CustomerController extends Controller
         );
     }
 
+    /** @return list<array<string, mixed>> */
+    private function ledger(Customer $customer): array
+    {
+        $invoices = DB::table('sales_invoices as si')->leftJoin('currencies as cur', 'cur.id', '=', 'si.currency_id')
+            ->where('si.customer_id', $customer->id)->whereNotIn('si.status', ['draft', 'cancelled'])
+            ->selectRaw("'invoice' as kind, si.invoice_date as entry_date, si.id as document_id, si.number as document_number, si.total as debit, 0 as credit, cur.code as currency, si.status")
+            ->get();
+        $receipts = DB::table('receipt_allocations as ra')->join('receipts as r', 'r.id', '=', 'ra.receipt_id')
+            ->join('sales_invoices as si', 'si.id', '=', 'ra.sales_invoice_id')->leftJoin('currencies as cur', 'cur.id', '=', 'r.currency_id')
+            ->where('si.customer_id', $customer->id)
+            ->selectRaw("'receipt' as kind, r.receipt_date as entry_date, r.id as document_id, r.number as document_number, 0 as debit, ra.amount as credit, cur.code as currency, r.method as status")
+            ->get();
+        $credits = DB::table('credit_notes as cn')->leftJoin('currencies as cur', 'cur.id', '=', 'cn.currency_id')
+            ->where('cn.customer_id', $customer->id)->where('cn.status', 'applied')
+            ->selectRaw("'credit_note' as kind, cn.note_date as entry_date, cn.id as document_id, cn.number as document_number, 0 as debit, cn.amount as credit, cur.code as currency, cn.reason as status")
+            ->get();
+
+        return collect([...$invoices, ...$receipts, ...$credits])
+            ->sortByDesc(fn ($row): string => $row->entry_date.'|'.$row->document_id)
+            ->take(40)
+            ->map(fn ($row): array => (array) $row)
+            ->values()
+            ->all();
+    }
+
+    /** @return list<array{bucket: string, label: string, amount: float}> */
+    private function ageing(Customer $customer): array
+    {
+        $request = Request::create('/reports/receivables', 'GET', ['customer' => $customer->id]);
+
+        return app(\App\Modules\Reporting\Queries\ReceivableReport::class)->extras($request)['ageing'];
+    }
+
     public function show(Customer $customer): Response
     {
         $customer->load(['contacts', 'addresses', 'currency:id,code,name', 'paymentTerm:id,code,name,net_days']);
@@ -241,6 +274,11 @@ class CustomerController extends Controller
                 ->whereNotIn('si.status', ['draft', 'cancelled', 'paid'])
                 ->orderBy('si.due_date')->limit(10)
                 ->get(['si.id', 'si.number', 'si.invoice_date', 'si.due_date', 'si.total', 'si.received_amount', 'si.status', 'cur.code as currency']),
+            // FN-6 — the customer ledger: every issued invoice, receipt allocation and applied
+            // credit against them, newest first, in the document's currency; and the ageing
+            // of what is still owed, in the base currency the limit is stated in.
+            'ledger' => $this->ledger($customer),
+            'ageing' => $this->ageing($customer),
             'priceLists' => DB::table('price_lists as pl')->leftJoin('currencies as cur', 'cur.id', '=', 'pl.currency_id')
                 ->where('pl.customer_id', $customer->id)
                 ->orderByDesc('pl.valid_from')

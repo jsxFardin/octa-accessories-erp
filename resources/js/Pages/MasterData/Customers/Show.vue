@@ -17,6 +17,8 @@ import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
+    ledger: { type: Array, default: () => [] },
+    ageing: { type: Array, default: () => [] },
     customer: Object,
     contacts: { type: Array, default: () => [] },
     /** The account in numbers: on order, owed, exposure against the limit, last order, quotes out. */
@@ -286,7 +288,7 @@ const kindLabel = computed(() => titleCase(props.customer.kind ?? ''));
                     <p class="mt-1 text-xl font-semibold" :class="stats.open_order_count ? 'text-ink-900' : 'text-ink-400'">{{ stats.open_order_count ? money(stats.open_order_value) : 'Nothing' }}</p>
                     <p class="mt-1 text-xs text-ink-500">{{ pcs(stats.open_order_count) }} open {{ stats.open_order_count === 1 ? 'order' : 'orders' }}</p>
                 </Link>
-                <Link :href="`/sales-invoices?customer=${customer.id}`" class="rounded-lg border p-3.5 shadow-sm transition hover:border-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none" :class="stats.overdue > 0 ? 'border-rose-200 bg-rose-50/60' : 'border-slate-200 bg-white'">
+                <Link :href="`/invoices?customer=${customer.id}`" class="rounded-lg border p-3.5 shadow-sm transition hover:border-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none" :class="stats.overdue > 0 ? 'border-rose-200 bg-rose-50/60' : 'border-slate-200 bg-white'">
                     <p class="text-xs text-ink-600">Outstanding</p>
                     <p class="mt-1 text-xl font-semibold" :class="stats.overdue > 0 ? 'text-rose-700' : stats.outstanding > 0 ? 'text-ink-900' : 'text-ink-400'">{{ stats.outstanding > 0 ? money(stats.outstanding) : 'Nothing' }}</p>
                     <p class="mt-1 text-xs" :class="stats.overdue > 0 ? 'text-rose-800' : 'text-ink-500'">{{ stats.overdue > 0 ? `${money(stats.overdue)} past due` : 'Nothing past due' }}</p>
@@ -426,12 +428,53 @@ const kindLabel = computed(() => titleCase(props.customer.kind ?? ''));
                         </Card>
                     </div>
 
+                    <!-- FN-6: what is owed, by how long it has been owed; the ledger behind the figure. -->
+                    <Card v-if="stats.outstanding > 0" title="Ageing" subtitle="Outstanding by days past due, in the base currency" data-ageing>
+                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                            <Link
+                                v-for="bucket in ageing"
+                                :key="bucket.bucket"
+                                :href="`/reports/receivables?customer=${customer.id}&bucket=${bucket.bucket}`"
+                                class="rounded-lg border px-3 py-2 shadow-sm transition hover:border-brand-300"
+                                :class="bucket.bucket === '90_plus' && bucket.amount > 0 ? 'border-rose-200 bg-rose-50/60' : 'border-slate-200 bg-white'"
+                            >
+                                <p class="text-xs text-ink-500">{{ bucket.label }}</p>
+                                <p class="mt-0.5 text-base font-semibold tnum" :class="bucket.amount > 0 ? 'text-ink-900' : 'text-ink-400'">{{ money(bucket.amount) }}</p>
+                            </Link>
+                        </div>
+                    </Card>
+
+                    <Card v-if="ledger.length" title="Account history" subtitle="Invoices, receipts and applied credits, newest first" :padded="false" data-ledger>
+                        <DataTable
+                            :columns="[
+                                { key: 'entry_date', label: 'Date' },
+                                { key: 'document_number', label: 'Document' },
+                                { key: 'debit', label: 'Invoiced', align: 'right' },
+                                { key: 'credit', label: 'Settled', align: 'right' },
+                            ]"
+                            :rows="ledger"
+                            :row-key="(row) => `${row.kind}-${row.document_id}`"
+                            empty="Nothing yet."
+                            dense
+                        >
+                            <template #cell:entry_date="{ value }">{{ date(value) }}</template>
+                            <template #cell:document_number="{ row, value }">
+                                <Link :href="row.kind === 'invoice' ? `/invoices/${row.document_id}` : row.kind === 'receipt' ? `/receipts/${row.document_id}` : `/credit-notes/${row.document_id}`" class="doc-link-quiet">
+                                    {{ value ?? '(unnumbered)' }}
+                                </Link>
+                                <span class="ml-1 text-xs text-ink-500">{{ titleCase(row.kind) }}<template v-if="row.kind !== 'invoice'"> · {{ titleCase(row.status) }}</template></span>
+                            </template>
+                            <template #cell:debit="{ row, value }"><span class="tnum">{{ Number(value) > 0 ? money(value, row.currency) : '' }}</span></template>
+                            <template #cell:credit="{ row, value }"><span class="tnum">{{ Number(value) > 0 ? money(value, row.currency) : '' }}</span></template>
+                        </DataTable>
+                    </Card>
+
                     <!-- Nothing owed is one line, not a table of headings over a blank. -->
                     <Card title="Unpaid invoices" :subtitle="invoices.length ? 'Oldest due date first' : null" :padded="false">
                         <p v-if="invoices.length === 0" class="flex items-center gap-2 px-4 py-3 text-sm text-ink-600" data-nothing-unpaid>
                             <Icon name="check" class="size-4 text-emerald-600" />
                             Nothing unpaid.
-                            <Link v-if="stats.invoice_count" :href="`/sales-invoices?customer=${customer.id}`" class="doc-link-quiet ml-auto text-xs">All invoices</Link>
+                            <Link v-if="stats.invoice_count" :href="`/invoices?customer=${customer.id}`" class="doc-link-quiet ml-auto text-xs">All invoices</Link>
                         </p>
                         <DataTable
                             v-else
@@ -443,11 +486,11 @@ const kindLabel = computed(() => titleCase(props.customer.kind ?? ''));
                             ]"
                             :rows="invoices"
                             row-key="id"
-                            :row-href="(row) => `/sales-invoices/${row.id}`"
+                            :row-href="(row) => `/invoices/${row.id}`"
                             empty="Nothing unpaid."
                             dense
                         >
-                            <template #cell:number="{ row, value }"><Link :href="`/sales-invoices/${row.id}`" class="doc-link-quiet">{{ value ?? '(draft)' }}</Link></template>
+                            <template #cell:number="{ row, value }"><Link :href="`/invoices/${row.id}`" class="doc-link-quiet">{{ value ?? '(draft)' }}</Link></template>
                             <template #cell:due_date="{ value }">
                                 <span :class="daysFromToday(value) < 0 ? 'font-medium text-rose-700' : ''">{{ date(value) }}</span>
                             </template>

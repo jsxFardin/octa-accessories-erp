@@ -265,7 +265,7 @@ it('downloads a report as a spreadsheet with every matching row and its totals',
 
     $lines = array_values(array_filter(explode("\n", trim(str_replace("\xEF\xBB\xBF", '', $response->streamedContent())))));
 
-    expect($lines[0])->toBe('Invoice,Customer,"Invoice date",Due,Total,Received,Credited,Outstanding,Currency,Status,Overdue')
+    expect($lines[0])->toBe('Invoice,Customer,"Invoice date",Due,Total,Received,Credited,Outstanding,Currency,Status,Overdue,"Days over",Ageing')
         // One header, one line per invoice, one totals line.
         ->and(count($lines))->toBe($invoices + 2)
         ->and(end($lines))->toContain('Total')
@@ -315,4 +315,30 @@ it('logs who exported which report with which filters', function (): void {
     expect($values['resource'])->toBe('report:receivables')
         ->and($values['format'])->toBe('csv')
         ->and($values['filters']['status'] ?? null)->toBe('issued');
+});
+
+// GAP F-04 — FN-6: receivables carry an ageing bucket, filter by it, and total per bucket.
+it('ages each open invoice into a bucket and totals the buckets over the list', function (): void {
+    $current = p23Invoice($this, 1000);
+    $old = p23Invoice($this, 250);
+    // Dated by the database's own calendar: DATEDIFF reads CURDATE(), and the app clock sits in Asia/Dhaka.
+    DB::table('sales_invoices')->where('id', $old->id)->update(['due_date' => DB::raw('DATE_SUB(CURDATE(), INTERVAL 45 DAY)')]);
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+
+    $this->get('/reports/receivables')
+        ->assertOk()
+        ->assertInertia(function ($page) use ($current, $old): void {
+            $rows = collect($page->toArray()['props']['rows']['data']);
+            $ageing = collect($page->toArray()['props']['extras']['ageing'])->keyBy('bucket');
+
+            expect($rows->firstWhere('id', $current->id)['ageing_bucket'])->toBe('current')
+                ->and($rows->firstWhere('id', $old->id)['ageing_bucket'])->toBe('31_60')
+                ->and((int) $rows->firstWhere('id', $old->id)['days_overdue'])->toBe(45)
+                ->and((float) $ageing['31_60']['amount'])->toBeGreaterThanOrEqual(250.0)
+                ->and($ageing->keys()->all())->toBe(['current', '1_30', '31_60', '61_90', '90_plus']);
+        });
+
+    $this->get('/reports/receivables?bucket=31_60')
+        ->assertInertia(fn ($page) => $page->where('rows.data', fn ($rows) => collect($rows)->every(fn ($r) => $r['ageing_bucket'] === '31_60')
+            && collect($rows)->contains(fn ($r) => (int) $r['id'] === $old->id)));
 });
