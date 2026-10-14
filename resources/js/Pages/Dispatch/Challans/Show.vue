@@ -61,8 +61,9 @@ const CONFIRM = {
 };
 
 /*
- * A note that a courier or forwarder carries is handed over with a name and, usually, a
- * tracking number. The server has always accepted both with this step; the screen never asked.
+ * Goods leave the factory with a gate pass number, and — when a courier or forwarder carries
+ * them — a carrier name and, usually, a tracking number. The server has always accepted all of
+ * them with this step; the screen used to ask for none on the factory's own vehicle.
  */
 const carried = carriedByOthers(props.challan.mode);
 const handoverOpen = ref(false);
@@ -70,10 +71,11 @@ const handoverForm = useForm({
     to: 'in_transit',
     courier_name: props.challan.courier_name ?? '',
     tracking_no: props.challan.tracking_no ?? '',
+    gate_pass_no: props.challan.gate_pass_no ?? '',
 });
 
 function move(to) {
-    if (to === 'in_transit' && carried) {
+    if (to === 'in_transit') {
         handoverOpen.value = true;
 
         return;
@@ -128,6 +130,7 @@ const columns = [
             · {{ date(challan.challan_date) }} · {{ deliveryModeLabel(challan.mode) }}
             <template v-if="challan.courier_name"> · {{ challan.courier_name }}</template>
             <template v-if="challan.tracking_no"> · tracking {{ challan.tracking_no }}</template>
+            <template v-if="challan.gate_pass_no"> · gate pass {{ challan.gate_pass_no }}</template>
         </template>
 
         <template #actions>
@@ -323,15 +326,20 @@ const columns = [
             :dirty="handoverForm.isDirty"
         >
             <div class="flex flex-col gap-3">
-                <FormField
-                    :label="challan.mode === 'courier' ? 'Courier company' : 'Forwarder'"
-                    :error="handoverForm.errors.courier_name"
-                >
-                    <TextInput v-model="handoverForm.courier_name" maxlength="80" />
+                <FormField label="Gate pass number" :error="handoverForm.errors.gate_pass_no" hint="From the security gate's register. Leave blank if the gate issues none.">
+                    <TextInput v-model="handoverForm.gate_pass_no" maxlength="40" />
                 </FormField>
-                <FormField label="Tracking number" :error="handoverForm.errors.tracking_no" hint="Leave blank if there is none.">
-                    <TextInput v-model="handoverForm.tracking_no" maxlength="80" />
-                </FormField>
+                <template v-if="carried">
+                    <FormField
+                        :label="challan.mode === 'courier' ? 'Courier company' : 'Forwarder'"
+                        :error="handoverForm.errors.courier_name"
+                    >
+                        <TextInput v-model="handoverForm.courier_name" maxlength="80" />
+                    </FormField>
+                    <FormField label="Tracking number" :error="handoverForm.errors.tracking_no" hint="Leave blank if there is none.">
+                        <TextInput v-model="handoverForm.tracking_no" maxlength="80" />
+                    </FormField>
+                </template>
             </div>
             <template #footer>
                 <Button @click="handoverOpen = false">Cancel</Button>
