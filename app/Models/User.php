@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Modules\MasterData\Models\Employee;
 use App\Modules\MasterData\Models\FactoryUnit;
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -31,6 +32,8 @@ use Illuminate\Support\Collection;
  */
 class User extends Authenticatable
 {
+    use Auditable;
+
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory;
 

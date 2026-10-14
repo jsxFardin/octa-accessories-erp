@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Audit\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -143,9 +144,18 @@ class RoleController extends Controller
     /** @param list<string> $permissions */
     private function syncPermissions(Role $role, array $permissions): void
     {
+        $before = $role->permissions()->pluck('name')->sort()->values()->all();
         $ids = Permission::query()->whereIn('name', $permissions)->pluck('id')->all();
 
         $role->permissions()->sync($ids);
+
+        $after = $role->permissions()->pluck('name')->sort()->values()->all();
+
+        // NFR-32 — what a role may do is the one admin edit that changes what everyone holding
+        // it may do; the before and after sets are the readable form of that.
+        if ($before !== $after) {
+            app(AuditLogger::class)->record($role, 'updated', ['permissions' => $before], ['permissions' => $after]);
+        }
 
         // 06-rbac §7 — permission caches are flushed on a role change, or the people holding
         // this role keep the old set until the cache expires.

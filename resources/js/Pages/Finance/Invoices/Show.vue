@@ -47,7 +47,18 @@ const columns = [
     { key: 'qty', label: 'Delivered qty', align: 'right' },
     { key: 'rate_per_m', label: 'Rate per 1,000 pcs', align: 'right' },
     { key: 'amount', label: 'Amount', align: 'right' },
+    { key: 'tax_amount', label: 'Tax', align: 'right' },
 ];
+
+// The paperwork that arrives after issue: the Mushak number the VAT authority assigns, the
+// LC the shipment is drawn under. The figures stay as issued; these may be filled in later.
+const referencesForm = useForm({
+    mushak_no: props.invoice.mushak_no ?? '',
+    lc_no: props.invoice.lc_no ?? '',
+    remarks: props.invoice.remarks ?? '',
+});
+
+const canEditReferences = can('sales_invoice.update') && props.invoice.status !== 'cancelled';
 </script>
 
 <template>
@@ -86,6 +97,7 @@ const columns = [
                     <template #cell:qty="{ value }">{{ pcs(value) }}</template>
                     <template #cell:rate_per_m="{ value }">{{ rate(value, invoice.currency) }}</template>
                     <template #cell:amount="{ value }">{{ money(value, invoice.currency) }}</template>
+                    <template #cell:tax_amount="{ value }">{{ money(value, invoice.currency) }}</template>
                 </DataTable>
             </Card>
 
@@ -93,6 +105,7 @@ const columns = [
                 <Card title="Totals" rule="total = received + credited + outstanding">
                     <dl class="grid grid-cols-2 gap-2 text-sm">
                         <div><dt class="text-xs text-ink-500">Subtotal</dt><dd class="font-medium tnum">{{ money(invoice.subtotal, invoice.currency) }}</dd></div>
+                        <div><dt class="text-xs text-ink-500">Tax</dt><dd class="font-medium tnum">{{ money(invoice.tax_amount, invoice.currency) }}</dd></div>
                         <div><dt class="text-xs text-ink-500">Total</dt><dd class="font-medium tnum">{{ money(invoice.total, invoice.currency) }}</dd></div>
                         <div><dt class="text-xs text-ink-500">Received</dt><dd class="font-medium tnum text-emerald-700">{{ money(invoice.received_amount, invoice.currency) }}</dd></div>
                         <div><dt class="text-xs text-ink-500">Credited</dt><dd class="font-medium tnum text-amber-700">{{ money(invoice.credited ?? 0, invoice.currency) }}</dd></div>
@@ -119,6 +132,25 @@ const columns = [
                             />
                         </FormField>
                         <Button type="submit" size="xs" :loading="creditForm.processing" :disabled="creditForm.processing">Draft credit note</Button>
+                    </form>
+                </Card>
+
+                <Card title="References" subtitle="Mushak number, LC and remarks can be added after the invoice is issued; the figures cannot change.">
+                    <form class="flex flex-col gap-3" @submit.prevent="referencesForm.put(`/invoices/${invoice.id}/references`, { preserveScroll: true })">
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <FormField label="Mushak (VAT challan) no." :error="referencesForm.errors.mushak_no">
+                                <TextInput v-model="referencesForm.mushak_no" maxlength="60" :disabled="!canEditReferences" />
+                            </FormField>
+                            <FormField label="LC no." :error="referencesForm.errors.lc_no">
+                                <TextInput v-model="referencesForm.lc_no" maxlength="60" :disabled="!canEditReferences" />
+                            </FormField>
+                        </div>
+                        <FormField label="Remarks" :error="referencesForm.errors.remarks">
+                            <textarea v-model="referencesForm.remarks" rows="2" class="form-textarea" :disabled="!canEditReferences" />
+                        </FormField>
+                        <div v-if="canEditReferences" class="flex justify-end">
+                            <Button type="submit" size="xs" :loading="referencesForm.processing" :disabled="referencesForm.processing || !referencesForm.isDirty">Save references</Button>
+                        </div>
                     </form>
                 </Card>
 

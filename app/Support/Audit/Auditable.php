@@ -23,11 +23,9 @@ trait Auditable
         });
 
         static::updated(function (Model $model): void {
-            $changed = $model->getChanges();
-
-            // A status change is logged by the state machine with its transition context;
-            // logging it again here would double-count every transition.
-            unset($changed['updated_at']);
+            // Secrets and noise are dropped first, so a change to nothing but `last_login_at`
+            // or a remember token does not leave an "updated" row with an empty diff.
+            $changed = $model->auditAttributes($model->getChanges());
 
             if ($changed === []) {
                 return;
@@ -39,7 +37,7 @@ trait Auditable
                 $model,
                 'updated',
                 $model->auditAttributes($old),
-                $model->auditAttributes($changed),
+                $changed,
             );
         });
 
@@ -66,6 +64,7 @@ trait Auditable
             'password',
             'remember_token',
             'two_factor_secret',
+            'last_login_at',
             'created_at',
             'updated_at',
         ]);

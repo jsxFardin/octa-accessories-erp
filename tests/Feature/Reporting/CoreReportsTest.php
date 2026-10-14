@@ -302,3 +302,17 @@ it('keeps report downloads to people who may export', function (): void {
     $this->actingAs($viewer)->get('/reports/receivables/export')->assertForbidden();
     $this->actingAs($viewer)->get('/reports/receivables/print')->assertOk();
 });
+
+// GAP S-11 — NFR-37: a report download is logged like a list export.
+it('logs who exported which report with which filters', function (): void {
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+
+    $this->get('/reports/receivables/export?format=csv&status=issued')->assertOk();
+
+    $row = DB::table('audit_logs')->where('auditable_type', 'exports')->where('event', 'exported')->orderByDesc('id')->first();
+    $values = json_decode((string) $row->new_values, true);
+
+    expect($values['resource'])->toBe('report:receivables')
+        ->and($values['format'])->toBe('csv')
+        ->and($values['filters']['status'] ?? null)->toBe('issued');
+});

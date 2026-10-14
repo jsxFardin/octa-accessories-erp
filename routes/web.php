@@ -654,6 +654,8 @@ Route::middleware('auth')->group(function (): void {
     // Issue and cancel carry their own permission inside the state machine.
     Route::post('invoices/{invoice}/transition', [SalesInvoiceController::class, 'transition'])
         ->middleware('can:sales_invoice.view')->name('invoices.transition');
+    Route::put('invoices/{invoice}/references', [SalesInvoiceController::class, 'updateReferences'])
+        ->middleware('can:sales_invoice.update')->name('invoices.references');
 
     // P2-1 — credit notes: approve and apply carry their own permission in the state machine.
     Route::get('credit-notes', [CreditNoteController::class, 'index'])

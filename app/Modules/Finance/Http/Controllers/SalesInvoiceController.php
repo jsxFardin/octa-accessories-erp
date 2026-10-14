@@ -110,20 +110,28 @@ class SalesInvoiceController extends Controller
 
             // Billed quantity = dispatched quantity, aggregated per order line; the rate is
             // the order line's contracted rate — never re-typed at billing time.
+            // FN-1 AC3 — the tax is the order line's tax code (VAT 15 % domestic, zero-rated
+            // export), never typed at billing time. It was hard-coded to zero, so every
+            // domestic invoice under-billed by the VAT and no Mushak could be reconciled.
             $lines = DB::table('delivery_challan_lines as dcl')
                 ->leftJoin('sales_order_lines as sol', 'sol.id', '=', 'dcl.sales_order_line_id')
+                ->leftJoin('taxes as t', 't.id', '=', 'sol.tax_id')
                 ->where('dcl.delivery_challan_id', $challan->id)
-                ->groupBy('dcl.sales_order_line_id', 'dcl.product_id', 'sol.rate_per_m', 'sol.description')
+                ->groupBy('dcl.sales_order_line_id', 'dcl.product_id', 'sol.rate_per_m', 'sol.description', 'sol.tax_id', 't.rate_pct')
                 ->get([
                     'dcl.sales_order_line_id', 'dcl.product_id', 'sol.rate_per_m', 'sol.description',
+                    'sol.tax_id', 't.rate_pct as tax_rate_pct',
                     DB::raw('SUM(dcl.qty) as qty'),
                 ]);
 
             $subtotal = 0.0;
+            $tax = 0.0;
 
             foreach ($lines as $index => $line) {
                 $amount = $this->costing->lineValue((int) $line->qty, (float) ($line->rate_per_m ?? 0));
+                $lineTax = round($amount * (float) ($line->tax_rate_pct ?? 0) / 100, 4);
                 $subtotal += $amount;
+                $tax += $lineTax;
 
                 SalesInvoiceLine::query()->create([
                     'sales_invoice_id' => $invoice->id,
@@ -133,15 +141,16 @@ class SalesInvoiceController extends Controller
                     'description' => $line->description,
                     'qty' => $line->qty,
                     'rate_per_m' => $line->rate_per_m ?? 0,
-                    'tax_amount' => 0,
+                    'tax_id' => $line->tax_id,
+                    'tax_amount' => $lineTax,
                     'amount' => round($amount, 4),
                 ]);
             }
 
             $invoice->forceFill([
                 'subtotal' => round($subtotal, 4),
-                'tax_amount' => 0,
-                'total' => round($subtotal, 4),
+                'tax_amount' => round($tax, 4),
+                'total' => round($subtotal + $tax, 4),
             ])->save();
 
             return $invoice;
@@ -176,7 +185,7 @@ class SalesInvoiceController extends Controller
                 ->where('sil.sales_invoice_id', $invoice->id)
                 ->orderBy('sil.line_no')
                 ->get(['sil.id', 'sil.line_no', 'sil.description', 'sil.qty', 'sil.rate_per_m',
-                    'sil.amount', 'pi.code as product_code']),
+                    'sil.tax_amount', 'sil.amount', 'pi.code as product_code']),
             'creditNotes' => DB::table('credit_notes')
                 ->where('sales_invoice_id', $invoice->id)
                 ->orderByDesc('id')
@@ -187,6 +196,29 @@ class SalesInvoiceController extends Controller
                 ->get(['ra.amount', 'r.number', 'r.receipt_date', 'r.method']),
             'availableTransitions' => $this->states->available($invoice),
         ]);
+    }
+
+    /**
+     * FN-1 AC3 — the references that arrive after issue: the Mushak (VAT challan) number the
+     * authority assigns, the LC the shipment is drawn under, a remark. An issued invoice's
+     * figures are immutable (NFR-16); these are its paperwork, not its money.
+     */
+    public function updateReferences(Request $request, SalesInvoice $invoice): RedirectResponse
+    {
+        if ($invoice->status === 'cancelled') {
+            return back()->with('error', 'A cancelled invoice takes no references.');
+        }
+
+        $data = $request->validate([
+            'mushak_no' => ['nullable', 'string', 'max:60'],
+            'lc_no' => ['nullable', 'string', 'max:60'],
+            'remarks' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        // Auditable on the model records old and new.
+        $invoice->fill($data)->save();
+
+        return back()->with('success', 'Invoice references saved.');
     }
 
     public function transition(Request $request, SalesInvoice $invoice): RedirectResponse

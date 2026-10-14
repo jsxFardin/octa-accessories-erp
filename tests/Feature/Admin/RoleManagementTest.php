@@ -132,3 +132,25 @@ it('exposes every catalogue permission to the editor', function (): void {
     // Nothing may be grantable only by editing the database.
     expect($offered)->toBe(DB::table('permissions')->count());
 });
+
+// GAP S-11 — NFR-32: what a role may do is audited as before/after sets.
+it('audits a change to a role\'s permissions', function (): void {
+    $this->actingAs($this->admin)->post('/admin/roles', [
+        'name' => 'audited_role', 'label' => 'Audited role',
+        'permissions' => ['job_card.view_any', 'job_card.view'],
+    ])->assertSessionHasNoErrors();
+
+    $role = Role::query()->where('name', 'audited_role')->firstOrFail();
+
+    $this->actingAs($this->admin)->put("/admin/roles/{$role->id}", [
+        'name' => 'audited_role', 'label' => 'Audited role',
+        'permissions' => ['job_card.view_any', 'job_card.view', 'operation.start'],
+    ])->assertSessionHasNoErrors();
+
+    $row = DB::table('audit_logs')->where('auditable_type', Role::class)->where('auditable_id', $role->id)
+        ->where('event', 'updated')->orderByDesc('id')->first();
+
+    expect($row)->not->toBeNull()
+        ->and(json_decode((string) $row->old_values, true)['permissions'])->toBe(['job_card.view', 'job_card.view_any'])
+        ->and(json_decode((string) $row->new_values, true)['permissions'])->toBe(['job_card.view', 'job_card.view_any', 'operation.start']);
+});

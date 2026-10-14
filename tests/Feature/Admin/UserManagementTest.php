@@ -185,3 +185,26 @@ it('seeds every user with exactly one role', function (): void {
 
     expect($multiRole->all())->toBe([]);
 });
+
+// GAP S-11 — NFR-32: creating an account leaves a trail, and a login does not.
+it('audits user creation and ignores the login timestamp', function (): void {
+    $roleId = Role::query()->where('name', 'qc_inspector')->value('id');
+
+    $this->actingAs($this->admin)->post('/admin/users', [
+        'name' => 'Audited Person', 'email' => 'audited@octapussolution.com',
+        'password' => 'correct-horse-42', 'password_confirmation' => 'correct-horse-42',
+        'locale' => 'en', 'is_active' => true, 'role_id' => $roleId,
+    ])->assertSessionHasNoErrors();
+
+    $user = User::query()->where('email', 'audited@octapussolution.com')->firstOrFail();
+    $created = DB::table('audit_logs')->where('auditable_type', User::class)->where('auditable_id', $user->id)
+        ->where('event', 'created')->first();
+
+    expect($created)->not->toBeNull()
+        ->and(json_decode((string) $created->new_values, true))->not->toHaveKey('password');
+
+    $before = DB::table('audit_logs')->where('auditable_type', User::class)->where('auditable_id', $user->id)->count();
+    $user->forceFill(['last_login_at' => now()])->save();
+
+    expect(DB::table('audit_logs')->where('auditable_type', User::class)->where('auditable_id', $user->id)->count())->toBe($before);
+});

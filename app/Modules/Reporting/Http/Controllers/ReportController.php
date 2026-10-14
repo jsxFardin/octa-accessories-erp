@@ -6,6 +6,7 @@ namespace App\Modules\Reporting\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Reporting\ReportCatalogue;
+use App\Support\Audit\AuditLogger;
 use App\Support\Settings\Organisation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -77,6 +78,14 @@ class ReportController extends Controller
         $format = $request->query('format', 'xlsx');
         $columns = $query->columns();
         $filename = Str::slug($query->title()).'-'.now()->format('Y-m-d').'.'.$format;
+
+        // NFR-37 — who took which report out, with which filters. List exports have always
+        // left this row; a report is the same data by another door.
+        app(AuditLogger::class)->recordTable('exports', 0, 'exported', null, [
+            'resource' => 'report:'.$report,
+            'format' => $format,
+            'filters' => $request->except(['page', 'format']),
+        ]);
 
         $rows = function () use ($query, $request, $columns): \Generator {
             yield array_column($columns, 'label');

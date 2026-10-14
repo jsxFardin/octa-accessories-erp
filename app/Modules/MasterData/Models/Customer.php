@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\MasterData\Models;
 
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -33,6 +34,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Customer extends Model
 {
+    use Auditable;
     use SoftDeletes;
 
     protected $table = 'customers';
