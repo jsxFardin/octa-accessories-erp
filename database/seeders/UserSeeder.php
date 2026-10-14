@@ -70,26 +70,38 @@ class UserSeeder extends Seeder
 
             // The employee row is what carries the factory-unit scope (06-rbac §4) and the
             // badge number the shop-floor terminal logs in with.
-            DB::table('employees')->updateOrInsert(
-                ['user_id' => $user->id],
-                [
-                    'factory_unit_id' => $unitId,
-                    'department_id' => $seed['department'] === null ? null : $departments[$seed['department']],
-                    'code' => 'EMP-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT),
-                    'name' => $seed['name'],
-                    'designation' => str_replace('_', ' ', ucfirst($seed['role'])),
-                    'card_no' => 'BADGE-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT),
-                    // Demo PIN: the badge's last four digits, hashed. It is a seed value, not
-                    // a rule — the terminal checks the stored hash, so a real deployment sets
-                    // a PIN the badge does not reveal (06-rbac §6).
-                    'pin_hash' => Hash::make(str_pad((string) $sequence, 4, '0', STR_PAD_LEFT)),
-                    'is_active' => true,
-                ],
-            );
+            $employee = [
+                'factory_unit_id' => $unitId,
+                'department_id' => $seed['department'] === null ? null : $departments[$seed['department']],
+                'code' => 'EMP-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT),
+                'name' => $seed['name'],
+                'designation' => str_replace('_', ' ', ucfirst($seed['role'])),
+                'card_no' => 'BADGE-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT),
+                'is_active' => true,
+            ];
+
+            // Demo PIN — the badge's last four digits — on a developer machine and in the test
+            // suite only. On UAT or production a PIN the badge reveals is a default anyone can
+            // read off a lanyard, so no PIN is seeded and an existing one is left alone: an
+            // administrator sets each badge's PIN under Configuration → Users (06-rbac §6).
+            if (self::seedsDemoPins()) {
+                $employee['pin_hash'] = Hash::make(str_pad((string) $sequence, 4, '0', STR_PAD_LEFT));
+            }
+
+            DB::table('employees')->updateOrInsert(['user_id' => $user->id], $employee);
 
             $sequence++;
         }
 
         $this->command->info(count(self::USERS).' users seeded. Password for all: password');
+
+        if (! self::seedsDemoPins()) {
+            $this->command->warn('No floor PINs seeded outside local/testing: set each badge\'s PIN under Configuration → Users before anyone signs in at the terminal.');
+        }
+    }
+
+    public static function seedsDemoPins(): bool
+    {
+        return app()->environment(['local', 'testing']);
     }
 }

@@ -59,6 +59,9 @@ class UserController extends Controller
                     // The badge is what the shop-floor terminal signs in with, so a
                     // supervisor has to be able to read it off this screen.
                     'card_no' => $user->employee?->card_no,
+                    // A badge with no PIN cannot sign in at the terminal (06-rbac §6); the
+                    // list says so instead of leaving the operator to find out at the kiosk.
+                    'has_floor_pin' => $user->employee?->pin_hash !== null,
                     'permission_count' => count($user->permissionNames()),
                     'employee' => $user->employee?->only([
                         'id', 'code', 'card_no', 'designation', 'factory_unit_id', 'department_id',

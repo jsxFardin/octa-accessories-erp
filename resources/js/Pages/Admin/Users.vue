@@ -161,9 +161,16 @@ const columns = [
                     <span v-else class="text-xs text-ink-400">no role</span>
                 </template>
 
-                <template #cell:card_no="{ value }">
+                <template #cell:card_no="{ value, row }">
                     <span v-if="value" class="font-mono text-xs text-ink-700">{{ value }}</span>
                     <span v-else class="text-xs text-ink-400">—</span>
+                    <Badge
+                        v-if="value && !row.has_floor_pin"
+                        tone="warning"
+                        label="No PIN"
+                        title="This badge cannot sign in at the terminal until a PIN is set (Edit → Floor PIN)."
+                        class="ml-1"
+                    />
                 </template>
 
                 <template #cell:last_login_at="{ value }">{{ value ? datetime(value) : 'never' }}</template>

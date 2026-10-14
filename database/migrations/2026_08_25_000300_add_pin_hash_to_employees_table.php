@@ -2,8 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -14,10 +12,10 @@ use Illuminate\Support\Facades\Schema;
  * their output, their waste and their downtime, which makes every production record on the
  * floor unattributable.
  *
- * Existing badges are backfilled with a hash of the old derived PIN so nobody is locked out of
- * a running factory mid-shift. That preserves the weakness for accounts nobody has touched —
- * the point is that a PIN can now be changed to something the badge does not reveal, and the
- * derivation is no longer the rule.
+ * No badge is backfilled with a derived PIN. A PIN the badge reveals is not a secret, and a
+ * default nobody has changed is the one an attacker tries first. A badge without a PIN cannot
+ * sign in until an administrator sets one under Configuration → Users; the Users list says
+ * which badges still need one.
  */
 return new class extends Migration
 {
@@ -26,15 +24,6 @@ return new class extends Migration
         Schema::table('employees', function (Blueprint $table): void {
             $table->string('pin_hash', 255)->nullable()->after('card_no');
         });
-
-        DB::table('employees')
-            ->whereNotNull('card_no')
-            ->orderBy('id')
-            ->each(function (object $employee): void {
-                DB::table('employees')
-                    ->where('id', $employee->id)
-                    ->update(['pin_hash' => Hash::make(substr((string) $employee->card_no, -4))]);
-            });
     }
 
     public function down(): void

@@ -75,6 +75,11 @@ Every role has a seeded user; the password is `password` for all of them. **Chan
 this is anything but a demo** — `/profile` lets each user change their own, and the screen
 says so while the seed password is still in place.
 
+Floor PINs follow the same rule. On a developer machine and in the test suite each seeded badge
+gets a demo PIN (the badge's last four digits). On UAT and production **no PIN is seeded**: a
+badge cannot sign in at the terminal until an administrator sets its PIN under Configuration →
+Users, and the Users list marks the badges that still need one.
+
 After signing in, each role lands on a page it can actually open: the dashboard for desk
 users, `/floor` for operators, `/trips` for drivers. Nobody is redirected into a 403.
 
