@@ -153,3 +153,29 @@ it('discards a draft and refuses to discard a posted receipt', function (): void
 
     expect(Grn::query()->find($posted->id))->not->toBeNull();
 });
+
+// GAP C-03 — CP-2 AC1 / PR-3 AC6: a certified line is complete, and honours the order's claim.
+it('refuses a certified line without its percentage and transaction-certificate number', function (): void {
+    $lines = ($this->payload)()['lines'];
+    $lines[0]['cert_scheme'] = 'GRS';
+
+    $this->actingAs($this->store)->post('/grns', ($this->payload)(['lines' => $lines]))
+        ->assertSessionHasErrors(['lines.0.cert_claim_pct', 'lines.0.cert_document_no']);
+
+    $lines[0]['cert_claim_pct'] = 80;
+    $lines[0]['cert_document_no'] = 'TC-GRS-2026-0001';
+
+    $this->actingAs($this->store)->post('/grns', ($this->payload)(['lines' => $lines]))->assertSessionHasNoErrors();
+});
+
+it('refuses to receive a line the order bought certified as plain stock', function (): void {
+    DB::table('purchase_order_lines')->where('id', $this->poLines[1]->id)->update(['cert_claim' => 'GRS']);
+
+    $this->actingAs($this->store)->post('/grns', ($this->payload)())
+        ->assertSessionHasErrors(['lines.1.cert_scheme']);
+
+    $lines = ($this->payload)()['lines'];
+    $lines[1] = [...$lines[1], 'cert_scheme' => 'GRS', 'cert_claim_pct' => 100, 'cert_document_no' => 'TC-GRS-2026-0002'];
+
+    $this->actingAs($this->store)->post('/grns', ($this->payload)(['lines' => $lines]))->assertSessionHasNoErrors();
+});

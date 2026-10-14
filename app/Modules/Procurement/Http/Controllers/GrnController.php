@@ -17,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -192,6 +193,48 @@ class GrnController extends Controller
     }
 
     /**
+     * PR-3 AC6 — what the order bought certified must arrive certified.
+     *
+     * A line answering a purchase-order line that declares a claim has to carry that scheme.
+     * Receiving it plain would book certified-priced yarn as ordinary stock and lose the
+     * chain of custody at the door, silently; receiving it under a different scheme is a
+     * data-entry slip either way.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function assertClaimsMatchOrder(array $lines): void
+    {
+        $poLineIds = collect($lines)->pluck('po_line_id')->filter()->map(fn ($id): int => (int) $id);
+
+        if ($poLineIds->isEmpty()) {
+            return;
+        }
+
+        $declared = DB::table('purchase_order_lines')
+            ->whereIn('id', $poLineIds)
+            ->whereNotNull('cert_claim')
+            ->pluck('cert_claim', 'id');
+
+        $errors = [];
+
+        foreach ($lines as $index => $line) {
+            $claim = $declared[(int) ($line['po_line_id'] ?? 0)] ?? null;
+
+            if ($claim === null) {
+                continue;
+            }
+
+            if (($line['cert_scheme'] ?? null) !== $claim) {
+                $errors["lines.{$index}.cert_scheme"] = "The purchase order bought this line as {$claim}-certified. Receive it under {$claim} with the supplier's transaction certificate, or amend the order first.";
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
+    /**
      * Refresh a purchase order's received quantities, and its status, from its goods receipts.
      *
      * The order is `received` once every line has its full quantity, `partially_received` while
@@ -331,7 +374,7 @@ class GrnController extends Controller
             $locked = Grn::query()->lockForUpdate()->findOrFail($grn->getKey());
 
             if ($locked->status !== 'draft') {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     'lines' => 'This goods receipt has already been posted.',
                 ]);
             }
@@ -382,10 +425,19 @@ class GrnController extends Controller
             'lines.*.supplier_batch_no' => ['nullable', 'string', 'max:60'],
             'lines.*.roll_length_m' => ['nullable', 'numeric', 'gt:0'],
             'lines.*.expiry_date' => ['nullable', 'date', 'after:today'],
+            // CP-2 AC1 — a certified receipt is scheme, percentage and the supplier's
+            // transaction-certificate number together, or none of them. A claim with no TC
+            // number is the first thing a GRS auditor rejects, and the input side of the
+            // reconciliation (BR-42) is only as good as the document behind it.
             'lines.*.cert_scheme' => ['nullable', Rule::in(['GRS', 'FSC', 'OEKO_TEX', 'SCOPE'])],
-            'lines.*.cert_claim_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'lines.*.cert_document_no' => ['nullable', 'string', 'max:80'],
+            'lines.*.cert_claim_pct' => ['nullable', 'numeric', 'min:0', 'max:100', 'required_with:lines.*.cert_scheme'],
+            'lines.*.cert_document_no' => ['nullable', 'string', 'max:80', 'required_with:lines.*.cert_scheme'],
+        ], [
+            'lines.*.cert_claim_pct.required_with' => 'A certified line needs its claimed percentage.',
+            'lines.*.cert_document_no.required_with' => 'A certified line needs the supplier\'s transaction-certificate number.',
         ]);
+
+        $this->assertClaimsMatchOrder($data['lines']);
 
         // A line id belonging to a different order would read that order's quantities onto
         // this receipt. Ids that do not belong are dropped rather than refused: the pairing is
