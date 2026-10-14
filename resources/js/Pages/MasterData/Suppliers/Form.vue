@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import ResourceForm from '@/Components/Ui/ResourceForm.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { can } from '@/plugins/permissions';
 
 const props = defineProps({ supplier: Object, countries: Array, currencies: Array, paymentTerms: Array });
 
@@ -28,7 +29,8 @@ const sections = computed(() => [
             { key: 'payment_term_id', label: 'Payment terms', type: 'select', options: props.paymentTerms, valueKey: 'id', labelKey: 'name' },
             { key: 'lead_time_days', label: 'Lead time (days)', type: 'number', rule: 'BR-26', hint: 'Default; a supplier-item row overrides it.' },
             { key: 'rating', label: 'Rating', type: 'number', step: '0.1' },
-            { key: 'is_approved', label: 'Approved', type: 'checkbox', checkboxLabel: 'A PO may only be submitted to an approved supplier' },
+            // MD-5 AC2 — only someone who may approve sees the box; the server ignores it otherwise.
+            ...(can('supplier.approve') ? [{ key: 'is_approved', label: 'Approved', type: 'checkbox', checkboxLabel: 'A PO may only be submitted to an approved supplier' }] : []),
             { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
         ],
     },

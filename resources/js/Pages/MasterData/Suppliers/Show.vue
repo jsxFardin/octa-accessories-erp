@@ -230,7 +230,13 @@ const TILE_LINK = `${TILE} transition hover:border-brand-300 focus-visible:ring-
                         approves them.
                     </p>
                 </div>
-                <Button v-if="can('supplier.update')" size="sm" :href="`/suppliers/${supplier.id}/edit`">Open to approve</Button>
+                <Button
+                    v-if="can('supplier.approve')"
+                    size="sm"
+                    variant="primary"
+                    @click="router.post(`/suppliers/${supplier.id}/approve`, {}, { preserveScroll: true })"
+                >Approve supplier</Button>
+                <span v-else class="text-xs">Approval is Purchasing's decision (a purchase manager).</span>
             </div>
 
             <!--

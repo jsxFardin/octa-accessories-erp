@@ -169,6 +169,8 @@ Route::middleware('auth')->group(function (): void {
 
     // A supplier's people, the materials they sell and how to reach them are kept on the
     // supplier's own page, as a customer's are. `supplier.update` is the gate throughout.
+    Route::post('suppliers/{supplier}/approve', [SupplierController::class, 'approve'])
+        ->middleware('can:supplier.approve')->name('suppliers.approve');
     Route::post('suppliers/{supplier}/contacts', [SupplierContactController::class, 'store'])
         ->middleware('can:supplier.update')->name('suppliers.contacts.store');
     Route::put('suppliers/{supplier}/contacts/{contact}', [SupplierContactController::class, 'update'])

@@ -162,9 +162,30 @@ class SupplierController extends Controller
 
     public function update(Request $request, Supplier $supplier): RedirectResponse
     {
-        $supplier->update($this->validated($request, $supplier));
+        $data = $this->validated($request, $supplier);
+
+        // MD-5 AC2 — approval is a purchasing decision behind `supplier.approve`, not a
+        // checkbox anyone with `supplier.update` may tick. The edit form keeps whatever the
+        // approval already is unless the editor holds the permission.
+        if (! $request->user()->hasPermission('supplier.approve')) {
+            unset($data['is_approved']);
+        }
+
+        $supplier->update($data);
 
         return redirect()->route('suppliers.show', $supplier)->with('success', "Supplier {$supplier->code} updated.");
+    }
+
+    /** MD-5 AC2 — approve from the supplier page; Auditable records who and when. */
+    public function approve(Supplier $supplier): RedirectResponse
+    {
+        if ($supplier->is_approved) {
+            return back()->with('success', "Supplier {$supplier->code} is already approved.");
+        }
+
+        $supplier->update(['is_approved' => true]);
+
+        return back()->with('success', "Supplier {$supplier->code} approved. Purchase orders can now be submitted to them.");
     }
 
     public function destroy(Supplier $supplier): RedirectResponse
