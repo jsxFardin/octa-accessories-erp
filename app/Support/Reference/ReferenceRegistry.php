@@ -659,14 +659,14 @@ class ReferenceRegistry
                 'fields' => [
                     ['name' => 'scheme', 'label' => 'Scheme', 'type' => 'select', 'options' => ['FSC', 'GRS', 'OEKO_TEX', 'BSCI', 'SMETA', 'ISO_9001', 'ISO_14001', 'SCOPE', 'OTHER']],
                     ['name' => 'certificate_no', 'label' => 'Certificate number', 'type' => 'text', 'rules' => ['required', 'string', 'max:80']],
-                    ['name' => 'issuing_body', 'label' => 'Issued by', 'type' => 'text', 'rules' => ['nullable', 'string', 'max:150'], 'hint' => 'Control Union, Textile Exchange — whoever signed it.'],
+                    ['name' => 'issuing_body', 'label' => 'Issued by', 'type' => 'text', 'rules' => ['required', 'string', 'max:150'], 'hint' => 'Control Union, Textile Exchange — whoever signed it.'],
                     ['name' => 'issued_on', 'label' => 'Issued on', 'type' => 'date', 'rules' => ['required', 'date']],
                     ['name' => 'expires_on', 'label' => 'Expires on', 'type' => 'date', 'rules' => ['required', 'date', 'after:issued_on']],
-                    ['name' => 'scope_description', 'label' => 'Scope', 'type' => 'textarea', 'rules' => ['nullable', 'string', 'max:500']],
+                    ['name' => 'scope_description', 'label' => 'Scope', 'type' => 'textarea', 'rules' => ['required', 'string', 'max:500'], 'hint' => 'What the certificate covers: sites, processes, product groups. An auditor reads this before the number.'],
                     // BR-43 refuses to ship a certified claim while this is empty, and named
                     // that as the remedy — but the form had no field for it, so the rule was
                     // unsatisfiable from inside the application.
-                    ['name' => 'document_path', 'label' => 'Signed certificate', 'type' => 'text', 'rules' => ['nullable', 'string', 'max:500'], 'hint' => 'Where the signed PDF is kept. A certified claim cannot ship without it.'],
+                    ['name' => 'document_path', 'label' => 'Signed certificate', 'type' => 'text', 'rules' => ['required', 'string', 'max:500'], 'hint' => 'Where the signed PDF is kept. A certified claim cannot ship without it.'],
                     ['name' => 'reminder_days', 'label' => 'Remind before', 'unit' => 'days', 'type' => 'number', 'rules' => ['integer', 'min:0'], 'default' => 60],
                     ['name' => 'status', 'label' => 'Status', 'type' => 'select', 'options' => ['active', 'expired', 'suspended', 'withdrawn'], 'default' => 'active'],
                 ],
