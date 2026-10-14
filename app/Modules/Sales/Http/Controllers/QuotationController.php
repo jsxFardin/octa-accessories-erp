@@ -461,7 +461,11 @@ class QuotationController extends Controller
 
         // Q4 — revising creates n+1 and leaves the prior revision read-only.
         if ($data['to'] === 'revised') {
-            $revision = $this->revise($quotation);
+            try {
+                $revision = $this->revise($quotation);
+            } catch (TransitionDenied $e) {
+                return back()->with('error', $e->getMessage());
+            }
 
             return redirect()
                 ->route('quotations.show', $revision)
@@ -498,6 +502,11 @@ class QuotationController extends Controller
     private function revise(Quotation $quotation): Quotation
     {
         return DB::transaction(function () use ($quotation): Quotation {
+            // The prior revision retires through the machine — table, `quotation.revise`
+            // permission and audit row — not by a bare status write. Only a sent or expired
+            // quotation has anything to revise; a draft is simply edited.
+            $this->states->transition($quotation, 'revised');
+
             $revision = $quotation->replicate(['sent_at', 'decided_at', 'reject_reason']);
             $revision->revision_no = (int) $quotation->revision_no + 1;
             $revision->status = 'draft';
@@ -508,8 +517,6 @@ class QuotationController extends Controller
                 $copy->quotation_id = $revision->id;
                 $copy->save();
             }
-
-            $quotation->update(['status' => 'revised']);
 
             return $revision;
         });

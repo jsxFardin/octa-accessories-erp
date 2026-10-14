@@ -11,12 +11,14 @@ use App\Modules\MasterData\Models\Customer;
 use App\Modules\MasterData\Models\CustomerContact;
 use App\Modules\Sales\Models\Inquiry;
 use App\Modules\Sales\Models\InquiryLine;
+use App\Modules\Sales\States\InquiryStateMachine;
 use App\Support\Audit\AuditLog;
 use App\Support\Audit\DocumentTrail;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Numbering\NumberAllocator;
 use App\Support\Reference\Vocabulary;
+use App\Support\States\TransitionDenied;
 use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,6 +40,7 @@ class InquiryController extends Controller
     public function __construct(
         private readonly NumberAllocator $numbers,
         private readonly DocumentTrail $trail,
+        private readonly InquiryStateMachine $states,
     ) {}
 
     public function index(Request $request): Response
@@ -339,30 +342,19 @@ class InquiryController extends Controller
         return redirect()->route('inquiries.show', $inquiry)->with('success', 'Inquiry updated.');
     }
 
-    /**
-     * The transitions the inquiry state machine allows, applied inline because this document
-     * has no side effects beyond numbering and a lost reason (05-workflows §1).
-     */
+    /** 05-workflows §1 — through the state machine: table, permission, guard and audit row. */
     public function transition(Request $request, Inquiry $inquiry): RedirectResponse
     {
         $data = $request->validate([
-            'status' => ['required', Rule::in(['draft', 'open', 'quoted', 'won', 'lost', 'cancelled'])],
+            'status' => ['required', Rule::in(['open', 'quoted', 'won', 'lost', 'cancelled'])],
             'lost_reason' => ['nullable', 'string', 'max:255', 'required_if:status,lost'],
         ]);
 
-        if ($data['status'] === 'open' && $inquiry->lines()->count() === 0) {
-            return back()->with('error', 'An inquiry needs at least one line before it is submitted.');
+        try {
+            $this->states->transition($inquiry, $data['status'], $data);
+        } catch (TransitionDenied $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        DB::transaction(function () use ($inquiry, $data): void {
-            // A draft raised by mistake and cancelled stays unnumbered: giving it the next
-            // number would leave a gap in the series for an inquiry that never existed.
-            if (! in_array($data['status'], ['draft', 'cancelled'], true) && $inquiry->number === null) {
-                $inquiry->forceFill(['number' => $this->numbers->next('inquiry')])->save();
-            }
-
-            $inquiry->update($data);
-        });
 
         return back()->with('success', 'Inquiry is now '.Plain::status($data['status']).'.');
     }

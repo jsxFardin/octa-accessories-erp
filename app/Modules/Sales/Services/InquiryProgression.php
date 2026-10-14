@@ -6,7 +6,8 @@ namespace App\Modules\Sales\Services;
 
 use App\Modules\Sales\Models\Inquiry;
 use App\Modules\Sales\Models\Quotation;
-use App\Support\Audit\AuditLogger;
+use App\Modules\Sales\States\InquiryStateMachine;
+use App\Support\States\StateMachine;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -24,11 +25,10 @@ use Illuminate\Support\Facades\DB;
  * inquiries read `won` because the demo seeder set the column by hand. The funnel report and
  * the merchandiser's follow-up list both read that column, so both were wrong.
  *
- * This is not a second state machine. The inquiry's own transitions stay where they are
- * (`InquiryController::transition`, which 05-workflows §1 describes as having no side effects
- * beyond numbering and a lost reason); what lives here is the *consequence* on the inquiry of
- * something happening to its quotation, called from `QuotationStateMachine`'s effect and from
- * quotation creation. It only ever moves an inquiry forward along the documented path.
+ * This is not a second state machine. The inquiry's own table lives in `InquiryStateMachine`;
+ * what lives here is the *consequence* on the inquiry of something happening to its
+ * quotation, called from `QuotationStateMachine`'s effect and from quotation creation. It
+ * only ever moves an inquiry forward along the documented path, through that machine.
  */
 class InquiryProgression
 {
@@ -38,7 +38,7 @@ class InquiryProgression
     /** A quotation that has not been answered yet, so the inquiry is not lost while it stands. */
     private const OPEN_QUOTATION_STATUSES = ['draft', 'sent', 'accepted'];
 
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(private readonly InquiryStateMachine $states) {}
 
     /** A quotation was raised against this inquiry: `open` → `quoted`. */
     public function quoted(Quotation $quotation): void
@@ -83,20 +83,18 @@ class InquiryProgression
             return;
         }
 
-        $from = $inquiry->status;
-
-        $inquiry->forceFill(array_filter([
-            'status' => $to,
-            'lost_reason' => $to === Inquiry::LOST ? $lostReason : null,
-        ], fn ($value): bool => $value !== null))->save();
-
-        // The same row the inquiry's own transitions write, so the trail reads as one history
-        // rather than as "somebody changed a column".
-        $this->audit->recordTransition($inquiry, $from, $to, [
+        // Through the inquiry's own machine, as the system: the move is a consequence of what
+        // happened to the quotation, not an act by whoever decided the quotation, so no
+        // inquiry permission is charged — but the table, the guards and the audit row are the
+        // same ones a hand-made transition gets.
+        StateMachine::asSystem(fn () => $this->states->transition($inquiry, $to, [
+            'lost_reason' => $to === Inquiry::LOST
+                ? ($lostReason ?: 'Quotation '.$quotation->reference().' rejected')
+                : null,
             'because' => 'quotation',
             'quotation' => $quotation->reference(),
             'quotation_id' => $quotation->getKey(),
-        ]);
+        ]));
     }
 
     /**
