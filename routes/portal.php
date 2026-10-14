@@ -7,15 +7,14 @@ use Illuminate\Support\Facades\Route;
  * scope — not a separate application (AD-1). Built out in Phase 4; the group exists now
  * so the isolation middleware has a home and cannot be forgotten later.
  *
- * PREREQUISITE BEFORE ANY DATA IS EXPOSED HERE, and before a `portal_customer` user is
- * created on any environment: the customer global scope this group is named for **does not
- * exist yet**. `EnsurePortalCustomer` binds the customer id into `PortalContext`, and nothing
- * reads it — there is no `BelongsToCustomer` scope in the codebase. Meanwhile the
- * `portal_customer` role already carries `sales_order.view_any`, `sales_invoice.view_any` and
- * `delivery_challan.view_any`, and authorisation in this application is permission-only with
- * no row-level filtering, so such a user would read *every* customer's orders and invoices
- * through the main routes. The stub is safe precisely because it is a stub: one static page,
- * no data, and no portal users seeded.
+ * The customer global scope (`App\Support\Scoping\BelongsToCustomer`) exists and confines
+ * every order, quotation, inquiry, invoice, credit note, receipt, return, packing list,
+ * delivery note and test report to the customer `EnsurePortalCustomer` binds — but only on
+ * requests that pass through this group. The `portal_customer` role is still withheld by the
+ * user form: it carries `*.view_any` permissions that the desk routes honour without the
+ * scope, so a portal contact must never be able to reach the desk routes at all. That needs
+ * portal data routes of their own with cross-customer tests behind them (NFR-31) before the
+ * role is handed out.
  */
 
 Route::middleware(['auth', 'portal'])->group(function (): void {

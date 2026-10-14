@@ -21,3 +21,5 @@ parameters:
         # bodies, which are scanned but not analysed, so their use sites are invisible here.
         - identifier: trait.unused
           path: app/Support/Scoping/ScopedToFactoryUnit.php
+        - identifier: trait.unused
+          path: app/Support/Scoping/BelongsToCustomer.php

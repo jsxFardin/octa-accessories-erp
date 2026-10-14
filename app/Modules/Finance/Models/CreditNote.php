@@ -7,6 +7,7 @@ namespace App\Modules\Finance\Models;
 use App\Modules\MasterData\Models\Currency;
 use App\Support\Audit\Auditable;
 use App\Support\Notifications\Notifier;
+use App\Support\Scoping\BelongsToCustomer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -29,6 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CreditNote extends Model
 {
     use Auditable;
+    use BelongsToCustomer;
 
     protected $table = 'credit_notes';
 

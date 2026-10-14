@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Models;
 
 use App\Support\Audit\Auditable;
+use App\Support\Scoping\BelongsToCustomer;
 use App\Support\Scoping\ScopedToFactoryUnit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +42,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SalesOrder extends Model
 {
     use Auditable;
+    use BelongsToCustomer;
     use ScopedToFactoryUnit;
 
     protected $table = 'sales_orders';

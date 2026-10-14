@@ -6,6 +6,7 @@ namespace App\Modules\Sales\Models;
 
 use App\Modules\Finance\Models\SalesInvoice;
 use App\Support\Audit\Auditable;
+use App\Support\Scoping\BelongsToCustomer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -36,6 +37,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SalesReturn extends Model
 {
     use Auditable;
+    use BelongsToCustomer;
 
     public const DRAFT = 'draft';
 
