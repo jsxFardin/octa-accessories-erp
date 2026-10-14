@@ -164,10 +164,10 @@ it('registers, edits and retires a tool', function (): void {
     $tool->update(['status' => 'in_use']);
     $this->put("/tools/{$tool->id}", ['code' => 'TOOL-T-01', 'kind' => 'cutting_die', 'status' => 'available'])->assertSessionHasNoErrors();
     expect($tool->refresh()->status)->toBe('in_use');
-    $this->post("/tools/{$tool->id}/retire")->assertSessionHas('error');
+    $this->post("/tools/{$tool->id}/retire", ['reason' => 'Worn'])->assertSessionHas('error');
 
     $tool->update(['status' => 'available']);
-    $this->post("/tools/{$tool->id}/retire")->assertSessionHas('success');
+    $this->post("/tools/{$tool->id}/retire", ['reason' => 'Worn'])->assertSessionHas('success');
     expect($tool->refresh()->status)->toBe('scrapped');
 
     // Retired is final.

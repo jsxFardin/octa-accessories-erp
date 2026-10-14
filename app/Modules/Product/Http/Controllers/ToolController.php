@@ -7,6 +7,7 @@ namespace App\Modules\Product\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Customer;
 use App\Modules\Product\Models\Tool;
+use App\Support\Audit\AuditLogger;
 use App\Support\Http\ListsResources;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -126,8 +127,12 @@ class ToolController extends Controller
      *
      * Kept, not deleted: the jobs it ran still point at it.
      */
-    public function retire(Tool $tool): RedirectResponse
+    public function retire(Request $request, Tool $tool): RedirectResponse
     {
+        // PD-5 AC4 — worn out, damaged or lost: a tool leaves service with the reason on its
+        // audit row, because a plate retired at half its life is a question for the supplier.
+        $data = $request->validate(['reason' => ['required', 'string', 'max:255']]);
+
         if ($tool->status === 'scrapped') {
             return back()->with('error', "{$tool->code} is already retired.");
         }
@@ -136,7 +141,15 @@ class ToolController extends Controller
             return back()->with('error', "{$tool->code} is on a machine. Finish or hold the job using it before retiring it.");
         }
 
+        $from = $tool->status;
         $tool->update(['status' => 'scrapped']);
+
+        app(AuditLogger::class)->record($tool, 'status_changed', ['status' => $from], [
+            'status' => 'scrapped',
+            'reason' => $data['reason'],
+            'used_impressions' => $tool->used_impressions,
+            'life_impressions' => $tool->life_impressions,
+        ]);
 
         return back()->with('success', "Tool {$tool->code} retired. It can no longer be chosen for a job.");
     }
