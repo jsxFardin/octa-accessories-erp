@@ -54,3 +54,14 @@ it('lets an operator through the permission gate', function (): void {
 
     expect($response->status())->not->toBe(403);
 });
+
+// GAP S-09 — a token dies with the account it belongs to, not nine hours later.
+it('refuses a device token once the account behind it is deactivated', function (): void {
+    $token = deviceTokenFor('operator@octapussolution.com');
+
+    $this->withHeader('Authorization', "Bearer {$token}")->getJson('/api/v1/floor/queue')->assertOk();
+
+    DB::table('users')->where('email', 'operator@octapussolution.com')->update(['is_active' => false]);
+
+    $this->withHeader('Authorization', "Bearer {$token}")->getJson('/api/v1/floor/queue')->assertUnauthorized();
+});

@@ -157,8 +157,28 @@ class DeviceSessionRegistry
     public function resolve(string $token): ?DeviceSession
     {
         $payload = Cache::get($this->key($token));
+        $session = $payload === null ? null : DeviceSession::fromArray($payload);
 
-        return $payload === null ? null : DeviceSession::fromArray($payload);
+        if ($session === null) {
+            return null;
+        }
+
+        // A badge or an account deactivated mid-shift stops working at the next request,
+        // not when the nine-hour token happens to lapse. One indexed lookup per API call.
+        $live = DB::table('employees')
+            ->join('users', 'users.id', '=', 'employees.user_id')
+            ->where('employees.id', $session->employeeId)
+            ->where('employees.is_active', true)
+            ->where('users.is_active', true)
+            ->exists();
+
+        if (! $live) {
+            $this->revoke($token);
+
+            return null;
+        }
+
+        return $session;
     }
 
     public function revoke(string $token): void
