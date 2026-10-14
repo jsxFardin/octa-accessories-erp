@@ -198,8 +198,16 @@ class QcInspectionController extends Controller
         }
 
         $inspection = DB::transaction(function () use ($data, $outcome, $request): QcInspection {
-            $inspection = QcInspection::query()->create([
-                'number' => $this->numbers->next('qc_inspection'),
+            // QL-1 AC1 — a lot received into quarantine already has its inspection waiting,
+            // raised by the GRN posting with the number allocated. The verdict lands on that
+            // row rather than beside it, so the queue of pending incoming inspections empties
+            // as the inspector works through it.
+            $pending = $data['stage'] === 'incoming' && ! empty($data['lot_id'])
+                ? QcInspection::query()->where('stage', 'incoming')->where('lot_id', $data['lot_id'])->where('result', 'pending')->first()
+                : null;
+
+            $inspection = $pending ?? new QcInspection(['number' => $this->numbers->next('qc_inspection')]);
+            $inspection->fill([
                 'job_card_id' => $data['job_card_id'] ?? null,
                 'job_card_operation_id' => $data['job_card_operation_id'] ?? null,
                 'lot_id' => $data['lot_id'] ?? null,
@@ -220,7 +228,7 @@ class QcInspectionController extends Controller
                 'inspector_id' => $request->user()->id,
                 'inspected_on' => now()->toDateString(),
                 'created_by' => $request->user()->id,
-            ]);
+            ])->save();
 
             foreach ($data['defects'] ?? [] as $defect) {
                 DB::table('qc_inspection_defects')->insert([
@@ -237,6 +245,13 @@ class QcInspectionController extends Controller
                 && in_array($inspection->result, ['accepted', 'accepted_with_concession'], true)
                 && $inspection->job_card_id !== null) {
                 $this->fgReceipts->releaseForJob((int) $inspection->job_card_id);
+            }
+
+            // QL-1 AC3 — the incoming verdict moves the received lot: accepted to `available`,
+            // rejected to `blocked` with its disposition owed on the NCR below. Whole-lot
+            // granularity; the GRN line's accepted and rejected quantities follow.
+            if ($inspection->stage === 'incoming' && $inspection->lot_id !== null) {
+                $this->settleIncomingLot($inspection);
             }
 
             // P1-3 — a rejection is a controlled event, not a note: raise the NCR, freeze the
@@ -345,6 +360,26 @@ class QcInspectionController extends Controller
             if ($jobCard->status === JobCard::QC_PENDING) {
                 $this->jobCards->transition($jobCard, JobCard::IN_PRODUCTION);
             }
+        }
+    }
+
+    /** QL-1 AC3 — the received lot leaves quarantine one way or the other. */
+    private function settleIncomingLot(QcInspection $inspection): void
+    {
+        $accepted = in_array($inspection->result, ['accepted', 'accepted_with_concession'], true);
+
+        DB::table('stock_lots')
+            ->where('id', $inspection->lot_id)
+            ->whereIn('status', ['quarantine', 'blocked'])
+            ->update(['status' => $accepted ? 'available' : 'blocked']);
+
+        if ($inspection->grn_line_id !== null) {
+            $received = (float) DB::table('grn_lines')->where('id', $inspection->grn_line_id)->value('received_qty');
+
+            DB::table('grn_lines')->where('id', $inspection->grn_line_id)->update([
+                'accepted_qty' => $accepted ? $received : 0,
+                'rejected_qty' => $accepted ? 0 : $received,
+            ]);
         }
     }
 

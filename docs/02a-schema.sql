@@ -598,6 +598,7 @@ CREATE TABLE items (
     tool_cavities          SMALLINT UNSIGNED,
     service_charge_basis   VARCHAR(20),
     qc_plan_ref            VARCHAR(80),
+    requires_incoming_qc   BOOLEAN NOT NULL DEFAULT FALSE,   -- QL-1: received lots wait in quarantine for an inspection
     inventory_account      VARCHAR(40),
     cogs_account           VARCHAR(40),
     attributes             JSON NOT NULL DEFAULT (JSON_OBJECT()),

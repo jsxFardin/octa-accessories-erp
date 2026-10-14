@@ -177,6 +177,8 @@ export function technicalSection() {
             { key: 'is_shade_critical', label: 'Shade critical', type: 'checkbox', rule: 'BR-37', checkboxLabel: 'Suggest same-shade lots first' },
             { key: 'has_expiry', label: 'Has expiry', type: 'checkbox', rule: 'BR-39' },
             { key: 'shelf_life_days', label: 'Shelf life (days)', type: 'number', when: (form) => Boolean(form.has_expiry) },
+            // QL-1: a received lot of this item waits in quarantine until an incoming inspection passes it.
+            { key: 'requires_incoming_qc', label: 'Inspect on arrival', type: 'checkbox', hint: 'Received lots stay in quarantine until incoming QC accepts them.' },
         ],
     };
 }

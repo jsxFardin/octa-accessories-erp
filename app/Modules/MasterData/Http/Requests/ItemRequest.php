@@ -63,6 +63,7 @@ class ItemRequest extends FormRequest
             'tool_cavities' => ['nullable', 'integer', 'min:1', Rule::requiredIf($type === 'tool')],
             'service_charge_basis' => ['nullable', Rule::in(array_keys(ItemVocabulary::CHARGE_BASES)), Rule::requiredIf($type === 'service')],
             'qc_plan_ref' => ['nullable', 'string', 'max:80'],
+            'requires_incoming_qc' => ['boolean'],
             'inventory_account' => ['nullable', 'string', 'max:40'],
             'cogs_account' => ['nullable', 'string', 'max:40'],
             'attributes' => ['array'],

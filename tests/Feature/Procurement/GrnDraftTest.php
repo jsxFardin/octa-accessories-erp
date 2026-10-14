@@ -179,3 +179,54 @@ it('refuses to receive a line the order bought certified as plain stock', functi
 
     $this->actingAs($this->store)->post('/grns', ($this->payload)(['lines' => $lines]))->assertSessionHasNoErrors();
 });
+
+// GAP Q-01 — QL-1 / PR-4 AC5: an item inspected on arrival is received into quarantine with
+// its inspection raised; the verdict moves the lot and the GRN line's accepted/rejected split.
+it('receives an inspect-on-arrival item into quarantine and raises the incoming inspection', function (): void {
+    DB::table('items')->where('id', $this->items[0]->id)->update(['requires_incoming_qc' => true]);
+
+    $this->actingAs($this->store)->post('/grns', ($this->payload)())->assertSessionHasNoErrors();
+    $grn = Grn::query()->latest('id')->firstOrFail();
+    $lots = ($this->lotsOf)($grn);
+
+    expect($lots[0]->status)->toBe('quarantine')
+        ->and($lots[1]->status)->toBe('available');
+
+    $line = DB::table('grn_lines')->where('grn_id', $grn->id)->where('line_no', 1)->first();
+    $lot = DB::table('stock_lots')->where('grn_line_id', $line->id)->first();
+    $pending = DB::table('qc_inspections')->where('lot_id', $lot->id)->where('stage', 'incoming')->first();
+
+    expect($pending)->not->toBeNull()
+        ->and($pending->result)->toBe('pending')
+        ->and($pending->number)->not->toBeNull()
+        ->and((int) $pending->grn_line_id)->toBe((int) $line->id);
+
+    // The inspector's verdict lands on that row and releases the lot.
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail())
+        ->post('/qc-inspections', ['stage' => 'incoming', 'lot_id' => $lot->id, 'grn_line_id' => $line->id, 'lot_size' => 7, 'major_found' => 0])
+        ->assertSessionHasNoErrors();
+
+    expect(DB::table('qc_inspections')->where('lot_id', $lot->id)->where('stage', 'incoming')->count())->toBe(1)
+        ->and(DB::table('qc_inspections')->where('id', $pending->id)->value('result'))->toBe('accepted')
+        ->and(DB::table('stock_lots')->where('id', $lot->id)->value('status'))->toBe('available')
+        ->and((float) DB::table('grn_lines')->where('id', $line->id)->value('accepted_qty'))->toBeQty(7.0);
+});
+
+it('blocks a received lot the incoming inspection rejects and records the rejected quantity', function (): void {
+    DB::table('items')->where('id', $this->items[1]->id)->update(['requires_incoming_qc' => true]);
+
+    $this->actingAs($this->store)->post('/grns', ($this->payload)())->assertSessionHasNoErrors();
+    $grn = Grn::query()->latest('id')->firstOrFail();
+    $line = DB::table('grn_lines')->where('grn_id', $grn->id)->where('line_no', 2)->first();
+    $lot = DB::table('stock_lots')->where('grn_line_id', $line->id)->first();
+
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail())
+        ->post('/qc-inspections', ['stage' => 'incoming', 'lot_id' => $lot->id, 'grn_line_id' => $line->id, 'lot_size' => 13, 'major_found' => 13, 'disposition' => 'scrap'])
+        ->assertSessionHasNoErrors();
+
+    expect(DB::table('stock_lots')->where('id', $lot->id)->value('status'))->toBe('blocked')
+        ->and((float) DB::table('grn_lines')->where('id', $line->id)->value('rejected_qty'))->toBeQty(13.0)
+        ->and((float) DB::table('grn_lines')->where('id', $line->id)->value('accepted_qty'))->toBeQty(0.0)
+        // QL-1 AC4 — the NCR is drafted against the receipt.
+        ->and(DB::table('ncrs')->where('source', 'incoming')->exists())->toBeTrue();
+});

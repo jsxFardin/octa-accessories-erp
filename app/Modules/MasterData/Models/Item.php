@@ -66,6 +66,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int|null $tool_cavities
  * @property string|null $service_charge_basis
  * @property string|null $qc_plan_ref
+ * @property bool $requires_incoming_qc
  * @property string|null $inventory_account
  * @property string|null $cogs_account
  * @property array<array-key, mixed> $attributes
@@ -150,6 +151,7 @@ class Item extends Model
         'tool_cavities',
         'service_charge_basis',
         'qc_plan_ref',
+        'requires_incoming_qc',
         'inventory_account',
         'cogs_account',
         'attributes',
@@ -190,6 +192,7 @@ class Item extends Model
             'is_lot_tracked' => 'boolean',
             'is_shade_critical' => 'boolean',
             'has_expiry' => 'boolean',
+            'requires_incoming_qc' => 'boolean',
             'shelf_life_days' => 'integer',
             'tool_owner_customer_id' => 'integer',
             'tool_cavities' => 'integer',

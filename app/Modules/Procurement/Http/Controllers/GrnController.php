@@ -9,6 +9,7 @@ use App\Modules\Compliance\Services\CocPeriodGuard;
 use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\MasterData\Models\Item;
 use App\Modules\Procurement\Models\Grn;
+use App\Modules\Quality\Models\QcInspection;
 use App\Support\Calculators\InventoryValuator;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
@@ -573,9 +574,14 @@ class GrnController extends Controller
 
             $item = Item::query()->find($line->item_id);
 
+            // QL-1 AC1 / PR-4 AC5 — an item flagged for incoming QC is received into
+            // quarantine, with its inspection already raised: the lot is not issuable until
+            // the inspector passes it, and the queue shows what is waiting.
+            $quarantined = (bool) ($item?->requires_incoming_qc ?? false);
+
             // The lot inherits the claim from the GRN line (I5). This copy is the link an
             // auditor follows from a shipment back to a supplier certificate.
-            $this->posting->receive(
+            $lot = $this->posting->receive(
                 [
                     'lot_no' => $this->numbers->nextLotNumber(),
                     'item_id' => $line->item_id,
@@ -596,12 +602,25 @@ class GrnController extends Controller
                     'cert_scheme' => $line->cert_scheme,
                     'cert_claim_pct' => $line->cert_claim_pct ?? 0,
                     'cert_document_no' => $line->cert_document_no,
-                    'status' => 'available',
+                    'status' => $quarantined ? 'quarantine' : 'available',
                 ],
                 $qty,
                 $baseUnitCost,
                 $grn,
             );
+
+            if ($quarantined) {
+                QcInspection::query()->create([
+                    'number' => $this->numbers->next('qc_inspection'),
+                    'stage' => 'incoming',
+                    'grn_line_id' => $line->id,
+                    'lot_id' => $lot->getKey(),
+                    'lot_size' => (int) ceil($qty),
+                    'result' => 'pending',
+                    'inspected_on' => $receivedOn,
+                    'created_by' => $userId,
+                ]);
+            }
 
             // BR-42 — the certified input side of the reconciliation, written at the only
             // point a certified claim legitimately enters the system.
