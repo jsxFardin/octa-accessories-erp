@@ -564,7 +564,7 @@ const lineColumns = [
                         </dl>
                         <ul v-if="billing.invoices.length" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">
                             <li v-for="invoice in billing.invoices" :key="invoice.id" class="flex items-center justify-between gap-2 py-1.5">
-                                <Link :href="`/sales-invoices/${invoice.id}`" class="doc-link-quiet">{{ invoice.number ?? '(draft invoice)' }}</Link>
+                                <Link :href="`/invoices/${invoice.id}`" class="doc-link-quiet">{{ invoice.number ?? '(draft invoice)' }}</Link>
                                 <span class="tnum text-xs text-ink-500">{{ money(invoice.total, invoice.currency) }}</span>
                                 <Badge :status="invoice.status" />
                             </li>
