@@ -672,3 +672,18 @@ it('raises that notification from a rejected inspection, not only by hand', func
 
     expect(p24Notes($this->quality, 'raised')->count())->toBe($before + 1);
 });
+
+// GAP D-04 — mail joins the inbox once a real mailer is configured; never with log or array.
+it('adds the mail channel only when a real mailer is configured', function (): void {
+    $notification = new App\Notifications\DocumentNotification([
+        'document_type' => 'ncr', 'document_id' => 1, 'document_number' => 'NCR-1', 'action' => 'raised',
+        'href' => '/ncrs/1', 'title' => 'NCR NCR-1 raised', 'body' => 'A lot failed inspection.', 'dedupe_key' => 'ncr:raised:1',
+    ]);
+
+    config(['mail.default' => 'log']);
+    expect($notification->via($this->quality))->toBe(['database']);
+
+    config(['mail.default' => 'smtp']);
+    expect($notification->via($this->quality))->toBe(['database', 'mail'])
+        ->and($notification->toMail($this->quality)->subject)->toBe('NCR NCR-1 raised');
+});

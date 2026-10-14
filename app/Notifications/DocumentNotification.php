@@ -6,11 +6,13 @@ namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * One database notification. Channel is database only — mail is not production-safe here
- * (MAIL_MAILER=log) and is out of P2-4 scope.
+ * One document notification: always the in-app inbox, and mail as well once the installation
+ * has a real mailer. With `log` or `array` the mail would go nowhere, so it is not attempted;
+ * the dedupe key keeps the two channels in step because they are one notification.
  *
  * @phpstan-type Payload array{
  *     document_type: string,
@@ -35,7 +37,23 @@ class DocumentNotification extends Notification implements ShouldQueue
     /** @return list<string> */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $mailerWorks = ! in_array((string) config('mail.default'), ['log', 'array', ''], true);
+        $hasAddress = filled($notifiable->email ?? null);
+
+        return $mailerWorks && $hasAddress ? ['database', 'mail'] : ['database'];
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $message = (new MailMessage)
+            ->subject($this->payload['title'])
+            ->line($this->payload['title']);
+
+        if (filled($this->payload['body'] ?? null)) {
+            $message->line((string) $this->payload['body']);
+        }
+
+        return $message->action('Open '.$this->payload['document_type'].' '.($this->payload['document_number'] ?? ''), url($this->payload['href']));
     }
 
     /**
