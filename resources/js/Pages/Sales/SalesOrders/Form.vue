@@ -32,7 +32,23 @@ const isConfirmed = computed(
     () => isEdit.value && !['draft', 'credit_hold'].includes(props.order.status),
 );
 
-function blankLine() {
+/**
+ * BR-44 — the delivery band a new line starts with: the chosen customer's own where the
+ * customer record has one, the house default otherwise. Read at the moment a line is made,
+ * so `customerId` can be the value the form is about to hold rather than the one it holds.
+ */
+function tolerances(customerId) {
+    const customer = props.customers.find((row) => String(row.id) === String(customerId ?? ''));
+
+    return {
+        over: Number(customer?.over_tolerance_pct ?? props.defaults.over_tolerance_pct),
+        under: Number(customer?.under_tolerance_pct ?? props.defaults.under_tolerance_pct),
+    };
+}
+
+function blankLine(customerId = form.customer_id) {
+    const band = tolerances(customerId);
+
     return {
         id: null,
         product_id: '',
@@ -41,8 +57,8 @@ function blankLine() {
         ordered_qty: '',
         rate_per_m: '',
         tooling_charge: 0,
-        over_tolerance_pct: Number(props.defaults.over_tolerance_pct),
-        under_tolerance_pct: Number(props.defaults.under_tolerance_pct),
+        over_tolerance_pct: band.over,
+        under_tolerance_pct: band.under,
         promised_date: '',
         produced_qty: 0,
     };
@@ -69,7 +85,8 @@ const form = useForm({
             over_tolerance_pct: typed(line.over_tolerance_pct),
             under_tolerance_pct: typed(line.under_tolerance_pct),
         }))
-        : [blankLine()],
+        // Named explicitly: `form` does not exist yet while its own initialiser runs.
+        : [blankLine(props.order?.customer_id ?? '')],
 });
 
 /*
@@ -203,12 +220,24 @@ function submit() {
  */
 const droppedProducts = ref(0);
 
-watch(() => form.customer_id, (customer) => {
+watch(() => form.customer_id, (customer, previous) => {
     droppedProducts.value = 0;
 
     if (!customer) return;
 
+    // Lines still on the previous customer's band move to the new one's; a band someone typed
+    // by hand, or a line with production against it, is left alone.
+    const was = tolerances(previous);
+    const now = tolerances(customer);
+
     form.lines.forEach((line) => {
+        if (!(Number(line.produced_qty) > 0)
+            && Number(line.over_tolerance_pct) === was.over
+            && Number(line.under_tolerance_pct) === was.under) {
+            line.over_tolerance_pct = now.over;
+            line.under_tolerance_pct = now.under;
+        }
+
         const product = productOf(line);
 
         // A line with production against it keeps its product: that is history, not a typo.

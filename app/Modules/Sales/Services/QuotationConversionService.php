@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Services;
 
 use App\Models\User;
+use App\Modules\MasterData\Models\Customer;
 use App\Modules\MasterData\Models\CustomerAddress;
 use App\Modules\Product\Models\Product;
 use App\Modules\Sales\Models\Quotation;
@@ -132,6 +133,13 @@ class QuotationConversionService
                 throw ValidationException::withMessages(['quotation' => $refusal]);
             }
 
+            // BR-44 — the band is the customer's where they have one, the house default
+            // otherwise. It used to come from settings for everyone, which made the per-customer
+            // columns on the customer record decorative.
+            $customer = Customer::query()->find($locked->customer_id);
+            $overTolerance = $customer?->over_tolerance_pct ?? $this->settings->decimal('over_tolerance_pct', 5);
+            $underTolerance = $customer?->under_tolerance_pct ?? $this->settings->decimal('under_tolerance_pct', 5);
+
             $deliveryAddress = CustomerAddress::defaultDeliveryFor((int) $locked->customer_id);
             $billingAddress = CustomerAddress::query()
                 ->where('customer_id', $locked->customer_id)
@@ -180,8 +188,8 @@ class QuotationConversionService
                     'rate_per_m' => $line->rate_per_m,
                     'tooling_charge' => $line->tooling_charge,
                     'line_total' => $lineTotal,
-                    'over_tolerance_pct' => $this->settings->decimal('over_tolerance_pct', 5),
-                    'under_tolerance_pct' => $this->settings->decimal('under_tolerance_pct', 5),
+                    'over_tolerance_pct' => $overTolerance,
+                    'under_tolerance_pct' => $underTolerance,
                     'status' => 'open',
                 ]);
             }
