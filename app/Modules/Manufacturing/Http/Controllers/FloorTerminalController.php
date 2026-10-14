@@ -63,6 +63,18 @@ class FloorTerminalController extends Controller
         $session = $this->sessions->issue($data['card_no'], $data['pin'], $data['machine_code'] ?? null);
 
         if ($session === null) {
+            $wait = $this->sessions->lockoutSecondsRemaining($data['card_no']);
+
+            if ($wait > 0) {
+                $minutes = (int) ceil($wait / 60);
+
+                return back()->with('error', sprintf(
+                    'অনেকবার ভুল পিন। %d মিনিট পর আবার চেষ্টা করুন · Too many wrong PINs for this badge. Try again in %d minutes.',
+                    $minutes,
+                    $minutes,
+                ));
+            }
+
             return back()->with('error', 'ব্যাজ বা পিন মেলেনি · Badge or PIN not recognised.');
         }
 

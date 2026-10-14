@@ -25,6 +25,15 @@ class DeviceSessionController extends Controller
         $session = $this->sessions->issue($data['card_no'], $data['pin'], $data['machine_code'] ?? null);
 
         if ($session === null) {
+            $wait = $this->sessions->lockoutSecondsRemaining($data['card_no']);
+
+            if ($wait > 0) {
+                return response()->json([
+                    'message' => sprintf('Too many wrong PINs for this badge. Try again in %d minutes.', (int) ceil($wait / 60)),
+                    'retry_after' => $wait,
+                ], 429, ['Retry-After' => (string) $wait]);
+            }
+
             return response()->json(['message' => 'Badge or PIN not recognised.'], 401);
         }
 
