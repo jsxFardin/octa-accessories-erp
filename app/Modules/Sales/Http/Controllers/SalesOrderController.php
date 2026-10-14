@@ -214,6 +214,23 @@ class SalesOrderController extends Controller
             ->orderByDesc('si.id')
             ->get(['si.id', 'si.number', 'si.status', 'si.invoice_date', 'si.due_date', 'si.total', 'si.received_amount', 'cur.code as currency']);
 
+        // One query each for the artwork and BOM readiness of every line, instead of two per
+        // line: a twenty-line order used to open forty-plus queries to draw its banner.
+        $productIds = $salesOrder->lines->pluck('product_id')->filter()->map(fn ($id): int => (int) $id)->unique()->values();
+        $approvedArtwork = DB::table('artwork_versions as av')
+            ->join('artworks as a', 'a.id', '=', 'av.artwork_id')
+            ->whereIn('a.product_id', $productIds)
+            ->where('av.status', ArtworkVersion::APPROVED)
+            ->distinct()
+            ->pluck('a.product_id')
+            ->map(fn ($id): int => (int) $id);
+        $activeBoms = DB::table('boms')
+            ->whereIn('product_id', $productIds)
+            ->where('status', 'active')
+            ->distinct()
+            ->pluck('product_id')
+            ->map(fn ($id): int => (int) $id);
+
         return Inertia::render('Sales/SalesOrders/Show', [
             'order' => [
                 ...$salesOrder->only([
@@ -246,9 +263,7 @@ class SalesOrderController extends Controller
                 'product' => $line->product?->only(['id', 'code', 'name', 'product_type']),
                 'spec_version' => $line->spec?->version_no,
                 'spec_is_current' => $line->spec?->isCurrent() ?? false,
-                'artwork_approved' => $line->product?->artworks
-                    ->flatMap->versions
-                    ->contains(fn ($v): bool => $v->status === ArtworkVersion::APPROVED) ?? false,
+                'artwork_approved' => $approvedArtwork->contains((int) $line->product_id),
                 // BR-44 — the band the shipment must land inside, shown next to the quantity
                 // rather than discovered at the loading bay.
                 'delivery_band' => [
@@ -267,10 +282,8 @@ class SalesOrderController extends Controller
                 // So the banner can link to the product instead of only naming it.
                 'product_id' => $line->product_id,
                 'spec' => $line->spec?->isCurrent() ?? false,
-                'artwork' => $line->product?->artworks
-                    ->flatMap->versions
-                    ->contains(fn ($v): bool => $v->status === ArtworkVersion::APPROVED) ?? false,
-                'bom' => $line->product?->activeBom()->exists() ?? false,
+                'artwork' => $approvedArtwork->contains((int) $line->product_id),
+                'bom' => $activeBoms->contains((int) $line->product_id),
             ]),
             'creditCheck' => $this->states->creditCheck($salesOrder),
             'availableTransitions' => $this->states->available($salesOrder),

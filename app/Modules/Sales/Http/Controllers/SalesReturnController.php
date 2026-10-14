@@ -33,7 +33,10 @@ class SalesReturnController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = SalesReturn::query()->with(['salesInvoice:id,number,status'])->withCount('lines');
+        $query = SalesReturn::query()->with(['salesInvoice:id,number,status'])->withCount('lines')
+            // One query for the page, not one per row.
+            ->select('sales_returns.*')
+            ->addSelect(['customer_name' => DB::table('customers')->select('name')->whereColumn('customers.id', 'sales_returns.customer_id')->limit(1)]);
 
         $this->applyListing(
             $query,
@@ -49,7 +52,7 @@ class SalesReturnController extends Controller
                 fn (SalesReturn $return): array => [
                     ...$return->only(['id', 'number', 'returned_on', 'reason', 'status', 'lines_count']),
                     'invoice' => $return->salesInvoice?->only(['id', 'number', 'status']),
-                    'customer' => DB::table('customers')->where('id', $return->customer_id)->value('name'),
+                    'customer' => $return->customer_name,
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'customer']),

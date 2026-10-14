@@ -34,7 +34,8 @@ class TripController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = Trip::query()->with(['vehicle:id,registration_no', 'driver:id,name']);
+        $query = Trip::query()->with(['vehicle:id,registration_no', 'driver:id,name'])
+            ->withCount('stops');
 
         $user = $request->user();
 
@@ -61,7 +62,7 @@ class TripController extends Controller
                     ...$trip->only(['id', 'number', 'trip_date', 'route_zone', 'status']),
                     'vehicle' => $trip->vehicle?->registration_no,
                     'driver' => $trip->driver?->name,
-                    'stops' => $trip->stops()->count(),
+                    'stops' => (int) $trip->stops_count,
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status']),

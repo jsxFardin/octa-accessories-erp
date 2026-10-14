@@ -59,7 +59,13 @@ class MaterialIssueController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = MaterialIssue::query();
+        $query = MaterialIssue::query()
+            ->select('material_issues.*')
+            ->addSelect([
+                'job_card_number' => DB::table('job_cards')->select('number')->whereColumn('job_cards.id', 'material_issues.job_card_id')->limit(1),
+                'warehouse_code' => DB::table('warehouses')->select('code')->whereColumn('warehouses.id', 'material_issues.warehouse_id')->limit(1),
+                'line_count' => DB::table('material_issue_lines')->selectRaw('COUNT(*)')->whereColumn('material_issue_lines.material_issue_id', 'material_issues.id'),
+            ]);
 
         $this->applyListing(
             $query,
@@ -74,11 +80,11 @@ class MaterialIssueController extends Controller
             'issues' => $query->paginate($this->perPage($request))->withQueryString()->through(
                 fn (MaterialIssue $issue): array => [
                     ...$issue->only(['id', 'number', 'issued_on', 'issue_type', 'status', 'job_card_id']),
-                    // The row said `job_card_id: 14`. Which job that is was a second lookup.
-                    'job_card_number' => DB::table('job_cards')->where('id', $issue->job_card_id)->value('number'),
-                    'warehouse' => DB::table('warehouses')->where('id', $issue->warehouse_id)->value('code'),
-                    'line_count' => DB::table('material_issue_lines')
-                        ->where('material_issue_id', $issue->id)->count(),
+                    // The row said `job_card_id: 14`. Which job that is was a second lookup —
+                    // and, until the subselects below, three more queries per row.
+                    'job_card_number' => $issue->job_card_number,
+                    'warehouse' => $issue->warehouse_code,
+                    'line_count' => (int) $issue->line_count,
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'job_card']),
