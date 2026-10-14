@@ -151,7 +151,7 @@ class QcInspectionController extends Controller
             'grn_line_id' => ['nullable', 'integer', 'exists:grn_lines,id'],
             // Stage vocabulary must match `qc_inspections_stage_chk` — the CHECK constraint is
             // the canonical list. `pre_dispatch` was a drift that the database rejected mid-save.
-            'stage' => ['required', Rule::in(['incoming', 'in_process', 'final', 'pre_shipment'])],
+            'stage' => ['required', Rule::in(['incoming', 'in_process', 'final', 'pre_shipment', 'customer'])],
             'lot_size' => ['required', 'integer', 'min:1'],
             'major_found' => ['integer', 'min:0'],
             'minor_found' => ['integer', 'min:0'],
@@ -189,7 +189,16 @@ class QcInspectionController extends Controller
             (int) ($data['major_found'] ?? 0),
             (int) ($data['critical_found'] ?? 0),
             $seeded ?: null,
+            (int) ($data['minor_found'] ?? 0),
         );
+
+        // QC1 — the inspection names the plan row its sample came from, so an auditor can
+        // re-derive the verdict. The lookup had the rows and never kept the id.
+        $aqlPlanId = DB::table('aql_plans')
+            ->where('standard', 'ISO 2859-1')->where('inspection_level', 'II')->where('aql_value', 2.5)
+            ->where('lot_size_from', '<=', (int) $data['lot_size'])
+            ->where('lot_size_to', '>=', (int) $data['lot_size'])
+            ->value('id');
 
         // BR-33 / QC2 — mirrored here so the message is useful; the CHECK constraint is what
         // makes it impossible.
@@ -197,7 +206,7 @@ class QcInspectionController extends Controller
             return back()->with('error', 'BR-33: a rejected lot needs a disposition — rework, concession, downgrade or scrap.');
         }
 
-        $inspection = DB::transaction(function () use ($data, $outcome, $request): QcInspection {
+        $inspection = DB::transaction(function () use ($data, $outcome, $aqlPlanId, $request): QcInspection {
             // QL-1 AC1 — a lot received into quarantine already has its inspection waiting,
             // raised by the GRN posting with the number allocated. The verdict lands on that
             // row rather than beside it, so the queue of pending incoming inspections empties
@@ -208,6 +217,7 @@ class QcInspectionController extends Controller
 
             $inspection = $pending ?? new QcInspection(['number' => $this->numbers->next('qc_inspection')]);
             $inspection->fill([
+                'aql_plan_id' => $aqlPlanId,
                 'job_card_id' => $data['job_card_id'] ?? null,
                 'job_card_operation_id' => $data['job_card_operation_id'] ?? null,
                 'lot_id' => $data['lot_id'] ?? null,

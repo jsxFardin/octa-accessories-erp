@@ -115,3 +115,15 @@ it('computes the certified portion of an output quantity for the coc ledger', fu
     expect($this->coc->certifiedQty(10_000, 35.0))->toBeQty(3_500.0)
         ->and(fn () => $this->coc->certifiedQty(10_000, 120.0))->toThrow(InvalidArgumentException::class);
 });
+
+// GAP Q-04 — BR-31: the DHU counts every defect found, minors included; the verdict does not.
+it('br31: inspect counts minor defects in the DHU but not in the verdict', function (): void {
+    $plan = [['min' => 1, 'max' => 100000, 'sample' => 200, 'accept' => 10, 'reject' => 11]];
+
+    $withMinors = $this->aql->inspect(5000, majorDefects: 2, criticalDefects: 0, plan: $plan, minorDefects: 8);
+    $without = $this->aql->inspect(5000, majorDefects: 2, criticalDefects: 0, plan: $plan);
+
+    expect($withMinors['result'])->toBe('accepted')
+        ->and($withMinors['dhu'])->toBe(5.0)
+        ->and($without['dhu'])->toBe(1.0);
+});

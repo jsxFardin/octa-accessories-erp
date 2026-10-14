@@ -176,3 +176,18 @@ it('downgrade moves the rejected FG into a second-quality lot that carries no cl
     $ncr = App\Modules\Quality\Models\Ncr::query()->latest('id')->firstOrFail();
     expect($ncr->pendingAction()['status'])->toBe('applied');
 });
+
+// GAP Q-04 — QC1: the inspection names the AQL plan row it sampled from; the DHU counts minors.
+it('records the AQL plan it used and counts minor defects in the DHU', function (): void {
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
+    $this->post('/qc-inspections', [
+        'job_card_id' => $this->jobCard->id, 'stage' => 'final', 'lot_size' => 500,
+        'major_found' => 0, 'minor_found' => 5,
+    ])->assertSessionHasNoErrors();
+
+    $inspection = DB::table('qc_inspections')->orderByDesc('id')->first();
+
+    expect($inspection->aql_plan_id)->not->toBeNull()
+        ->and((float) $inspection->dhu)->toBe(round(5 / (int) $inspection->sample_size * 100, 4))
+        ->and($inspection->result)->toBe('accepted');
+});
