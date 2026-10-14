@@ -233,6 +233,9 @@ class TripController extends Controller
                     'started_at', 'completed_at', 'start_odometer', 'end_odometer', 'fuel_cost', 'remarks']),
                 'vehicle' => $trip->vehicle?->registration_no,
                 'driver' => $trip->driver?->name,
+                // DF-4 AC3 — said before Start is pressed, refused on the server if ignored.
+                'capacity_kg' => $trip->vehicle?->capacity_kg,
+                'load_kg' => $this->loadKg($trip),
             ],
             'stops' => $trip->stops->sortBy('sequence_no')->values()->map(function (TripStop $stop) use ($challans, $customers, $contacts, $addresses): array {
                 $challan = $stop->delivery_challan_id ? $challans->get($stop->delivery_challan_id) : null;
@@ -298,6 +301,16 @@ class TripController extends Controller
         return back()->with('success', 'Stop order saved.');
     }
 
+    /** The gross weight of every packed list riding on this trip's delivery notes. */
+    private function loadKg(Trip $trip): float
+    {
+        return (float) DB::table('trip_stops as ts')
+            ->join('delivery_challans as dc', 'dc.id', '=', 'ts.delivery_challan_id')
+            ->join('packing_lists as pl', 'pl.id', '=', 'dc.packing_list_id')
+            ->where('ts.trip_id', $trip->getKey())
+            ->sum('pl.gross_weight_kg');
+    }
+
     /** DF-4 AC4 — start the trip; challans go in_transit. */
     public function start(Request $request, Trip $trip): RedirectResponse
     {
@@ -310,13 +323,33 @@ class TripController extends Controller
         // ever asked for the start, so distance per trip could not be worked out.
         $data = $request->validate([
             'start_odometer' => ['nullable', 'numeric', 'min:0'],
+            'overload_reason' => ['nullable', 'string', 'max:255'],
         ]);
+
+        // DF-4 AC3 — the load against the vehicle's capacity. The column was selected for
+        // the picker and never compared; a 1.5 t pickup could be sent out with three tonnes
+        // of cartons on paper. Going anyway is a dispatcher's call, with a reason on record.
+        $load = $this->loadKg($trip);
+        $capacity = (float) ($trip->vehicle->capacity_kg ?? 0);
+
+        if ($capacity > 0 && $load > $capacity + 0.001 && blank($data['overload_reason'] ?? null)) {
+            throw ValidationException::withMessages([
+                'overload_reason' => sprintf(
+                    'This trip loads %s kg onto a vehicle rated for %s kg. Move a delivery note to another trip, or say why it is going anyway.',
+                    rtrim(rtrim(number_format($load, 3, '.', ''), '0'), '.'),
+                    rtrim(rtrim(number_format($capacity, 3, '.', ''), '0'), '.'),
+                ),
+            ]);
+        }
 
         DB::transaction(function () use ($trip, $data): void {
             $trip->forceFill([
                 'status' => 'in_transit',
                 'started_at' => now(),
                 'start_odometer' => $data['start_odometer'] ?? $trip->start_odometer,
+                'remarks' => filled($data['overload_reason'] ?? null)
+                    ? trim(($trip->remarks ? $trip->remarks."\n" : '').'Overloaded on departure: '.$data['overload_reason'])
+                    : $trip->remarks,
             ])->save();
 
             foreach ($trip->stops()->get() as $stop) {

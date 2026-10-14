@@ -230,3 +230,32 @@ it('lets a driver open and record their own trip, and nobody else\'s', function 
     $this->post("/trips/{$theirs}/stops/{$stop($theirs)}/deliver", ['received_by_name' => 'Gate'])->assertForbidden();
     expect(DB::table('trip_stops')->where('id', $stop($theirs))->value('status'))->toBe('pending');
 });
+
+// GAP F-06 — DF-4 AC3: a trip does not leave overloaded without a dispatcher saying why.
+it('refuses to start a trip that loads more than the vehicle is rated for, unless a reason is given', function (): void {
+    DB::table('vehicles')->where('id', $this->vehicleId)->update(['capacity_kg' => 100]);
+
+    $listId = DB::table('packing_lists')->insertGetId([
+        'sales_order_id' => DB::table('sales_orders')->where('customer_id', $this->customerId)->value('id'),
+        'customer_id' => $this->customerId, 'status' => 'dispatched', 'total_cartons' => 3, 'total_qty' => 3000,
+        'gross_weight_kg' => 150, 'net_weight_kg' => 140, 'created_at' => now(),
+    ]);
+    $noteId = ($this->note)('DC-HEAVY');
+    DB::table('delivery_challans')->where('id', $noteId)->update(['packing_list_id' => $listId]);
+
+    ($this->plan)([$noteId])->assertSessionHasNoErrors();
+    $tripId = (int) DB::table('trips')->latest('id')->value('id');
+
+    $this->get("/trips/{$tripId}")->assertInertia(fn ($page) => $page
+        ->where('trip.load_kg', fn ($v) => (float) $v === 150.0)
+        ->where('trip.capacity_kg', fn ($v) => (float) $v === 100.0));
+
+    $this->post("/trips/{$tripId}/start", ['start_odometer' => 10])->assertSessionHasErrors('overload_reason');
+    expect(DB::table('trips')->where('id', $tripId)->value('status'))->toBe('planned');
+
+    $this->post("/trips/{$tripId}/start", ['start_odometer' => 10, 'overload_reason' => 'Light cartons; axle load checked at the gate.'])
+        ->assertSessionHasNoErrors();
+
+    expect(DB::table('trips')->where('id', $tripId)->value('status'))->toBe('in_transit')
+        ->and(DB::table('trips')->where('id', $tripId)->value('remarks'))->toContain('Overloaded on departure');
+});
