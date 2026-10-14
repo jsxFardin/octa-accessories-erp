@@ -225,6 +225,10 @@ class FloorTerminalController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        // A kiosk may still carry the hash of whoever was signed in at the desk before this
+        // badge; `AuthenticateSession` would compare the new operator against it and sign them
+        // straight back out. A badge sign-in starts that check afresh.
+        $request->session()->forget('password_hash_'.config('auth.defaults.guard'));
         $request->session()->put(self::TOKEN_KEY, $session->token);
 
         // `can:operation.terminal` guards the queue. Refusing here, with a reason, beats

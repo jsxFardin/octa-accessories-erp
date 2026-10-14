@@ -15,6 +15,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
@@ -75,7 +76,7 @@ class UserController extends Controller
     {
         $data = $this->validated($request);
 
-        $user = DB::transaction(function () use ($data): User {
+        $user = DB::transaction(function () use ($request, $data): User {
             /** @var User $user */
             $user = User::query()->create([
                 'name' => $data['name'],
@@ -86,7 +87,7 @@ class UserController extends Controller
                 'email_verified_at' => now(),
             ]);
 
-            $this->assignRole($user, $data['role_id']);
+            $this->assignRole($user, $data['role_id'], $request->user());
             $this->syncEmployee($user, $data);
 
             return $user;
@@ -102,7 +103,7 @@ class UserController extends Controller
         $data = $this->validated($request, $user);
         $before = $user->roleNames();
 
-        DB::transaction(function () use ($user, $data): void {
+        DB::transaction(function () use ($request, $user, $data): void {
             $user->update([
                 'name' => $data['name'],
                 'email' => $data['email'],
@@ -110,12 +111,24 @@ class UserController extends Controller
                 'is_active' => $data['is_active'],
             ]);
 
-            // An empty password field means "leave it alone", not "blank it".
+            // An empty password field means "leave it alone", not "blank it". A new one ends
+            // every session the account has open (NFR-26): `AuthenticateSession` signs out the
+            // ones whose stored hash no longer matches, and a fresh remember token ends the
+            // ones a remember-me cookie would otherwise re-open.
             if (filled($data['password'] ?? null)) {
-                $user->forceFill(['password' => $data['password']])->save();
+                $user->forceFill([
+                    'password' => $data['password'],
+                    'remember_token' => Str::random(60),
+                ])->save();
             }
 
-            $this->assignRole($user, $data['role_id']);
+            // `user.update` edits the person; changing what they may do is `user.assign_role`,
+            // the same permission the dedicated role action is behind. Without this line the
+            // edit form was a second, unguarded door to that action.
+            if ($this->roleChanges($user, $data['role_id'])) {
+                $this->assignRole($user, $data['role_id'], $request->user());
+            }
+
             $this->syncEmployee($user, $data);
         });
 
@@ -149,8 +162,8 @@ class UserController extends Controller
 
         $before = $user->roleNames();
 
-        DB::transaction(function () use ($user, $data): void {
-            $this->assignRole($user, $data['role_id']);
+        DB::transaction(function () use ($request, $user, $data): void {
+            $this->assignRole($user, $data['role_id'], $request->user());
         });
 
         $user->load('roles');
@@ -217,8 +230,21 @@ class UserController extends Controller
         ]);
     }
 
-    /** One user, one role — enforced here rather than trusted to the form. */
+    private function roleChanges(User $user, int $roleId): bool
+    {
+        return $user->roles()->pluck('roles.id')->all() !== [$roleId];
+    }
+
     /**
+     * One user, one role — enforced here rather than trusted to the form.
+     *
+     * Three refusals, all about who may hand out what (06-rbac §7):
+     *
+     * - A role change from the edit form needs `user.assign_role`, like the role action does.
+     * - Nobody changes their own role. The only reason to would be to give yourself more.
+     * - `super_admin` is granted and taken away only by a super_admin. A permission cannot
+     *   be used to mint an account that outranks every permission.
+     *
      * 06-rbac §4 — `portal_customer` cannot be handed out until customer scoping exists.
      *
      * The role already carries `sales_order.view_any`, `sales_invoice.view_any` and
@@ -233,9 +259,30 @@ class UserController extends Controller
      * Both the create form and the role-change action come through here, so there is one place
      * to remove this from when the scoping lands (see `routes/portal.php`).
      */
-    private function assignRole(User $user, int $roleId): void
+    private function assignRole(User $user, int $roleId, User $actor): void
     {
         $name = Role::query()->whereKey($roleId)->value('name');
+
+        if (! $actor->hasPermission('user.assign_role')) {
+            throw ValidationException::withMessages([
+                'role_id' => 'Changing a role needs the "assign role" permission. The rest of the form can still be saved with the current role.',
+            ]);
+        }
+
+        if ($user->exists && $user->is($actor)) {
+            throw ValidationException::withMessages([
+                'role_id' => 'You cannot change your own role. Ask another administrator.',
+            ]);
+        }
+
+        $touchesSuperAdmin = $name === Role::SUPER_ADMIN
+            || ($user->exists && $user->hasRole(Role::SUPER_ADMIN));
+
+        if ($touchesSuperAdmin && ! $actor->hasRole(Role::SUPER_ADMIN)) {
+            throw ValidationException::withMessages([
+                'role_id' => 'Only a super administrator can grant or remove the super administrator role.',
+            ]);
+        }
 
         if ($name === 'portal_customer') {
             throw ValidationException::withMessages([

@@ -23,4 +23,20 @@ abstract class TestCase extends BaseTestCase
      * three-second suite into a four-minute one.
      */
     protected bool $seed = true;
+
+    /**
+     * Switching persona mid-test is a new sign-in, not a hijack.
+     *
+     * `AuthenticateSession` (NFR-26) signs a session out when the account's password hash no
+     * longer matches the one the session was opened with. `actingAs()` swaps the user but keeps
+     * the test's session, so the second persona would be compared against the first one's hash
+     * and bounced to the login page. A real sign-in starts from a session without that key, and
+     * so does this.
+     */
+    public function be(\Illuminate\Contracts\Auth\Authenticatable $user, $guard = null)
+    {
+        $this->app['session.store']->forget('password_hash_'.($guard ?? config('auth.defaults.guard')));
+
+        return parent::be($user, $guard);
+    }
 }

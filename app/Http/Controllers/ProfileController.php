@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
@@ -76,6 +77,10 @@ class ProfileController extends Controller
             'locale' => $data['locale'] ?? $user->locale,
         ])->save();
 
-        return back()->with('success', 'Password updated.');
+        // NFR-26 — every other browser signed in as this account is signed out, including
+        // ones kept alive by a remember-me cookie. This one stays.
+        Auth::logoutOtherDevices($data['password']);
+
+        return back()->with('success', 'Password updated. Any other browser signed in as you has been signed out.');
     }
 }
