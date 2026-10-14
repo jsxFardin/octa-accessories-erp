@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Models\User;
+use App\Support\Platform\HealthCheck;
 use App\Support\Platform\QueueHealth;
 use App\Support\Scoping\PortalContext;
 use App\Support\Settings\Settings;
 use App\Support\Validation\DocumentValidator;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Http\Request;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Event;
@@ -115,6 +117,9 @@ class AppServiceProvider extends ServiceProvider
          * Configuration → Settings and `queue:health` say "worker unavailable" instead.
          */
         Event::listen(JobProcessed::class, fn () => app(QueueHealth::class)->recordHeartbeat());
+
+        // NFR-62 — `/up` proves the database, the cache and the disk, not only that PHP boots.
+        Event::listen(DiagnosingHealth::class, fn () => app(HealthCheck::class)->run());
 
         RateLimiter::for('login', fn (Request $request) => [
             Limit::perMinute(5)->by(Str::lower((string) $request->input('email')).'|'.$request->ip()),

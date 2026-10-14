@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetLocale;
 use App\Support\Http\LandingPage;
@@ -45,6 +46,10 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // NFR-58 — a request id on every log line and response, before anything else runs.
+        $middleware->web(prepend: [AssignRequestId::class]);
+        $middleware->api(prepend: [AssignRequestId::class]);
+
         $middleware->web(append: [
             /*
              * NFR-26 — a password change signs every other session out. The middleware keeps
