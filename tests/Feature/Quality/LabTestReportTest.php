@@ -243,3 +243,38 @@ it('shows the form the pass value the chosen customer asks for', function (): vo
             ->where("thresholds.{$test->id}.from_customer", true)
             ->where("thresholds.{$test->id}.is_mandatory", true));
 });
+
+// GAP Q-05 — QL-6 AC1: a report issues only when every test the customer requires has a result.
+it('refuses to issue a report missing a test the customer requires, and issues once it is there', function (): void {
+    $customerId = (int) DB::table('customers')->orderBy('id')->value('id');
+    $required = $this->labTests->first();
+    $others = $this->labTests->where('id', '!=', $required->id);
+
+    DB::table('customer_test_requirements')->insert([
+        'customer_id' => $customerId, 'product_id' => null, 'lab_test_id' => $required->id, 'pass_value' => '4', 'is_mandatory' => true,
+    ]);
+
+    $value = fn ($t) => match ($t->scale) {
+        'grey_1_5' => '4.5', 'percent' => '1.5', 'delta_e' => '0.5', 'pass_fail' => 'pass', default => '5'
+    };
+
+    $this->actingAs($this->labTech)->post('/lab/reports', [
+        'tested_on' => now()->toDateString(),
+        'customer_id' => $customerId,
+        'results' => $others->map(fn ($t) => ['lab_test_id' => $t->id, 'result_value' => $value($t)])->values()->all(),
+    ])->assertRedirect();
+    $report = TestReport::query()->latest('id')->firstOrFail();
+
+    $this->post("/lab/reports/{$report->id}/transition", ['to' => 'issued'])
+        ->assertSessionHas('error', fn (string $message) => str_contains($message, $required->name));
+
+    expect($report->fresh()->status)->toBe('draft');
+
+    DB::table('test_report_lines')->insert([
+        'test_report_id' => $report->id, 'lab_test_id' => $required->id, 'result_value' => $value($required), 'result' => 'pass',
+    ]);
+
+    $this->post("/lab/reports/{$report->id}/transition", ['to' => 'issued'])->assertSessionHas('success');
+
+    expect($report->fresh()->status)->toBe('issued');
+});
