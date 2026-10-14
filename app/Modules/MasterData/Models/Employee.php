@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $skill_grade
  * @property \Illuminate\Support\Carbon|null $joined_on
  * @property bool $is_active
+ * @property string|null $pin_hash
  */
 class Employee extends Model
 {

@@ -18,11 +18,11 @@ trait Auditable
 {
     public static function bootAuditable(): void
     {
-        static::created(function (Model $model): void {
+        static::created(function (self $model): void {
             app(AuditLogger::class)->record($model, 'created', null, $model->auditAttributes($model->getAttributes()));
         });
 
-        static::updated(function (Model $model): void {
+        static::updated(function (self $model): void {
             // Secrets and noise are dropped first, so a change to nothing but `last_login_at`
             // or a remember token does not leave an "updated" row with an empty diff.
             $changed = $model->auditAttributes($model->getChanges());
@@ -41,7 +41,7 @@ trait Auditable
             );
         });
 
-        static::deleted(function (Model $model): void {
+        static::deleted(function (self $model): void {
             app(AuditLogger::class)->record($model, 'deleted', $model->auditAttributes($model->getOriginal()), null);
         });
     }

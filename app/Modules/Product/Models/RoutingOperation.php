@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool $consumes_web
  * @property bool $allow_parallel
  * @property bool $requires_qc
+ * @property bool $is_optional
  */
 class RoutingOperation extends Model
 {

@@ -423,7 +423,7 @@ class QuotationController extends Controller
         $payload = $quotation->toArray();
         $payload['lines'] = $quotation->lines->map(fn ($line): array => [
             ...$line->toArray(),
-            'extra_costs' => \App\Modules\Costing\CostComponents::fromLines($sheets->get($line->id)?->lines ?? []),
+            'extra_costs' => \App\Modules\Costing\CostComponents::fromLines($sheets->get($line->id)->lines ?? []),
             'overhead_pct' => $line->cost_overrides['overhead_pct'] ?? '',
             'admin_pct' => $line->cost_overrides['admin_pct'] ?? '',
             'customer_pays_tooling' => (bool) ($line->cost_overrides['customer_pays_tooling'] ?? false),

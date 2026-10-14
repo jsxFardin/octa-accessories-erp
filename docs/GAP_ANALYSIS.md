@@ -200,3 +200,10 @@ One row per finding as it is closed. `Done (sha)` names the commit; `Deferred` a
 | D-05 | Done (see schedule commit) — invoice overdue, certificate expiry, lot expiry. MRP nightly and over-limit digest remain open |
 | C-04 | Done (see schedule commit) — expiry flip and reminders; registration fields still optional |
 | P-15 | Partly done — lot expiry job; adjustment reason list, ageing/valuation reports open |
+| S-11 | Done (5f1a06c) |
+| E-08 | Done (fa98753) |
+| F-01 | Done (dcda1f0) — tax from the line's tax code, Mushak/LC references. One challan per invoice remains |
+| Q-02 | Done — a `requires_qc` step (other than the final one, which is J4's) finishes only once inspected; a failed in-process check holds the card and notifies supervisors, except on a rework disposition where the step is reopened instead |
+| Q-03 | Done — scrap writes a `scrap` movement at lot cost and a valued waste log; downgrade moves the pieces to a `second_quality` lot with no claim. Both act on the job's blocked FG lots at final rejection |
+| M-06 | Done — waste valued at the named input lot's cost. No ledger movement: the lot was already issued to the job; an unnamed lot stays at zero rather than an invented figure. Over-allowance supervisor flag (MF-5 AC3) open |
+| E-02 | Done — PHPStan level 6 reports 0 errors; Pint clean. Agent cleared the costing, master-data, product, quality, finance, support and seeder files; the rest was relation generics on the models |

@@ -178,7 +178,7 @@ class JobCardController extends Controller
             ->whereHas('item', fn ($q) => $q->where('make_or_buy', 'make')->where('status', 'active'))
             ->get()
             ->map(function (Product $product): array {
-                $artworkRequired = $product->product_type !== 'other' || (bool) ($product->item->family?->requires_artwork ?? false);
+                $artworkRequired = $product->product_type !== 'other' || (bool) ($product->item->family->requires_artwork ?? false);
                 $hasArtwork = DB::table('artworks as a')
                     ->join('artwork_versions as av', 'av.artwork_id', '=', 'a.id')
                     ->where('a.product_id', $product->id)
@@ -190,7 +190,7 @@ class JobCardController extends Controller
                     'code' => $product->code,
                     'name' => $product->name,
                     'family' => $product->item->family?->name,
-                    'uom' => $product->item->baseUom?->code ?? 'pcs',
+                    'uom' => $product->item->baseUom->code ?? 'pcs',
                     'missing' => $artworkRequired && ! $hasArtwork ? ['approved artwork'] : [],
                 ];
             })
@@ -277,13 +277,13 @@ class JobCardController extends Controller
 
         /** @var Product $product */
         $product = Product::query()->with(['routing.operations', 'activeBom', 'item.family'])
-            ->findOrFail($line?->product_id ?? $data['product_id']);
+            ->findOrFail($line->product_id ?? $data['product_id']);
 
         // The label families run on geometry: a spec, gross metres, ends. Every other family
         // runs in the item's own unit. Artwork is a gate where the family says so (printed
         // label, paper, packaging, decoration) and for every label type.
         $labelGeometry = $product->product_type !== 'other';
-        $artworkRequired = $labelGeometry || (bool) ($product->item->family?->requires_artwork ?? false);
+        $artworkRequired = $labelGeometry || (bool) ($product->item->family->requires_artwork ?? false);
 
         $approvedVersion = ArtworkVersion::query()
             ->whereIn('artwork_id', $product->artworks()->select('id'))

@@ -64,6 +64,7 @@ use Illuminate\Support\Facades\DB;
  * @property \Illuminate\Support\Carbon $created_at
  * @property int|null $created_by
  * @property \Illuminate\Support\Carbon|null $closed_at
+ * @property bool $for_stock
  */
 class JobCard extends Model
 {
@@ -216,6 +217,7 @@ class JobCard extends Model
         return ($this->product?->product_type ?? 'other') !== 'other';
     }
 
+    /** @return BelongsTo<SalesOrderLine, $this> */
     public function salesOrderLine(): BelongsTo
     {
         return $this->belongsTo(SalesOrderLine::class);

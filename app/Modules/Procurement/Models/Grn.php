@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
+ * @property-read string|null $po_number
  * @property int $id
  * @property string|null $number
  * @property int|null $po_id

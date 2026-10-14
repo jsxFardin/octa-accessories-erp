@@ -88,17 +88,23 @@ class Inquiry extends Model
         return $this->hasMany(InquiryLine::class, 'inquiry_id')->orderBy('line_no');
     }
 
+    /** @return BelongsTo<\App\Modules\MasterData\Models\CustomerContact, $this> */
     public function contact(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\CustomerContact::class, 'customer_contact_id');
     }
 
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Brand, $this> */
     public function brand(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\Brand::class, 'brand_id');
     }
 
-    /** Whoever is handling it — the creator by default, reassignable on the form. */
+    /**
+     * Whoever is handling it — the creator by default, reassignable on the form.
+     *
+     * @return BelongsTo<\App\Models\User, $this>
+     */
     public function merchandiser(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'merchandiser_id');

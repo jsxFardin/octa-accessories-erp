@@ -118,7 +118,11 @@ class SalesOrder extends Model
         return $this->belongsTo(Quotation::class, 'quotation_id');
     }
 
-    /** Whoever is handling it — set when the order is raised, reassignable later. */
+    /**
+     * Whoever is handling it — set when the order is raised, reassignable later.
+     *
+     * @return BelongsTo<\App\Models\User, $this>
+     */
     public function merchandiser(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'merchandiser_id');
@@ -139,6 +143,7 @@ class SalesOrder extends Model
         return $this->belongsTo(\App\Modules\MasterData\Models\CustomerAddress::class, 'delivery_address_id');
     }
 
+    /** @return HasMany<SalesOrderLine, $this> */
     public function lines(): HasMany
     {
         return $this->hasMany(SalesOrderLine::class, 'sales_order_id')->orderBy('line_no');

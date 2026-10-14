@@ -31,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $created_by
  * @property \Illuminate\Support\Carbon $created_at
  * @property-read \Illuminate\Database\Eloquent\Collection<int, SalesReturnLine> $lines
+ * @property-read string|null $customer_name
  */
 class SalesReturn extends Model
 {

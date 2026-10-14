@@ -137,8 +137,8 @@ class QuotationConversionService
             // otherwise. It used to come from settings for everyone, which made the per-customer
             // columns on the customer record decorative.
             $customer = Customer::query()->find($locked->customer_id);
-            $overTolerance = $customer?->over_tolerance_pct ?? $this->settings->decimal('over_tolerance_pct', 5);
-            $underTolerance = $customer?->under_tolerance_pct ?? $this->settings->decimal('under_tolerance_pct', 5);
+            $overTolerance = $customer->over_tolerance_pct ?? $this->settings->decimal('over_tolerance_pct', 5);
+            $underTolerance = $customer->under_tolerance_pct ?? $this->settings->decimal('under_tolerance_pct', 5);
 
             $deliveryAddress = CustomerAddress::defaultDeliveryFor((int) $locked->customer_id);
             $billingAddress = CustomerAddress::query()

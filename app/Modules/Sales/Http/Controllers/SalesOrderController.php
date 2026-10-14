@@ -677,8 +677,8 @@ class SalesOrderController extends Controller
 
         // BR-44 — a line that names no band takes the customer's, then the house default.
         $customer = $order->customer;
-        $overDefault = $customer?->over_tolerance_pct ?? $this->settings->decimal('over_tolerance_pct', 5);
-        $underDefault = $customer?->under_tolerance_pct ?? $this->settings->decimal('under_tolerance_pct', 5);
+        $overDefault = $customer->over_tolerance_pct ?? $this->settings->decimal('over_tolerance_pct', 5);
+        $underDefault = $customer->under_tolerance_pct ?? $this->settings->decimal('under_tolerance_pct', 5);
 
         foreach ($lines as $index => $line) {
             $attributes = [

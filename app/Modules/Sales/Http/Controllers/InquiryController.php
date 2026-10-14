@@ -16,7 +16,6 @@ use App\Support\Audit\AuditLog;
 use App\Support\Audit\DocumentTrail;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
-use App\Support\Numbering\NumberAllocator;
 use App\Support\Reference\Vocabulary;
 use App\Support\States\TransitionDenied;
 use App\Support\Text\Plain;
@@ -38,7 +37,6 @@ class InquiryController extends Controller
     use ListsResources;
 
     public function __construct(
-        private readonly NumberAllocator $numbers,
         private readonly DocumentTrail $trail,
         private readonly InquiryStateMachine $states,
     ) {}
