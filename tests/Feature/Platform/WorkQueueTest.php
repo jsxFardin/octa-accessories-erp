@@ -138,3 +138,31 @@ it('does not offer the job-card queue to someone who cannot raise one', function
     expect($accounts->hasPermission('job_card.create'))->toBeFalse()
         ->and(queueKeys($this, 'accounts@octapussolution.com'))->not->toContain('orders_awaiting_job_card');
 });
+
+// GAP P-16 / M-11 — the follow-up list for idle inquiries, and tools near the end of their life.
+it('lists open inquiries that have gone a week without a quotation', function (): void {
+    $merchandiser = User::query()->where('email', 'merchandiser@octapussolution.com')->firstOrFail();
+    DB::table('inquiries')->insert([
+        'number' => 'INQ-IDLE-1', 'customer_id' => DB::table('customers')->value('id'),
+        'inquiry_date' => now()->subDays(12)->toDateString(), 'status' => 'open',
+        'created_at' => now()->subDays(12), 'updated_at' => now()->subDays(12),
+    ]);
+
+    $card = collect(app(WorkQueue::class)->for($merchandiser))->firstWhere('key', 'inquiries_idle');
+
+    expect($card)->not->toBeNull()
+        ->and($card['count'])->toBeGreaterThanOrEqual(1);
+});
+
+it('lists tools past ninety percent of their rated life', function (): void {
+    $engineer = User::query()->where('email', 'engineer@octapussolution.com')->firstOrFail();
+    DB::table('tools')->insert([
+        'kind' => 'flexo_plate', 'code' => 'PLATE-WORN-1', 'life_impressions' => 1000, 'used_impressions' => 950, 'status' => 'available',
+    ]);
+
+    $card = collect(app(WorkQueue::class)->for($engineer))->firstWhere('key', 'tools_near_end_of_life');
+
+    expect($card)->not->toBeNull()
+        ->and($card['count'])->toBeGreaterThanOrEqual(1)
+        ->and($engineer->hasPermission('tool.view_any'))->toBeTrue();
+});
