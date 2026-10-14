@@ -230,3 +230,37 @@ it('blocks a received lot the incoming inspection rejects and records the reject
         // QL-1 AC4 — the NCR is drafted against the receipt.
         ->and(DB::table('ncrs')->where('source', 'incoming')->exists())->toBeTrue();
 });
+
+// GAP F-02 — FN-4: the bill total must land inside tolerance of what was received at order rates.
+it('refuses to approve a bill worth more than the receipt at the order rates', function (): void {
+    $this->actingAs($this->store)->post('/grns', ($this->payload)())->assertSessionHasNoErrors();
+    $grn = Grn::query()->latest('id')->firstOrFail();
+    $accounts = User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail();
+    $base = DB::table('currencies')->where('is_base', true)->value('id');
+
+    $bill = fn (array $lines) => $this->actingAs($accounts)->post('/supplier-bills', [
+        'supplier_id' => $this->order->supplier_id, 'po_id' => $this->order->id, 'grn_id' => $grn->id,
+        'bill_no' => 'B-'.uniqid(), 'bill_date' => now()->toDateString(), 'currency_id' => $base, 'lines' => $lines,
+    ]);
+
+    // Received 7 and 13 at a PO rate of 10 each: 200. A service line pads the bill to 320.
+    $bill([
+        ['item_id' => $this->items[0]->id, 'description' => 'Line 1', 'qty' => 7, 'rate' => 10],
+        ['item_id' => $this->items[1]->id, 'description' => 'Line 2', 'qty' => 13, 'rate' => 10],
+        ['item_id' => null, 'description' => 'Handling', 'qty' => 1, 'rate' => 120],
+    ])->assertSessionHasNoErrors();
+    $padded = App\Modules\Procurement\Models\SupplierBill::query()->latest('id')->firstOrFail();
+
+    $this->post("/supplier-bills/{$padded->id}/transition", ['to' => 'approved'])
+        ->assertSessionHas('error', fn (string $m) => str_contains($m, 'tolerance'));
+
+    expect($padded->fresh()->status)->toBe('draft');
+
+    $bill([
+        ['item_id' => $this->items[0]->id, 'description' => 'Line 1', 'qty' => 7, 'rate' => 10],
+        ['item_id' => $this->items[1]->id, 'description' => 'Line 2', 'qty' => 13, 'rate' => 10],
+    ])->assertSessionHasNoErrors();
+    $fair = App\Modules\Procurement\Models\SupplierBill::query()->latest('id')->firstOrFail();
+
+    $this->post("/supplier-bills/{$fair->id}/transition", ['to' => 'approved'])->assertSessionHas('success');
+});
