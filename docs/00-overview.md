@@ -2,8 +2,8 @@
 
 **Product:** Trimflow — Label & Garment-Accessory Manufacturing ERP
 **Primary customer:** Maheen Label (Bangladesh) — garment accessories manufacturer
-**Document status:** Specification, v1.0. No application code exists yet.
-**Stack (locked):** Laravel 12 · Inertia 2 · Vue 3 · Tailwind 4 · MySQL 8.0 · Redis 7 · single-company deployment
+**Document status:** Specification, v1.0, with the implementation alongside it. Where the code and this document differ, `docs/GAP_ANALYSIS.md` says so and the fix log says what was done.
+**Stack (locked):** Laravel 13 · Inertia 3 · Vue 3 · Tailwind 4 · MySQL 8.0 · Redis 7 · single-company deployment
 
 ---
 
@@ -139,7 +139,7 @@ Terms used with a precise meaning throughout the spec. Module docs assume these 
 
 | ID | Decision | Rationale | Consequence |
 |---|---|---|---|
-| AD-1 | Laravel 12 + Inertia 2 + Vue 3 monolith | ERP is ~150 CRUD screens with shared auth and validation; a split API+SPA doubles the surface for no benefit at this stage | Customer portal is a separate route group + middleware, not a separate app |
+| AD-1 | Laravel 13 + Inertia 3 + Vue 3 monolith | ERP is ~150 CRUD screens with shared auth and validation; a split API+SPA doubles the surface for no benefit at this stage | Customer portal is a separate route group + middleware, not a separate app |
 | AD-2 | MySQL 8.0 (InnoDB, utf8mb4) | Customer's existing operational stack; `JSON` columns for per-product-type spec attributes, enforced `CHECK` constraints (8.0.16+), `DECIMAL` exactness for money and quantity | No partial indexes and no materialised views — both are emulated, see [02-database-schema §5](02-database-schema.md#5-mysql-specific-decisions). Requires MySQL ≥ 8.0.16 |
 | AD-3 | Single company, no `company_id` | Decided by the customer. Simplest schema | A second factory as a *tenant* requires a schema-wide migration. Mitigated by AD-4 |
 | AD-4 | `factory_unit_id` on all operational tables | Maheen may run more than one production unit/floor | Multi-unit works from day one without multi-tenancy |

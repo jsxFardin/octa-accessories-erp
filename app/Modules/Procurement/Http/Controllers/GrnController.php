@@ -577,7 +577,7 @@ class GrnController extends Controller
             // QL-1 AC1 / PR-4 AC5 — an item flagged for incoming QC is received into
             // quarantine, with its inspection already raised: the lot is not issuable until
             // the inspector passes it, and the queue shows what is waiting.
-            $quarantined = (bool) ($item?->requires_incoming_qc ?? false);
+            $quarantined = (bool) ($item->requires_incoming_qc ?? false);
 
             // The lot inherits the claim from the GRN line (I5). This copy is the link an
             // auditor follows from a shipment back to a supplier certificate.

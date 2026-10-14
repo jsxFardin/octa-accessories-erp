@@ -23,7 +23,7 @@ That is one complete order, end to end, in the system. Everything else — fleet
 
 | Epic | Stories |
 |---|---|
-| Repo & CI | Laravel 12 + Inertia 2 + Vue 3 + Tailwind 4 scaffold; Docker Compose; GitHub Actions with Pint, Larastan, Pest, and the `02a-schema.sql` load check |
+| Repo & CI | Laravel 13 + Inertia 3 + Vue 3 + Tailwind 4 scaffold; GitHub Actions with Pint, Larastan, Vitest, the build and Pest on MySQL 8 (`.github/workflows/ci.yml`) |
 | Auth & RBAC | Login, MFA, password policy; roles, permissions, seeder generated from [06-rbac](06-rbac.md); permission middleware on every route |
 | Platform services | `number_sequences` allocator (BR-34), audit log observer, attachment handling, state machine base class, settings |
 | Shell UI | `AppLayout`, navigation, `Ui/` component set, table/filter/pagination pattern, toast, confirm dialog |

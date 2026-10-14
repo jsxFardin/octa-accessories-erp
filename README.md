@@ -4,7 +4,7 @@ Label & garment-accessory manufacturing ERP for **Maheen Label** — woven label
 
 Built to the specification in [`docs/`](docs/README.md). Every business rule in the code carries the ID it implements (`BR-9`, `A2`, `J1`), and every rule has a test named after it.
 
-**Stack:** Laravel 12 · Inertia 2 · Vue 3 · Tailwind 4 · MySQL 8.0 · Redis 7 · single-company deployment.
+**Stack:** Laravel 13 · Inertia 3 · Vue 3 · Tailwind 4 · MySQL 8.0 · Redis 7 · single-company deployment.
 
 ---
 

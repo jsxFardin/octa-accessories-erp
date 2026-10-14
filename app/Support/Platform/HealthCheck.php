@@ -53,7 +53,7 @@ class HealthCheck
         Storage::disk('local')->delete($file);
         $status['storage'] = 'ok';
 
-        $status['queue'] = ($this->queue->report()['healthy'] ?? false) ? 'ok' : 'degraded';
+        $status['queue'] = $this->queue->report()['healthy'] ? 'ok' : 'degraded';
 
         return $status;
     }
