@@ -265,7 +265,7 @@ const lineOptions = computed(() => props.orderLines.map((line) => ({
 const lotOptions = computed(() => props.availableLots.map((lot) => ({
     value: lot.id,
     label: lot.lot_no,
-    hint: `${qty(lot.balance_qty)} on hand${lot.cert_scheme ? ` · ${lot.cert_scheme}` : ''}`,
+    hint: `${qty(lot.balance_qty)} on hand${lot.cert_scheme ? ` · ${lot.cert_scheme}` : ''}${lot.grade && lot.grade !== 'A' ? ` · grade ${lot.grade}` : ''}`,
 })));
 
 const confirmTransition = useTransitionConfirm('packing_list');
@@ -351,6 +351,13 @@ function createChallan() {
                         <dt class="text-xs text-ink-500">Claim</dt>
                         <dd class="font-medium">
                             <span v-if="packingList.cert_claim_scheme">{{ packingList.cert_claim_scheme }} {{ packingList.cert_claim_pct }}%</span>
+                            <!-- BR-41: the figure was computed and withheld, which is not the same as "none". -->
+                            <template v-else-if="packingList.claim && !packingList.claim.claimed">
+                                <span class="text-ink-900">{{ packingList.claim.scheme }} {{ packingList.claim.pct }}%</span>
+                                <span class="block text-xs text-amber-700">
+                                    Below the {{ packingList.claim.minimum_pct }}% minimum for {{ packingList.claim.scheme }} — packed without a certified claim.
+                                </span>
+                            </template>
                             <span v-else class="text-ink-400">none</span>
                         </dd>
                     </div>
@@ -440,6 +447,8 @@ function createChallan() {
                         <ul class="mt-2 space-y-1 text-sm">
                             <li v-for="content in carton.contents" :key="content.id" class="flex items-center justify-between gap-2">
                                 <span>{{ content.product_code }} · lot <span class="font-mono text-xs">{{ content.lot_no }}</span></span>
+                                <!-- DF-1 AC3: a second-quality lot carries no certified claim, and the packer sees it here. -->
+                                <Badge v-if="content.grade && content.grade !== 'A'" tone="warning" :label="`Grade ${content.grade}`" title="Second-quality output: excluded from certified claims." />
                                 <Badge v-if="content.lot_status !== 'available'" tone="warning" :label="content.lot_status" />
                                 <span class="tnum">{{ pcs(content.qty) }}</span>
                                 <Button

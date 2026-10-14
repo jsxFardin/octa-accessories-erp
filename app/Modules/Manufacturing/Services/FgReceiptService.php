@@ -133,7 +133,12 @@ class FgReceiptService
             // output stays in quarantine no matter what the paperwork says.
             $status = ($inspection !== null && $grade !== 'reject') ? 'available' : 'quarantine';
 
-            $claim = $this->dilutedClaim($locked);
+            // DF-1 AC3 — only first-quality output is sold under the scheme. A `B` or `reject`
+            // lot inherits nothing, so at packing it dilutes the list's claim rather than
+            // carrying one of its own.
+            $claim = $grade === 'A'
+                ? $this->dilutedClaim($locked)
+                : ['scheme' => null, 'claim_pct' => 0.0];
 
             /** @var FgReceipt $receipt */
             $receipt = FgReceipt::query()->create([
