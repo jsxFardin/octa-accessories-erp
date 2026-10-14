@@ -201,6 +201,10 @@ const LINES = {
     ],
     'error.waste_reason_needed': ['নষ্টের কারণ বেছে নিন।', 'Choose what the waste was.'],
     'error.nothing_booked': ['এই ধাপে কিছু রেকর্ড হয়নি।', 'Nothing has been booked on this step.'],
+    'error.step_needs_inspection': [
+        'এই ধাপ শেষ করার আগে কিউসি পরীক্ষা দরকার। কিউসিকে জানান।',
+        'This step needs its QC inspection before it can finish. Tell QC.',
+    ],
     'error.step_already_finished': [
         'এই ধাপ আগেই শেষ করা হয়েছে। নতুন কিছু করার নেই।',
         'This step was already finished. There is nothing left to do on it.',

@@ -30,6 +30,8 @@ it('adds the shots an operation took to the mould it ran on', function (): void 
 
     DB::table('job_card_operations')->where('id', $operation->id)->update([
         'tool_id' => $toolId,
+        // QL-2 gates a requires_qc step on its inspection; moulds are what this test is about.
+        'requires_qc' => false,
         'input_qty' => 1010,
         'good_qty' => 1000,
         'waste_qty' => 10,
@@ -45,7 +47,7 @@ it('adds the shots an operation took to the mould it ran on', function (): void 
     // A plate is not shot-counted.
     $plateId = DB::table('tools')->insertGetId(['kind' => 'flexo_plate', 'code' => 'PLATE-SHOT-1', 'status' => 'available']);
     $second = $card->operations()->orderBy('sequence_no')->skip(1)->firstOrFail();
-    DB::table('job_card_operations')->where('id', $second->id)->update(['tool_id' => $plateId, 'input_qty' => 500, 'good_qty' => 500, 'status' => 'in_progress']);
+    DB::table('job_card_operations')->where('id', $second->id)->update(['tool_id' => $plateId, 'requires_qc' => false, 'input_qty' => 500, 'good_qty' => 500, 'status' => 'in_progress']);
 
     app(OperationBookingService::class)->finish($second->fresh(), CarbonImmutable::now());
 

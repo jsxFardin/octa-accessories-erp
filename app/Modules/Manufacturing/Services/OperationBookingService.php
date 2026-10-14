@@ -226,6 +226,17 @@ class OperationBookingService
             ), 'step_already_finished', ['step' => $operation->name, 'status' => $operation->status]);
         }
 
+        // QL-2 AC1 — a step flagged for in-process QC closes only once its inspection is on
+        // record. QC1 already held the *next* step; the flagged step itself could be finished
+        // uninspected, which is how a web reached the cutter with the badge still unanswered.
+        // The final step is the final AQL inspection's business (J4), not this gate's.
+        if ($operation->requires_qc && ! $this->isFinalStep($operation) && ! $this->hasInspection($operation)) {
+            $this->refuse('job_card_operation_id', sprintf(
+                'QL-2: %s needs its QC inspection recorded before it can finish. Ask QC to inspect it.',
+                $operation->name,
+            ), 'step_needs_inspection', ['step' => $operation->name]);
+        }
+
         $booked = (float) $operation->good_qty + (float) $operation->waste_qty;
 
         if ($booked <= 0 && blank($noOutputReason)) {
@@ -270,6 +281,22 @@ class OperationBookingService
         });
     }
 
+    private function isFinalStep(JobCardOperation $operation): bool
+    {
+        return (int) $operation->sequence_no === (int) JobCardOperation::query()
+            ->where('job_card_id', $operation->job_card_id)
+            ->max('sequence_no');
+    }
+
+    /** Any recorded verdict counts: a rejection is answered by rework, not by finishing anyway. */
+    private function hasInspection(JobCardOperation $operation): bool
+    {
+        return DB::table('qc_inspections')
+            ->where('job_card_operation_id', $operation->getKey())
+            ->where('result', '!=', 'pending')
+            ->exists();
+    }
+
     /**
      * A mould's life is counted in shots (spec §2, family 07): every shot fills each cavity
      * once, so the pieces an operation put out, good and waste alike, divided by the cavity
@@ -308,6 +335,14 @@ class OperationBookingService
 
         $wasteLotId = $data['input_lot_id'] ?? null;
 
+        // MF-5 AC2 — valued at the cost of the lot the step was fed, when the operator named
+        // one. Without a lot there is no honest unit cost for a metre of WIP, and a wrong
+        // value is worse than none, so it stays at zero. No ledger movement: the lot was
+        // already issued to the job, and a second decrement would count the material twice.
+        $unitCost = $wasteLotId === null
+            ? 0.0
+            : (float) DB::table('stock_lots')->where('id', $wasteLotId)->value('unit_cost');
+
         DB::table('waste_logs')->insert([
             'job_card_id' => $operation->job_card_id,
             'job_card_operation_id' => $operation->id,
@@ -323,9 +358,7 @@ class OperationBookingService
             'waste_type' => $data['waste_type'],
             'qty' => $waste,
             'uom_id' => DB::table('uoms')->where('code', $operation->unit())->value('id'),
-            // Left at zero deliberately. Costing WIP waste is the consumption and cost-sheet
-            // chain's answer; a wrong value here would be worse than an absent one.
-            'value' => 0,
+            'value' => round($waste * $unitCost, 4),
             'occurred_at' => $occurredAt,
             'reported_by' => $operatorId,
             'remarks' => $data['remarks'] ?? null,
@@ -414,8 +447,8 @@ class OperationBookingService
         if ($status === JobCard::ON_HOLD) {
             $this->refuse('job_card_operation_id', sprintf(
                 'J1: this job card is on hold%s. Nothing new starts on it until a planner resumes it; output already made can still be booked.',
-                filled($operation->jobCard?->hold_reason) ? ' ('.$operation->jobCard->hold_reason.')' : '',
-            ), 'job_card_on_hold', ['reason' => (string) ($operation->jobCard?->hold_reason ?? '')]);
+                filled($operation->jobCard->hold_reason) ? ' ('.$operation->jobCard->hold_reason.')' : '',
+            ), 'job_card_on_hold', ['reason' => (string) ($operation->jobCard->hold_reason ?? '')]);
         }
 
         $this->assertCardIsRunnable($operation);

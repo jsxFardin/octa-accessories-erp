@@ -131,3 +131,48 @@ it('keeps unauthorized users out of inspections entirely', function (): void {
 
     expect(DB::table('ncrs')->count())->toBe(0);
 });
+
+// GAP Q-03 — QL-4 AC5: scrap is a waste movement at lot cost, not a status.
+it('scrap writes the rejected FG off at lot cost and values the waste', function (): void {
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+    $receipt = app(App\Modules\Manufacturing\Services\FgReceiptService::class)
+        ->post($this->jobCard->refresh(), 800, $this->fgWarehouseId, (string) Str::uuid());
+    $lot = DB::table('stock_lots')->where('id', $receipt->lot_id)->first();
+
+    postFinal($this, majors: 50, disposition: 'scrap');
+
+    $movement = DB::table('stock_ledger')->where('lot_id', $lot->id)->where('movement_type', 'scrap')->first();
+    $waste = DB::table('waste_logs')->where('lot_id', $lot->id)->first();
+
+    expect($movement)->not->toBeNull()
+        ->and((float) $movement->qty)->toBeQty(-800.0)
+        ->and((float) $movement->unit_cost)->toBeMoney((float) $lot->unit_cost)
+        ->and(DB::table('stock_lots')->where('id', $lot->id)->value('status'))->toBe('scrapped')
+        ->and((float) DB::table('stock_lots')->where('id', $lot->id)->value('balance_qty'))->toBeQty(0.0)
+        ->and($waste)->not->toBeNull()
+        ->and((float) $waste->qty)->toBeQty(800.0)
+        ->and((float) $waste->value)->toBeMoney(round(800 * (float) $lot->unit_cost, 4));
+});
+
+// GAP Q-03 — QL-4 AC4: downgrade moves the pieces into a second-quality lot with no claim.
+it('downgrade moves the rejected FG into a second-quality lot that carries no claim', function (): void {
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+    $receipt = app(App\Modules\Manufacturing\Services\FgReceiptService::class)
+        ->post($this->jobCard->refresh(), 600, $this->fgWarehouseId, (string) Str::uuid());
+    $lot = DB::table('stock_lots')->where('id', $receipt->lot_id)->first();
+
+    postFinal($this, majors: 50, disposition: 'downgrade');
+
+    $second = DB::table('stock_lots')->where('job_card_id', $this->jobCard->id)->where('kind', 'second_quality')->first();
+
+    expect($second)->not->toBeNull()
+        ->and((float) $second->balance_qty)->toBeQty(600.0)
+        ->and((float) $second->unit_cost)->toBeMoney((float) $lot->unit_cost)
+        ->and($second->cert_scheme)->toBeNull()
+        ->and($second->status)->toBe('available')
+        ->and((float) DB::table('stock_lots')->where('id', $lot->id)->value('balance_qty'))->toBeQty(0.0);
+
+    // The NCR no longer calls the downgrade pending.
+    $ncr = App\Modules\Quality\Models\Ncr::query()->latest('id')->firstOrFail();
+    expect($ncr->pendingAction()['status'])->toBe('applied');
+});
