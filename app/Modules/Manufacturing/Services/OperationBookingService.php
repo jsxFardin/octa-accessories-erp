@@ -215,6 +215,17 @@ class OperationBookingService
      */
     public function finish(JobCardOperation $operation, CarbonImmutable $occurredAt, ?string $noOutputReason = null): void
     {
+        // A step closes once. A second FINISH — a replay with a fresh key, a stale screen, a
+        // double tap across two devices — used to be accepted: it overwrote `finished_at`,
+        // recomputed the minutes and counted the tool's shots a second time.
+        if (! $operation->acceptsProduction()) {
+            $this->refuse('job_card_operation_id', sprintf(
+                '%s is already %s. There is nothing left to finish.',
+                $operation->name,
+                str_replace('_', ' ', $operation->status),
+            ), 'step_already_finished', ['step' => $operation->name, 'status' => $operation->status]);
+        }
+
         $booked = (float) $operation->good_qty + (float) $operation->waste_qty;
 
         if ($booked <= 0 && blank($noOutputReason)) {
@@ -374,7 +385,7 @@ class OperationBookingService
      * held card's output still has to be recordable: the hold stops new work starting, not the
      * shift that already ran from being written down.
      */
-    private function assertCardIsRunnable(JobCardOperation $operation): void
+    public function assertCardIsRunnable(JobCardOperation $operation): void
     {
         $status = $operation->jobCard?->status;
 
@@ -386,6 +397,28 @@ class OperationBookingService
             'J1: this job card is %s. Production cannot be booked against it until it is released.',
             str_replace('_', ' ', (string) ($status ?? 'in no state')),
         ), 'job_card_not_released', ['status' => (string) ($status ?? '')]);
+    }
+
+    /**
+     * J1 for START, which is stricter than for a booking: a hold stops new work from starting
+     * (MF-6), while the shift that already ran on a held card may still be written down.
+     */
+    public function assertCardAcceptsStart(JobCardOperation $operation): void
+    {
+        $status = $operation->jobCard?->status;
+
+        if (in_array($status, [JobCard::RELEASED, JobCard::IN_PRODUCTION], true)) {
+            return;
+        }
+
+        if ($status === JobCard::ON_HOLD) {
+            $this->refuse('job_card_operation_id', sprintf(
+                'J1: this job card is on hold%s. Nothing new starts on it until a planner resumes it; output already made can still be booked.',
+                filled($operation->jobCard?->hold_reason) ? ' ('.$operation->jobCard->hold_reason.')' : '',
+            ), 'job_card_on_hold', ['reason' => (string) ($operation->jobCard?->hold_reason ?? '')]);
+        }
+
+        $this->assertCardIsRunnable($operation);
     }
 
     /**

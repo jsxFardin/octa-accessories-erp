@@ -84,6 +84,7 @@ class JobCardStateMachine extends StateMachine
             JobCard::PLANNED => $this->guardPlanned($document),
             JobCard::RELEASED => $this->guardReleased($document, $context),
             JobCard::ON_HOLD => $this->guardHold($context),
+            JobCard::IN_PRODUCTION => $this->guardResume($from, $context),
             JobCard::QC_PENDING => $this->guardQcPending($document),
             JobCard::COMPLETED => $this->guardCompleted($document, $from, $context),
             JobCard::CLOSED => $this->guardClosed($document, $context),
@@ -127,11 +128,38 @@ class JobCardStateMachine extends StateMachine
         throw TransitionDenied::guard('J1', "This job card cannot be released.\n• ".implode("\n• ", $failed));
     }
 
+    /**
+     * The resolution that lifted a hold sits on the audit row beside the reason it answers.
+     *
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
+    protected function auditContext(array $context): array
+    {
+        return [
+            ...parent::auditContext($context),
+            ...array_intersect_key($context, array_flip(['hold_resolution'])),
+        ];
+    }
+
     /** @param array<string, mixed> $context */
     private function guardHold(array $context): void
     {
         if (blank($context['hold_reason'] ?? null)) {
             throw TransitionDenied::guard('J1', 'A hold needs a reason; the planning board frees the machine slot on the strength of it.');
+        }
+    }
+
+    /**
+     * MF-6 AC3 — a hold is lifted by saying what was done about it, not by pressing Resume.
+     * The resolution rides on the transition's audit row beside the reason it answers.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function guardResume(string $from, array $context): void
+    {
+        if ($from === JobCard::ON_HOLD && blank($context['hold_resolution'] ?? null)) {
+            throw TransitionDenied::guard('MF-6', 'Say how the hold was resolved before resuming — the reason it was held is on the card, and the audit trail pairs the two.');
         }
     }
 
@@ -405,7 +433,7 @@ class JobCardStateMachine extends StateMachine
             // opening a blank form.
             JobCard::PLANNED => $this->onPlanned($document),
             JobCard::RELEASED => $this->onReleased($document, $context),
-            JobCard::IN_PRODUCTION => $this->onInProduction($document),
+            JobCard::IN_PRODUCTION => $this->onInProduction($document, $from),
             JobCard::ON_HOLD => $document->forceFill(['hold_reason' => $context['hold_reason']])->save(),
             JobCard::COMPLETED => $this->onCompleted($document, $from),
             JobCard::CLOSED => $this->onClosed($document),
@@ -442,8 +470,13 @@ class JobCardStateMachine extends StateMachine
             ->update(['status' => JobCardOperation::READY]);
     }
 
-    private function onInProduction(JobCard $jobCard): void
+    private function onInProduction(JobCard $jobCard, string $from = ''): void
     {
+        // The hold is over; a reason left on the card would read as a hold still in force.
+        if ($from === JobCard::ON_HOLD) {
+            $jobCard->forceFill(['hold_reason' => null])->save();
+        }
+
         if ($jobCard->actual_start === null) {
             $jobCard->forceFill(['actual_start' => now()])->save();
         }

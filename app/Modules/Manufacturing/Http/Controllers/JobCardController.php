@@ -700,6 +700,8 @@ class JobCardController extends Controller
         $data = $request->validate([
             'to' => ['required', 'string'],
             'hold_reason' => ['nullable', 'string', 'max:500'],
+            // MF-6 AC3 — what was done about the hold, required to resume from one.
+            'hold_resolution' => ['nullable', 'string', 'max:500'],
             'material_waiver_reason' => ['nullable', 'string', 'max:500'],
             'reason' => ['nullable', 'string', 'max:500'],
             // P0-3 — why output is being left unreceived on a card that is about to become

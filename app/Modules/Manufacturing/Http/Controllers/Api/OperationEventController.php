@@ -38,6 +38,10 @@ class OperationEventController extends Controller
         $this->assertWithinUnit($request, $operation);
 
         return $this->idempotent($request, $operation, 'start', function () use ($request, $operation): array {
+            // J1 — `log` has always asked whether the card is released; `start` took the id
+            // off the URL and flipped a planned or held card's step to in_progress by itself.
+            $this->bookings->assertCardAcceptsStart($operation);
+
             // J2 — an operation cannot start before its predecessor is done, unless the
             // routing marks it parallel.
             $blocker = $operation->blockingPredecessor();
@@ -168,6 +172,9 @@ class OperationEventController extends Controller
         ]);
 
         return $this->idempotent($request, $operation, 'downtime', function () use ($request, $operation, $data): array {
+            // J1 — a stop is a production record too; it belongs to a card that is being run.
+            $this->bookings->assertCardIsRunnable($operation);
+
             $occurredAt = $this->occurredAt($request);
             $session = $request->attributes->get('device_session');
 
