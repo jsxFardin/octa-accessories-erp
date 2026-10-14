@@ -52,7 +52,9 @@ const LINES = {
     action_finish: ['শেষ', 'Finish'],
     action_downtime: ['ডাউনটাইম', 'Downtime'],
     reason_expired: ['সময় পেরিয়ে গেছে', 'Too old to send'],
+    reason_session: ['যে ব্যাজে লেখা হয়েছিল তার শিফট শেষ', 'The badge it was booked under has ended its shift'],
     reason_refused: ['সার্ভার নেয়নি', 'Refused by the server'],
+    step_finished: ['এই ধাপ শেষ হয়েছে', 'This step is finished'],
 
     terminal: ['শপ ফ্লোর টার্মিনাল', 'Shop floor terminal'],
     badge: ['ব্যাজ', 'Badge'],
@@ -122,6 +124,7 @@ const LINES = {
         'These records did not reach the server. They are not lost — they are kept on this device. Show this screen to your supervisor.',
     ],
     running_hint: ['এই ধাপ চলছে। আউটপুট লিখতে OUTPUT চাপুন।', 'This step is running. Press OUTPUT to book what was made.'],
+    running_hint_done: ['কাজের তালিকায় ফিরে পরের ধাপ খুলুন।', 'Go back to the queue and open the next step.'],
     queue_empty_why: [
         'এখন {machine}-এর জন্য কোনো কাজ দেওয়া নেই, অথবা জব কার্ড এখনো ছাড়া হয়নি, অথবা আগের ধাপ শেষ হয়নি। সুপারভাইজারকে প্ল্যানিং বোর্ড দেখতে বলুন।',
         'Either nothing is scheduled for {machine} right now, the job cards for it are not released yet, or the step before this one has not finished. Ask your supervisor to check the planning board.',
@@ -198,6 +201,18 @@ const LINES = {
     ],
     'error.waste_reason_needed': ['নষ্টের কারণ বেছে নিন।', 'Choose what the waste was.'],
     'error.nothing_booked': ['এই ধাপে কিছু রেকর্ড হয়নি।', 'Nothing has been booked on this step.'],
+    'error.step_already_finished': [
+        'এই ধাপ আগেই শেষ করা হয়েছে। নতুন কিছু করার নেই।',
+        'This step was already finished. There is nothing left to do on it.',
+    ],
+    'error.job_card_on_hold': [
+        'এই জব কার্ড হোল্ডে আছে। নতুন কাজ শুরু করা যাবে না — সুপারভাইজারকে জানান।',
+        'This job card is on hold. Nothing new can start on it — tell your supervisor.',
+    ],
+    'error.session_expired': [
+        'আপনার শিফট সেশন শেষ। আবার ব্যাজ স্ক্যান করুন।',
+        'Your shift session has ended. Scan your badge again.',
+    ],
     'error.no_machine': [
         'এই ধাপে এখনো মেশিন দেওয়া হয়নি। আগে শুরু করুন।',
         'This step has no machine yet. Start it first.',

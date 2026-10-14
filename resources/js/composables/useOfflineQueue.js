@@ -1,18 +1,30 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 
 /**
- * The four-hour offline queue (07-api-contracts §7).
+ * The offline queue (07-api-contracts §7, NFR-9).
  *
  * A loom does not stop when the wifi does. Writes are stamped with `occurred_at` at the moment
  * the operator presses the button and carry a stable `Idempotency-Key`, so a queue drained
  * after an outage lands in the right order and a retried request is a replay rather than a
  * second shift's output.
+ *
+ * Each record also keeps the device token it was booked under. The server attributes a write
+ * to whoever holds the token that posts it, and a second badge can sign in at this kiosk
+ * without the first ending their shift — so a queue drained with whatever token happened to be
+ * live booked one operator's output under the next one's name, and changed the idempotency
+ * scope under a half-sent queue besides.
  */
 const STORAGE_KEY = 'octa.offline_queue';
-// Writes the server actively rejected. They are not retried — a 500 is not a wifi problem,
-// and replaying it forever is what hid an unfinishable job card behind a silent spinner.
+// Writes the server answered and refused. A 4xx is not a wifi problem, and replaying it forever
+// is what hid an unfinishable job card behind a silent spinner.
 const REJECTED_KEY = 'octa.offline_rejected';
-const MAX_AGE_MS = 4 * 60 * 60 * 1000;
+/*
+ * How long a record may wait before it is handed to a supervisor instead. NFR-9 asks for at
+ * least four hours; the server accepts any past `occurred_at` and keeps an idempotency key for
+ * twenty-four, so that is the window — an overnight outage no longer costs a morning of
+ * re-keying.
+ */
+const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 function readQueue() {
     try {
@@ -68,6 +80,8 @@ export function describeRejected(entry) {
         occurredAt: entry.occurredAt,
         rejectedAt: entry.rejectedAt,
         expired: entry.reason === 'expired',
+        // The token it was booked under had gone by the time it could be sent.
+        sessionLost: entry.reason === 'session',
         status: entry.status ?? 0,
         code: body?.code ?? null,
         params: body?.params ?? {},
@@ -129,6 +143,32 @@ function session() {
 }
 
 /**
+ * What an HTTP answer means for a queued record (07-api-contracts §4).
+ *
+ *  - `retry`  — the server did not get to decide: it was busy, throttling, or broken. The
+ *               record stays and is tried again later, with the pause below.
+ *  - `session`— the token the record was booked under is gone (ended shift, expired). The
+ *               booking cannot be re-attributed from here; a supervisor books it by hand.
+ *  - `reject` — the server decided, and said no. Nothing about waiting changes that.
+ */
+export function retryDecision(status) {
+    if (status === 401) return 'session';
+    if (status === 408 || status === 425 || status === 429 || status >= 500) return 'retry';
+
+    return 'reject';
+}
+
+/** Thirty seconds, doubling per failed attempt, never more than ten minutes between tries. */
+export function retryDelayMs(attempts) {
+    return Math.min(30 * 1000 * 2 ** Math.max(0, attempts - 1), 10 * 60 * 1000);
+}
+
+/** The records whose pause, if any, has run out. */
+export function dueEntries(queue, now = Date.now()) {
+    return queue.filter((entry) => !entry.nextAttemptAt || Date.parse(entry.nextAttemptAt) <= now);
+}
+
+/**
  * A key that identifies one intended write.
  *
  * It is made when the operator opens the form, not when they press the button, and handed to
@@ -181,7 +221,10 @@ export function useOfflineQueue() {
     }
 
     async function post(entry) {
-        const auth = session();
+        // The token the record was booked under, so it is attributed to that operator even if
+        // another badge has signed in here since. Records filed before tokens were kept fall
+        // back to whoever is signed in now.
+        const token = entry.token ?? session()?.token;
 
         return fetch(entry.url, {
             method: 'POST',
@@ -189,7 +232,7 @@ export function useOfflineQueue() {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
                 'Idempotency-Key': entry.key,
-                Authorization: `Bearer ${auth?.token}`,
+                Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({ ...entry.payload, occurred_at: entry.occurredAt }),
         });
@@ -221,15 +264,39 @@ export function useOfflineQueue() {
                 reject(entry, 0, '', 'expired');
             }
 
+            const due = new Set(dueEntries(fresh).map((entry) => entry.key));
+
             for (const entry of fresh) {
+                // Still inside its pause after a failed try: kept, not posted.
+                if (!due.has(entry.key)) {
+                    remaining.push(entry);
+
+                    continue;
+                }
+
                 try {
                     const response = await post(entry);
 
-                    // Only a transport failure earns a retry. A server that answered — with
-                    // anything — has seen this write, and repeating it will not change its mind.
-                    if (!response.ok) {
-                        reject(entry, response.status, await response.text().catch(() => ''));
+                    if (response.ok) continue;
+
+                    const decision = retryDecision(response.status);
+
+                    // A busy, throttling or broken server has not decided anything. The record
+                    // stays, and waits a little longer each time. A ten-minute 503 at reconnect
+                    // used to turn a whole shift's queue into "Not sent".
+                    if (decision === 'retry') {
+                        const attempts = (entry.attempts ?? 0) + 1;
+
+                        remaining.push({
+                            ...entry,
+                            attempts,
+                            nextAttemptAt: new Date(Date.now() + retryDelayMs(attempts)).toISOString(),
+                        });
+
+                        continue;
                     }
+
+                    reject(entry, response.status, await response.text().catch(() => ''), decision);
                 } catch {
                     remaining.push(entry);
                 }
@@ -265,14 +332,17 @@ export function useOfflineQueue() {
      *   `{ error: true, … }` when the server refused it, otherwise the server's answer.
      */
     async function send(url, payload, key = null, meta = null) {
+        const auth = session();
         const entry = {
             url,
             payload,
             key: key ?? idempotencyKey(),
             occurredAt: new Date().toISOString(),
+            // Whose booking this is, whoever is signed in by the time it is sent.
+            token: auth?.token ?? null,
             // Never posted. Kept so that a record which ends up on the "Not sent" screen can
             // say which job and step it was for, in what unit, and who booked it.
-            meta: { ...(meta ?? {}), operator: session()?.employee_name ?? null },
+            meta: { ...(meta ?? {}), operator: auth?.employee_name ?? null },
         };
 
         if (!navigator.onLine) {
@@ -284,22 +354,26 @@ export function useOfflineQueue() {
         try {
             const response = await post(entry);
 
-            // The server answered and refused. Hand the refusal back so the terminal can show
-            // it; queueing a rejected write only buries the reason.
             if (!response.ok) {
                 const body = await response.json().catch(() => ({}));
+                const decision = retryDecision(response.status);
 
-                if (response.status >= 500) {
-                    reject(entry, response.status, JSON.stringify(body));
-                    sync();
+                // A busy or broken server has not refused anything: the record is saved here
+                // and tried again on the timer, exactly as if the link had dropped.
+                if (decision === 'retry') {
+                    enqueue({ ...entry, attempts: 1, nextAttemptAt: new Date(Date.now() + retryDelayMs(1)).toISOString() });
+
+                    return { queued: true };
                 }
 
+                // The server answered and refused. Hand the refusal back so the terminal can
+                // show it; queueing a rejected write only buries the reason.
                 return {
                     error: true,
                     status: response.status,
                     // What the floor rules named it, and the figures behind it — the terminal
                     // says the sentence itself, in both languages (`floor/dictionary.js`).
-                    code: body.code ?? null,
+                    code: body.code ?? (decision === 'session' ? 'session_expired' : null),
                     params: body.params ?? {},
                     message: body.message ?? `The server refused this (HTTP ${response.status}).`,
                 };

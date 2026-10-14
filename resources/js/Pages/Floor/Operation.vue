@@ -303,6 +303,16 @@ async function sendNow() {
             <!-- Four buttons. That is the whole vocabulary. -->
             <template v-if="showNotSent" />
 
+            <!-- A step that has closed takes nothing more; the server would refuse every button. -->
+            <p
+                v-else-if="['completed', 'skipped', 'cancelled'].includes(operation.status)"
+                class="flex min-h-24 flex-col items-center justify-center rounded-2xl border-2 border-slate-500 px-3 text-center"
+                data-finished
+            >
+                <span class="text-2xl font-bold text-slate-200">{{ label('step_finished') }}</span>
+                <span class="text-base text-slate-400">{{ guide('running_hint_done') }}</span>
+            </p>
+
             <div v-else-if="!mode" class="grid grid-cols-2 gap-3">
                 <!--
                     A step that is already running has nothing to start. The greyed-out START

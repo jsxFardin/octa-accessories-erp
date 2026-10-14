@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { describeRejected, rejectedRecords, splitExpired } from '../../resources/js/composables/useOfflineQueue.js';
+import { describeRejected, dueEntries, rejectedRecords, retryDecision, retryDelayMs, splitExpired } from '../../resources/js/composables/useOfflineQueue.js';
 
 const HOUR = 60 * 60 * 1000;
 const now = Date.parse('2026-10-05T12:00:00.000Z');
 const at = (hoursAgo) => new Date(now - hoursAgo * HOUR).toISOString();
 
 describe('splitExpired', () => {
-    it('keeps entries inside the four-hour window for posting', () => {
-        const queue = [{ key: 'a', occurredAt: at(1) }, { key: 'b', occurredAt: at(3.9) }];
+    it('keeps entries inside the twenty-four-hour window for posting', () => {
+        const queue = [{ key: 'a', occurredAt: at(1) }, { key: 'b', occurredAt: at(23.9) }];
 
         const { fresh, expired } = splitExpired(queue, now);
 
@@ -18,7 +18,7 @@ describe('splitExpired', () => {
     // UX audit C-07: these used to be skipped and then overwritten out of the queue, so a long
     // outage lost output with no trace. They must come back for the caller to file as rejected.
     it('hands back expired entries instead of losing them', () => {
-        const queue = [{ key: 'old', occurredAt: at(9) }, { key: 'new', occurredAt: at(0.5) }];
+        const queue = [{ key: 'old', occurredAt: at(30) }, { key: 'new', occurredAt: at(0.5) }];
 
         const { fresh, expired } = splitExpired(queue, now);
 
@@ -27,8 +27,10 @@ describe('splitExpired', () => {
         expect(fresh.length + expired.length).toBe(queue.length);
     });
 
-    it('treats exactly four hours as still inside the window', () => {
-        const { fresh, expired } = splitExpired([{ key: 'edge', occurredAt: at(4) }], now);
+    // GAP M-04: NFR-9 asks for at least four hours; the server keeps an idempotency key for
+    // twenty-four, so an overnight outage no longer costs a morning of re-keying.
+    it('treats exactly twenty-four hours as still inside the window', () => {
+        const { fresh, expired } = splitExpired([{ key: 'edge', occurredAt: at(24) }], now);
 
         expect(fresh).toHaveLength(1);
         expect(expired).toHaveLength(0);
@@ -99,5 +101,53 @@ describe('rejected records', () => {
         const list = [{ ...refused, key: 'late', occurredAt: at(1) }, { ...refused, key: 'early', occurredAt: at(3) }];
 
         expect(rejectedRecords(list).map((record) => record.key)).toEqual(['early', 'late']);
+    });
+});
+
+// GAP M-04: a busy or broken server has not refused anything. The queue used to file every
+// non-2xx as "Not sent", so a ten-minute 503 at reconnect threw a whole shift's records away.
+describe('retry policy', () => {
+    it('retries when the server was busy, throttling or broken', () => {
+        for (const status of [500, 502, 503, 504, 429, 408, 425]) {
+            expect(retryDecision(status)).toBe('retry');
+        }
+    });
+
+    it('rejects a refusal the server decided on', () => {
+        for (const status of [400, 403, 404, 409, 422, 428]) {
+            expect(retryDecision(status)).toBe('reject');
+        }
+    });
+
+    it('files a dead session separately, so the supervisor knows why', () => {
+        expect(retryDecision(401)).toBe('session');
+    });
+
+    it('backs off from thirty seconds and never waits more than ten minutes', () => {
+        expect(retryDelayMs(1)).toBe(30 * 1000);
+        expect(retryDelayMs(2)).toBe(60 * 1000);
+        expect(retryDelayMs(3)).toBe(120 * 1000);
+        expect(retryDelayMs(20)).toBe(10 * 60 * 1000);
+    });
+
+    it('only posts the records whose pause has run out', () => {
+        const queue = [
+            { key: 'never-tried' },
+            { key: 'due', nextAttemptAt: new Date(now - 1000).toISOString() },
+            { key: 'waiting', nextAttemptAt: new Date(now + 60 * 1000).toISOString() },
+        ];
+
+        expect(dueEntries(queue, now).map((entry) => entry.key)).toEqual(['never-tried', 'due']);
+    });
+});
+
+// GAP M-01: a record carries the token it was booked under, so a second badge signing in at
+// the kiosk does not inherit the first operator's output.
+describe('describeRejected', () => {
+    it('marks a record whose session had ended before it could be sent', () => {
+        const record = describeRejected({ key: 'k', url: '/api/v1/operations/3/log', payload: {}, occurredAt: at(1), status: 401, reason: 'session' });
+
+        expect(record.sessionLost).toBe(true);
+        expect(record.expired).toBe(false);
     });
 });
