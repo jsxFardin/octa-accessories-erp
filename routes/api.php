@@ -36,5 +36,10 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
         Route::post('operations/{operation}/downtime', [App\Modules\Manufacturing\Http\Controllers\Api\OperationEventController::class, 'downtime'])
             ->middleware('can:downtime.create')
             ->name('operations.downtime');
+        // MF-4 AC2/AC3 — a stop that is still going: the step is paused with its reason and
+        // the downtime stays open until START resumes it. The live view reads the open row.
+        Route::post('operations/{operation}/pause', [App\Modules\Manufacturing\Http\Controllers\Api\OperationEventController::class, 'pause'])
+            ->middleware('can:downtime.create')
+            ->name('operations.pause');
     });
 });

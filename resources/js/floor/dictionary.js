@@ -38,6 +38,9 @@ const LINES = {
     save: ['সেভ', 'SAVE'],
     cancel: ['বাতিল', 'CANCEL'],
     running: ['চলছে', 'RUNNING'],
+    pause: ['থামান', 'PAUSE'],
+    resume: ['আবার শুরু', 'RESUME'],
+    paused: ['থামানো হয়েছে — শুরু করতে RESUME চাপুন', 'Paused — press RESUME to continue'],
     not_started: ['শুরু হয়নি', 'NOT STARTED'],
     due: ['ডেলিভারি', 'Due'],
     made: ['তৈরি', 'Made'],
@@ -51,6 +54,7 @@ const LINES = {
     action_start: ['শুরু', 'Start'],
     action_finish: ['শেষ', 'Finish'],
     action_downtime: ['ডাউনটাইম', 'Downtime'],
+    action_pause: ['থামানো', 'Pause'],
     reason_expired: ['সময় পেরিয়ে গেছে', 'Too old to send'],
     reason_session: ['যে ব্যাজে লেখা হয়েছিল তার শিফট শেষ', 'The badge it was booked under has ended its shift'],
     reason_refused: ['সার্ভার নেয়নি', 'Refused by the server'],
@@ -124,6 +128,7 @@ const LINES = {
         'These records did not reach the server. They are not lost — they are kept on this device. Show this screen to your supervisor.',
     ],
     running_hint: ['এই ধাপ চলছে। আউটপুট লিখতে OUTPUT চাপুন।', 'This step is running. Press OUTPUT to book what was made.'],
+    pause_hint: ['কেন থামছে বেছে নিন। মিনিট আপনি লিখবেন না — RESUME চাপলে হিসাব হবে।', 'Pick why the machine is stopping. You do not type the minutes — they are counted until RESUME.'],
     running_hint_done: ['কাজের তালিকায় ফিরে পরের ধাপ খুলুন।', 'Go back to the queue and open the next step.'],
     queue_empty_why: [
         'এখন {machine}-এর জন্য কোনো কাজ দেওয়া নেই, অথবা জব কার্ড এখনো ছাড়া হয়নি, অথবা আগের ধাপ শেষ হয়নি। সুপারভাইজারকে প্ল্যানিং বোর্ড দেখতে বলুন।',
@@ -204,6 +209,10 @@ const LINES = {
     'error.step_needs_inspection': [
         'এই ধাপ শেষ করার আগে কিউসি পরীক্ষা দরকার। কিউসিকে জানান।',
         'This step needs its QC inspection before it can finish. Tell QC.',
+    ],
+    'error.step_not_running': [
+        'এই ধাপ চলছে না, তাই থামানো যাবে না।',
+        'This step is not running, so it cannot be paused.',
     ],
     'error.step_already_finished': [
         'এই ধাপ আগেই শেষ করা হয়েছে। নতুন কিছু করার নেই।',

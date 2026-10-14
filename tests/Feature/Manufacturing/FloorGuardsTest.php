@@ -175,3 +175,39 @@ it('puts the card on hold and notifies the supervisor when an in-process check f
         ->and(DB::table('notifications')->where('notifiable_id', $supervisor->id)
             ->where('data->dedupe_key', 'like', 'job_card:held:'.$card->id.':%')->exists())->toBeTrue();
 });
+
+// GAP M-10 — MF-4 AC2/AC3: PAUSE opens a downtime record with its reason; START closes it.
+it('pauses a running step with a reason and closes the open downtime when it resumes', function (): void {
+    $this->actingAs($this->admin);
+    $this->states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'guard test']);
+    $reasonId = DB::table('downtime_reasons')->value('id');
+
+    // Not running yet: nothing to pause.
+    $this->withHeaders(($this->headers)())
+        ->postJson("/api/v1/operations/{$this->first->id}/pause", ['downtime_reason_id' => $reasonId])
+        ->assertStatus(422)->assertJsonPath('code', 'step_not_running');
+
+    $this->withHeaders(($this->headers)())->postJson("/api/v1/operations/{$this->first->id}/start")->assertOk();
+
+    // A pause needs its reason.
+    $this->withHeaders(($this->headers)())->postJson("/api/v1/operations/{$this->first->id}/pause", [])->assertStatus(422);
+
+    $this->withHeaders(($this->headers)())
+        ->postJson("/api/v1/operations/{$this->first->id}/pause", ['downtime_reason_id' => $reasonId, 'occurred_at' => now()->subMinutes(12)->toIso8601String()])
+        ->assertOk()->assertJsonPath('status', 'paused');
+
+    $open = DB::table('downtime_logs')->where('job_card_operation_id', $this->first->id)->whereNull('ended_at')->first();
+
+    expect($this->first->fresh()->status)->toBe(JobCardOperation::PAUSED)
+        ->and($open)->not->toBeNull()
+        ->and($open->minutes)->toBeNull();
+
+    $this->withHeaders(($this->headers)())->postJson("/api/v1/operations/{$this->first->id}/start")->assertOk();
+
+    $closed = DB::table('downtime_logs')->where('id', $open->id)->first();
+
+    expect($this->first->fresh()->status)->toBe(JobCardOperation::IN_PROGRESS)
+        ->and($closed->ended_at)->not->toBeNull()
+        ->and((float) $closed->minutes)->toBeGreaterThanOrEqual(11.0)
+        ->and(DB::table('downtime_logs')->where('job_card_operation_id', $this->first->id)->whereNull('ended_at')->exists())->toBeFalse();
+});

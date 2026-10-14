@@ -53,7 +53,7 @@ function announce() {
     if (typeof window !== 'undefined') window.dispatchEvent(new Event(CHANGED));
 }
 
-const ACTIONS = { start: 'start', log: 'log', finish: 'finish', downtime: 'downtime' };
+const ACTIONS = { start: 'start', log: 'log', finish: 'finish', downtime: 'downtime', pause: 'pause' };
 
 /**
  * One rejected record, in the shape the "Not sent" screen shows it.

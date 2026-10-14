@@ -298,6 +298,64 @@ class OperationBookingService
     }
 
     /**
+     * MF-4 AC2 — PAUSE. Only a running step can stop; the open downtime row is the stop.
+     */
+    public function pause(JobCardOperation $operation, CarbonImmutable $occurredAt, int $reasonId, ?int $operatorId, ?int $shiftId = null, ?string $remarks = null): int
+    {
+        if ($operation->status !== JobCardOperation::IN_PROGRESS) {
+            $this->refuse('job_card_operation_id', sprintf(
+                'Only a running step can be paused; %s is %s.',
+                $operation->name,
+                str_replace('_', ' ', $operation->status),
+            ), 'step_not_running', ['step' => $operation->name, 'status' => $operation->status]);
+        }
+
+        if ($operation->machine_id === null) {
+            $this->refuse('job_card_operation_id', 'This step is not on a machine yet, and downtime belongs to a machine.', 'no_machine', []);
+        }
+
+        return DB::transaction(function () use ($operation, $occurredAt, $reasonId, $operatorId, $shiftId, $remarks): int {
+            $id = DB::table('downtime_logs')->insertGetId([
+                'machine_id' => $operation->machine_id,
+                'job_card_operation_id' => $operation->id,
+                'downtime_reason_id' => $reasonId,
+                'shift_id' => $shiftId,
+                'started_at' => $occurredAt,
+                'ended_at' => null,
+                'minutes' => null,
+                'reported_by' => $operatorId,
+                'remarks' => $remarks,
+            ]);
+
+            $operation->forceFill(['status' => JobCardOperation::PAUSED])->save();
+
+            return $id;
+        });
+    }
+
+    /** The open stop ends when the step resumes; its length is the time between the two presses. */
+    public function closeOpenDowntime(JobCardOperation $operation, CarbonImmutable $resumedAt): void
+    {
+        $open = DB::table('downtime_logs')
+            ->where('job_card_operation_id', $operation->id)
+            ->whereNull('ended_at')
+            ->orderByDesc('id')
+            ->first(['id', 'started_at']);
+
+        if ($open === null) {
+            return;
+        }
+
+        $startedAt = CarbonImmutable::parse((string) $open->started_at);
+        $endedAt = $resumedAt->lessThan($startedAt) ? $startedAt : $resumedAt;
+
+        DB::table('downtime_logs')->where('id', $open->id)->update([
+            'ended_at' => $endedAt,
+            'minutes' => round($startedAt->diffInMinutes($endedAt), 2),
+        ]);
+    }
+
+    /**
      * A mould's life is counted in shots (spec §2, family 07): every shot fills each cavity
      * once, so the pieces an operation put out, good and waste alike, divided by the cavity
      * count is the shots it took. Counted when the operation finishes, atomically, so the

@@ -64,6 +64,12 @@ class OperationEventController extends Controller
             $occurredAt = $this->occurredAt($request);
 
             DB::transaction(function () use ($operation, $occurredAt, $request): void {
+                // A paused step resumes: the open downtime closes with its minutes, so the
+                // stop is on record and the costing (BR-23) takes it out of machine time.
+                if ($operation->status === JobCardOperation::PAUSED) {
+                    $this->bookings->closeOpenDowntime($operation, $occurredAt);
+                }
+
                 $operation->forceFill([
                     'status' => JobCardOperation::IN_PROGRESS,
                     'started_at' => $operation->started_at ?? $occurredAt,
@@ -156,6 +162,36 @@ class OperationEventController extends Controller
             $this->bookings->finish($operation, $this->occurredAt($request), $request->input('no_output_reason'));
 
             return ['operation_id' => $operation->id, 'status' => JobCardOperation::COMPLETED];
+        });
+    }
+
+    /**
+     * MF-4 AC2 — PAUSE: the step stops with a reason and the downtime stays open until START.
+     * The minutes are not typed; they are the time between the two presses.
+     */
+    public function pause(Request $request, JobCardOperation $operation): JsonResponse
+    {
+        $this->assertWithinUnit($request, $operation);
+
+        $data = $request->validate([
+            'downtime_reason_id' => ['required', 'integer', 'exists:downtime_reasons,id'],
+            'shift_id' => ['nullable', 'integer', 'exists:shifts,id'],
+            'remarks' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        return $this->idempotent($request, $operation, 'pause', function () use ($request, $operation, $data): array {
+            $session = $request->attributes->get('device_session');
+
+            $id = $this->bookings->pause(
+                $operation,
+                $this->occurredAt($request),
+                (int) $data['downtime_reason_id'],
+                $session->employeeId,
+                $data['shift_id'] ?? null,
+                $data['remarks'] ?? null,
+            );
+
+            return ['operation_id' => $operation->id, 'status' => JobCardOperation::PAUSED, 'downtime_log_id' => $id];
         });
     }
 
