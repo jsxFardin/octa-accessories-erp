@@ -56,7 +56,12 @@ return Application::configure(basePath: dirname(__DIR__))
             SetLocale::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+            // NFR-27 — 60 writes a minute per user; reads are not counted (AppServiceProvider).
+            'throttle:writes',
         ]);
+
+        // NFR-27 — 120 requests a minute per device token (AppServiceProvider).
+        $middleware->throttleApi();
 
         $middleware->alias([
             'device' => App\Http\Middleware\EnsureDeviceSession::class,
@@ -159,7 +164,7 @@ return Application::configure(basePath: dirname(__DIR__))
                         'permissions' => $user->permissionNames(),
                     ],
                 ],
-                'app' => $user === null ? [] : app(\App\Support\Settings\Organisation::class)->forFrontend(),
+                'app' => $user === null ? [] : app(App\Support\Settings\Organisation::class)->forFrontend(),
             ])
                 ->toResponse($request)
                 ->setStatusCode($response->getStatusCode());
