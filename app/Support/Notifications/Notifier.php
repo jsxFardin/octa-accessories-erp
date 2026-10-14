@@ -230,6 +230,36 @@ class Notifier
         });
     }
 
+    /**
+     * CP-1 AC2 — a certificate inside its reminder window, to compliance and whoever else may
+     * see the registry. Once per certificate per expiry date: a renewed certificate carries a
+     * new date and earns a new reminder.
+     */
+    public function notifyCertificateExpiring(object $certificate): void
+    {
+        $this->afterCommit(function () use ($certificate): void {
+            $expiresOn = (string) $certificate->expires_on;
+            $daysLeft = (int) now()->startOfDay()->diffInDays(\Carbon\CarbonImmutable::parse($expiresOn)->startOfDay(), false);
+
+            foreach ($this->usersWith(['certification.view_any', 'coc.reconcile']) as $user) {
+                $this->deliver($user, [
+                    'document_type' => 'certification',
+                    'document_id' => (int) $certificate->id,
+                    'document_number' => (string) $certificate->certificate_no,
+                    'action' => 'expiring',
+                    'href' => '/compliance',
+                    'title' => sprintf('%s certificate %s expires in %d day%s', $certificate->scheme, $certificate->certificate_no, $daysLeft, $daysLeft === 1 ? '' : 's'),
+                    'body' => sprintf(
+                        'It expires on %s. Once it has, no shipment can claim %s until a renewed certificate is on file. Start the renewal now; the audit takes about as long as the warning.',
+                        $expiresOn,
+                        $certificate->scheme,
+                    ),
+                    'dedupe_key' => 'certification:expiring:'.$certificate->id.':'.$expiresOn,
+                ]);
+            }
+        });
+    }
+
     public function notifyCreditNoteApproval(CreditNote $note): void
     {
         $this->afterCommit(function () use ($note): void {

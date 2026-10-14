@@ -525,16 +525,16 @@ it('reports the unread count and marks only the caller\'s notifications as read'
     expect($this->quality->unreadNotifications()->count())->toBe(0);
 });
 
-it('schedules the NCR overdue command daily and does not schedule invoice ageing', function (): void {
+it('schedules the NCR overdue command and invoice ageing daily', function (): void {
     $events = collect(app(Schedule::class)->events());
 
     expect($events->contains(
         fn ($event): bool => str_contains((string) $event->command, 'ncr:notify-overdue'),
     ))->toBeTrue()
+        // GAP D-05: `overdue` used to be set only by hand.
         ->and($events->contains(
-            fn ($event): bool => str_contains((string) $event->command, 'invoice')
-                && str_contains((string) $event->command, 'overdue'),
-        ))->toBeFalse();
+            fn ($event): bool => str_contains((string) $event->command, 'invoices:mark-overdue'),
+        ))->toBeTrue();
 });
 
 /*
