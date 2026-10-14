@@ -29,6 +29,18 @@ class StockLedgerEntry extends Model
 {
     protected $table = 'stock_ledger';
 
+    /**
+     * I1 / NFR-13 — append-only. A correction is a reversing entry (`StockPostingService::
+     * reverse`), never an edit. The convention held in code; nothing enforced it, so a stray
+     * `update()` in a repair script or a controller would have rewritten history silently.
+     * The database role in production should lack UPDATE/DELETE on this table as well.
+     */
+    protected static function booted(): void
+    {
+        static::updating(fn (): never => throw new \LogicException('stock_ledger is append-only: post a reversing entry instead of editing one (I1).'));
+        static::deleting(fn (): never => throw new \LogicException('stock_ledger is append-only: post a reversing entry instead of deleting one (I1).'));
+    }
+
     public $timestamps = false;
 
     protected $fillable = [
