@@ -86,8 +86,18 @@ class PostProductionCosting
         $tariff = $this->settings->decimal('tariff_per_kwh', 12);
         $machineCost = $labourCost = $energyCost = $hours = 0.0;
 
+        // MF-4 AC4 / BR-23 — downtime is not machine time. `actual_minutes` is wall clock
+        // from start to finish, so a loom that stood for an hour waiting on yarn was being
+        // charged that hour at its hourly rate, and the variance blamed the job for it.
+        $downtimeMinutes = DB::table('downtime_logs')
+            ->whereIn('job_card_operation_id', $jobCard->operations->pluck('id'))
+            ->selectRaw('job_card_operation_id, SUM(minutes) AS minutes')
+            ->groupBy('job_card_operation_id')
+            ->pluck('minutes', 'job_card_operation_id');
+
         foreach ($jobCard->operations as $operation) {
-            $stepHours = (float) $operation->actual_minutes / 60;
+            $stood = (float) ($downtimeMinutes[$operation->id] ?? 0);
+            $stepHours = max(0.0, (float) $operation->actual_minutes - $stood) / 60;
 
             if ($stepHours <= 0) {
                 continue;
@@ -104,7 +114,7 @@ class PostProductionCosting
             $labourCost += $labourAmount;
             $energyCost += $energyAmount;
 
-            $lines[] = new CostLine($seq++, 'machine', 'hour', round($stepHours, 4), (float) ($machine->hourly_rate ?? 0), round($machineAmount, 4), 'CS-A', "{$operation->name}: machine".($machine ? " ({$machine->code})" : ''));
+            $lines[] = new CostLine($seq++, 'machine', 'hour', round($stepHours, 4), (float) ($machine->hourly_rate ?? 0), round($machineAmount, 4), 'CS-A', "{$operation->name}: machine".($machine ? " ({$machine->code})" : '').($stood > 0 ? sprintf(', less %s min downtime', rtrim(rtrim(number_format($stood, 2, '.', ''), '0'), '.')) : ''));
             $lines[] = new CostLine($seq++, 'labour', 'hour', round($stepHours, 4), round($manning * $labourRate, 4), round($labourAmount, 4), 'CS-A', "{$operation->name}: labour");
 
             if ($energyAmount > 0) {
