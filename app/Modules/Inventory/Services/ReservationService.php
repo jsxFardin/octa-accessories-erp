@@ -161,6 +161,28 @@ class ReservationService
             ->sum('qty');
     }
 
+    /**
+     * SL-8 AC3 / IN-7 — an order that is closed or cancelled gives back whatever its job cards
+     * still hold. Only the job-card paths released before, so a short-closed order left its
+     * open cards' yarn claimed until someone noticed the cards too.
+     */
+    public function releaseForOrder(int $salesOrderId): int
+    {
+        $jobCardIds = DB::table('job_cards as jc')
+            ->join('sales_order_lines as sol', 'sol.id', '=', 'jc.sales_order_line_id')
+            ->where('sol.sales_order_id', $salesOrderId)
+            ->pluck('jc.id');
+
+        if ($jobCardIds->isEmpty()) {
+            return 0;
+        }
+
+        return DB::table('stock_reservations')
+            ->whereIn('job_card_id', $jobCardIds)
+            ->where('status', 'active')
+            ->update(['status' => 'released', 'released_on' => now()->toDateString()]);
+    }
+
     /** A cancelled or closed job gives its claim back; history rows stay. */
     public function releaseForJob(int $jobCardId): int
     {
