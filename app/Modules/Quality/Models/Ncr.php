@@ -150,7 +150,7 @@ class Ncr extends Model
             'scrap' => [
                 'kind' => 'scrap',
                 'status' => 'applied',
-                'detail' => 'Rejected finished-goods lots were scrapped at QC rejection: a waste movement at lot cost and a valued waste log (QL-4 AC5).',
+                'detail' => 'Rejected finished-goods lots were scrapped at QC rejection: a waste movement at lot cost and a valued waste log.',
             ],
             'concession' => filled($this->inspection?->disposition_ref) ? [
                 'kind' => 'concession',
@@ -164,7 +164,7 @@ class Ncr extends Model
             'downgrade' => [
                 'kind' => 'downgrade',
                 'status' => 'applied',
-                'detail' => 'Rejected finished-goods lots were moved to a second-quality lot with no certification claim at QC rejection (QL-4 AC4).',
+                'detail' => 'Rejected finished-goods lots were moved to a second-quality lot with no certification claim at QC rejection.',
             ],
             default => [
                 'kind' => $disposition,
