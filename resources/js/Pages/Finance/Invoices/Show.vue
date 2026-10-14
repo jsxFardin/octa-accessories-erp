@@ -19,6 +19,7 @@ const props = defineProps({
     allocations: { type: Array, default: () => [] },
     creditNotes: { type: Array, default: () => [] },
     availableTransitions: { type: Array, default: () => [] },
+    ncrs: { type: Array, default: () => [] },
 });
 
 // Underscored enum values were rendered raw in the picker — "short_delivery" is a column
@@ -30,7 +31,10 @@ const creditForm = useForm({
     sales_invoice_id: props.invoice.id,
     reason: 'quality_claim',
     amount: null,
+    ncr_id: '',
 });
+
+const ncrOptions = props.ncrs.map((ncr) => ({ value: ncr.id, label: `${ncr.number} · ${titleCase(ncr.status)}` }));
 
 const confirmTransition = useTransitionConfirm('sales_invoice');
 
@@ -119,6 +123,10 @@ const canEditReferences = can('sales_invoice.update') && props.invoice.status !=
                     >
                         <FormField label="Credit reason" :error="creditForm.errors.reason" class="w-44">
                             <SelectInput v-model="creditForm.reason" :options="CREDIT_REASONS" :placeholder="null" />
+                        </FormField>
+                        <!-- FN-3: a quality claim names the NCR that investigated it. -->
+                        <FormField v-if="creditForm.reason === 'quality_claim'" label="NCR" :error="creditForm.errors.ncr_id" class="w-48">
+                            <SelectInput v-model="creditForm.ncr_id" :options="ncrOptions" placeholder="— none —" />
                         </FormField>
                         <FormField label="Amount" :error="creditForm.errors.amount" class="w-32">
                             <TextInput

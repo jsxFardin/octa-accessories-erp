@@ -195,6 +195,16 @@ class SalesInvoiceController extends Controller
                 ->where('ra.sales_invoice_id', $invoice->id)
                 ->get(['ra.amount', 'r.number', 'r.receipt_date', 'r.method']),
             'availableTransitions' => $this->states->available($invoice),
+            // FN-3 AC2 — the NCRs a quality claim on this invoice can point at: open or
+            // recent ones against this customer's jobs, newest first.
+            'ncrs' => DB::table('ncrs as n')
+                ->leftJoin('job_cards as jc', 'jc.id', '=', 'n.job_card_id')
+                ->leftJoin('sales_order_lines as sol', 'sol.id', '=', 'jc.sales_order_line_id')
+                ->leftJoin('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
+                ->where(fn ($q) => $q->where('so.customer_id', $invoice->customer_id)->orWhereNull('n.job_card_id'))
+                ->orderByDesc('n.id')
+                ->limit(50)
+                ->get(['n.id', 'n.number', 'n.status', 'n.severity']),
         ]);
     }
 

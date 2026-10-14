@@ -14,6 +14,7 @@ use App\Support\States\TransitionDenied;
 use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -55,7 +56,7 @@ class CreditNoteController extends Controller
                     // BR-55 — the note is in the credited invoice's currency; say which.
                     'currency' => $note->currency?->code,
                     'invoice' => $note->sales_invoice_id
-                        ? \Illuminate\Support\Facades\DB::table('sales_invoices')->where('id', $note->sales_invoice_id)->value('number')
+                        ? DB::table('sales_invoices')->where('id', $note->sales_invoice_id)->value('number')
                         : null,
                 ],
             ),
@@ -71,6 +72,8 @@ class CreditNoteController extends Controller
             'reason' => ['required', Rule::in(['quality_claim', 'short_delivery', 'rate_difference', 'return', 'discount', 'other'])],
             'amount' => ['required', 'numeric', 'gt:0'],
             'remarks' => ['nullable', 'string', 'max:500'],
+            // FN-3 AC2 — a quality claim points at the NCR that investigated it.
+            'ncr_id' => ['nullable', 'integer', 'exists:ncrs,id'],
         ]);
 
         /** @var SalesInvoice $invoice */
@@ -101,6 +104,7 @@ class CreditNoteController extends Controller
             'amount' => round((float) $data['amount'], 4),
             'status' => 'draft',
             'remarks' => $data['remarks'] ?? null,
+            'ncr_id' => $data['reason'] === 'quality_claim' ? ($data['ncr_id'] ?? null) : null,
         ]);
 
         return redirect()
@@ -118,7 +122,8 @@ class CreditNoteController extends Controller
 
         return Inertia::render('Finance/CreditNotes/Show', [
             'creditNote' => [
-                ...$creditNote->only(['id', 'number', 'note_date', 'reason', 'amount', 'status', 'remarks', 'approved_by']),
+                ...$creditNote->only(['id', 'number', 'note_date', 'reason', 'amount', 'status', 'remarks', 'approved_by', 'ncr_id']),
+                'ncr' => $creditNote->ncr_id ? DB::table('ncrs')->where('id', $creditNote->ncr_id)->first(['id', 'number', 'status']) : null,
                 'customer' => $creditNote->customer?->only(['id', 'code', 'name']),
                 'currency' => $creditNote->currency?->code,
             ],
@@ -135,24 +140,24 @@ class CreditNoteController extends Controller
             // invoice above says where the credit came from, which is a different question.
             'balance' => [
                 'amount' => (float) $creditNote->amount,
-                'applied' => (float) \Illuminate\Support\Facades\DB::table('credit_note_applications')
+                'applied' => (float) DB::table('credit_note_applications')
                     ->where('credit_note_id', $creditNote->getKey())->sum('amount'),
-                'refunded' => (float) \Illuminate\Support\Facades\DB::table('refunds')
+                'refunded' => (float) DB::table('refunds')
                     ->where('credit_note_id', $creditNote->getKey())->where('status', 'posted')->sum('amount'),
                 'available' => $this->applications->available($creditNote),
             ],
-            'applications' => \Illuminate\Support\Facades\DB::table('credit_note_applications as cna')
+            'applications' => DB::table('credit_note_applications as cna')
                 ->join('sales_invoices as si', 'si.id', '=', 'cna.sales_invoice_id')
                 ->where('cna.credit_note_id', $creditNote->getKey())
                 ->orderBy('cna.id')
                 ->get(['cna.id', 'cna.amount', 'cna.applied_on', 'si.id as invoice_id', 'si.number', 'si.status']),
-            'refunds' => \Illuminate\Support\Facades\DB::table('refunds')
+            'refunds' => DB::table('refunds')
                 ->where('credit_note_id', $creditNote->getKey())
                 ->orderBy('id')
                 ->get(['id', 'number', 'amount', 'method', 'reference_no', 'refund_date', 'status']),
             // Only invoices that can actually take credit: same customer, same currency, and
             // something still outstanding. Offering any other would be offering a refusal.
-            'targets' => \Illuminate\Support\Facades\DB::table('sales_invoices')
+            'targets' => DB::table('sales_invoices')
                 ->where('customer_id', $creditNote->customer_id)
                 ->where('currency_id', $creditNote->currency_id)
                 ->whereIn('status', ['issued', 'partially_paid', 'overdue'])
@@ -165,7 +170,7 @@ class CreditNoteController extends Controller
                 ->filter(fn (array $row): bool => $row['outstanding'] > 0.0001)
                 ->values(),
             'salesReturn' => $creditNote->sales_return_id
-                ? \Illuminate\Support\Facades\DB::table('sales_returns')
+                ? DB::table('sales_returns')
                     ->where('id', $creditNote->sales_return_id)
                     ->first(['id', 'number', 'returned_on', 'status'])
                 : null,

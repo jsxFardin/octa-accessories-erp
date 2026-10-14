@@ -298,3 +298,27 @@ it('audits creation and every transition', function (): void {
     expect($events)->toContain('created')
         ->and($events->filter(fn ($event): bool => $event === 'status_changed')->count())->toBeGreaterThanOrEqual(2);
 });
+
+// GAP F-03 — FN-3 AC2: a quality claim names the NCR that investigated it.
+it('keeps the NCR a quality claim points at, and only for quality claims', function (): void {
+    $invoice = roundInvoice($this, 1000);
+    $ncrId = DB::table('ncrs')->insertGetId([
+        'number' => 'NCR-TEST-F03', 'source' => 'customer_complaint', 'raised_on' => now()->toDateString(),
+        'description' => 'Shade variation reported by the customer.', 'severity' => 'major', 'status' => 'open',
+    ]);
+
+    $this->actingAs(User::query()->where('email', 'accounts@octapussolution.com')->firstOrFail());
+    $this->post('/credit-notes', ['sales_invoice_id' => $invoice->id, 'reason' => 'quality_claim', 'amount' => 100, 'ncr_id' => $ncrId])
+        ->assertSessionHasNoErrors();
+
+    $note = CreditNote::query()->latest('id')->firstOrFail();
+
+    expect((int) $note->ncr_id)->toBe($ncrId);
+
+    $this->get("/credit-notes/{$note->id}")->assertInertia(fn ($page) => $page->where('creditNote.ncr.number', 'NCR-TEST-F03'));
+
+    $this->post('/credit-notes', ['sales_invoice_id' => $invoice->id, 'reason' => 'discount', 'amount' => 50, 'ncr_id' => $ncrId])
+        ->assertSessionHasNoErrors();
+
+    expect(CreditNote::query()->latest('id')->firstOrFail()->ncr_id)->toBeNull();
+});
