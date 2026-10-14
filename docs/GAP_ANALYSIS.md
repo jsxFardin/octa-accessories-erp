@@ -186,3 +186,17 @@ One row per finding as it is closed. `Done (sha)` names the commit; `Deferred` a
 | S-13 | Done — framework ^13.36, inertia ^3.5, vue ^3.5.44, vitest ^5, concurrently ^10; both audits clean. Lock files are gitignored, so the constraints are what CI resolves from |
 | D-08 | Done — `.env.example` defaults to MySQL |
 | D-02 | Not reproduced — `quotations_number_uq` is `(number, revision_no)` by design (revisions share the number); `mrp_runs` has no `number` column at all |
+| C-01 | Done (9d34e5a) |
+| C-02 | Done (9d34e5a) |
+| M-02 | Done (ddcc031) |
+| M-03 | Done (ddcc031) |
+| P-04 | Done (9ced4e6) |
+| P-05 | Done (507d9e0) |
+| P-10 | Done (642ab33) — tolerances; deactivation guards (MD-4 AC4, MD-1 AC5) and the customer-PO rule remain open |
+| P-11 | Done (d9976fd) — gate pass captured. Under-band short shipment is by design: a partial delivery is normal while more is coming, and a short *close* already needs a reason and `sales_order.short_close` (BR-45) |
+| C-03 | Done (feb3378) — cert fields together, PO claim honoured. Supplier-certificate validity (CP-2 AC3) needs a supplier certificate register that does not exist; deferred to C-05 |
+| M-01 | Done (see floor commit) — token per record; Login page does not yet warn about another operator's pending records |
+| M-04 | Done (see floor commit) — retry policy, backoff, 24 h window |
+| D-05 | Done (see schedule commit) — invoice overdue, certificate expiry, lot expiry. MRP nightly and over-limit digest remain open |
+| C-04 | Done (see schedule commit) — expiry flip and reminders; registration fields still optional |
+| P-15 | Partly done — lot expiry job; adjustment reason list, ageing/valuation reports open |
