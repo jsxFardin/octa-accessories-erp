@@ -38,7 +38,7 @@ class ItemMasterService
                     ? ProductionFamily::query()->find($item['production_family_id'])
                     : null;
 
-                $item['code'] = $this->numbers->nextItemCode($family?->code_prefix ?? 'ITM', $family?->code ?? '00');
+                $item['code'] = $this->numbers->nextItemCode($family->code_prefix ?? 'ITM', $family->code ?? '00');
             }
 
             /** @var Item $model */
@@ -55,7 +55,7 @@ class ItemMasterService
     }
 
     /**
-     * @param  array<string, mixed>  $item
+     * @param  array<string, mixed>  $item_data
      * @param  array<string, mixed>  $profile
      */
     public function update(Item $item, array $item_data, array $profile = []): Item
@@ -67,8 +67,11 @@ class ItemMasterService
             $item->refresh();
 
             if ($item->isMade()) {
+                /** @var Product|null $product */
+                $product = $item->product;
+
                 // P1 — a buyer, once set on the product, stays; a first buyer may be named here.
-                if ($item->product?->customer_id === null && ! empty($item_data['customer_id'])) {
+                if ($product?->customer_id === null && ! empty($item_data['customer_id'])) {
                     $profile['customer_id'] ??= $item_data['customer_id'];
                 }
 

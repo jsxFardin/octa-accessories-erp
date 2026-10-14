@@ -40,7 +40,7 @@ class OrganisationController extends Controller
      * The choices the organisation tab offers, each rendered as a sample rather than a token:
      * nobody reads `d/m/Y` and pictures a date.
      *
-     * @return array<string, list<array{value: string, label: string}>>
+     * @return array<string, list<array{value: string|int, label: string}>>
      */
     public function displayOptions(): array
     {

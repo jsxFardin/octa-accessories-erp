@@ -354,11 +354,6 @@ class RoleSeeder extends Seeder
     }
 
     /**
-     * @param  list<string>  $grants
-     * @param  list<string>  $catalogue
-     * @return list<string>
-     */
-    /**
      * Rights a wildcard never confers. Accepting a margin under the floor (spec §4) is an
      * approval someone is named for; `sales_order.*` on a merchandiser must not carry it.
      *
@@ -366,6 +361,11 @@ class RoleSeeder extends Seeder
      */
     private const EXPLICIT_ONLY = ['sales_order.confirm_below_margin', 'cost_sheet.override_margin', 'cost_sheet.approve'];
 
+    /**
+     * @param  list<string>  $grants
+     * @param  list<string>  $catalogue
+     * @return list<string>
+     */
     private function expand(array $grants, array $catalogue): array
     {
         $granted = [];

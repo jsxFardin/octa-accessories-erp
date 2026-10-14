@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Modules\Quality\Models\Ncr;
 use App\Modules\Quality\Services\NcrService;
 use App\Modules\Quality\States\NcrStateMachine;
+use App\Modules\Sales\Models\SalesOrderLine;
 use App\Support\Audit\AuditLog;
 use App\Support\Http\ListsResources;
 use App\Support\States\TransitionDenied;
@@ -123,7 +124,9 @@ class NcrController extends Controller
                 ->first(['id', 'code', 'name', 'sequence_no', 'status']);
         }
 
-        $salesOrder = $ncr->jobCard?->salesOrderLine?->salesOrder;
+        /** @var SalesOrderLine|null $orderLine */
+        $orderLine = $ncr->jobCard?->salesOrderLine;
+        $salesOrder = $orderLine?->salesOrder;
 
         return Inertia::render('Quality/Ncrs/Show', [
             'ncr' => [

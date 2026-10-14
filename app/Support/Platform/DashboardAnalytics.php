@@ -72,10 +72,13 @@ class DashboardAnalytics
     private function orders(Carbon $today): array
     {
         // Columns qualified throughout: the weekly series joins the lines, which have a status too.
-        $base = fn (): Builder => $this->units->apply(
-            DB::table('sales_orders')->whereNotIn('sales_orders.status', ['draft', 'cancelled']),
-            'sales_orders.factory_unit_id',
-        );
+        // The unit filter narrows the builder in place and hands back only the contract type.
+        $base = function (): Builder {
+            $query = DB::table('sales_orders')->whereNotIn('sales_orders.status', ['draft', 'cancelled']);
+            $this->units->apply($query, 'sales_orders.factory_unit_id');
+
+            return $query;
+        };
 
         [$from, $to, $prevFrom, $prevTo] = $this->windows($today, self::WINDOW_DAYS);
 
@@ -311,13 +314,14 @@ class DashboardAnalytics
     /** Issued delivery notes with their lines, joined to the order for unit scoping. */
     private function challanLines(): Builder
     {
-        return $this->units->apply(
-            DB::table('delivery_challans AS dc')
-                ->join('delivery_challan_lines AS dcl', 'dcl.delivery_challan_id', '=', 'dc.id')
-                ->join('sales_orders', 'sales_orders.id', '=', 'dc.sales_order_id')
-                ->whereNotIn('dc.status', ['draft', 'cancelled', 'returned']),
-            'sales_orders.factory_unit_id',
-        );
+        $query = DB::table('delivery_challans AS dc')
+            ->join('delivery_challan_lines AS dcl', 'dcl.delivery_challan_id', '=', 'dc.id')
+            ->join('sales_orders', 'sales_orders.id', '=', 'dc.sales_order_id')
+            ->whereNotIn('dc.status', ['draft', 'cancelled', 'returned']);
+        // The unit filter narrows the builder in place and hands back only the contract type.
+        $this->units->apply($query, 'sales_orders.factory_unit_id');
+
+        return $query;
     }
 
     /**

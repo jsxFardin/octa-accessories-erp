@@ -36,6 +36,7 @@ class PreProductionCosting
     {
         $rows = [];
 
+        /** @var SalesOrderLine $line */
         foreach ($order->lines()->with(['product.item', 'product.activeBom.lines.item', 'product.routing.operations', 'spec'])->get() as $line) {
             if ($line->product === null || (float) $line->ordered_qty <= 0) {
                 continue;
@@ -44,7 +45,7 @@ class PreProductionCosting
             $sheet = $this->sheets->estimate($line->product, (float) $line->ordered_qty, [
                 'marginPct' => $this->settings->decimal('default_margin_pct', 20),
                 'exchangeRate' => (float) ($order->exchange_rate ?? 1),
-                'materialRates' => self::materialRates($line->cost_overrides),
+                'materialRates' => self::materialRates($line->getAttribute('cost_overrides')),
             ], $line->spec);
 
             if ($sheet === null) {

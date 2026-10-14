@@ -6,6 +6,7 @@ namespace App\Modules\Costing\Services;
 
 use App\Modules\Costing\Models\CostSheet as CostSheetModel;
 use App\Modules\Manufacturing\Models\JobCard;
+use App\Modules\Sales\Models\SalesOrderLine;
 use App\Support\Calculators\CostLine;
 use App\Support\Calculators\CostSheet;
 use App\Support\Settings\Settings;
@@ -94,16 +95,16 @@ class PostProductionCosting
 
             $hours += $stepHours;
             $machine = $operation->machine;
-            $manning = (float) ($operation->routingOperation?->manning_level ?? 1);
+            $manning = (float) ($operation->routingOperation->manning_level ?? 1);
 
-            $machineAmount = $stepHours * (float) ($machine?->hourly_rate ?? 0);
+            $machineAmount = $stepHours * (float) ($machine->hourly_rate ?? 0);
             $labourAmount = $stepHours * $manning * $labourRate;
-            $energyAmount = $stepHours * (float) ($machine?->kw_rating ?? 0) * $tariff;
+            $energyAmount = $stepHours * (float) ($machine->kw_rating ?? 0) * $tariff;
             $machineCost += $machineAmount;
             $labourCost += $labourAmount;
             $energyCost += $energyAmount;
 
-            $lines[] = new CostLine($seq++, 'machine', 'hour', round($stepHours, 4), (float) ($machine?->hourly_rate ?? 0), round($machineAmount, 4), 'CS-A', "{$operation->name}: machine".($machine ? " ({$machine->code})" : ''));
+            $lines[] = new CostLine($seq++, 'machine', 'hour', round($stepHours, 4), (float) ($machine->hourly_rate ?? 0), round($machineAmount, 4), 'CS-A', "{$operation->name}: machine".($machine ? " ({$machine->code})" : ''));
             $lines[] = new CostLine($seq++, 'labour', 'hour', round($stepHours, 4), round($manning * $labourRate, 4), round($labourAmount, 4), 'CS-A', "{$operation->name}: labour");
 
             if ($energyAmount > 0) {
@@ -157,13 +158,14 @@ class PostProductionCosting
     /** The agreed price per unit of the order line the job fills; a stock job has none. */
     public function revenuePerUnit(JobCard $jobCard): ?float
     {
+        /** @var SalesOrderLine|null $line */
         $line = $jobCard->salesOrderLine;
 
         if ($line === null || (float) $line->ordered_qty <= 0) {
             return null;
         }
 
-        $rate = (float) ($line->salesOrder?->exchange_rate ?? 1);
+        $rate = (float) ($line->salesOrder->exchange_rate ?? 1);
 
         return round((float) $line->line_total * $rate / (float) $line->ordered_qty, 6);
     }
@@ -173,6 +175,8 @@ class PostProductionCosting
     {
         $sheet = $this->build($jobCard);
         $good = max(0.000001, $jobCard->finalOperationOutput()['good']);
+        /** @var SalesOrderLine|null $line */
+        $line = $jobCard->salesOrderLine;
 
         CostSheetModel::query()->where('job_card_id', $jobCard->id)->where('stage', CostSheetModel::POST_PRODUCTION)->delete();
 
@@ -182,7 +186,7 @@ class PostProductionCosting
             'sales_order_line_id' => $jobCard->sales_order_line_id,
             'product_spec_id' => $jobCard->product_spec_id,
             'revenue_per_unit' => $this->revenuePerUnit($jobCard),
-            'exchange_rate' => (float) ($jobCard->salesOrderLine?->salesOrder?->exchange_rate ?? 1),
+            'exchange_rate' => (float) ($line->salesOrder->exchange_rate ?? 1),
             'status' => CostSheetModel::APPROVED,
             'is_locked' => true,
             'locked_at' => now(),

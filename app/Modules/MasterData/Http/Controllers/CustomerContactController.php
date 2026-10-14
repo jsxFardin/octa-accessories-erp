@@ -68,7 +68,7 @@ class CustomerContactController extends Controller
         $before = $contact->attributesToArray();
 
         try {
-            $contact->delete();
+            $contact->deleteOrFail();
         } catch (QueryException $e) {
             if (in_array($e->getCode(), ['23000', '23503'], true) && str_contains($e->getMessage(), 'foreign key')) {
                 return back()->with('error', "{$contact->name} is named on an inquiry and cannot be removed.");

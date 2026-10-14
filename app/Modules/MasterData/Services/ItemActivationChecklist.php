@@ -7,6 +7,7 @@ namespace App\Modules\MasterData\Services;
 use App\Modules\MasterData\Models\FamilyAttribute;
 use App\Modules\MasterData\Models\Item;
 use App\Modules\MasterData\Models\UomConversion;
+use App\Modules\Product\Models\Product;
 use App\Modules\Product\Services\ProductSetup;
 use App\Support\Settings\Settings;
 use App\Support\Text\Plain;
@@ -38,8 +39,10 @@ class ItemActivationChecklist
         $item->loadMissing(['family', 'group', 'baseUom', 'orderUom', 'purchaseUom', 'defaultWarehouse', 'product']);
 
         $made = $item->isMade();
-        $productSteps = $made && $item->product !== null
-            ? collect($this->productSetup->steps($item->product))->keyBy('key')
+        /** @var Product|null $product */
+        $product = $item->product;
+        $productSteps = $made && $product !== null
+            ? collect($this->productSetup->steps($product))->keyBy('key')
             : collect();
 
         $steps = [
@@ -109,7 +112,7 @@ class ItemActivationChecklist
     private function units(Item $item): array
     {
         $step = ['key' => 'units', 'label' => 'Units', 'required' => true];
-        $base = $item->baseUom?->code ?? '?';
+        $base = $item->baseUom->code ?? '?';
 
         if ($item->isFinishedGood() && $item->order_uom_id === null) {
             return [...$step, 'state' => 'todo', 'detail' => 'No order unit. A finished good says what the buyer orders it in.'];
@@ -195,7 +198,9 @@ class ItemActivationChecklist
         }
 
         // BR-8 — a made item's wastage can be read off its routing when none is typed.
-        $routing = $made ? $item->product?->routing : null;
+        /** @var Product|null $product */
+        $product = $item->product;
+        $routing = $made ? $product?->routing : null;
 
         if ($routing !== null && (float) $routing->totalWastagePct() > 0) {
             return [...$step, 'state' => 'done', 'detail' => rtrim(rtrim((string) $routing->totalWastagePct(), '0'), '.')."% from routing {$routing->code}."];

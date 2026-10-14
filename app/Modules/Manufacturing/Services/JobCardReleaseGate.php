@@ -108,8 +108,9 @@ class JobCardReleaseGate
         }
 
         $product = $jobCard->product;
-        $required = ($product?->product_type ?? 'other') !== 'other'
-            || (bool) ($product?->item?->family?->requires_artwork ?? false);
+        $family = $product?->item?->family;
+        $required = ($product->product_type ?? 'other') !== 'other'
+            || (bool) ($family?->getAttribute('requires_artwork') ?? false);
 
         return $required
             ? ['ok' => false, 'detail' => 'No approved artwork version is bound, and this family does not run without one.']

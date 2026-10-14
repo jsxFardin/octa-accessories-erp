@@ -63,7 +63,7 @@ class BrandController extends Controller
         $before = $brand->attributesToArray();
 
         try {
-            $brand->delete();
+            $brand->deleteOrFail();
         } catch (QueryException $e) {
             if (in_array($e->getCode(), ['23000', '23503'], true) && str_contains($e->getMessage(), 'foreign key')) {
                 return back()->with(

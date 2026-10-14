@@ -76,7 +76,7 @@ class CustomerAddressController extends Controller
         $before = $address->attributesToArray();
 
         try {
-            $address->delete();
+            $address->deleteOrFail();
         } catch (QueryException $e) {
             if (in_array($e->getCode(), ['23000', '23503'], true) && str_contains($e->getMessage(), 'foreign key')) {
                 return back()->with(

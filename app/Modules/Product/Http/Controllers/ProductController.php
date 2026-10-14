@@ -105,6 +105,7 @@ class ProductController extends Controller
     {
         [$item, $profile] = $this->validated($request);
 
+        /** @var Product $product */
         $product = $this->items->create($item, $profile, $request->user()->id)->product()->firstOrFail();
 
         return redirect()

@@ -7,6 +7,7 @@ namespace App\Modules\MasterData\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Brand;
 use App\Modules\MasterData\Models\Customer;
+use App\Modules\MasterData\Models\CustomerAddress;
 use App\Modules\MasterData\Models\PaymentTerm;
 use App\Support\Http\ListsResources;
 use App\Support\Reference\Countries;
@@ -77,15 +78,16 @@ class CustomerController extends Controller
 
         return Inertia::render('MasterData/Customers/Index', [
             'customers' => $query->paginate($this->perPage($request))->withQueryString()->through(
+                // The aggregates are subselects on this query, not columns the model knows.
                 fn (Customer $customer): array => [
                     ...$customer->only(['id', 'code', 'name', 'kind', 'email', 'phone', 'credit_limit', 'is_active', 'contacts_count']),
                     'currency' => $customer->currency?->code,
-                    'open_order_value' => round((float) $customer->open_order_value, 2),
-                    'open_order_count' => (int) $customer->open_order_count,
-                    'outstanding' => round((float) $customer->outstanding, 2),
-                    'overdue' => round((float) $customer->overdue, 2),
-                    'last_order_on' => $customer->last_order_on,
-                    'quotations_out' => (int) $customer->quotations_out,
+                    'open_order_value' => round((float) $customer->getAttribute('open_order_value'), 2),
+                    'open_order_count' => (int) $customer->getAttribute('open_order_count'),
+                    'outstanding' => round((float) $customer->getAttribute('outstanding'), 2),
+                    'overdue' => round((float) $customer->getAttribute('overdue'), 2),
+                    'last_order_on' => $customer->getAttribute('last_order_on'),
+                    'quotations_out' => (int) $customer->getAttribute('quotations_out'),
                 ],
             ),
             'filters' => $this->listingFilters($request, ['active', 'kind']),
@@ -184,6 +186,8 @@ class CustomerController extends Controller
             ->whereNotIn('status', ['draft', 'cancelled'])
             ->selectRaw('COUNT(*) AS n, COALESCE(SUM(total * exchange_rate), 0) AS value')
             ->first();
+        /** @var CustomerAddress|null $defaultAddress */
+        $defaultAddress = $customer->addresses->sortByDesc('is_default')->first();
 
         return Inertia::render('MasterData/Customers/Show', [
             'customer' => [
@@ -194,7 +198,7 @@ class CustomerController extends Controller
                 'currency' => $customer->currency?->only(['id', 'code', 'name']),
                 'payment_term' => $customer->paymentTerm?->only(['id', 'code', 'name', 'net_days']),
                 // The country is the default address's, not a column of the customer's.
-                'country' => $customer->addresses->sortByDesc('is_default')->first()?->country,
+                'country' => $defaultAddress?->country,
             ],
             'contacts' => $customer->contacts->sortByDesc('is_primary')->values()
                 ->map(fn ($contact) => $contact->only(['id', 'name', 'designation', 'email', 'phone', 'is_primary'])),

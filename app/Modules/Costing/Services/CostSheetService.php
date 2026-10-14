@@ -249,7 +249,7 @@ class CostSheetService
             overheadPct: (float) ($overrides['overheadPct'] ?? $this->settings->decimal('overhead_pct', 12)),
             adminPct: (float) ($overrides['adminPct'] ?? $this->settings->decimal('admin_pct', 5)),
             marginPct: (float) ($overrides['marginPct'] ?? $this->settings->decimal('default_margin_pct', 20)),
-            minOrderValue: (float) ($overrides['minOrderValue'] ?? $product->customer?->min_order_value ?? 0),
+            minOrderValue: (float) ($overrides['minOrderValue'] ?? $product->customer->min_order_value ?? 0),
             exchangeRate: (float) ($overrides['exchangeRate'] ?? 1),
             currency: (string) ($overrides['currency'] ?? $this->settings->get('base_currency', 'BDT')),
             extraCosts: \App\Modules\Costing\CostComponents::normalise($overrides['extraCosts'] ?? []),

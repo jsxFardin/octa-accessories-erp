@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Product\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\MasterData\Models\Customer;
 use App\Modules\Product\Models\Tool;
 use App\Support\Http\ListsResources;
 use Illuminate\Http\RedirectResponse;
@@ -56,14 +57,19 @@ class ToolController extends Controller
 
         return Inertia::render('Product/Tools/Index', [
             'tools' => $query->paginate($this->perPage($request))->withQueryString()->through(
-                fn (Tool $tool): array => [
-                    ...$tool->only(['id', 'code', 'kind', 'product_spec_id', 'colour_index', 'location',
-                        'made_on', 'cost', 'life_impressions', 'used_impressions', 'status',
-                        'cavity_count', 'tonnage', 'owner_customer_id', 'item_id']),
-                    'owner' => $tool->ownerCustomer?->name,
-                    'product' => $tool->spec?->product?->only(['id', 'code', 'name']),
-                    'spec_version' => $tool->spec?->version_no,
-                ],
+                function (Tool $tool): array {
+                    /** @var Customer|null $owner */
+                    $owner = $tool->ownerCustomer;
+
+                    return [
+                        ...$tool->only(['id', 'code', 'kind', 'product_spec_id', 'colour_index', 'location',
+                            'made_on', 'cost', 'life_impressions', 'used_impressions', 'status',
+                            'cavity_count', 'tonnage', 'owner_customer_id', 'item_id']),
+                        'owner' => $owner?->name,
+                        'product' => $tool->spec?->product?->only(['id', 'code', 'name']),
+                        'spec_version' => $tool->spec?->version_no,
+                    ];
+                },
             ),
             'filters' => $this->listingFilters($request, ['kind', 'status']),
             'kinds' => self::KINDS,
@@ -79,7 +85,7 @@ class ToolController extends Controller
                 ->whereIn('ps.status', ['current', 'draft'])
                 ->orderBy('pi.code')->orderByDesc('ps.version_no')
                 ->get(['ps.id', 'ps.version_no', 'ps.status', 'ps.colours', 'pi.code', 'pi.name']),
-            'customers' => \App\Modules\MasterData\Models\Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
+            'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
             'toolItems' => \App\Modules\MasterData\Models\Item::query()->ofType('tool')->orderBy('code')->get(['id', 'code', 'name']),
         ]);
     }

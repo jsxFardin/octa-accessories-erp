@@ -610,6 +610,7 @@ class LocalProcessSeeder extends Seeder
     {
         $product = $offer['product'];
         $spec = $offer['spec'];
+        /** @var SalesOrderLine $line */
         $line = $order->lines()->firstOrFail();
         $approved = $offer['artwork']->approvedVersion()->firstOrFail();
         $plan = (new ConsumptionCalculator)->plan(
@@ -712,6 +713,7 @@ class LocalProcessSeeder extends Seeder
             $this->userId,
         );
 
+        /** @var SalesOrderLine $line */
         $line = $order->lines()->firstOrFail();
         $packQty = min(2_000, $produce);
 

@@ -16,6 +16,7 @@ final readonly class CostSheetInput
     /**
      * @param  array<string, float>  $materialRates  cost_type => rate per base UoM, in BDT
      * @param  array<int, float>  $colourWeights
+     * @param  list<array{key: string, label: string, cost_type: string, basis: string, value: float}>  $extraCosts
      */
     public function __construct(
         public SpecInput $spec,

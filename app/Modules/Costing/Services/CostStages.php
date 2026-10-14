@@ -42,7 +42,9 @@ class CostStages
         $post = CostSheet::query()->with('lines')->where('job_card_id', $jobCard->id)->where('stage', CostSheet::POST_PRODUCTION)->latest('id')->first();
         $pre = $jobCard->sales_order_line_id === null ? null
             : CostSheet::query()->where('sales_order_line_id', $jobCard->sales_order_line_id)->where('stage', CostSheet::PRE_PRODUCTION)->latest('id')->first();
-        $marketing = $this->marketingFor($jobCard->salesOrderLine);
+        /** @var SalesOrderLine|null $orderLine */
+        $orderLine = $jobCard->salesOrderLine;
+        $marketing = $this->marketingFor($orderLine);
 
         $output = $jobCard->finalOperationOutput();
         $waste = (float) DB::table('waste_logs')->where('job_card_id', $jobCard->id)->sum('qty');
@@ -82,16 +84,18 @@ class CostStages
             ? collect($this->preProduction->forOrder($order))->keyBy(fn (array $row): int => $row['line']->id)
             : collect();
 
+        /** @var SalesOrderLine $line */
         foreach ($order->lines as $line) {
             $preview = $expected->get($line->id);
             $pre = CostSheet::query()->where('sales_order_line_id', $line->id)->where('stage', CostSheet::PRE_PRODUCTION)->latest('id')->first();
             $posts = CostSheet::query()->where('sales_order_line_id', $line->id)->where('stage', CostSheet::POST_PRODUCTION)->get();
             $marketing = $this->marketingFor($line);
+            $overrides = $line->getAttribute('cost_overrides');
 
             // Actuals across every job that filled the line, weighted by what each made.
             $actualQty = (float) $posts->sum('basis_qty');
             $actualUnit = $actualQty > 0 ? (float) $posts->sum('total_cost') / $actualQty : null;
-            $revenue = $pre?->revenue_per_unit ?? ((float) $line->ordered_qty > 0 ? (float) $line->line_total / (float) $line->ordered_qty : null);
+            $revenue = $pre->revenue_per_unit ?? ((float) $line->ordered_qty > 0 ? (float) $line->line_total / (float) $line->ordered_qty : null);
 
             $rows[] = [
                 'line_id' => $line->id,
@@ -113,8 +117,8 @@ class CostStages
                     'margin_pct' => $preview['expected_margin_pct'],
                     'revenue_per_unit' => $preview['revenue_per_unit'],
                 ],
-                'materials' => $preview === null ? [] : $this->adjustableMaterials($preview['sheet'], $line->cost_overrides),
-                'overrides' => $line->cost_overrides,
+                'materials' => $preview === null ? [] : $this->adjustableMaterials($preview['sheet'], $overrides),
+                'overrides' => $overrides,
             ];
         }
 
@@ -303,7 +307,7 @@ class CostStages
             return $rows;
         };
 
-        $plannedOps = $operations($pre?->lines ?? collect(), $scale ?? 1.0);
+        $plannedOps = $operations($pre->lines ?? collect(), $scale ?? 1.0);
         $actualOps = $operations($post->lines, 1.0);
 
         // A label sheet benchmarks conversion as one blended line across its operations, not

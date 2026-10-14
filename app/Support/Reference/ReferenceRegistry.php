@@ -89,7 +89,7 @@ class ReferenceRegistry
             $menu[] = [
                 'key' => $key,
                 'label' => $label,
-                'icon' => self::GROUP_ICONS[$key] ?? 'sliders',
+                'icon' => self::GROUP_ICONS[$key],
                 'lists' => $lists[$key],
             ];
         }
