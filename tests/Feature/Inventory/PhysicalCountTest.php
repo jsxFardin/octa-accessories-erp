@@ -631,6 +631,8 @@ it('refuses to issue a lot frozen by a physical count', function (): void {
             'lot_id' => $lot->id,
             'uom_id' => $lot->uom_id,
             'qty' => 1,
+            // MF-2 AC4 — the demo job already carries issues; the fixture overshoots on purpose.
+            'over_issue_reason' => 'Fixture: issued beyond the requirement on purpose',
         ]],
     ])->assertSessionHasErrors('lines.0.lot_id');
 });
@@ -797,6 +799,8 @@ it('still posts an IN-3 return onto the original unfrozen lot', function (): voi
             'lot_id' => $lot->id,
             'uom_id' => $lot->uom_id,
             'qty' => 2,
+            // MF-2 AC4 — the demo job already carries issues; the fixture overshoots on purpose.
+            'over_issue_reason' => 'Fixture: issued beyond the requirement on purpose',
         ]],
     ])->assertSessionHasNoErrors();
 

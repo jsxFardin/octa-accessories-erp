@@ -209,4 +209,11 @@ One row per finding as it is closed. `Done (sha)` names the commit; `Deferred` a
 | C-04 | Done — issuing body, scope and the signed-certificate path are required at registration; expiry job and reminders landed with D-05. Versioned renewals (AC4) open |
 | M-05 | Done — downtime logged against an operation is taken out of the hours it is charged for; the machine line says how much. OEE still open |
 | Q-01 | Done — `items.requires_incoming_qc` receives the lot into quarantine and raises a pending incoming inspection with its number; the inspector's verdict lands on that row, moves the lot to available or blocked, and sets the GRN line's accepted/rejected quantities. Whole-lot granularity; supplier rating (AC4) open |
+| S-09 | Done — a device token stops working at the next request once the employee or user is deactivated. Token still not bound to a device; `machine_code` not enforced on writes |
+| S-10 | Done — `.env.example` idle timeout is eight hours (NFR-26). The portal has no sessions yet |
+| S-12 | Done — approval is `supplier.approve`: the edit form ignores the box for anyone else, and the supplier page has an Approve action for purchase managers, audited |
+| Q-04 | Done — DHU counts minor defects; every inspection stores the AQL plan row it sampled from; the `customer` stage is reachable |
+| M-08 | Done — issuing past the BOM requirement plus wastage needs a reason on the line, stored on the issue line |
+| P-14 | Partly done — a made item that prints artwork cannot go active without an approved version. BOM activation validation, `formula_ref`, artwork preview/submission sheet and re-approval flagging remain open |
+| D-07 | Partly done — every response carries `X-Request-Id`, shared into the log context; `/up` proves the database, cache and disk and reports the queue. No error tracker, no backups |
 | E-02 | Done — PHPStan level 6 reports 0 errors; Pint clean. Agent cleared the costing, master-data, product, quality, finance, support and seeder files; the rest was relation generics on the models |

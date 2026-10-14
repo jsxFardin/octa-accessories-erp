@@ -89,6 +89,8 @@ function p27Issued(object $test, float $qty = 10, ?JobCard $job = null, ?StockLo
             'lot_id' => $lot->id,
             'uom_id' => $lot->uom_id,
             'qty' => $qty,
+            // MF-2 AC4 — the demo job already carries issues; the fixture overshoots on purpose.
+            'over_issue_reason' => 'Fixture: issued beyond the requirement on purpose',
         ]],
     ])->assertSessionHasNoErrors();
 
@@ -559,4 +561,38 @@ it('still posts a normal issue with issue_to_job', function (): void {
     expect(p27Ledger($issue)->value('movement_type'))->toBe('issue_to_job')
         ->and((float) p27Ledger($issue)->value('qty'))->toBeQty(-2.0)
         ->and($ctx->job->status)->toBe(JobCard::RELEASED);
+});
+
+// GAP M-08 — MF-2 AC4: issuing past the BOM requirement plus wastage needs a reason on the line.
+it('asks why when an issue would take the job past its requirement plus wastage', function (): void {
+    $job = p27Job($this);
+    $bomLine = DB::table('bom_lines')->where('bom_id', $job->bom_id)->where('is_optional', false)->orderBy('id')->firstOrFail();
+    $ceiling = $job->bom->scaleTo((float) $bomLine->qty_per_base, (float) $job->planned_qty) * (1 + (float) $bomLine->wastage_pct / 100);
+    $issued = (float) DB::table('material_issue_lines as l')
+        ->join('material_issues as mi', 'mi.id', '=', 'l.material_issue_id')
+        ->where('mi.job_card_id', $job->id)->where('mi.status', 'posted')->where('l.item_id', $bomLine->item_id)
+        ->selectRaw("COALESCE(SUM(CASE WHEN mi.issue_type = 'return' THEN -l.qty ELSE l.qty END), 0) AS qty")->value('qty');
+    $need = max(0.0, $ceiling - $issued) + 1;
+
+    $lot = StockLot::query()->where('item_id', $bomLine->item_id)->where('status', 'available')
+        ->where('balance_qty', '>=', $need)->orderBy('id')->first();
+
+    if ($lot === null) {
+        $this->markTestSkipped('The seed holds no single lot large enough to overshoot this job\'s requirement.');
+    }
+
+    $payload = [
+        'job_card_id' => $job->id, 'warehouse_id' => $lot->warehouse_id, 'issue_type' => 'issue',
+        'lines' => [['item_id' => $lot->item_id, 'lot_id' => $lot->id, 'uom_id' => $lot->uom_id, 'qty' => $need]],
+    ];
+
+    $this->actingAs($this->keeper)->post('/material-issues', $payload)
+        ->assertSessionHasErrors('lines.0.over_issue_reason');
+
+    $payload['lines'][0]['over_issue_reason'] = 'Customer approved a 2 % longer label at the last minute.';
+
+    $this->actingAs($this->keeper)->post('/material-issues', $payload)->assertSessionHasNoErrors();
+
+    expect(DB::table('material_issue_lines')->where('lot_id', $lot->id)->orderByDesc('id')->value('over_issue_reason'))
+        ->toBe('Customer approved a 2 % longer label at the last minute.');
 });

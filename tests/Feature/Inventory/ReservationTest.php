@@ -93,6 +93,7 @@ it('stops an issue from taking another job\'s reserved quantity', function (): v
         'lines' => [[
             'item_id' => $lot->item_id, 'lot_id' => $lot->id, 'uom_id' => $lot->uom_id,
             'qty' => $free + (float) $claimed->qty, // wants the claim too
+            'over_issue_reason' => 'Fixture: issued beyond the requirement on purpose',
         ]],
     ])->assertSessionHas('error');
 
@@ -114,6 +115,8 @@ it('consumes the claim as the owning job issues, and keeps history rows', functi
         'lines' => [[
             'item_id' => $lot->item_id, 'lot_id' => $lot->id, 'uom_id' => $lot->uom_id,
             'qty' => (float) $claimed->qty,
+            // MF-2 AC4 — the demo job already carries issues; the fixture overshoots on purpose.
+            'over_issue_reason' => 'Fixture: issued beyond the requirement on purpose',
         ]],
     ])->assertSessionHasNoErrors();
 
