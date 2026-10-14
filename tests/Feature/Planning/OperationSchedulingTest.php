@@ -283,3 +283,18 @@ it('tells the board the earliest day a waiting step may start', function (): voi
                 return $row === null || $row['not_before'] === $this->day;
             }));
 });
+
+// GAP P-08 — MD-3 AC3 / PL-2 AC1: inside the right group is not the same as able to run the job.
+it('planning: refuses a machine too narrow or with too few colours for the job', function (): void {
+    $spec = $this->operation->jobCard->spec;
+    $web = (float) ($spec->web_width_mm ?? $spec->label_width_mm);
+
+    DB::table('machines')->where('id', $this->machineId)->update(['web_width_mm' => max(1, $web - 1)]);
+    ($this->schedule)()->assertSessionHasErrors('machine_id');
+
+    DB::table('machines')->where('id', $this->machineId)->update(['web_width_mm' => $web + 50, 'max_colours' => max(0, (int) $spec->colours - 1)]);
+    ($this->schedule)()->assertSessionHasErrors('machine_id');
+
+    DB::table('machines')->where('id', $this->machineId)->update(['max_colours' => (int) $spec->colours]);
+    ($this->schedule)()->assertSessionHasNoErrors();
+});
