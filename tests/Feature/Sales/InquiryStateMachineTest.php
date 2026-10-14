@@ -117,3 +117,28 @@ it('revises only a sent or expired quotation, through the machine', function ():
         ->and(DB::table('audit_logs')->where('auditable_type', Quotation::class)->where('auditable_id', $quotation->id)
             ->where('event', 'status_changed')->count())->toBe($before + 1);
 });
+
+// GAP P-13 — SL-4 AC1: a revision carries its cost sheets, open, so it can be sent again.
+it('copies each line\'s cost sheet onto the revision', function (): void {
+    $inquiry = ($this->openInquiry)();
+    $quotation = ($this->quote)($inquiry);
+    $this->actingAs($this->merchandiser)->post("/quotations/{$quotation->id}/transition", ['to' => 'sent'])->assertSessionHasNoErrors();
+
+    $priorLine = $quotation->lines()->firstOrFail();
+    $priorSheet = App\Modules\Costing\Models\CostSheet::query()->where('quotation_line_id', $priorLine->id)->firstOrFail();
+
+    $this->post("/quotations/{$quotation->id}/transition", ['to' => 'revised'])->assertSessionHas('success');
+
+    $revision = Quotation::query()->where('inquiry_id', $inquiry->id)->where('revision_no', 1)->firstOrFail();
+    $newLine = $revision->lines()->firstOrFail();
+    $sheet = App\Modules\Costing\Models\CostSheet::query()->where('quotation_line_id', $newLine->id)->first();
+
+    expect($sheet)->not->toBeNull()
+        ->and((bool) $sheet->is_locked)->toBeFalse()
+        ->and($sheet->lines()->count())->toBe($priorSheet->lines()->count())
+        // The prior revision keeps its own, locked.
+        ->and((bool) $priorSheet->fresh()->is_locked)->toBeTrue();
+
+    // And the revision can be sent without anyone re-saving it (Q1).
+    $this->post("/quotations/{$revision->id}/transition", ['to' => 'sent'])->assertSessionHasNoErrors();
+});

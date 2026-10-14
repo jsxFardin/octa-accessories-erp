@@ -516,6 +516,23 @@ class QuotationController extends Controller
                 $copy = $line->replicate();
                 $copy->quotation_id = $revision->id;
                 $copy->save();
+
+                // SL-4 AC1 — the costing comes with the line. The prior revision's sheets are
+                // locked by its sending; the copies are open so the revision can be re-priced
+                // and, until it is re-saved, still has a sheet per line to be sent with (Q1).
+                foreach (CostSheet::query()->where('quotation_line_id', $line->id)->with('lines')->get() as $sheet) {
+                    $sheetCopy = $sheet->replicate(['approved_by', 'approved_at']);
+                    $sheetCopy->quotation_line_id = $copy->id;
+                    $sheetCopy->is_locked = false;
+                    $sheetCopy->status = CostSheet::DRAFT;
+                    $sheetCopy->save();
+
+                    foreach ($sheet->lines as $sheetLine) {
+                        $lineCopy = $sheetLine->replicate();
+                        $lineCopy->cost_sheet_id = $sheetCopy->id;
+                        $lineCopy->save();
+                    }
+                }
             }
 
             return $revision;
