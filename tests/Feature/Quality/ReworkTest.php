@@ -191,3 +191,20 @@ it('records the AQL plan it used and counts minor defects in the DHU', function 
         ->and((float) $inspection->dhu)->toBe(round(5 / (int) $inspection->sample_size * 100, 4))
         ->and($inspection->result)->toBe('accepted');
 });
+
+// GAP M-07 — 05-workflows §6: reaching QC raises the final inspection; the verdict lands on it.
+it('raises the final inspection when the card reaches QC and records the verdict on that row', function (): void {
+    $pending = DB::table('qc_inspections')->where('job_card_id', $this->jobCard->id)->where('stage', 'final')->get();
+
+    expect($pending)->toHaveCount(1)
+        ->and($pending[0]->result)->toBe('pending')
+        ->and($pending[0]->number)->not->toBeNull();
+
+    postFinal($this, majors: 0);
+
+    $rows = DB::table('qc_inspections')->where('job_card_id', $this->jobCard->id)->where('stage', 'final')->get();
+
+    expect($rows)->toHaveCount(1)
+        ->and((int) $rows[0]->id)->toBe((int) $pending[0]->id)
+        ->and($rows[0]->result)->toBe('accepted');
+});

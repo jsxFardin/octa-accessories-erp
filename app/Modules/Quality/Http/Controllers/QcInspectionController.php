@@ -211,9 +211,14 @@ class QcInspectionController extends Controller
             // raised by the GRN posting with the number allocated. The verdict lands on that
             // row rather than beside it, so the queue of pending incoming inspections empties
             // as the inspector works through it.
-            $pending = $data['stage'] === 'incoming' && ! empty($data['lot_id'])
-                ? QcInspection::query()->where('stage', 'incoming')->where('lot_id', $data['lot_id'])->where('result', 'pending')->first()
-                : null;
+            $pending = match (true) {
+                $data['stage'] === 'incoming' && ! empty($data['lot_id']) => QcInspection::query()
+                    ->where('stage', 'incoming')->where('lot_id', $data['lot_id'])->where('result', 'pending')->first(),
+                // The final inspection the card raised on reaching QC (JobCardStateMachine).
+                $data['stage'] === 'final' && ! empty($data['job_card_id']) => QcInspection::query()
+                    ->where('stage', 'final')->where('job_card_id', $data['job_card_id'])->where('result', 'pending')->first(),
+                default => null,
+            };
 
             $inspection = $pending ?? new QcInspection(['number' => $this->numbers->next('qc_inspection')]);
             $inspection->fill([
