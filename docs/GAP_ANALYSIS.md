@@ -167,3 +167,22 @@ Severity: **Critical** blocks a core flow or corrupts data; **High** core flow w
 3. **Small integrity fixes (S each, ≈1 week together).** C-01 call `meetsThreshold` in the packing-list guard. C-02 exclude non-A grades from the claim and flag at packing. M-02 refuse finish on a completed operation (409). M-03 J1 check on start/downtime, no START on hold, guard on resume. M-04 retry policy in `flush()` by status, drop the 4 h hard expiry. M-01 stamp the operator on the queued record and send it; bind idempotency to the record not the token. P-04 release reservations on order close. P-05 route inquiry and quotation revision through their state machines. P-11 guard short shipments. D-02 unique indexes. P-10 customer tolerances. C-03 required cert fields.
 4. **Medium rule gaps (≈3–4 weeks).** Q-01 GRN quarantine and incoming QC with release. Q-02 `requires_qc` finish gate and hold on fail. Q-03 downgrade/scrap stock effects. M-05 downtime exclusion. M-06 waste valuation and ledger. F-01 tax and Mushak. C-04 and D-05 scheduled jobs. S-11 audit coverage. E-02 PHPStan to green. E-08 N+1s.
 5. **Large surfaces (roadmap items, prioritise with the factory).** P-01 sampling. P-03 purchase returns. P-02 delivery schedules and job-card split. P-09 production plans and promised-date recomputation. M-09 live board. F-04 customer ledger and ageing. F-07 export documents. Q-06 complaints. C-05 claim validator. E-11 report catalogue. E-06 i18n. S-08 portal scope before any portal work. E-03/E-05 factories, component and E2E tests. D-06 queued MRP and exports. D-07 observability and backups.
+
+---
+
+## 7. Fix log
+
+One row per finding as it is closed. `Done (sha)` names the commit; `Deferred` and `Needs decision` say why.
+
+| ID | Status |
+|---|---|
+| S-01 | Done (db83a9b) |
+| S-02 | Done (db83a9b) |
+| S-03 | Done (a07b9bc) |
+| S-04 | Done (6f59edc) |
+| S-05 | Done (da7d358) |
+| S-06 | Done (da7d358) |
+| E-01 | Done (1412f3e) — CI stays red until E-02 (PHPStan) is green |
+| S-13 | Done — framework ^13.36, inertia ^3.5, vue ^3.5.44, vitest ^5, concurrently ^10; both audits clean. Lock files are gitignored, so the constraints are what CI resolves from |
+| D-08 | Done — `.env.example` defaults to MySQL |
+| D-02 | Not reproduced — `quotations_number_uq` is `(number, revision_no)` by design (revisions share the number); `mrp_runs` has no `number` column at all |
