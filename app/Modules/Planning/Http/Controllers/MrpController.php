@@ -111,20 +111,26 @@ class MrpController extends Controller
                     continue;
                 }
 
-                $onHand = $this->availability->onHand($itemId);
-                $onOrder = $this->availability->onOrder($itemId);
-                $reserved = $this->availability->reserved($itemId);
-
-                $result = $this->mrp->netRequirement($row['gross'], $onHand, $onOrder, $reserved);
-
                 $needDate = $this->mrp->materialNeedDate(
                     CarbonImmutable::parse($row['need_date'] ?? now()->addDays(14)->toDateString()),
                     (int) $item->safety_days,
                 );
 
-                $leadTime = (int) (DB::table('suppliers')
-                    ->where('id', $item->default_supplier_id)
-                    ->value('lead_time_days') ?? 0);
+                $onHand = $this->availability->onHand($itemId);
+                // BR-24 — an order that lands after the need date does not cover it.
+                $onOrder = $this->availability->onOrder($itemId, $needDate->toDateString());
+                $reserved = $this->availability->reserved($itemId);
+
+                $result = $this->mrp->netRequirement($row['gross'], $onHand, $onOrder, $reserved);
+
+                // BR-26 — the lead time is the supplier's for *this item* where one is agreed
+                // (`supplier_items`), the supplier's general figure otherwise.
+                $leadTime = (int) (DB::table('supplier_items')
+                    ->where('supplier_id', $item->default_supplier_id)
+                    ->where('item_id', $itemId)
+                    ->value('lead_time_days')
+                    ?? DB::table('suppliers')->where('id', $item->default_supplier_id)->value('lead_time_days')
+                    ?? 0);
 
                 DB::table('material_requirements')->insert([
                     'mrp_run_id' => $runId,

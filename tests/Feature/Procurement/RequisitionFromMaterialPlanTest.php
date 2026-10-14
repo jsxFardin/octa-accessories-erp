@@ -53,3 +53,26 @@ it('opens blank when no run is named or the run does not exist', function (): vo
     $this->actingAs($this->purchase)->get('/purchase-requisitions/create?mrp_run=999999')
         ->assertInertia(fn (AssertableInertia $page) => $page->where('prefill', null));
 });
+
+// GAP P-06 — PR-1 AC1 / PL-5 AC2-3: a requisition raised from the plan is marked as such, its
+// lines answer the run's shortage rows, and a covered shortage is not offered again.
+it('marks a requisition raised from the plan as MRP-origin, links the shortage, and stops offering it', function (): void {
+    $uomId = (int) DB::table('items')->where('id', $this->shortItemId)->value('base_uom_id');
+
+    $this->actingAs($this->purchase)->post('/purchase-requisitions', [
+        'mrp_run_id' => $this->runId,
+        'factory_unit_id' => DB::table('factory_units')->value('id'),
+        'requested_on' => now()->toDateString(),
+        'lines' => [['item_id' => $this->shortItemId, 'uom_id' => $uomId, 'qty' => 120]],
+    ])->assertSessionHasNoErrors();
+
+    $requisition = DB::table('purchase_requisitions')->orderByDesc('id')->first();
+    $line = DB::table('purchase_requisition_lines')->where('pr_id', $requisition->id)->first();
+
+    expect($requisition->origin)->toBe('mrp')
+        ->and((int) DB::table('material_requirements')->where('mrp_run_id', $this->runId)->where('item_id', $this->shortItemId)->value('pr_line_id'))
+        ->toBe((int) $line->id);
+
+    $this->actingAs($this->purchase)->get("/purchase-requisitions/create?mrp_run={$this->runId}")
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('prefill', null));
+});

@@ -30,6 +30,9 @@ function blankLine() {
 }
 
 const form = useForm({
+    // Carried from the material plan so the requisition is marked as the plan's and the
+    // run's shortage rows learn which line answers them.
+    mrp_run_id: props.prefill?.mrp_run_id ?? null,
     factory_unit_id: props.requisition?.factory_unit_id ?? props.units[0]?.id ?? '',
     department_id: props.requisition?.department_id ?? '',
     requested_on: isoDate(props.requisition?.requested_on) || todayIso(),
