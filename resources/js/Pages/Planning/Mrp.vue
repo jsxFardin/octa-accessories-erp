@@ -76,7 +76,10 @@ const columns = [
                         <p class="text-xs text-ink-500">
                             {{ date(r.horizon_from) }} → {{ date(r.horizon_to) }}
                         </p>
-                        <Badge :tone="r.shortage_count > 0 ? 'warning' : 'success'" :label="`${r.shortage_count} shortage(s)`" />
+                        <!-- A run is computed by the worker; until it has finished it has nothing to count. -->
+                        <Badge v-if="r.status === 'running'" tone="info" label="Running — refresh in a moment" />
+                        <Badge v-else-if="r.status === 'failed'" tone="danger" label="Failed — see the run's notes" />
+                        <Badge v-else :tone="r.shortage_count > 0 ? 'warning' : 'success'" :label="`${r.shortage_count} shortage(s)`" />
                     </li>
                     <li v-if="runs.length === 0" class="px-3 py-6 text-center text-ink-500">No runs yet.</li>
                 </ul>
