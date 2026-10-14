@@ -54,6 +54,12 @@ class ItemActivationChecklist
         if ($made) {
             $steps[] = $this->passThrough($productSteps->get('bom'), 'bom', 'Bill of materials', 'What it is made of; costing and material issue read it.');
             $steps[] = $this->passThrough($productSteps->get('routing'), 'routing', 'Routing', 'How it is made; machine time is costed from it.');
+
+            // PD-1 AC4 — active only with an approved artwork, where the family prints one.
+            // The product setup already knows; the activation gate was not asking.
+            if ($product !== null && ($product->product_type !== 'other' || (bool) ($item->family->requires_artwork ?? false))) {
+                $steps[] = $this->passThrough($productSteps->get('artwork'), 'artwork', 'Artwork', 'An approved artwork version is needed before this product can be ordered or made.');
+            }
         }
 
         $steps[] = $this->wastage($item, $made);

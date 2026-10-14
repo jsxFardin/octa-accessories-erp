@@ -146,3 +146,21 @@ it('refuses to confirm a sales order whose line names a draft item', function ()
         expect($e->getMessage())->toContain('not active');
     }
 });
+
+// GAP P-14 — PD-1 AC4: a made item that prints artwork cannot go active without an approved version.
+it('blocks activation of a made item whose product has no approved artwork', function (): void {
+    $product = Product::query()->whereCode('PRD-NFJ-CARE-01')->firstOrFail();
+    $item = $product->item;
+
+    DB::table('artwork_versions')
+        ->whereIn('artwork_id', DB::table('artworks')->where('product_id', $product->id)->select('id'))
+        ->where('status', 'approved')
+        ->update(['status' => 'draft']);
+
+    $steps = collect(app(ItemActivationChecklist::class)->steps($item->fresh()))->keyBy('key');
+
+    expect($steps->has('artwork'))->toBeTrue()
+        ->and($steps['artwork']['state'])->not->toBe('done')
+        ->and(collect(app(ItemActivationChecklist::class)->blockers($item->fresh()))
+            ->contains(fn (string $blocker): bool => str_starts_with($blocker, 'Artwork')))->toBeTrue();
+});
