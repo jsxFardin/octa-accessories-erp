@@ -39,6 +39,7 @@ use App\Modules\Planning\Http\Controllers\PlanningBoardController;
 use App\Modules\Procurement\Http\Controllers\GrnController;
 use App\Modules\Procurement\Http\Controllers\PurchaseOrderController;
 use App\Modules\Procurement\Http\Controllers\PurchaseRequisitionController;
+use App\Modules\Procurement\Http\Controllers\PurchaseReturnController;
 use App\Modules\Procurement\Http\Controllers\SupplierBillController;
 use App\Modules\Procurement\Http\Controllers\SupplierRfqController;
 use App\Modules\Product\Http\Controllers\ArtworkController;
@@ -391,6 +392,22 @@ Route::middleware('auth')->group(function (): void {
 
     Route::post('purchase-orders/{purchaseOrder}/transition', [PurchaseOrderController::class, 'transition'])
         ->middleware('can:purchase_order.view')->name('purchase-orders.transition');
+
+    // PR-7 — supplier returns, out of the lots a posted receipt created.
+    Route::get('purchase-returns', [PurchaseReturnController::class, 'index'])
+        ->middleware('can:purchase_return.view_any')->name('purchase-returns.index');
+    Route::get('purchase-returns/create', [PurchaseReturnController::class, 'create'])
+        ->middleware('can:purchase_return.create')->name('purchase-returns.create');
+    Route::get('purchase-returns/grn/{grn}', [PurchaseReturnController::class, 'lots'])
+        ->middleware('can:purchase_return.create')->name('purchase-returns.lots');
+    Route::post('purchase-returns', [PurchaseReturnController::class, 'store'])
+        ->middleware('can:purchase_return.create')->name('purchase-returns.store');
+    Route::get('purchase-returns/{purchase_return}', [PurchaseReturnController::class, 'show'])
+        ->middleware('can:purchase_return.view')->name('purchase-returns.show');
+    Route::post('purchase-returns/{purchase_return}/transition', [PurchaseReturnController::class, 'transition'])
+        ->middleware('can:purchase_return.update')->name('purchase-returns.transition');
+    Route::put('purchase-returns/{purchase_return}/debit-note', [PurchaseReturnController::class, 'debitNote'])
+        ->middleware('can:purchase_return.update')->name('purchase-returns.debit-note');
 
     Route::get('grns', [GrnController::class, 'index'])
         ->middleware('can:grn.view_any')->name('grns.index');

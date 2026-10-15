@@ -42,6 +42,7 @@ export const navigation = [
             { label: 'RFQs', href: '/rfqs', icon: 'rfq', permissions: ['rfq.view_any'] },
             { label: 'Purchase orders', href: '/purchase-orders', icon: 'purchase-order', permissions: ['purchase_order.view_any'] },
             { label: 'Goods receipts', href: '/grns', icon: 'goods-receipt', permissions: ['grn.view_any'] },
+            { label: 'Supplier returns', href: '/purchase-returns', icon: 'sales-return', permissions: ['purchase_return.view_any'] },
             { label: 'Suppliers', href: '/suppliers', icon: 'supplier', permissions: ['supplier.view_any'] },
             { label: 'Import shipments', href: '/import-shipments', icon: 'ship', permissions: ['import_shipment.view_any'] },
             { label: 'Letters of credit', href: '/letters-of-credit', icon: 'award', permissions: ['letter_of_credit.view_any'] },

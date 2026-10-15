@@ -897,6 +897,7 @@ class ReferenceDataSeeder extends Seeder
             'receipt' => ['RCT', 5],
             'payment' => ['PAY', 5],
             'supplier_bill' => ['SB', 5],
+            'purchase_return' => ['PRT', 5],
             'letter_of_credit' => ['LC', 5],
             'import_shipment' => ['IMP', 5],
             'expense' => ['EXP', 5],
