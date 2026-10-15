@@ -310,6 +310,8 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('can:export_shipment.update')->name('export-shipments.challans.detach');
     Route::post('export-shipments/{exportShipment}/documents', [ExportShipmentController::class, 'storeDocument'])
         ->middleware('can:export_document.create')->name('export-shipments.documents.store');
+    Route::post('export-shipments/{exportShipment}/documents/generate', [ExportShipmentController::class, 'generateDocument'])
+        ->middleware('can:export_document.create')->name('export-shipments.documents.generate');
     Route::put('export-shipments/{exportShipment}/documents/{document}', [ExportShipmentController::class, 'updateDocument'])
         ->middleware('can:export_document.update')->name('export-shipments.documents.update');
     Route::delete('export-shipments/{exportShipment}/documents/{document}', [ExportShipmentController::class, 'destroyDocument'])

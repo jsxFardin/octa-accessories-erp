@@ -174,6 +174,10 @@ class ExportShipmentController extends Controller
                 ]),
             'checklist' => $this->checklist->rows($exportShipment),
             'documentTypes' => collect(ExportDocumentChecklist::TYPES)->map(fn (string $t): array => ['value' => $t, 'label' => ExportDocumentChecklist::LABELS[$t]])->values(),
+            // The three the system drafts itself, with where each draft is viewed.
+            'generated' => collect(\App\Modules\Dispatch\Services\ExportDocumentGenerator::GENERATED)
+                ->map(fn (string $key, string $type): array => ['type' => $type, 'label' => ExportDocumentChecklist::LABELS[$type], 'print_url' => route("{$key}.print", ['id' => $exportShipment->id]), 'pdf_url' => route("{$key}.pdf", ['id' => $exportShipment->id])])
+                ->values(),
             'invoices' => DB::table('sales_invoices as si')
                 ->join('delivery_challans as dc', 'dc.id', '=', 'si.delivery_challan_id')
                 ->where('dc.export_shipment_id', $exportShipment->id)
@@ -291,6 +295,18 @@ class ExportShipmentController extends Controller
         }
 
         return back()->with('success', (ExportDocumentChecklist::LABELS[$data['doc_type']] ?? 'Document').' recorded.');
+    }
+
+    /** DF-6 AC1 — draft the commercial invoice, packing list or certificate of origin from the shipment data. */
+    public function generateDocument(Request $request, ExportShipment $exportShipment, \App\Modules\Dispatch\Services\ExportDocumentGenerator $generator): RedirectResponse
+    {
+        $data = $request->validate(['doc_type' => ['required', Rule::in(array_keys(\App\Modules\Dispatch\Services\ExportDocumentGenerator::GENERATED))]]);
+
+        $this->refuseIf(in_array($exportShipment->status, [ExportShipment::CLOSED, ExportShipment::CANCELLED], true), 'A '.Plain::status($exportShipment->status).' shipment takes no more documents.');
+
+        $document = $generator->draft($exportShipment, $data['doc_type'], $request->user());
+
+        return back()->with('success', (ExportDocumentChecklist::LABELS[$data['doc_type']] ?? 'Document')." drafted as {$document->doc_no}. Check it against the credit, then mark it issued.");
     }
 
     public function updateDocument(Request $request, ExportShipment $exportShipment, ExportDocument $document): RedirectResponse

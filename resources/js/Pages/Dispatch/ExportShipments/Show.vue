@@ -25,6 +25,8 @@ const props = defineProps({
     /** `[{ type, label, present, required }]` — what the shipment needs and what it has. */
     checklist: { type: Array, default: () => [] },
     documentTypes: { type: Array, default: () => [] },
+    /** `[{ type, label, print_url, pdf_url }]` — the documents the system drafts itself. */
+    generated: { type: Array, default: () => [] },
     invoices: { type: Array, default: () => [] },
     availableTransitions: { type: Array, default: () => [] },
     trail: { type: Array, default: () => [] },
@@ -77,6 +79,12 @@ function removeDocument(doc) {
 const markDocument = (doc, status) => router.put(`${base}/documents/${doc.id}`, { status }, { preserveScroll: true });
 
 const missing = computed(() => props.checklist.filter((row) => row.required && !row.present));
+const generatedByType = computed(() => Object.fromEntries(props.generated.map((g) => [g.type, g])));
+const draftForm = useForm({ doc_type: '' });
+function draft(type) {
+    draftForm.doc_type = type;
+    draftForm.post(`${base}/documents/generate`, { preserveScroll: true });
+}
 const totalCartons = computed(() => props.challans.reduce((sum, c) => sum + Number(c.total_cartons ?? 0), 0));
 const totalQty = computed(() => props.challans.reduce((sum, c) => sum + Number(c.total_qty ?? 0), 0));
 const STATUS_LABEL = { drafted: 'Drafted', issued: 'Issued', submitted: 'Submitted to bank' };
@@ -158,7 +166,10 @@ const STATUS_LABEL = { drafted: 'Drafted', issued: 'Issued', submitted: 'Submitt
                                 <span :class="row.present ? 'text-ink-800' : (row.required ? 'font-medium text-ink-900' : 'text-ink-500')">{{ row.label }}</span>
                                 <span v-if="!row.required" class="text-xs text-ink-400">optional</span>
                             </span>
-                            <Button v-if="!row.present && open && can('export_document.create')" size="xs" @click="openDocument(row.type)">Record</Button>
+                            <span v-if="!row.present && open && can('export_document.create')" class="flex gap-1">
+                                <Button v-if="generatedByType[row.type]" size="xs" variant="primary" :loading="draftForm.processing && draftForm.doc_type === row.type" @click="draft(row.type)">Draft it</Button>
+                                <Button size="xs" @click="openDocument(row.type)">Record</Button>
+                            </span>
                         </li>
                     </ul>
                 </Card>
@@ -175,10 +186,15 @@ const STATUS_LABEL = { drafted: 'Drafted', issued: 'Issued', submitted: 'Submitt
                         <template #cell:doc_date="{ value }">{{ value ? date(value) : '—' }}</template>
                         <template #cell:status="{ row, value }">
                             <Badge :status="value" :label="STATUS_LABEL[value] ?? titleCase(value)" />
-                            <span v-if="row.has_file" class="ml-1 text-xs text-ink-500">· file</span>
+                            <template v-if="generatedByType[row.doc_type]">
+                                <a :href="generatedByType[row.doc_type].print_url" target="_blank" class="ml-1 text-xs text-brand-700 hover:underline">view</a>
+                                <a :href="generatedByType[row.doc_type].pdf_url" class="ml-1 text-xs text-brand-700 hover:underline">PDF</a>
+                            </template>
+                            <span v-else-if="row.has_file" class="ml-1 text-xs text-ink-500">· file</span>
                         </template>
                         <template #cell:actions="{ row }">
                             <div class="flex justify-end gap-1">
+                                <Button v-if="row.status === 'drafted' && open && can('export_document.update')" size="xs" @click="markDocument(row, 'issued')">Issued</Button>
                                 <Button v-if="row.status !== 'submitted' && open && can('export_document.update')" size="xs" @click="markDocument(row, 'submitted')">Submitted</Button>
                                 <button v-if="shipment.status !== 'closed' && can('export_document.delete')" type="button" class="rounded px-1.5 py-1 text-xs text-rose-700 hover:underline disabled:opacity-50" :disabled="busy !== null" @click.stop="removeDocument(row)">Remove</button>
                             </div>

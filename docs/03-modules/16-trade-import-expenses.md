@@ -175,3 +175,9 @@ is derived — commercial invoice, packing list, certificate of origin and EXP a
 air; the LC set under a credit; the UD for a bonded buyer (`customers.is_bonded`); insurance on CIF/CIP.
 Recording a BL/AWB, EXP or UD mirrors its number onto the shipment. Dashboard: shipments under a credit
 past the presentation period with no presentation recorded.
+
+**Drafted documents** (DF-6 AC1): the commercial invoice, the export packing list and the certificate of
+origin are print-registry documents drawn from the shipment (`/export-shipments/commercial-invoices/{id}/pdf`
+and siblings). "Draft it" on the checklist files the PDF and records a `drafted` row that satisfies the
+checklist; drafting again replaces the draft. The merchandiser checks the draft against the credit's wording
+and marks it issued, then submitted. HS codes are not yet on the product master, so the drafts carry none.

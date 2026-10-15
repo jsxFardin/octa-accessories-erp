@@ -144,6 +144,43 @@ class DocumentRegistry
                 'load' => self::packingList(...),
             ],
 
+            // DF-6 AC1 — drafted from the export shipment's own data; the merchandiser checks
+            // each against the credit before it goes to the bank. Three keys under one segment
+            // prefix, so the routes read /export-shipments/commercial-invoices/{id}/pdf.
+            'export-commercial-invoices' => [
+                'label' => 'Commercial invoice',
+                'segment' => 'export-shipments/commercial-invoices',
+                'table' => 'export_shipments',
+                'permission' => 'export_shipment.view',
+                'view' => 'print.export-commercial-invoice',
+                'orientation' => 'portrait',
+                'withheld' => ['cancelled'],
+                'withheld_reason' => 'This shipment was cancelled; nothing is invoiced for it.',
+                'load' => \App\Modules\Dispatch\Services\ExportShipmentPrintData::commercialInvoice(...),
+            ],
+            'export-packing-lists' => [
+                'label' => 'Export packing list',
+                'segment' => 'export-shipments/packing-lists',
+                'table' => 'export_shipments',
+                'permission' => 'export_shipment.view',
+                'view' => 'print.export-packing-list',
+                'orientation' => 'portrait',
+                'withheld' => ['cancelled'],
+                'withheld_reason' => 'This shipment was cancelled.',
+                'load' => \App\Modules\Dispatch\Services\ExportShipmentPrintData::packingList(...),
+            ],
+            'export-certificates-of-origin' => [
+                'label' => 'Certificate of origin',
+                'segment' => 'export-shipments/certificates-of-origin',
+                'table' => 'export_shipments',
+                'permission' => 'export_shipment.view',
+                'view' => 'print.export-coo',
+                'orientation' => 'portrait',
+                'withheld' => ['cancelled'],
+                'withheld_reason' => 'This shipment was cancelled.',
+                'load' => \App\Modules\Dispatch\Services\ExportShipmentPrintData::certificateOfOrigin(...),
+            ],
+
             'delivery-challans' => [
                 // The printed paper keeps its trade name: "challan" is the word on the customer's gate copy.
                 'label' => 'Delivery challan',
