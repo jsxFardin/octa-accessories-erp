@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $customer_id
  * @property \Illuminate\Support\Carbon $receipt_date
  * @property string $method
+ * @property int|null $lc_id
  * @property string|null $reference_no
  * @property string|null $bank_name
  * @property int $currency_id
@@ -43,6 +44,7 @@ class Receipt extends Model
         'method',
         'reference_no',
         'bank_name',
+        'lc_id',
         'currency_id',
         'exchange_rate',
         'amount',
@@ -57,6 +59,7 @@ class Receipt extends Model
     {
         return [
             'customer_id' => 'integer',
+            'lc_id' => 'integer',
             'receipt_date' => 'date:Y-m-d',
             'currency_id' => 'integer',
             'exchange_rate' => 'decimal:8',

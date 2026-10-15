@@ -77,6 +77,10 @@ function submit() {
                         <dt class="text-ink-500">Method</dt>
                         <dd class="text-ink-800">{{ METHODS[receipt.method] ?? receipt.method }}</dd>
                     </div>
+                    <div v-if="receipt.letter_of_credit" class="flex justify-between gap-3">
+                        <dt class="text-ink-500">Export LC</dt>
+                        <dd class="text-ink-800"><Link :href="`/export-lcs/${receipt.letter_of_credit.id}`" class="doc-link-quiet">{{ receipt.letter_of_credit.number }}</Link> <span class="text-xs text-ink-500">· {{ receipt.letter_of_credit.lc_no }}</span></dd>
+                    </div>
                     <div v-if="receipt.reference_no" class="flex justify-between gap-3">
                         <dt class="text-ink-500">Reference</dt>
                         <dd class="text-ink-800">{{ receipt.reference_no }}</dd>

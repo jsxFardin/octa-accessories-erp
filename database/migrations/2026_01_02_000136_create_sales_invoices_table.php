@@ -33,6 +33,7 @@ CREATE TABLE sales_invoices (
     total               DECIMAL(18,4) NOT NULL DEFAULT 0,
     received_amount     DECIMAL(18,4) NOT NULL DEFAULT 0,
     status              VARCHAR(20) NOT NULL DEFAULT 'draft',
+    lc_id               BIGINT UNSIGNED,                    -- the export LC this invoice draws on; lc_no mirrors its bank number
     lc_no               VARCHAR(60),
     mushak_no           VARCHAR(60),                       -- VAT challan (Bangladesh)
     remarks             VARCHAR(500),

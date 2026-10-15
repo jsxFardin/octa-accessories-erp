@@ -370,6 +370,7 @@ class ImportShipmentController extends Controller
             'suppliers' => DB::table('suppliers')->where('is_active', true)->orderBy('name')
                 ->get(['id', 'code', 'name']),
             'letters' => DB::table('letters_of_credit')
+                ->where('direction', 'import')
                 ->whereIn('status', ['applied', 'opened', 'shipped'])
                 ->orderByDesc('id')
                 ->get(['id', 'number', 'lc_no', 'supplier_id', 'currency_id', 'amount']),

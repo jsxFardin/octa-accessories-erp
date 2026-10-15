@@ -3029,6 +3029,7 @@ CREATE TABLE sales_invoices (
     total               DECIMAL(18,4) NOT NULL DEFAULT 0,
     received_amount     DECIMAL(18,4) NOT NULL DEFAULT 0,
     status              VARCHAR(20) NOT NULL DEFAULT 'draft',
+    lc_id               BIGINT UNSIGNED,                    -- the export LC this invoice draws on; lc_no mirrors its bank number
     lc_no               VARCHAR(60),
     mushak_no           VARCHAR(60),                       -- VAT challan (Bangladesh)
     remarks             VARCHAR(500),
@@ -3136,6 +3137,7 @@ CREATE TABLE receipts (
     method           VARCHAR(20) NOT NULL,
     reference_no     VARCHAR(80),
     bank_name        VARCHAR(120),
+    lc_id            BIGINT UNSIGNED,                     -- method lc: the export credit the proceeds came under
     currency_id      BIGINT UNSIGNED NOT NULL,
     exchange_rate    DECIMAL(18,8) NOT NULL DEFAULT 1,
     amount           DECIMAL(18,4) NOT NULL,
@@ -3433,6 +3435,9 @@ CREATE TABLE lc_sales_orders (
     CONSTRAINT lc_sales_orders_lc_fk    FOREIGN KEY (lc_id)          REFERENCES letters_of_credit(id) ON DELETE CASCADE,
     CONSTRAINT lc_sales_orders_order_fk FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE sales_invoices ADD KEY sales_invoices_lc_idx (lc_id), ADD CONSTRAINT sales_invoices_lc_fk FOREIGN KEY (lc_id) REFERENCES letters_of_credit(id);
+ALTER TABLE receipts       ADD KEY receipts_lc_idx (lc_id),       ADD CONSTRAINT receipts_lc_fk       FOREIGN KEY (lc_id) REFERENCES letters_of_credit(id);
 
 CREATE TABLE lc_amendments (
     id                      BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,

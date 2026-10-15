@@ -60,6 +60,12 @@ class ReceiptController extends Controller
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'customer', 'method']),
+            // The export credits proceeds can arrive under, per customer; the form shows the chosen customer's.
+            'exportLcs' => DB::table('letters_of_credit')
+                ->where('direction', 'export')
+                ->whereIn('status', ['shipped', 'presented', 'discrepant', 'accepted'])
+                ->orderByDesc('id')
+                ->get(['id', 'number', 'lc_no', 'customer_id', 'currency_id', 'status']),
             'openInvoices' => DB::table('sales_invoices as si')
                 ->join('customers as c', 'c.id', '=', 'si.customer_id')
                 ->whereIn('si.status', ['issued', 'partially_paid', 'overdue'])
@@ -84,6 +90,8 @@ class ReceiptController extends Controller
             'customer_id' => ['required', 'integer', 'exists:customers,id'],
             'receipt_date' => ['required', 'date'],
             'method' => ['required', Rule::in(['cash', 'bank_transfer', 'cheque', 'lc', 'adjustment'])],
+            // Proceeds under a letter of credit name the credit they came under.
+            'lc_id' => ['nullable', 'integer', 'required_if:method,lc', Rule::exists('letters_of_credit', 'id')->where('direction', 'export')->where('customer_id', $request->integer('customer_id'))],
             'reference_no' => ['nullable', 'string', 'max:80'],
             'bank_name' => ['nullable', 'string', 'max:80'],
             'currency_id' => ['required', 'integer', 'exists:currencies,id'],
@@ -114,6 +122,7 @@ class ReceiptController extends Controller
                     'method' => $data['method'],
                     'reference_no' => $data['reference_no'] ?? null,
                     'bank_name' => $data['bank_name'] ?? null,
+                    'lc_id' => $data['method'] === 'lc' ? ($data['lc_id'] ?? null) : null,
                     'currency_id' => $data['currency_id'],
                     // BR-58 — booked from the reference table rather than defaulted to parity: a
                     // USD document at a rate of 1 understates it by the whole of the rate
@@ -194,6 +203,20 @@ class ReceiptController extends Controller
             return back()->withErrors($e->errors())->withInput();
         }
 
+        // Money under a presented credit is the credit realised; the bank's reference travels
+        // with it. A credit not yet presented is only linked, and realised by hand later.
+        if ($receipt->lc_id !== null) {
+            $letter = \App\Modules\Trade\Models\LetterOfCredit::query()->find($receipt->lc_id);
+
+            if ($letter !== null && $letter->status === \App\Modules\Trade\Models\LetterOfCredit::PRESENTED && filled($receipt->reference_no)) {
+                \App\Support\States\StateMachine::asSystem(fn () => app(\App\Modules\Trade\States\ExportLcStateMachine::class)->transition($letter, \App\Modules\Trade\Models\LetterOfCredit::REALISED, [
+                    'realisation_ref' => $receipt->reference_no,
+                    'realised_on' => $receipt->receipt_date->toDateString(),
+                    'because' => "receipt {$receipt->number}",
+                ]));
+            }
+        }
+
         return redirect()
             ->route('receipts.index')
             ->with('success', "Receipt {$receipt->number} posted and allocated.");
@@ -208,6 +231,7 @@ class ReceiptController extends Controller
             'receipt' => [
                 ...$receipt->only(['id', 'number', 'receipt_date', 'method', 'reference_no', 'bank_name',
                     'amount', 'allocated_amount', 'status', 'remarks']),
+                'letter_of_credit' => $receipt->lc_id === null ? null : DB::table('letters_of_credit')->where('id', $receipt->lc_id)->first(['id', 'number', 'lc_no', 'status']),
                 'customer' => $receipt->customer?->only(['id', 'code', 'name']),
                 'currency' => $receipt->currency?->code,
             ],

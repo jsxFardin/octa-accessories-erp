@@ -154,3 +154,10 @@ export credit lists them against `btb_limit_pct`. Stated, not enforced.
 
 Screens: `/export-lcs` (Sales), `/export-lcs/{id}`. Dashboard: export LCs near a deadline.
 Export shipments, documents and the drawn/realised position follow in later steps (docs/PLAN_EXPORT_LC.md).
+
+**Drawn and realised.** `sales_invoices.lc_id` names the credit an invoice draws on (defaulted from the
+order's credit when the invoice is drafted from the delivery note; the bank number is copied, never typed
+when a credit is on file). Issuing is refused once the credit's invoices would exceed its current amount plus
+tolerance, or when the credit is realised, closed or cancelled (`LcPosition::assertCanDraw`). A receipt with
+method `lc` names the credit (`receipts.lc_id`); taken under a presented credit with the bank's reference it
+realises the credit. The credit page shows limit, drawn, available and realised.

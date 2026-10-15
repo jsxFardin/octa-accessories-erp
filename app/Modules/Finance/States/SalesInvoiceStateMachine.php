@@ -79,6 +79,10 @@ class SalesInvoiceStateMachine extends StateMachine
             if (DB::table('sales_invoice_lines')->where('sales_invoice_id', $document->getKey())->doesntExist()) {
                 throw TransitionDenied::guard('FN-1', 'An invoice with no lines cannot be issued.');
             }
+
+            // An invoice under an export credit draws on it; the bank pays to the tolerance and
+            // not past it, so the draw is refused here rather than disputed later.
+            app(\App\Modules\Trade\Services\LcPosition::class)->assertCanDraw($document);
         }
 
         if ($to === 'cancelled' && (float) $document->received_amount > 0) {

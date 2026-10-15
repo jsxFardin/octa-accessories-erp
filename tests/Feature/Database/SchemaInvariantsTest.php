@@ -289,8 +289,10 @@ it('loads every object the specification promises', function (): void {
     // twin of `lc_purchase_orders`. Its two foreign keys plus three on `letters_of_credit`
     // (customer, master credit, advising bank account) make 460; the direction vocabulary and
     // the "an import credit names a supplier, an export credit a customer" rule make 194.
+    // 462: `sales_invoices.lc_id` and `receipts.lc_id` (export LC) — the credit an invoice draws
+    // on and the one a receipt realises, instead of a typed number nothing could join to.
     expect($tables)->toBe(165)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(460)
+        ->and($foreignKeys)->toBe(462)
         ->and($checks)->toBe(194);
 });

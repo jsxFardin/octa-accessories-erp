@@ -19,6 +19,8 @@ import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
+    /** Export credits proceeds can arrive under, every customer's; the form shows the chosen one's. */
+    exportLcs: { type: Array, default: () => [] },
     receipts: Object,
     filters: Object,
     openInvoices: { type: Array, default: () => [] },
@@ -51,11 +53,15 @@ const form = useForm({
     customer_id: null,
     receipt_date: todayIso(),
     method: 'bank_transfer',
+    lc_id: '',
     reference_no: '',
     currency_id: null,
     amount: null,
     allocations: [],
 });
+
+const customerLcs = computed(() => props.exportLcs.filter((lc) => lc.customer_id === form.customer_id && lc.currency_id === form.currency_id));
+
 
 function outstandingOf(invoice) {
     return (Number(invoice.total) - Number(invoice.received_amount) - Number(invoice.credited_amount ?? 0)).toFixed(2);
@@ -281,6 +287,10 @@ function submit() {
                     </FormField>
                     <FormField label="Method" :error="form.errors.method" required>
                         <SelectInput v-model="form.method" :options="METHODS" :placeholder="null" />
+                    </FormField>
+                    <!-- Proceeds under a credit name the credit; the bank's realisation reference goes in the reference field. -->
+                    <FormField v-if="form.method === 'lc'" label="Export LC" :error="form.errors.lc_id" required hint="The reference number below is the bank's realisation reference.">
+                        <SelectInput v-model="form.lc_id" placeholder="— select —" :options="customerLcs.map((lc) => ({ value: lc.id, label: `${lc.number} · ${lc.lc_no}`, hint: lc.status }))" hint-key="hint" />
                     </FormField>
                     <FormField
                         label="Reference"

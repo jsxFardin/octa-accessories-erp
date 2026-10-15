@@ -14,6 +14,8 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import { useTransitionConfirm } from '@/composables/useTransitionConfirm';
 
 const props = defineProps({
+    /** The customer's export credits this invoice can draw on. */
+    exportLcs: { type: Array, default: () => [] },
     invoice: { type: Object, required: true },
     lines: { type: Array, default: () => [] },
     allocations: { type: Array, default: () => [] },
@@ -58,6 +60,7 @@ const columns = [
 // LC the shipment is drawn under. The figures stay as issued; these may be filled in later.
 const referencesForm = useForm({
     mushak_no: props.invoice.mushak_no ?? '',
+    lc_id: props.invoice.lc_id ?? '',
     lc_no: props.invoice.lc_no ?? '',
     remarks: props.invoice.remarks ?? '',
 });
@@ -149,7 +152,11 @@ const canEditReferences = can('sales_invoice.update') && props.invoice.status !=
                             <FormField label="Mushak (VAT challan) no." :error="referencesForm.errors.mushak_no">
                                 <TextInput v-model="referencesForm.mushak_no" maxlength="60" :disabled="!canEditReferences" />
                             </FormField>
-                            <FormField label="LC no." :error="referencesForm.errors.lc_no">
+                            <!-- The credit itself when the customer has one on file; the bank number follows it. -->
+                            <FormField v-if="exportLcs.length" label="Export LC" :error="referencesForm.errors.lc_id || referencesForm.errors.lc_no" hint="The invoice draws on the credit; the bank's number is copied from it.">
+                                <SelectInput v-model="referencesForm.lc_id" placeholder="— none —" :options="exportLcs.map((lc) => ({ value: lc.id, label: `${lc.number} · ${lc.lc_no}`, hint: titleCase(lc.status) }))" hint-key="hint" :disabled="!canEditReferences" />
+                            </FormField>
+                            <FormField v-else label="LC no." :error="referencesForm.errors.lc_no">
                                 <TextInput v-model="referencesForm.lc_no" maxlength="60" :disabled="!canEditReferences" />
                             </FormField>
                         </div>

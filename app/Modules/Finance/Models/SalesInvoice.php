@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $total
  * @property string $received_amount
  * @property string $status
+ * @property int|null $lc_id
  * @property string|null $lc_no
  * @property string|null $mushak_no
  * @property string|null $remarks
@@ -53,6 +54,7 @@ class SalesInvoice extends Model
         'total',
         'received_amount',
         'status',
+        'lc_id',
         'lc_no',
         'mushak_no',
         'remarks',
@@ -64,6 +66,7 @@ class SalesInvoice extends Model
     {
         return [
             'customer_id' => 'integer',
+            'lc_id' => 'integer',
             'sales_order_id' => 'integer',
             'delivery_challan_id' => 'integer',
             'invoice_date' => 'date:Y-m-d',

@@ -26,6 +26,7 @@ CREATE TABLE receipts (
     method           VARCHAR(20) NOT NULL,
     reference_no     VARCHAR(80),
     bank_name        VARCHAR(120),
+    lc_id            BIGINT UNSIGNED,                     -- method lc: the export credit the proceeds came under
     currency_id      BIGINT UNSIGNED NOT NULL,
     exchange_rate    DECIMAL(18,8) NOT NULL DEFAULT 1,
     amount           DECIMAL(18,4) NOT NULL,

@@ -7,6 +7,7 @@ namespace App\Modules\Trade\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Trade\Models\LetterOfCredit;
 use App\Modules\Trade\Services\LcAmendmentService;
+use App\Modules\Trade\Services\LcPosition;
 use App\Modules\Trade\States\ExportLcStateMachine;
 use App\Support\Audit\DocumentTrail;
 use App\Support\Currency\ExchangeRateResolver;
@@ -46,6 +47,7 @@ class ExportLetterOfCreditController extends Controller
         private readonly LcAmendmentService $amendments,
         private readonly DocumentTrail $trail,
         private readonly Settings $settings,
+        private readonly LcPosition $position,
     ) {}
 
     public function index(Request $request): Response
@@ -171,6 +173,8 @@ class ExportLetterOfCreditController extends Controller
                 ->orderBy('lc.id')
                 ->get(['lc.id', 'lc.number', 'lc.lc_no', 'lc.amount', 'lc.status', 's.name as supplier', 'cur.code as currency']),
             'btbLimitPct' => $this->settings->decimal('btb_limit_pct', 75),
+            'position' => $this->position->for($exportLc),
+            'invoices' => DB::table('sales_invoices')->where('lc_id', $exportLc->id)->orderByDesc('id')->get(['id', 'number', 'invoice_date', 'total', 'received_amount', 'status']),
             'availableTransitions' => $this->states->available($exportLc),
             'trail' => $this->trail->for($exportLc, $request->user()),
         ]);

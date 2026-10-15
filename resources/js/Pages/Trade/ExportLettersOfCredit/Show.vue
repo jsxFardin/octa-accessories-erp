@@ -23,6 +23,9 @@ const props = defineProps({
     availableSalesOrders: { type: Array, default: () => [] },
     backToBack: { type: Array, default: () => [] },
     btbLimitPct: { type: Number, default: 75 },
+    /** limit, drawn, realised, available, invoices. */
+    position: { type: Object, default: null },
+    invoices: { type: Array, default: () => [] },
     availableTransitions: { type: Array, default: () => [] },
     trail: { type: Array, default: () => [] },
 });
@@ -116,6 +119,24 @@ const btbLimit = computed(() => Number(props.letter.current_amount) * props.btbL
                     <div><dt class="text-ink-500">Proceeds</dt><dd class="font-medium" :class="letter.realised_on ? 'text-emerald-700' : 'text-ink-900'">{{ letter.realised_on ? `Realised ${date(letter.realised_on)} · ${letter.realisation_ref}` : (letter.presented_on ? `Presented ${date(letter.presented_on)}` : 'Not yet presented') }}</dd></div>
                 </dl>
                 <p v-if="letter.remarks" class="mt-3 text-sm text-ink-600">{{ letter.remarks }}</p>
+
+                <!-- Drawn and paid: what the invoices took and what the bank sent back. -->
+                <dl v-if="position" class="mt-4 grid grid-cols-2 gap-x-8 gap-y-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-4">
+                    <div><dt class="text-ink-500">Can be drawn to</dt><dd class="tnum font-medium">{{ money(position.limit, letter.currency) }}</dd></div>
+                    <div><dt class="text-ink-500">Drawn by invoices</dt><dd class="tnum font-medium">{{ money(position.drawn, letter.currency) }} <span class="text-xs font-normal text-ink-500">· {{ position.invoices }} {{ position.invoices === 1 ? 'invoice' : 'invoices' }}</span></dd></div>
+                    <div><dt class="text-ink-500">Available</dt><dd class="tnum font-medium" :class="position.available < 0 ? 'text-rose-700' : ''">{{ money(position.available, letter.currency) }}</dd></div>
+                    <div><dt class="text-ink-500">Realised</dt><dd class="tnum font-medium" :class="position.realised > 0 ? 'text-emerald-700' : ''">{{ money(position.realised, letter.currency) }}</dd></div>
+                </dl>
+            </Card>
+
+            <Card v-if="invoices.length" title="Invoices drawn on this credit" :padded="false">
+                <DataTable :columns="[{ key: 'number', label: 'Invoice' }, { key: 'invoice_date', label: 'Date' }, { key: 'total', label: 'Total', align: 'right' }, { key: 'received_amount', label: 'Received', align: 'right' }, { key: 'status', label: 'Status' }]" :rows="invoices" row-key="id" :row-href="(row) => `/invoices/${row.id}`" dense>
+                    <template #cell:number="{ value }">{{ value ?? '(draft)' }}</template>
+                    <template #cell:invoice_date="{ value }">{{ date(value) }}</template>
+                    <template #cell:total="{ value }">{{ money(value, letter.currency) }}</template>
+                    <template #cell:received_amount="{ value }">{{ money(value, letter.currency) }}</template>
+                    <template #cell:status="{ value }"><Badge :status="value" /></template>
+                </DataTable>
             </Card>
 
             <Card title="Sales orders covered" subtitle="One credit commonly pays for several orders from the same customer, in its own currency" :padded="false">

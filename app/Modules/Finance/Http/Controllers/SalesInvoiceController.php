@@ -16,6 +16,7 @@ use App\Support\Text\Plain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -94,12 +95,22 @@ class SalesInvoiceController extends Controller
 
         $netDays = (int) (DB::table('payment_terms')->where('id', $termId)->value('net_days') ?? 30);
 
-        $invoice = DB::transaction(function () use ($challan, $order, $netDays, $request): SalesInvoice {
+        // The export credit covering the order, when there is a live one: the invoice draws on it.
+        $credit = DB::table('lc_sales_orders as lso')
+            ->join('letters_of_credit as lc', 'lc.id', '=', 'lso.lc_id')
+            ->where('lso.sales_order_id', $challan->sales_order_id)
+            ->whereIn('lc.status', ['advised', 'accepted', 'shipped', 'presented', 'discrepant'])
+            ->orderByDesc('lc.id')
+            ->first(['lc.id', 'lc.lc_no']);
+
+        $invoice = DB::transaction(function () use ($challan, $order, $netDays, $request, $credit): SalesInvoice {
             /** @var SalesInvoice $invoice */
             $invoice = SalesInvoice::query()->create([
                 'customer_id' => $challan->customer_id,
                 'sales_order_id' => $challan->sales_order_id,
                 'delivery_challan_id' => $challan->id,
+                'lc_id' => $credit?->id,
+                'lc_no' => $credit?->lc_no,
                 'invoice_date' => now()->toDateString(),
                 'due_date' => now()->addDays($netDays)->toDateString(),
                 'currency_id' => $order->currency_id,
@@ -168,7 +179,7 @@ class SalesInvoiceController extends Controller
         return Inertia::render('Finance/Invoices/Show', [
             'invoice' => [
                 ...$invoice->only(['id', 'number', 'invoice_date', 'due_date', 'subtotal', 'tax_amount',
-                    'total', 'received_amount', 'status', 'lc_no', 'mushak_no', 'remarks',
+                    'total', 'received_amount', 'status', 'lc_id', 'lc_no', 'mushak_no', 'remarks',
                     'sales_order_id', 'delivery_challan_id', 'exchange_rate']),
                 'customer' => $invoice->customer?->only(['id', 'code', 'name']),
                 // BR-47 — most invoices on this system are raised in USD. Rendering them
@@ -195,6 +206,14 @@ class SalesInvoiceController extends Controller
                 ->where('ra.sales_invoice_id', $invoice->id)
                 ->get(['ra.amount', 'r.number', 'r.receipt_date', 'r.method']),
             'availableTransitions' => $this->states->available($invoice),
+            // The customer's export credits an invoice can draw on, in the invoice's currency.
+            'exportLcs' => DB::table('letters_of_credit')
+                ->where('direction', 'export')
+                ->where('customer_id', $invoice->customer_id)
+                ->where('currency_id', $invoice->currency_id)
+                ->where(fn ($q) => $q->whereIn('status', ['advised', 'accepted', 'shipped', 'presented', 'discrepant'])->orWhere('id', $invoice->lc_id ?? 0))
+                ->orderByDesc('id')
+                ->get(['id', 'number', 'lc_no', 'status', 'amount', 'expiry_date']),
             // FN-3 AC2 — the NCRs a quality claim on this invoice can point at: open or
             // recent ones against this customer's jobs, newest first.
             'ncrs' => DB::table('ncrs as n')
@@ -221,9 +240,19 @@ class SalesInvoiceController extends Controller
 
         $data = $request->validate([
             'mushak_no' => ['nullable', 'string', 'max:60'],
+            // The credit, not a typed number: the bank number is copied from it.
+            'lc_id' => ['nullable', 'integer', Rule::exists('letters_of_credit', 'id')->where('direction', 'export')->where('customer_id', $invoice->customer_id)],
             'lc_no' => ['nullable', 'string', 'max:60'],
             'remarks' => ['nullable', 'string', 'max:500'],
+        ], [
+            'lc_id.exists' => "That credit is not one of this customer's export LCs.",
         ]);
+
+        if (array_key_exists('lc_id', $data)) {
+            $data['lc_no'] = $data['lc_id'] === null
+                ? ($data['lc_no'] ?? null)
+                : DB::table('letters_of_credit')->where('id', $data['lc_id'])->value('lc_no');
+        }
 
         // Auditable on the model records old and new.
         $invoice->fill($data)->save();
