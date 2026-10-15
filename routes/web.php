@@ -57,6 +57,7 @@ use App\Modules\Sales\Http\Controllers\PriceListController;
 use App\Modules\Sales\Http\Controllers\QuotationController;
 use App\Modules\Sales\Http\Controllers\SalesOrderController;
 use App\Modules\Sales\Http\Controllers\SalesReturnController;
+use App\Modules\Sampling\Http\Controllers\SampleRequestController;
 use App\Modules\Trade\Http\Controllers\ImportShipmentController;
 use App\Modules\Trade\Http\Controllers\LetterOfCreditController;
 use App\Support\Export\Http\Controllers\ExportController;
@@ -288,6 +289,23 @@ Route::middleware('auth')->group(function (): void {
 
     Route::post('inquiries/{inquiry}/transition', [InquiryController::class, 'transition'])
         ->middleware('can:inquiry.view')->name('inquiries.transition');
+
+    // Samples (AS-5 … AS-7): request, sample run, parcel, and the customer's decision per line.
+    Route::resource('sample-requests', SampleRequestController::class)->except(['destroy'])
+        ->middlewareFor(['index', 'show'], 'can:sample_request.view_any')
+        ->middlewareFor(['create', 'store'], 'can:sample_request.create')
+        ->middlewareFor(['edit', 'update'], 'can:sample_request.update');
+    Route::post('sample-requests/{sample_request}/transition', [SampleRequestController::class, 'transition'])
+        ->middleware('can:sample_request.update')->name('sample-requests.transition');
+    Route::post('sample-requests/{sample_request}/dispatch', [SampleRequestController::class, 'dispatch'])
+        ->middleware('can:sample_request.dispatch')->name('sample-requests.dispatch');
+    Route::put('sample-requests/{sample_request}/dispatches/{dispatch}', [SampleRequestController::class, 'delivered'])
+        ->middleware('can:sample_request.dispatch')->name('sample-requests.delivered');
+    Route::post('sample-requests/{sample_request}/lines/{line}/decision', [SampleRequestController::class, 'decide'])
+        ->middleware('can:sample_request.update')->name('sample-requests.decide');
+    // The sample run is a job card, so raising it is the planner's verb, not the merchandiser's.
+    Route::post('sample-requests/{sample_request}/lines/{line}/job-card', [SampleRequestController::class, 'raiseJobCard'])
+        ->middleware('can:job_card.create')->name('sample-requests.job-card');
 
     Route::resource('quotations', QuotationController::class)->except(['destroy'])
         ->middlewareFor(['index', 'show'], 'can:quotation.view_any')

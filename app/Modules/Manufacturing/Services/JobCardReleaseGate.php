@@ -9,6 +9,7 @@ use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Product\Models\ArtworkVersion;
 use App\Modules\Product\Models\Bom;
 use App\Modules\Product\Models\Tool;
+use Illuminate\Support\Facades\DB;
 
 /**
  * J1 — the conditions a job card must satisfy before it may be released: artwork, BOM,
@@ -36,6 +37,7 @@ class JobCardReleaseGate
         $tools = $this->toolCheck($jobCard);
         $machines = $this->machineCheck($jobCard);
         $qcPlan = $this->qcPlanCheck($jobCard);
+        $sample = $this->sampleApprovalCheck($jobCard);
         $shortages = $this->availability->shortagesFor($jobCard);
 
         $materialOk = $shortages === [] || $materialWaived;
@@ -71,6 +73,12 @@ class JobCardReleaseGate
                 'rule' => 'J1 · QC1',
                 'detail' => $qcPlan['detail'],
             ],
+            'sample_approval' => [
+                'ok' => $sample['ok'],
+                'label' => 'Pre-production sample approved',
+                'rule' => 'J1 · AS-7',
+                'detail' => $sample['detail'],
+            ],
             'material' => [
                 'ok' => $materialOk,
                 'label' => 'Material in stock',
@@ -84,7 +92,7 @@ class JobCardReleaseGate
         ];
 
         return [
-            'ready' => $artwork && $bom && $tools['ok'] && $machines['ok'] && $qcPlan['ok'] && $materialOk,
+            'ready' => $artwork && $bom && $tools['ok'] && $machines['ok'] && $qcPlan['ok'] && $sample['ok'] && $materialOk,
             'checks' => $checks,
             'shortages' => $shortages,
         ];
@@ -102,6 +110,12 @@ class JobCardReleaseGate
         $version = $jobCard->artworkVersion;
 
         if ($version !== null) {
+            // AS-5 AC4 — a sample runs on the version it is sampling; the run is how that
+            // version earns its approval, so only bulk is held to an approved one.
+            if ($jobCard->sample_request_line_id !== null) {
+                return ['ok' => true, 'detail' => "Sample run against version {$version->version_no} ({$version->status})."];
+            }
+
             return $version->status === ArtworkVersion::APPROVED
                 ? ['ok' => true, 'detail' => "Version {$version->version_no} is approved."]
                 : ['ok' => false, 'detail' => 'The bound artwork version is not approved. Production cannot run against it.'];
@@ -115,6 +129,45 @@ class JobCardReleaseGate
         return $required
             ? ['ok' => false, 'detail' => 'No approved artwork version is bound, and this family does not run without one.']
             : ['ok' => true, 'detail' => 'This family runs without artwork.'];
+    }
+
+    /**
+     * AS-7 AC3 — a customer flagged `requires_sample_approval` gets no bulk run of a product
+     * until a pre-production sample of it has been approved. Sample cards, stock runs and
+     * component jobs are not bulk for a customer and pass.
+     *
+     * @return array{ok: bool, detail: string}
+     */
+    private function sampleApprovalCheck(JobCard $jobCard): array
+    {
+        if ($jobCard->sales_order_line_id === null) {
+            return ['ok' => true, 'detail' => 'Not a bulk run for a customer order.'];
+        }
+
+        $customerId = DB::table('sales_order_lines as sol')
+            ->join('sales_orders as so', 'so.id', '=', 'sol.sales_order_id')
+            ->where('sol.id', $jobCard->sales_order_line_id)
+            ->value('so.customer_id');
+
+        $required = $customerId !== null
+            && (bool) DB::table('customers')->where('id', $customerId)->value('requires_sample_approval');
+
+        if (! $required) {
+            return ['ok' => true, 'detail' => 'This customer does not require a sample approval before bulk.'];
+        }
+
+        $approved = DB::table('sample_request_lines as l')
+            ->join('sample_requests as r', 'r.id', '=', 'l.sample_request_id')
+            ->where('r.customer_id', $customerId)
+            ->where('r.sample_type', 'pre_production')
+            ->where('l.product_id', $jobCard->product_id)
+            ->where('l.status', 'approved')
+            ->orderByDesc('l.id')
+            ->first(['r.number']);
+
+        return $approved !== null
+            ? ['ok' => true, 'detail' => "Pre-production sample approved on {$approved->number}."]
+            : ['ok' => false, 'detail' => 'This customer requires an approved pre-production sample of the product before bulk runs, and none is approved yet. Raise a sample request, dispatch it and record the approval.'];
     }
 
     private function bomCheck(JobCard $jobCard): bool

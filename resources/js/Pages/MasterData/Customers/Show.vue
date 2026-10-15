@@ -575,6 +575,7 @@ const kindLabel = computed(() => titleCase(props.customer.kind ?? ''));
                             <div class="flex justify-between gap-3"><dt class="text-ink-500">Credit limit</dt><dd class="tnum text-right">{{ money(customer.credit_limit) }}</dd></div>
                             <div class="flex justify-between gap-3"><dt class="text-ink-500">Minimum order value</dt><dd class="tnum text-right">{{ money(customer.min_order_value) }}</dd></div>
                             <div class="flex justify-between gap-3"><dt class="text-ink-500">Delivery tolerance</dt><dd class="tnum text-right">−{{ pct(customer.under_tolerance_pct, 1) }} / +{{ pct(customer.over_tolerance_pct, 1) }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-ink-500">Sample approval before bulk</dt><dd class="text-right">{{ customer.requires_sample_approval ? 'Required' : 'Not required' }}</dd></div>
                             <div class="flex justify-between gap-3 border-t border-slate-100 pt-2"><dt class="text-ink-500">Email</dt><dd class="min-w-0 truncate text-right">{{ customer.email || '—' }}</dd></div>
                             <div class="flex justify-between gap-3"><dt class="text-ink-500">Phone</dt><dd class="text-right">{{ customer.phone || '—' }}</dd></div>
                             <div class="flex justify-between gap-3"><dt class="text-ink-500">BIN</dt><dd class="tnum text-right">{{ customer.bin_no || '—' }}</dd></div>

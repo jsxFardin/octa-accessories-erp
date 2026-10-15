@@ -522,6 +522,11 @@ class JobCardStateMachine extends StateMachine
         $jobCard->forceFill($from === JobCard::CLOSED
             ? ['closed_at' => null]
             : ['actual_finish' => now()])->save();
+
+        // AS-5 AC4 — a sample run's completion is what marks its sample line produced.
+        if ($from !== JobCard::CLOSED && $jobCard->sample_request_line_id !== null) {
+            app(\App\Modules\Sampling\Services\SampleProduction::class)->onJobCardCompleted($jobCard);
+        }
     }
 
     private function onClosed(JobCard $jobCard): void

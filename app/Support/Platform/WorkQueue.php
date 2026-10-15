@@ -208,6 +208,18 @@ class WorkQueue
             ];
         }
 
+        if ($user->hasPermission('sample_request.view_any')) {
+            // AS-6 AC2 — the merchandiser's follow-up list: parcels with the customer and no verdict.
+            $entries[] = [
+                'key' => 'samples_awaiting_decision',
+                'label' => 'Samples awaiting the customer\'s decision',
+                'count' => DB::table('sample_requests')->where('status', 'dispatched')->count(),
+                'href' => '/sample-requests?status=dispatched',
+                'tone' => 'warning',
+                'hint' => 'Dispatched and not yet approved or rejected. Chase the tracking number on the list.',
+            ];
+        }
+
         if ($user->hasPermission('tool.view_any')) {
             $entries[] = [
                 'key' => 'tools_near_end_of_life',

@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $min_order_value
  * @property string $over_tolerance_pct
  * @property string $under_tolerance_pct
+ * @property bool $requires_sample_approval AS-7 AC3
  * @property string|null $bin_no
  * @property string|null $tin_no
  * @property string|null $email
@@ -53,6 +54,7 @@ class Customer extends Model
         'min_order_value',
         'over_tolerance_pct',
         'under_tolerance_pct',
+        'requires_sample_approval',
         'bin_no',
         'tin_no',
         'email',
@@ -73,6 +75,7 @@ class Customer extends Model
             'min_order_value' => 'decimal:4',
             'over_tolerance_pct' => 'decimal:4',
             'under_tolerance_pct' => 'decimal:4',
+            'requires_sample_approval' => 'boolean',
             'is_active' => 'boolean',
             'created_at' => 'datetime',
             'deleted_at' => 'datetime',

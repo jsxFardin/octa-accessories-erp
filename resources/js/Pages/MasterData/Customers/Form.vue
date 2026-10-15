@@ -41,6 +41,14 @@ const sections = computed(() => [
             { key: 'under_tolerance_pct', label: 'Under tolerance %', type: 'number', step: '0.01', default: 5, rule: 'BR-44' },
             { key: 'over_tolerance_pct', label: 'Over tolerance %', type: 'number', step: '0.01', default: 5, rule: 'BR-44' },
             {
+                key: 'requires_sample_approval',
+                label: 'Sample approval before bulk',
+                type: 'checkbox',
+                default: false,
+                checkboxLabel: 'Bulk job cards wait for an approved pre-production sample',
+                hint: 'A job card for this customer cannot be released until a pre-production sample of the product has been approved.',
+            },
+            {
                 key: 'is_active',
                 label: 'Active',
                 type: 'checkbox',

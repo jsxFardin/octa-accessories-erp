@@ -226,7 +226,7 @@ class CustomerController extends Controller
             'customer' => [
                 ...$customer->only([
                     'id', 'code', 'name', 'kind', 'email', 'phone', 'bin_no', 'tin_no', 'credit_limit',
-                    'min_order_value', 'over_tolerance_pct', 'under_tolerance_pct', 'is_active',
+                    'min_order_value', 'over_tolerance_pct', 'under_tolerance_pct', 'requires_sample_approval', 'is_active',
                 ]),
                 'currency' => $customer->currency?->only(['id', 'code', 'name']),
                 'payment_term' => $customer->paymentTerm?->only(['id', 'code', 'name', 'net_days']),
@@ -326,6 +326,7 @@ class CustomerController extends Controller
             'min_order_value' => ['numeric', 'min:0'],
             'over_tolerance_pct' => ['numeric', 'min:0', 'max:100'],
             'under_tolerance_pct' => ['numeric', 'min:0', 'max:100'],
+            'requires_sample_approval' => ['boolean'],
             'bin_no' => ['nullable', 'string', 'max:40'],
             'tin_no' => ['nullable', 'string', 'max:40'],
             'is_active' => ['boolean'],

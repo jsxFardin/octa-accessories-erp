@@ -30,6 +30,7 @@ export const navigation = [
             { label: 'Inquiries', href: '/inquiries', icon: 'inbox', permissions: ['inquiry.view_any'] },
             { label: 'Quotations', href: '/quotations', icon: 'quote', permissions: ['quotation.view_any'] },
             { label: 'Sales orders', href: '/sales-orders', icon: 'order', permissions: ['sales_order.view_any'] },
+            { label: 'Samples', href: '/sample-requests', icon: 'product', permissions: ['sample_request.view_any'] },
             { label: 'Customers', href: '/customers', icon: 'customers', permissions: ['customer.view_any'] },
             { label: 'Price lists', href: '/price-lists', icon: 'quote', permissions: ['price_list.view_any'] },
         ],
