@@ -900,6 +900,7 @@ class ReferenceDataSeeder extends Seeder
             'purchase_return' => ['PRT', 5],
             'letter_of_credit' => ['LC', 5],
             'export_lc' => ['ELC', 5],
+            'export_shipment' => ['ESH', 5],
             'import_shipment' => ['IMP', 5],
             'expense' => ['EXP', 5],
             'test_report' => ['LAB', 5],

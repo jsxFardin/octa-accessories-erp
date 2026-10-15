@@ -716,7 +716,8 @@ CREATE TABLE customers (
     min_order_value     DECIMAL(18,4) NOT NULL DEFAULT 0,
     over_tolerance_pct  DECIMAL(9,4)  NOT NULL DEFAULT 5,
     under_tolerance_pct DECIMAL(9,4)  NOT NULL DEFAULT 5,
-    requires_sample_approval BOOLEAN NOT NULL DEFAULT FALSE,     -- AS-7 AC3: no bulk job card release without an approved pre-production sample
+    requires_sample_approval BOOLEAN NOT NULL DEFAULT FALSE,
+    is_bonded           BOOLEAN NOT NULL DEFAULT FALSE,     -- DF-6: a bonded buyer needs a utilisation declaration (UD) on every export     -- AS-7 AC3: no bulk job card release without an approved pre-production sample
     bin_no              VARCHAR(40),
     tin_no              VARCHAR(40),
     email               VARCHAR(190),
@@ -2926,6 +2927,7 @@ CREATE TABLE delivery_challans (
     total_qty           DECIMAL(18,6) NOT NULL DEFAULT 0,
     status              VARCHAR(20) NOT NULL DEFAULT 'draft',
     gate_pass_no        VARCHAR(40),
+    export_shipment_id  BIGINT UNSIGNED,                    -- DF-6: the export shipment this note travels on; FK in the export_shipments migration
     remarks             VARCHAR(500),
     created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     created_by          BIGINT UNSIGNED,
@@ -2993,21 +2995,77 @@ CREATE TABLE trip_stops (
     CONSTRAINT trip_stops_status_chk CHECK (status IN ('pending','arrived','delivered','partially_delivered','failed'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- DF-6 — the consignment leaving the country: transport facts once for its delivery notes, under a credit.
+CREATE TABLE export_shipments (
+    id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    number              VARCHAR(30),
+    customer_id         BIGINT UNSIGNED NOT NULL,
+    lc_id               BIGINT UNSIGNED,                      -- the export credit it ships under, if any
+    mode                VARCHAR(20) NOT NULL DEFAULT 'sea',
+    forwarder           VARCHAR(120),
+    carrier             VARCHAR(120),                         -- shipping line or airline
+    vessel_or_flight    VARCHAR(120),
+    container_no        VARCHAR(40),
+    seal_no             VARCHAR(40),
+    transport_doc_no    VARCHAR(60),                          -- BL or AWB
+    transport_doc_date  DATE,
+    exp_form_no         VARCHAR(60),
+    exp_form_date       DATE,
+    ud_no               VARCHAR(60),                          -- utilisation declaration (bonded buyers)
+    port_of_loading     VARCHAR(80),
+    port_of_discharge   VARCHAR(80),
+    final_destination   VARCHAR(120),
+    incoterm            VARCHAR(20),
+    etd                 DATE,
+    eta                 DATE,
+    shipped_on          DATE,
+    presented_on        DATE,
+    delivered_on        DATE,
+    currency_id         BIGINT UNSIGNED NOT NULL,
+    exchange_rate       DECIMAL(18,8) NOT NULL DEFAULT 1,
+    goods_value         DECIMAL(18,4) NOT NULL DEFAULT 0,
+    gross_kg            DECIMAL(18,3),
+    net_kg              DECIMAL(18,3),
+    cbm                 DECIMAL(18,3),
+    status              VARCHAR(25) NOT NULL DEFAULT 'draft',
+    remarks             VARCHAR(500),
+    created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    created_by          BIGINT UNSIGNED,
+    UNIQUE KEY export_shipments_number_uq (number),
+    KEY export_shipments_customer_idx (customer_id, status),
+    KEY export_shipments_lc_idx (lc_id),
+    KEY export_shipments_eta_idx (status, eta),
+    KEY export_shipments_currency_idx (currency_id),
+    KEY export_shipments_creator_idx (created_by),
+    CONSTRAINT export_shipments_customer_fk FOREIGN KEY (customer_id) REFERENCES customers(id),
+    CONSTRAINT export_shipments_lc_fk       FOREIGN KEY (lc_id)       REFERENCES letters_of_credit(id),
+    CONSTRAINT export_shipments_currency_fk FOREIGN KEY (currency_id) REFERENCES currencies(id),
+    CONSTRAINT export_shipments_creator_fk  FOREIGN KEY (created_by)  REFERENCES users(id),
+    CONSTRAINT export_shipments_mode_chk   CHECK (mode IN ('sea','air','road','courier')),
+    CONSTRAINT export_shipments_status_chk CHECK (status IN ('draft','booked','shipped','presented','delivered','closed','cancelled'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE delivery_challans ADD KEY delivery_challans_export_shipment_idx (export_shipment_id), ADD CONSTRAINT delivery_challans_export_shipment_fk FOREIGN KEY (export_shipment_id) REFERENCES export_shipments(id);
+
 CREATE TABLE export_documents (
     id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    export_shipment_id  BIGINT UNSIGNED,                    -- DF-6: the shipment the document belongs to; FK in the export_shipments migration
     delivery_challan_id BIGINT UNSIGNED,
     sales_order_id      BIGINT UNSIGNED,
     doc_type            VARCHAR(30) NOT NULL,
     doc_no              VARCHAR(80) NOT NULL,
     doc_date            DATE,
     file_path           VARCHAR(500),
+    status              VARCHAR(20) NOT NULL DEFAULT 'issued',  -- drafted by the system, issued, submitted to the bank
     remarks             VARCHAR(255),
     created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    created_by          BIGINT UNSIGNED,
     KEY export_documents_challan_idx (delivery_challan_id),
     KEY export_documents_order_idx (sales_order_id),
     CONSTRAINT export_documents_challan_fk FOREIGN KEY (delivery_challan_id) REFERENCES delivery_challans(id),
     CONSTRAINT export_documents_order_fk   FOREIGN KEY (sales_order_id)      REFERENCES sales_orders(id),
-    CONSTRAINT export_documents_type_chk CHECK (doc_type IN ('commercial_invoice','packing_list','coo','exp_form','bl','awb','ud','lc_document','insurance','other'))
+    CONSTRAINT export_documents_type_chk CHECK (doc_type IN ('commercial_invoice','packing_list','coo','exp_form','bl','awb','ud','lc_document','insurance','other')),
+    CONSTRAINT export_documents_status_chk CHECK (status IN ('drafted','issued','submitted'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================================
@@ -3343,6 +3401,8 @@ CREATE TABLE expense_categories (
 
 -- The credit itself. `number` is ours (BR-34); `lc_no` is the bank's, and
 -- only exists once the LC is actually opened.
+ALTER TABLE export_documents ADD KEY export_documents_shipment_idx (export_shipment_id), ADD CONSTRAINT export_documents_shipment_fk FOREIGN KEY (export_shipment_id) REFERENCES export_shipments(id) ON DELETE CASCADE;
+
 CREATE TABLE letters_of_credit (
     id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     number             VARCHAR(30),

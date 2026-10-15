@@ -85,7 +85,7 @@ describe('sidebar visibility', () => {
         expect(itemsOf('Inventory')).toContain('Lots');
         expect(itemsOf('Inventory')).toContain('Materials');
         expect(itemsOf('Quality')).toEqual(['Inspections', 'NCRs', 'Laboratory', 'Compliance & CoC']);
-        expect(itemsOf('Dispatch')).toEqual(['Packing lists', 'Delivery notes', 'Trips']);
+        expect(itemsOf('Dispatch')).toEqual(['Packing lists', 'Delivery notes', 'Trips', 'Export shipments']);
         expect(itemsOf('Money')).toContain('Supplier bills');
         expect(itemsOf('Buying')).toContain('Import shipments');
         expect(itemsOf('Buying')).toContain('Letters of credit');

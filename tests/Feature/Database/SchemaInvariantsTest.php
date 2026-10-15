@@ -291,8 +291,12 @@ it('loads every object the specification promises', function (): void {
     // the "an import credit names a supplier, an export credit a customer" rule make 194.
     // 462: `sales_invoices.lc_id` and `receipts.lc_id` (export LC) — the credit an invoice draws
     // on and the one a receipt realises, instead of a typed number nothing could join to.
-    expect($tables)->toBe(165)
+    // 166 is `export_shipments` (DF-6): the consignment leaving the country, carrying its
+    // delivery notes (`delivery_challans.export_shipment_id`) and documents
+    // (`export_documents.export_shipment_id`). Its four foreign keys plus those two make 468;
+    // its mode and status vocabularies and the document status make 197.
+    expect($tables)->toBe(166)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(462)
-        ->and($checks)->toBe(194);
+        ->and($foreignKeys)->toBe(468)
+        ->and($checks)->toBe(197);
 });

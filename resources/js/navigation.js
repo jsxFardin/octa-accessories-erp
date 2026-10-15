@@ -119,6 +119,7 @@ export const navigation = [
             { label: 'Packing lists', href: '/packing-lists', icon: 'packing', permissions: ['packing_list.view_any'] },
             { label: 'Delivery notes', href: '/delivery-challans', icon: 'challan', aliases: ['challans', 'challan'], permissions: ['delivery_challan.view_any'] },
             { label: 'Trips', href: '/trips', icon: 'trip', permissions: ['trip.view_any'] },
+            { label: 'Export shipments', href: '/export-shipments', icon: 'ship', permissions: ['export_shipment.view_any'] },
         ],
     },
     {

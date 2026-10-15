@@ -208,6 +208,20 @@ class WorkQueue
             ];
         }
 
+        if ($user->hasPermission('export_shipment.view_any')) {
+            $presentationDays = $this->settings->int('export_presentation_days', 21);
+
+            $entries[] = [
+                'key' => 'export_shipments_unpresented',
+                'label' => 'Export documents overdue at the bank',
+                'count' => DB::table('export_shipments')->where('status', 'shipped')->whereNotNull('lc_id')
+                    ->whereDate('shipped_on', '<=', now()->subDays($presentationDays)->toDateString())->count(),
+                'href' => '/export-shipments?unpresented=1',
+                'tone' => 'danger',
+                'hint' => "Shipped under a credit more than {$presentationDays} days ago with no presentation recorded; the bank can refuse a late set (DF-6).",
+            ];
+        }
+
         if ($user->hasPermission('export_lc.view_any')) {
             $soon = now()->addDays(14)->toDateString();
 

@@ -49,6 +49,14 @@ const sections = computed(() => [
                 hint: 'A job card for this customer cannot be released until a pre-production sample of the product has been approved.',
             },
             {
+                key: 'is_bonded',
+                label: 'Bonded buyer',
+                type: 'checkbox',
+                default: false,
+                checkboxLabel: 'Exports to this customer need a utilisation declaration (UD)',
+                hint: 'Adds the UD to every export shipment\'s document checklist.',
+            },
+            {
                 key: 'is_active',
                 label: 'Active',
                 type: 'checkbox',

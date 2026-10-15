@@ -34,6 +34,7 @@ CREATE TABLE delivery_challans (
     total_qty           DECIMAL(18,6) NOT NULL DEFAULT 0,
     status              VARCHAR(20) NOT NULL DEFAULT 'draft',
     gate_pass_no        VARCHAR(40),
+    export_shipment_id  BIGINT UNSIGNED,                    -- DF-6: the export shipment this note travels on; FK in the export_shipments migration
     remarks             VARCHAR(500),
     created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     created_by          BIGINT UNSIGNED,

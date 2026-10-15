@@ -80,6 +80,7 @@ class RoleSeeder extends Seeder
                 'price_list.*',
                 'customer.*', 'artwork.*', 'export_document.*',
                 'export_lc.view_any', 'export_lc.view', 'export_lc.create', 'export_lc.update', 'export_lc.delete', 'export_lc.export', 'export_lc.accept', 'export_lc.amend',
+                'export_shipment:read',
                 'product:read', 'product_spec:read', 'bom:read', 'item:read', 'job_card:read',
                 'stock_lot:read', 'sales_invoice:read', 'report.*',
             ],
@@ -92,6 +93,7 @@ class RoleSeeder extends Seeder
                 'price_list.*',
                 'customer.*', 'artwork.*', 'export_document.*',
                 'export_lc.view_any', 'export_lc.view', 'export_lc.create', 'export_lc.update', 'export_lc.delete', 'export_lc.export', 'export_lc.accept', 'export_lc.amend',
+                'export_shipment:read',
                 'cost_sheet.override_margin', 'cost_sheet.approve', 'sales_order.short_close',
                 'product:read', 'product_spec:read', 'bom:read', 'item:read', 'job_card:read',
                 'stock_lot:read', 'sales_invoice:read', 'credit_note:read', 'report.*',
@@ -263,7 +265,7 @@ class RoleSeeder extends Seeder
                 // is not theirs — it sits with accounts, because a return becomes a credit.
                 'sales_return.create', 'sales_return.update', 'sales_return.post',
                 'sales_return:read',
-                'export_document.*', 'stock_lot.*',
+                'export_document.*', 'export_shipment.*', 'stock_lot.*',
                 // P0-4 — a challan's issue moves the order to partially_delivered; the officer
                 // advances fulfilment status without holding sales_order.update.
                 'sales_order.progress',
@@ -297,7 +299,7 @@ class RoleSeeder extends Seeder
                 // Accounts enter the C&F and freight bills and push them into stock; the
                 // shipment file itself belongs to purchasing.
                 'letter_of_credit:read', 'import_shipment:read',
-                'export_lc:read', 'export_lc.realise',
+                'export_lc:read', 'export_lc.realise', 'export_shipment:read',
                 'import_shipment.cost', 'import_shipment.allocate',
             ],
         ],

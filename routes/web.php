@@ -10,6 +10,7 @@ use App\Modules\Compliance\Http\Controllers\ComplianceController;
 use App\Modules\Costing\Http\Controllers\CostingController;
 use App\Modules\Costing\Http\Controllers\CostSheetController;
 use App\Modules\Dispatch\Http\Controllers\DeliveryChallanController;
+use App\Modules\Dispatch\Http\Controllers\ExportShipmentController;
 use App\Modules\Dispatch\Http\Controllers\PackingListController;
 use App\Modules\Dispatch\Http\Controllers\TripController;
 use App\Modules\Finance\Http\Controllers\CreditNoteController;
@@ -291,6 +292,28 @@ Route::middleware('auth')->group(function (): void {
 
     Route::post('inquiries/{inquiry}/transition', [InquiryController::class, 'transition'])
         ->middleware('can:inquiry.view')->name('inquiries.transition');
+
+    // Export shipments (DF-6) — the consignment leaving the country, its delivery notes and documents.
+    Route::resource('export-shipments', ExportShipmentController::class)
+        ->parameters(['export-shipments' => 'exportShipment'])
+        ->except(['destroy'])
+        ->middlewareFor(['index', 'show'], 'can:export_shipment.view_any')
+        ->middlewareFor(['create', 'store'], 'can:export_shipment.create')
+        ->middlewareFor(['edit', 'update'], 'can:export_shipment.update');
+    Route::delete('export-shipments/{exportShipment}', [ExportShipmentController::class, 'destroy'])
+        ->middleware('can:export_shipment.delete')->name('export-shipments.destroy');
+    Route::post('export-shipments/{exportShipment}/transition', [ExportShipmentController::class, 'transition'])
+        ->middleware('can:export_shipment.view')->name('export-shipments.transition');
+    Route::post('export-shipments/{exportShipment}/challans', [ExportShipmentController::class, 'attachChallan'])
+        ->middleware('can:export_shipment.update')->name('export-shipments.challans.attach');
+    Route::delete('export-shipments/{exportShipment}/challans/{challanId}', [ExportShipmentController::class, 'detachChallan'])
+        ->middleware('can:export_shipment.update')->name('export-shipments.challans.detach');
+    Route::post('export-shipments/{exportShipment}/documents', [ExportShipmentController::class, 'storeDocument'])
+        ->middleware('can:export_document.create')->name('export-shipments.documents.store');
+    Route::put('export-shipments/{exportShipment}/documents/{document}', [ExportShipmentController::class, 'updateDocument'])
+        ->middleware('can:export_document.update')->name('export-shipments.documents.update');
+    Route::delete('export-shipments/{exportShipment}/documents/{document}', [ExportShipmentController::class, 'destroyDocument'])
+        ->middleware('can:export_document.delete')->name('export-shipments.documents.destroy');
 
     // Export letters of credit — the credit a customer's bank opens in our favour (plan: export LC).
     Route::resource('export-lcs', ExportLetterOfCreditController::class)

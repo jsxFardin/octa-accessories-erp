@@ -161,3 +161,17 @@ when a credit is on file). Issuing is refused once the credit's invoices would e
 tolerance, or when the credit is realised, closed or cancelled (`LcPosition::assertCanDraw`). A receipt with
 method `lc` names the credit (`receipts.lc_id`); taken under a presented credit with the bank's reference it
 realises the credit. The credit page shows limit, drawn, available and realised.
+
+**Export shipments** (`/export-shipments`, Dispatch): the twin of the import shipment. A shipment carries
+the transport facts once (forwarder, carrier, vessel or flight, container, seal, BL/AWB, EXP, UD, ports,
+terms, dates) for one or more delivery notes (`delivery_challans.export_shipment_id`), under the customer's
+export credit when there is one. Lifecycle `draft → booked → shipped → presented → delivered → closed`,
+`cancelled` while nothing has shipped: booking gives the number (ESH series) and needs a note on board;
+`shipped` stamps the date, is refused after the credit's last shipment date, and moves an accepted credit to
+`shipped`; `presented` moves the credit to `presented`; `closed` needs the document checklist complete.
+
+**Documents** (`export_documents.export_shipment_id`, `status` drafted / issued / submitted): the checklist
+is derived — commercial invoice, packing list, certificate of origin and EXP always; BL for sea, AWB for
+air; the LC set under a credit; the UD for a bonded buyer (`customers.is_bonded`); insurance on CIF/CIP.
+Recording a BL/AWB, EXP or UD mirrors its number onto the shipment. Dashboard: shipments under a credit
+past the presentation period with no presentation recorded.

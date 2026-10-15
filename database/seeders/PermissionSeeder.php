@@ -119,6 +119,9 @@ class PermissionSeeder extends Seeder
         'trip_stop' => ['Fulfilment', ['update']],
         'pod' => ['Fulfilment', ['create']],
         'export_document' => ['Fulfilment', []],
+        // DF-6 — the consignment leaving the country. `ship` is the moment the credit moves;
+        // `close` is the statement that every document is on file.
+        'export_shipment' => ['Fulfilment', ['ship', 'close']],
 
         // Trade finance & import. Raw material is imported (00-overview §2), so the credit
         // and the consignment are documents of their own, and `allocate` is separated from

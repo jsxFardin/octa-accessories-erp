@@ -31,7 +31,8 @@ CREATE TABLE customers (
     min_order_value     DECIMAL(18,4) NOT NULL DEFAULT 0,
     over_tolerance_pct  DECIMAL(9,4)  NOT NULL DEFAULT 5,
     under_tolerance_pct DECIMAL(9,4)  NOT NULL DEFAULT 5,
-    requires_sample_approval BOOLEAN NOT NULL DEFAULT FALSE,     -- AS-7 AC3: no bulk job card release without an approved pre-production sample
+    requires_sample_approval BOOLEAN NOT NULL DEFAULT FALSE,
+    is_bonded           BOOLEAN NOT NULL DEFAULT FALSE,     -- DF-6: a bonded buyer needs a utilisation declaration (UD) on every export     -- AS-7 AC3: no bulk job card release without an approved pre-production sample
     bin_no              VARCHAR(40),
     tin_no              VARCHAR(40),
     email               VARCHAR(190),

@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $total_qty
  * @property string $status
  * @property string|null $gate_pass_no
+ * @property int|null $export_shipment_id
  * @property string|null $remarks
  * @property \Illuminate\Support\Carbon $created_at
  * @property int|null $created_by
@@ -53,6 +54,7 @@ class DeliveryChallan extends Model
         'total_qty',
         'status',
         'gate_pass_no',
+        'export_shipment_id',
         'remarks',
         'created_by',
     ];
@@ -64,6 +66,7 @@ class DeliveryChallan extends Model
             'packing_list_id' => 'integer',
             'sales_order_id' => 'integer',
             'customer_id' => 'integer',
+            'export_shipment_id' => 'integer',
             'delivery_address_id' => 'integer',
             'trip_id' => 'integer',
             'challan_date' => 'date:Y-m-d',
@@ -110,5 +113,11 @@ class DeliveryChallan extends Model
     public function deliveryAddress(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\CustomerAddress::class, 'delivery_address_id');
+    }
+
+    /** DF-6 — the export shipment this note travels on. @return BelongsTo<ExportShipment, $this> */
+    public function exportShipment(): BelongsTo
+    {
+        return $this->belongsTo(ExportShipment::class, 'export_shipment_id');
     }
 }

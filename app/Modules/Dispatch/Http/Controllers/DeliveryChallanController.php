@@ -189,6 +189,9 @@ class DeliveryChallanController extends Controller
                 ...$deliveryChallan->only(['id', 'number', 'challan_date', 'mode', 'courier_name',
                     'tracking_no', 'total_cartons', 'total_qty', 'status', 'gate_pass_no', 'remarks']),
                 'packing_list' => $deliveryChallan->packingList?->only(['id', 'number', 'status', 'cert_claim_scheme', 'cert_claim_pct']),
+                // DF-6 — the export shipment this note travels on, when it has been put on one.
+                'export_shipment' => $deliveryChallan->export_shipment_id === null ? null
+                    : DB::table('export_shipments')->where('id', $deliveryChallan->export_shipment_id)->first(['id', 'number', 'status', 'mode', 'transport_doc_no']),
                 'sales_order_id' => $deliveryChallan->sales_order_id,
                 'sales_order' => $deliveryChallan->salesOrder?->only(['id', 'number', 'status', 'customer_po_no']),
                 'customer' => $deliveryChallan->customer?->only(['id', 'code', 'name']),

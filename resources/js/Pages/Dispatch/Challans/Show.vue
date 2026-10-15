@@ -162,6 +162,17 @@ const columns = [
             <Button v-if="challan.trip" size="sm" :href="`/trips/${challan.trip.id}`">
                 Open trip {{ challan.trip.number }}
             </Button>
+            <!-- DF-6 — a note handed to a forwarder or courier leaves the country on an export shipment. -->
+            <Button v-if="challan.export_shipment" size="sm" :href="`/export-shipments/${challan.export_shipment.id}`">
+                Open shipment {{ challan.export_shipment.number ?? '(draft)' }}
+            </Button>
+            <Button
+                v-else-if="carriedByOthers(challan.mode) && ['issued', 'in_transit', 'delivered'].includes(challan.status) && can('export_shipment.create')"
+                size="sm"
+                :href="`/export-shipments/create?challan=${challan.id}`"
+            >
+                Put on an export shipment
+            </Button>
             <!-- Destructive last, after everything that moves the delivery forward. -->
             <Button v-if="availableTransitions.includes('returned')" size="sm" variant="danger" @click="returnOpen = true">Return</Button>
             <Button v-if="availableTransitions.includes('cancelled')" size="sm" variant="danger" :loading="busy === 'cancelled'" :disabled="busy !== null" @click="move('cancelled')">Cancel delivery note</Button>
