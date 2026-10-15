@@ -59,7 +59,7 @@ class JobCardGenerator
 
             $schedules = $line->schedules->map(fn ($row): array => [
                 'qty' => (float) $row->qty,
-                'date' => $row->due_date?->toDateString(),
+                'date' => $row->due_date->toDateString(),
             ])->values()->all();
 
             $splits = $this->mrp->splitIntoJobCards(

@@ -12,6 +12,7 @@ use App\Modules\Product\Models\ArtworkVersion;
 use App\Modules\Product\Models\Product;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Models\SalesOrderLine;
+use App\Modules\Sales\Models\SoDeliverySchedule;
 use App\Modules\Sales\States\SalesOrderStateMachine;
 use App\Support\Audit\DocumentTrail;
 use App\Support\Calculators\CostSheetCalculator;
@@ -261,6 +262,8 @@ class SalesOrderController extends Controller
                     'over_tolerance_pct', 'under_tolerance_pct', 'promised_date', 'status',
                 ]),
                 'product' => $line->product?->only(['id', 'code', 'name', 'product_type']),
+                // BR-28 — the dated shipments, with what each has had delivered against it (DF-7).
+                'schedules' => $line->schedules->map(fn ($row): array => $row->only(['id', 'sequence_no', 'qty', 'due_date', 'delivered_qty']))->values(),
                 'spec_version' => $line->spec?->version_no,
                 'spec_is_current' => $line->spec?->isCurrent() ?? false,
                 'artwork_approved' => $approvedArtwork->contains((int) $line->product_id),
@@ -307,6 +310,7 @@ class SalesOrderController extends Controller
                 ->get(),
             // F-01/F-02 — the order's own history: confirmed, held, amended, closed and by
             // whom. Recorded all along and shown nowhere.
+            'factoryUnits' => DB::table('factory_units')->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'trail' => $this->trail->for($salesOrder, $request->user()),
             // P0-4 — the fulfilment strip: every figure from its authoritative source, the
             // packed number derived from carton contents rather than cached anywhere.
@@ -346,7 +350,7 @@ class SalesOrderController extends Controller
 
     public function edit(SalesOrder $salesOrder): Response
     {
-        $salesOrder->load('lines');
+        $salesOrder->load('lines.schedules');
 
         return Inertia::render('Sales/SalesOrders/Form', [
             'order' => $salesOrder,
@@ -616,9 +620,17 @@ class SalesOrderController extends Controller
             'lines.*.over_tolerance_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'lines.*.under_tolerance_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'lines.*.promised_date' => ['nullable', 'date'],
+            // BR-28 — dated shipments; together they are the line.
+            'lines.*.schedules' => ['nullable', 'array'],
+            'lines.*.schedules.*.qty' => ['required', 'numeric', 'gt:0'],
+            'lines.*.schedules.*.due_date' => ['required', 'date'],
         ], [
             'lines.*.product_spec_id.required' => 'Line :position: this product has no current specification. Open the product and make a specification current, then add it to the order.',
+            'lines.*.schedules.*.qty.required' => 'Every shipment needs a quantity.',
+            'lines.*.schedules.*.due_date.required' => 'Every shipment needs a date.',
         ]);
+
+        $this->assertSchedulesAddUp($data['lines']);
 
         // BR-58 — the snapshot rate is booked by the server from the reference table, not
         // taken on trust from the form. A `1` on a foreign-currency document understates every
@@ -698,6 +710,14 @@ class SalesOrderController extends Controller
                     + (float) ($line['tooling_charge'] ?? 0),
             ];
 
+            $schedules = array_values($line['schedules'] ?? []);
+
+            // A line with shipments is promised when the first of them is due, unless the
+            // merchandiser typed a date of their own.
+            if ($schedules !== [] && blank($attributes['promised_date'])) {
+                $attributes['promised_date'] = collect($schedules)->min('due_date');
+            }
+
             if (isset($line['id'])) {
                 /** @var SalesOrderLine $model */
                 $model = SalesOrderLine::query()->findOrFail($line['id']);
@@ -705,6 +725,8 @@ class SalesOrderController extends Controller
             } else {
                 $model = SalesOrderLine::query()->create($attributes);
             }
+
+            $this->syncSchedules($model, $schedules);
 
             $keptIds[] = $model->id;
         }
@@ -715,6 +737,111 @@ class SalesOrderController extends Controller
             ->whereNotIn('id', $keptIds)
             ->where('produced_qty', 0)
             ->delete();
+    }
+
+    /**
+     * BR-28 — a line's shipments are its quantity, split by date. Partial schedules are not
+     * kept: an unscheduled remainder is a shipment nobody will plan or chase.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function assertSchedulesAddUp(array $lines): void
+    {
+        foreach ($lines as $index => $line) {
+            $schedules = $line['schedules'] ?? [];
+
+            if ($schedules === []) {
+                continue;
+            }
+
+            $sum = array_sum(array_map(fn (array $row): float => (float) $row['qty'], $schedules));
+
+            if (abs($sum - (float) $line['ordered_qty']) > 0.000001) {
+                throw ValidationException::withMessages([
+                    "lines.{$index}.schedules" => sprintf(
+                        'Line %d: the shipments add up to %s but the line is for %s. Schedule the whole quantity, or none of it.',
+                        $index + 1,
+                        rtrim(rtrim(number_format($sum, 6, '.', ','), '0'), '.'),
+                        rtrim(rtrim(number_format((float) $line['ordered_qty'], 6, '.', ','), '0'), '.'),
+                    ),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Rewrites a line's shipments. A shipment something has been delivered against is kept as
+     * it is: the dispatch already answered it, and rewriting it would lose that.
+     *
+     * @param  list<array<string, mixed>>  $schedules
+     */
+    private function syncSchedules(SalesOrderLine $line, array $schedules): void
+    {
+        $delivered = $line->schedules()->where('delivered_qty', '>', 0)->exists();
+
+        if ($delivered) {
+            $current = $line->schedules()->get()->map(fn (SoDeliverySchedule $row): array => ['qty' => (float) $row->qty, 'due_date' => $row->due_date->toDateString()])->values()->all();
+            $wanted = collect($schedules)->map(fn (array $row): array => ['qty' => (float) $row['qty'], 'due_date' => \Illuminate\Support\Carbon::parse($row['due_date'])->toDateString()])->values()->all();
+
+            if ($current !== $wanted) {
+                throw ValidationException::withMessages([
+                    'lines' => "Line {$line->line_no} has shipments already delivered against; its schedule cannot be changed any more.",
+                ]);
+            }
+
+            return;
+        }
+
+        $line->schedules()->delete();
+
+        $sequence = 1;
+
+        foreach (collect($schedules)->sortBy('due_date') as $row) {
+            $line->schedules()->create([
+                'sequence_no' => $sequence++,
+                'qty' => $row['qty'],
+                'due_date' => $row['due_date'],
+                'delivered_qty' => 0,
+            ]);
+        }
+    }
+
+    /**
+     * PL-3 — generate this order's job cards by BR-28: one per dated shipment, none above the
+     * routing's maximum lot. Lines that already have a live card are reported, not doubled.
+     */
+    public function generateJobCards(Request $request, SalesOrder $salesOrder, \App\Modules\Manufacturing\Services\JobCardGenerator $generator): RedirectResponse
+    {
+        $data = $request->validate([
+            'factory_unit_id' => ['required', 'integer', 'exists:factory_units,id'],
+            'line_ids' => ['nullable', 'array'],
+            'line_ids.*' => ['integer'],
+        ]);
+
+        if (! in_array($salesOrder->status, ['confirmed', 'in_production', 'partially_delivered'], true)) {
+            return back()->with('error', 'Job cards are generated for a confirmed order; this one is '.Plain::status($salesOrder->status).'.');
+        }
+
+        $result = $generator->generate(
+            $salesOrder,
+            (int) $data['factory_unit_id'],
+            $request->user(),
+            isset($data['line_ids']) ? array_map('intval', $data['line_ids']) : null,
+        );
+
+        $made = count($result['created']);
+        $skipped = collect($result['skipped'])->map(fn (array $row): string => "line {$row['line_no']} ({$row['reason']})")->implode('; ');
+
+        if ($made === 0) {
+            return back()->with('error', 'No job card was raised'.($skipped !== '' ? ": {$skipped}." : '.'));
+        }
+
+        return back()->with('success', sprintf(
+            '%d job card%s raised as drafts. Schedule their operations on the planning board to plan them.%s',
+            $made,
+            $made === 1 ? '' : 's',
+            $skipped !== '' ? " Left alone: {$skipped}." : '',
+        ));
     }
 
     private function recalculateTotals(SalesOrder $order): void

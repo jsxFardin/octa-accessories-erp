@@ -358,6 +358,9 @@ Route::middleware('auth')->group(function (): void {
 
     Route::post('sales-orders/{salesOrder}/transition', [SalesOrderController::class, 'transition'])
         ->middleware('can:sales_order.view')->name('sales-orders.transition');
+    // PL-3 — the order's job cards by BR-28; the planner's verb.
+    Route::post('sales-orders/{salesOrder}/job-cards', [SalesOrderController::class, 'generateJobCards'])
+        ->middleware('can:job_card.create')->name('sales-orders.job-cards');
     Route::post('sales-orders/{salesOrder}/lines/{line}/cost-overrides', [SalesOrderController::class, 'costOverrides'])
         ->middleware('can:cost_sheet.update')->name('sales-orders.cost-overrides');
 

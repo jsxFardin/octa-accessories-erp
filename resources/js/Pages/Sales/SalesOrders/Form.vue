@@ -61,6 +61,7 @@ function blankLine(customerId = form.customer_id) {
         under_tolerance_pct: band.under,
         promised_date: '',
         produced_qty: 0,
+        schedules: [],
     };
 }
 
@@ -84,6 +85,7 @@ const form = useForm({
             tooling_charge: typed(line.tooling_charge) || 0,
             over_tolerance_pct: typed(line.over_tolerance_pct),
             under_tolerance_pct: typed(line.under_tolerance_pct),
+            schedules: (line.schedules ?? []).map((row) => ({ qty: typed(row.qty), due_date: isoDate(row.due_date), delivered_qty: Number(row.delivered_qty ?? 0) })),
         }))
         // Named explicitly: `form` does not exist yet while its own initialiser runs.
         : [blankLine(props.order?.customer_id ?? '')],
@@ -199,6 +201,33 @@ function band(line) {
         max: Math.round(ordered * (1 + (Number(line.over_tolerance_pct) || 0) / 100)),
     };
 }
+
+/*
+ * BR-28 — a line delivered in more than one dated shipment. The shipments must add up to the
+ * line; the remainder is shown while they do not, and a line with none is one shipment on its
+ * promised date.
+ */
+const scheduledLines = computed(() => form.lines.filter((line) => line.product_id && Number(line.ordered_qty) > 0));
+
+function scheduledQty(line) {
+    return (line.schedules ?? []).reduce((sum, row) => sum + (Number(row.qty) || 0), 0);
+}
+
+function unscheduledQty(line) {
+    return Number(line.ordered_qty) - scheduledQty(line);
+}
+
+function addShipment(line) {
+    const remainder = unscheduledQty(line);
+
+    line.schedules = [...(line.schedules ?? []), { qty: remainder > 0 ? String(remainder) : '', due_date: line.promised_date || form.delivery_date || '', delivered_qty: 0 }];
+}
+
+function removeShipment(line, index) {
+    line.schedules = line.schedules.filter((_, i) => i !== index);
+}
+
+const lineLabel = (line) => props.products.find((p) => String(p.id) === String(line.product_id))?.code ?? `Line ${form.lines.indexOf(line) + 1}`;
 
 /** A row nobody typed into — the blank one a new order starts with, or a stray "Add line". */
 function isBlank(line) {
@@ -429,6 +458,41 @@ const columns = [
                         let the system fill them in.
                     </p>
                 </div>
+            </Card>
+
+            <!-- BR-28 — multi-shipment lines. Each dated shipment becomes its own job card. -->
+            <Card
+                v-if="scheduledLines.length"
+                title="Delivery schedule"
+                subtitle="Only for a line the customer wants in more than one shipment. Each dated shipment is planned as its own job card and chased on its own date."
+            >
+                <div class="space-y-4">
+                    <div v-for="line in scheduledLines" :key="line.id ?? lineLabel(line)" class="rounded-md border border-slate-200">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+                            <span><span class="font-medium text-ink-900">{{ lineLabel(line) }}</span> <span class="text-ink-500">· {{ pcs(line.ordered_qty) }} pcs</span></span>
+                            <span v-if="line.schedules?.length" class="text-xs" :class="Math.abs(unscheduledQty(line)) < 0.000001 ? 'text-emerald-700' : 'text-rose-700'">
+                                {{ Math.abs(unscheduledQty(line)) < 0.000001 ? 'Fully scheduled' : (unscheduledQty(line) > 0 ? `${pcs(unscheduledQty(line))} pcs not yet scheduled` : `${pcs(-unscheduledQty(line))} pcs over the line`) }}
+                            </span>
+                            <span v-else class="text-xs text-ink-500">One shipment on the promised date</span>
+                        </div>
+                        <table v-if="line.schedules?.length" class="w-full text-sm">
+                            <thead class="text-xs text-ink-500"><tr><th class="px-3 py-1.5 text-left">#</th><th class="px-3 py-1.5 text-right">Quantity</th><th class="px-3 py-1.5 text-left">Due</th><th class="px-3 py-1.5 text-right">Delivered</th><th class="px-3 py-1.5" /></tr></thead>
+                            <tbody>
+                                <tr v-for="(row, index) in line.schedules" :key="index" class="border-t border-slate-100">
+                                    <td class="px-3 py-1.5 text-ink-500">{{ index + 1 }}</td>
+                                    <td class="px-3 py-1.5 text-right"><TextInput v-model="row.qty" cell type="number" numeric min="1" class="w-28 text-right" :disabled="row.delivered_qty > 0" /></td>
+                                    <td class="px-3 py-1.5"><DateInput v-model="row.due_date" :disabled="row.delivered_qty > 0" /></td>
+                                    <td class="px-3 py-1.5 text-right tnum text-ink-500">{{ pcs(row.delivered_qty) }}</td>
+                                    <td class="px-3 py-1.5 text-right"><Button v-if="!(row.delivered_qty > 0)" size="xs" @click="removeShipment(line, index)">Remove</Button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="px-3 py-2">
+                            <Button size="xs" @click="addShipment(line)">{{ line.schedules?.length ? 'Add shipment' : 'Split into shipments' }}</Button>
+                        </div>
+                    </div>
+                </div>
+                <p v-for="(message, key) in Object.fromEntries(Object.entries(form.errors).filter(([k]) => k.includes('.schedules')))" :key="key" class="mt-2 text-xs text-rose-600">{{ message }}</p>
             </Card>
 
             <template #rail>

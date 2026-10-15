@@ -6,6 +6,7 @@ namespace App\Modules\Sales\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -27,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $under_tolerance_pct
  * @property \Illuminate\Support\Carbon|null $promised_date
  * @property string $status
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, SoDeliverySchedule> $schedules
  */
 class SalesOrderLine extends Model
 {
@@ -96,5 +98,15 @@ class SalesOrderLine extends Model
     public function salesOrder(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class);
+    }
+
+    /**
+     * BR-28 — the dated shipments this line is delivered in, in due-date order.
+     *
+     * @return HasMany<SoDeliverySchedule, $this>
+     */
+    public function schedules(): HasMany
+    {
+        return $this->hasMany(SoDeliverySchedule::class, 'sales_order_line_id')->orderBy('due_date')->orderBy('sequence_no');
     }
 }

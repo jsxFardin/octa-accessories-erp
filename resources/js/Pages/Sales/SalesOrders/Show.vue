@@ -9,6 +9,7 @@ import DocumentActions from '@/Components/Ui/DocumentActions.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FormField from '@/Components/Ui/FormField.vue';
 import Modal from '@/Components/Ui/Modal.vue';
+import SelectInput from '@/Components/Ui/SelectInput.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import ActivityTrail from '@/Components/Ui/ActivityTrail.vue';
 import { baseCurrency, date, isoDate, money, moneyPerThousand, pcs, pct, qty, rate, relative, titleCase, todayIso } from '@/plugins/formatting';
@@ -24,6 +25,8 @@ function amendValue(value) {
 }
 
 const props = defineProps({
+    /** PL-3 — where generated job cards run. */
+    factoryUnits: { type: Array, default: () => [] },
     order: { type: Object, required: true },
     lines: { type: Array, default: () => [] },
     readiness: { type: Array, default: () => [] },
@@ -214,6 +217,17 @@ function jobCardHref(line = null) {
 
 const confirmTransition = useTransitionConfirm('sales_order');
 
+/* PL-3 — generate the order's cards by BR-28. */
+const generateOpen = ref(false);
+const generateForm = useForm({ factory_unit_id: props.factoryUnits?.length === 1 ? props.factoryUnits[0].id : '' });
+const submitGenerate = () => generateForm.post(`/sales-orders/${props.order.id}/job-cards`, { preserveScroll: true, onSuccess: () => (generateOpen.value = false) });
+
+/** What the generator will do per line, said before the button is pressed. */
+const generationPlan = computed(() => linesToMake.value.map((line) => ({
+    line,
+    shipments: line.schedules?.length ? line.schedules.length : 1,
+})));
+
 async function transition(to) {
     if (!(await confirmTransition(to, props.order.number))) return;
 
@@ -261,9 +275,12 @@ const lineColumns = [
                 {{ order.status === 'credit_hold' ? 'Release credit hold' : 'Confirm' }}
             </Button>
 
-            <!-- A confirmed order's next document is a job card; it opens with this order on it. -->
-            <Button v-if="canRaiseJobCard" size="sm" variant="primary" :href="jobCardHref()">
-                Create job card
+            <!-- PL-3 — every open line's cards at once, split by BR-28; by hand is still here. -->
+            <Button v-if="canRaiseJobCard" size="sm" variant="primary" @click="generateOpen = true">
+                Generate job cards
+            </Button>
+            <Button v-if="canRaiseJobCard" size="sm" :href="jobCardHref()">
+                Create job card by hand
             </Button>
 
             <!--
@@ -397,7 +414,16 @@ const lineColumns = [
                             <Badge :tone="row.artwork_approved ? 'success' : 'danger'" :label="row.artwork_approved ? 'Approved' : 'No artwork'" />
                         </span>
                     </template>
-                    <template #cell:promised_date="{ value }">{{ date(value) }}</template>
+                    <template #cell:promised_date="{ row, value }">
+                        {{ date(value) }}
+                        <!-- BR-28 — the dated shipments and what each has had delivered (DF-7). -->
+                        <ul v-if="row.schedules?.length" class="mt-1 space-y-0.5 text-xs text-ink-600">
+                            <li v-for="s in row.schedules" :key="s.id" class="tnum whitespace-nowrap">
+                                {{ pcs(s.qty) }} by {{ date(s.due_date) }}
+                                <span v-if="Number(s.delivered_qty) > 0" :class="Number(s.delivered_qty) >= Number(s.qty) ? 'text-emerald-700' : 'text-amber-700'">· {{ pcs(s.delivered_qty) }} delivered</span>
+                            </li>
+                        </ul>
+                    </template>
                     <!--
                         The line is where the planner actually decides; sending them to a list
                         of every open line in the factory to find the one already on screen was
@@ -710,6 +736,21 @@ const lineColumns = [
                 >
                     Cancel the order
                 </Button>
+            </template>
+        </Modal>
+        <Modal v-model:open="generateOpen" title="Generate job cards" subtitle="One draft card per dated shipment on each open line, none larger than the routing's maximum lot. A line that already has a live card is left alone.">
+            <FormField label="Factory unit" :error="generateForm.errors.factory_unit_id" required>
+                <SelectInput v-model="generateForm.factory_unit_id" placeholder="— select —" :options="factoryUnits" value-key="id" label-key="name" hint-key="code" />
+            </FormField>
+            <ul class="mt-3 divide-y divide-slate-100 text-sm">
+                <li v-for="row in generationPlan" :key="row.line.id" class="flex items-center justify-between py-1.5">
+                    <span>Line {{ row.line.line_no }} · {{ row.line.product?.code }}</span>
+                    <span class="text-xs text-ink-500">{{ row.shipments }} {{ row.shipments === 1 ? 'shipment' : 'shipments' }} · {{ pcs(row.line.ordered_qty) }} pcs</span>
+                </li>
+            </ul>
+            <template #footer="{ close: dismiss }">
+                <Button @click="dismiss">Cancel</Button>
+                <Button variant="primary" :loading="generateForm.processing" :disabled="!generateForm.factory_unit_id" @click="submitGenerate">Generate</Button>
             </template>
         </Modal>
         <!-- Spec §4 — the clerk re-rates a material before the benchmark is struck, with a reason. -->
