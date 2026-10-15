@@ -30,11 +30,16 @@ class AccountingPeriodController extends Controller
             ->keyBy(fn ($row): string => sprintf('%04d-%02d', $row->period_year, $row->period_month));
 
         // Every month from the first dated document to this one, so a month with nothing
-        // recorded against it still shows as open rather than vanishing from the list.
+        // recorded against it still shows as open rather than vanishing from the list — and
+        // from the earliest month ever closed, so a close is never hidden because the books
+        // start later than it.
+        $earliestClose = DB::table('accounting_periods')->orderBy('period_year')->orderBy('period_month')->first(['period_year', 'period_month']);
+
         $first = collect([
             DB::table('stock_ledger')->min('occurred_at'),
             DB::table('sales_invoices')->min('invoice_date'),
             DB::table('grns')->min('received_on'),
+            $earliestClose === null ? null : sprintf('%04d-%02d-01', $earliestClose->period_year, $earliestClose->period_month),
         ])->filter()->map(fn ($d) => CarbonImmutable::parse($d)->startOfMonth())->min()
             ?? CarbonImmutable::now()->startOfMonth();
 
