@@ -95,14 +95,16 @@ class AqlResolver
      * @param  list<array{min: int, max: int|null, sample: int, accept: int, reject: int}>|null  $plan
      * @return array{sample_size: int, accept_number: int, reject_number: int, result: string, dhu: float}
      */
-    public function inspect(int $lotSize, int $majorDefects, int $criticalDefects = 0, ?array $plan = null): array
+    public function inspect(int $lotSize, int $majorDefects, int $criticalDefects = 0, ?array $plan = null, int $minorDefects = 0): array
     {
         $resolved = $this->resolve($lotSize, $plan);
 
         return [
             ...$resolved,
+            // The verdict weighs majors and criticals (BR-30); the DHU counts every defect
+            // found, minors included (BR-31) — it is a quality trend, not a pass mark.
             'result' => $this->verdict($resolved, $majorDefects, $criticalDefects),
-            'dhu' => $this->dhu($majorDefects + $criticalDefects, $resolved['sample_size']),
+            'dhu' => $this->dhu($majorDefects + $criticalDefects + $minorDefects, $resolved['sample_size']),
         ];
     }
 }

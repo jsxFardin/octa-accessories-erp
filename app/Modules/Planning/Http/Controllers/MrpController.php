@@ -5,30 +5,18 @@ declare(strict_types=1);
 namespace App\Modules\Planning\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Modules\Inventory\Services\StockAvailability;
-use App\Modules\Manufacturing\Models\JobCard;
-use App\Modules\MasterData\Models\Item;
-use App\Support\Calculators\MrpCalculator;
-use Carbon\CarbonImmutable;
+use App\Modules\Planning\Jobs\RunMrp;
+use App\Modules\Planning\Services\MrpRunner;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * BR-24 … BR-26.
- *
- * The *output* of a run is persisted rather than recomputed on demand, because a planner has
- * to be able to answer "what did the system tell me on Tuesday?" and a live recompute cannot
- * (02-database-schema §3.7).
- */
+/** BR-24 … BR-26 — the material plan's screen; the computation is `MrpRunner`. */
 class MrpController extends Controller
 {
-    public function __construct(
-        private readonly MrpCalculator $mrp,
-        private readonly StockAvailability $availability,
-    ) {}
+    public function __construct(private readonly MrpRunner $runner) {}
 
     public function index(Request $request): Response
     {
@@ -55,113 +43,25 @@ class MrpController extends Controller
         ]);
     }
 
+    /**
+     * NFR-3 — the run is opened here and computed on the queue (`RunMrp`). With a sync queue
+     * it finishes before the redirect; with a worker the page shows it as running and the
+     * planner refreshes. Either way the row exists at once, which is what the list reads.
+     */
     public function run(Request $request): RedirectResponse
     {
         $horizonDays = min(180, max(7, (int) $request->input('horizon_days', 60)));
 
-        $runId = DB::transaction(function () use ($horizonDays, $request): int {
-            $runId = DB::table('mrp_runs')->insertGetId([
-                'factory_unit_id' => (int) DB::table('factory_units')->orderBy('id')->value('id'),
-                'horizon_from' => now()->toDateString(),
-                'horizon_to' => now()->addDays($horizonDays)->toDateString(),
-                'run_at' => now(),
-                'status' => 'running',
-                'run_by' => $request->user()->id,
-            ]);
+        $runId = $this->runner->open($horizonDays, $request->user()?->id);
 
-            $shortages = 0;
-            $horizonEnd = CarbonImmutable::now()->addDays($horizonDays);
+        RunMrp::dispatch($runId, $horizonDays);
 
-            $jobCards = JobCard::query()
-                ->whereIn('status', [JobCard::DRAFT, JobCard::PLANNED, JobCard::MATERIAL_PENDING, JobCard::RELEASED])
-                ->whereNotNull('bom_id')
-                ->where(fn ($q) => $q->whereNull('due_date')->orWhereDate('due_date', '<=', $horizonEnd))
-                ->get();
-
-            /** @var array<int, array{gross: float, need_date: string|null}> $demand */
-            $demand = [];
-
-            foreach ($jobCards as $jobCard) {
-                $lines = DB::table('bom_lines as bl')
-                    ->join('boms as b', 'b.id', '=', 'bl.bom_id')
-                    ->where('bl.bom_id', $jobCard->bom_id)
-                    ->get(['bl.item_id', 'bl.qty_per_base', 'b.base_qty']);
-
-                foreach ($lines as $line) {
-                    $required = (float) $line->qty_per_base * ((float) $jobCard->planned_qty / (float) $line->base_qty);
-                    $itemId = (int) $line->item_id;
-
-                    $demand[$itemId]['gross'] = ($demand[$itemId]['gross'] ?? 0) + $required;
-
-                    // The earliest need date across every job card wins: material is needed
-                    // when the first job needs it, not on average.
-                    $needDate = $jobCard->planned_start?->toDateString() ?? $jobCard->due_date?->toDateString();
-
-                    if ($needDate !== null) {
-                        $existing = $demand[$itemId]['need_date'] ?? null;
-                        $demand[$itemId]['need_date'] = $existing === null ? $needDate : min($existing, $needDate);
-                    }
-                }
-            }
-
-            foreach ($demand as $itemId => $row) {
-                $item = Item::query()->find($itemId);
-
-                if ($item === null) {
-                    continue;
-                }
-
-                $onHand = $this->availability->onHand($itemId);
-                $onOrder = $this->availability->onOrder($itemId);
-                $reserved = $this->availability->reserved($itemId);
-
-                $result = $this->mrp->netRequirement($row['gross'], $onHand, $onOrder, $reserved);
-
-                $needDate = $this->mrp->materialNeedDate(
-                    CarbonImmutable::parse($row['need_date'] ?? now()->addDays(14)->toDateString()),
-                    (int) $item->safety_days,
-                );
-
-                $leadTime = (int) (DB::table('suppliers')
-                    ->where('id', $item->default_supplier_id)
-                    ->value('lead_time_days') ?? 0);
-
-                DB::table('material_requirements')->insert([
-                    'mrp_run_id' => $runId,
-                    'item_id' => $itemId,
-                    'gross_req_qty' => $result['gross_req'],
-                    'on_hand_qty' => $onHand,
-                    'on_order_qty' => $onOrder,
-                    'reserved_qty' => $reserved,
-                    'net_req_qty' => $result['net_req'],
-                    // A made item is not bought: the shortage stands, and the suggestion is a
-                    // job card for the net requirement rather than a purchase order.
-                    'suggested_po_qty' => $item->isMade() ? 0 : $this->mrp->suggestedPurchaseQty(
-                        $result['net_req'],
-                        (float) $item->min_order_qty,
-                        (float) $item->order_multiple,
-                    ),
-                    'suggested_make_qty' => $item->isMade() ? max(0.0, (float) $result['net_req']) : 0,
-                    'need_date' => $needDate->toDateString(),
-                    'po_place_by' => $this->mrp->placeByDate($needDate, $leadTime)->toDateString(),
-                    'is_shortage' => $result['has_shortage'],
-                ]);
-
-                if ($result['has_shortage']) {
-                    $shortages++;
-                }
-            }
-
-            DB::table('mrp_runs')->where('id', $runId)->update([
-                'status' => 'completed',
-                'shortage_count' => $shortages,
-            ]);
-
-            return $runId;
-        });
+        $status = (string) DB::table('mrp_runs')->where('id', $runId)->value('status');
 
         return redirect()
             ->route('mrp.index', ['run' => $runId])
-            ->with('success', 'MRP run complete.');
+            ->with('success', $status === 'completed'
+                ? 'MRP run complete.'
+                : 'MRP run queued. It is computed by the worker; refresh in a moment.');
     }
 }

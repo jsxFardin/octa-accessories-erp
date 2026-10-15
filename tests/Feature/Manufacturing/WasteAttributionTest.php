@@ -153,3 +153,18 @@ it('waste: shows the causes on the job card', function (): void {
                 ->has('wasteLogs', 1)
                 ->where('wasteLogs.0.waste_type', 'edge_trim')));
 });
+
+// GAP M-06 — MF-5 AC2: waste booked against a named lot is valued at that lot's cost.
+it('waste: values the loss at the cost of the lot it came from', function (): void {
+    $lot = DB::table('stock_lots')->whereNotNull('item_id')->where('unit_cost', '>', 0)->firstOrFail();
+
+    ($this->log)([
+        'good_qty' => 480, 'waste_qty' => 20, 'input_qty' => 500,
+        'waste_type' => 'shade', 'input_lot_id' => $lot->id,
+    ])->assertOk();
+
+    $waste = DB::table('waste_logs')->where('job_card_operation_id', $this->operation->id)->orderByDesc('id')->first();
+
+    expect((float) $waste->value)->toBeMoney(round(20 * (float) $lot->unit_cost, 4))
+        ->and((int) $waste->lot_id)->toBe((int) $lot->id);
+});

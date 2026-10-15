@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Modules\MasterData\Models\Employee;
 use App\Modules\MasterData\Models\FactoryUnit;
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -23,6 +24,7 @@ use Illuminate\Support\Collection;
  * @property \Illuminate\Support\Carbon|null $email_verified_at
  * @property bool $is_active
  * @property string|null $two_factor_secret
+ * @property \Illuminate\Support\Carbon|null $two_factor_confirmed_at
  * @property \Illuminate\Support\Carbon|null $last_login_at
  * @property string $locale
  * @property \Illuminate\Support\Carbon $created_at
@@ -31,6 +33,8 @@ use Illuminate\Support\Collection;
  */
 class User extends Authenticatable
 {
+    use Auditable;
+
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory;
 
@@ -62,6 +66,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'two_factor_confirmed_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
         ];

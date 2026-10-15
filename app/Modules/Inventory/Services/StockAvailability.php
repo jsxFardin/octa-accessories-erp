@@ -38,12 +38,18 @@ class StockAvailability
             ->sum('qty');
     }
 
-    public function onOrder(int $itemId): float
+    /**
+     * BR-24 — open purchase-order quantity. With a date, only lines expected by then count:
+     * yarn arriving the week after the loom needs it is not cover for that job. A line with
+     * no expected date is counted, as it always was, rather than hidden.
+     */
+    public function onOrder(int $itemId, ?string $dueBy = null): float
     {
         return (float) DB::table('purchase_order_lines as pol')
             ->join('purchase_orders as po', 'po.id', '=', 'pol.po_id')
             ->where('pol.item_id', $itemId)
             ->whereIn('po.status', ['approved', 'sent', 'partially_received'])
+            ->when($dueBy !== null, fn ($q) => $q->where(fn ($d) => $d->whereNull('pol.expected_date')->orWhereDate('pol.expected_date', '<=', $dueBy)))
             ->sum(DB::raw('GREATEST(pol.qty - pol.received_qty, 0)'));
     }
 

@@ -208,6 +208,7 @@ class PackingListStateMachine extends StateMachine
         $schemes = $lots->pluck('cert_scheme')->filter()->unique();
 
         $claim = 0.0;
+        $claimed = false;
 
         if ($schemes->count() === 1) {
             $claim = $this->coc->dilutedClaimPct(
@@ -216,6 +217,12 @@ class PackingListStateMachine extends StateMachine
                     'claim_pct' => (float) ($lots[$row->lot_id]->cert_claim_pct ?? 0),
                 ])->values()->all(),
             );
+
+            // BR-41 / CP-4 AC3 — below the scheme's minimum the goods are not sold as certified.
+            // The diluted figure is kept so the page can say how far short it fell; the scheme
+            // is withheld so nothing downstream (BR-43, the challan, the invoice) claims it.
+            $claimed = $claim > 0
+                && $this->coc->meetsThreshold($claim, self::minimumClaimPct((string) $schemes->first()))['allowed'];
         }
 
         $document->forceFill([
@@ -223,9 +230,23 @@ class PackingListStateMachine extends StateMachine
             'total_qty' => (float) $contents->sum('qty'),
             'gross_weight_kg' => (float) $weights->gross ?: null,
             'net_weight_kg' => (float) $weights->net ?: null,
-            'cert_claim_scheme' => $claim > 0 ? $schemes->first() : null,
+            'cert_claim_scheme' => $claimed ? $schemes->first() : null,
             'cert_claim_pct' => $claim,
         ])->save();
+    }
+
+    /**
+     * BR-41 — the scheme's minimum claim, from the certificate registry rather than code: GRS
+     * is 20% for the "GRS" claim and 50% for the labelled one, FSC 70%, and those numbers
+     * belong to the standard. A scheme with no scope on file has no minimum, so any positive
+     * claim stands — the certificate itself is checked at dispatch (BR-43).
+     */
+    public static function minimumClaimPct(string $scheme): float
+    {
+        return (float) (DB::table('certification_scopes as cs')
+            ->join('certifications as c', 'c.id', '=', 'cs.certification_id')
+            ->where('c.scheme', $scheme)
+            ->max('cs.min_claim_pct') ?? 0);
     }
 
     /** @return \Illuminate\Support\Collection<int, \stdClass> */

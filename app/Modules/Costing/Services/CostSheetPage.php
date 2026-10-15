@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace App\Modules\Costing\Services;
 
+use App\Models\User;
 use App\Modules\Costing\Models\CostSheet;
+use App\Modules\Manufacturing\Models\JobCard;
+use App\Modules\MasterData\Models\Currency;
+use App\Modules\Product\Models\Product;
+use App\Modules\Sales\Models\QuotationLine;
+use App\Modules\Sales\Models\SalesOrderLine;
 use App\Support\Settings\Settings;
 use App\Support\Text\RecordLink;
 use Illuminate\Support\Facades\DB;
@@ -70,9 +76,24 @@ class CostSheetPage
         $marginAmount = $value === null ? null : round($value - (float) $sheet->total_cost, 4);
         $floor = $this->settings->decimal('margin_floor_pct', 12);
 
+        /** @var JobCard|null $jobCard */
+        $jobCard = $sheet->jobCard;
+        /** @var Product|null $product */
+        $product = $sheet->product;
+        /** @var SalesOrderLine|null $orderLine */
+        $orderLine = $sheet->salesOrderLine;
+        /** @var Currency|null $currency */
+        $currency = $sheet->currency;
+        /** @var User|null $creator */
+        $creator = $sheet->creator;
+        /** @var User|null $submitter */
+        $submitter = $sheet->submitter;
+        /** @var User|null $approver */
+        $approver = $sheet->approver;
+
         // A job's actuals read against its benchmark, line by line (spec §4).
-        $comparison = $sheet->stage === CostSheet::POST_PRODUCTION && $sheet->jobCard !== null
-            ? $this->stages->forJobCard($sheet->jobCard)
+        $comparison = $sheet->stage === CostSheet::POST_PRODUCTION && $jobCard !== null
+            ? $this->stages->forJobCard($jobCard)
             : null;
 
         return [
@@ -85,7 +106,7 @@ class CostSheetPage
                 'is_locked' => (bool) $sheet->is_locked,
                 'basis_qty' => (float) $sheet->basis_qty,
                 'costing_per' => $per,
-                'currency' => $sheet->currency?->code,
+                'currency' => $currency?->code,
                 'exchange_rate' => (float) $sheet->exchange_rate,
                 'incoterm' => $sheet->incoterm,
                 'overhead_pct' => (float) $sheet->overhead_pct,
@@ -95,22 +116,22 @@ class CostSheetPage
                 'gross_metres' => $sheet->gross_metres === null ? null : (float) $sheet->gross_metres,
                 'variance_reason' => $sheet->variance_reason,
                 'created_at' => $sheet->created_at,
-                'created_by' => $sheet->creator?->name,
+                'created_by' => $creator?->name,
                 'submitted_at' => $sheet->submitted_at,
-                'submitted_by' => $sheet->submitter?->name,
+                'submitted_by' => $submitter?->name,
                 'approved_at' => $sheet->approved_at,
-                'approved_by' => $sheet->approver?->name,
+                'approved_by' => $approver?->name,
                 'locked_at' => $sheet->locked_at,
                 // A benchmark struck on rates the clerk set by hand says so, and why.
-                'adjustment' => $sheet->stage === CostSheet::PRE_PRODUCTION ? ($sheet->salesOrderLine?->cost_overrides ?? null) : null,
+                'adjustment' => $sheet->stage === CostSheet::PRE_PRODUCTION ? $orderLine?->getAttribute('cost_overrides') : null,
             ],
-            'product' => $sheet->product === null ? null : [
-                'id' => $sheet->product->id,
-                'code' => $sheet->product->code,
-                'name' => $sheet->product->name,
-                'product_type' => $sheet->product->product_type,
-                'family' => $sheet->product->item?->family?->name,
-                'style_ref' => $sheet->product->customer_style_ref,
+            'product' => $product === null ? null : [
+                'id' => $product->id,
+                'code' => $product->code,
+                'name' => $product->name,
+                'product_type' => $product->product_type,
+                'family' => $product->item?->family?->name,
+                'style_ref' => $product->customer_style_ref,
                 'spec_version' => $sheet->product_spec_id === null ? null : DB::table('product_specs')->where('id', $sheet->product_spec_id)->value('version_no'),
             ],
             'buyer' => $this->buyer($sheet),
@@ -135,7 +156,7 @@ class CostSheetPage
                     'other_pct' => $value !== null && $value > 0 ? round($otherTotal / $value * 100, 2) : null,
                 ],
             ],
-            'lines' => array_values($lines),
+            'lines' => $lines,
             'revisions' => $this->revisions($sheet),
             'history' => $this->history($sheet),
             'comparison' => $comparison,
@@ -152,7 +173,9 @@ class CostSheetPage
      */
     private function verdict(CostSheet $sheet, ?float $marginAmount, float $floor, ?array $comparison): array
     {
-        $cur = $sheet->currency?->code ?? '';
+        /** @var Currency|null $currency */
+        $currency = $sheet->currency;
+        $cur = $currency->code ?? '';
         $money = fn (float $v): string => trim($cur.' '.number_format(abs($v), abs($v) >= 100 ? 0 : 2));
         $qty = number_format((float) $sheet->basis_qty).' pcs';
         $past = $sheet->stage === CostSheet::POST_PRODUCTION;
@@ -170,10 +193,12 @@ class CostSheetPage
             : sprintf('%s margin, above the %s.', number_format($margin, 1).'%', $floorText);
 
         if ($comparison !== null && $comparison['pre'] !== null) {
-            $total = collect($comparison['variance'])->firstWhere('key', 'total_cost')['total'] ?? null;
+            /** @var list<array{key: string, label: string, pre: ?float, post: ?float, per_unit: ?float, total: ?float}> $variance */
+            $variance = $comparison['variance'];
+            $total = collect($variance)->firstWhere('key', 'total_cost')['total'] ?? null;
 
             if ($total !== null && abs($total) >= 0.005) {
-                $drivers = collect($comparison['variance'])
+                $drivers = collect($variance)
                     ->filter(fn (array $row): bool => $row['key'] !== 'total_cost' && $row['total'] !== null && ($total > 0 ? $row['total'] > 0 : $row['total'] < 0))
                     ->sortByDesc(fn (array $row): float => abs((float) $row['total']))
                     ->take(2)
@@ -276,9 +301,16 @@ class CostSheetPage
     /** @return array{id: int, name: string}|null */
     private function buyer(CostSheet $sheet): ?array
     {
-        $customer = $sheet->quotationLine?->quotation?->customer
-            ?? $sheet->salesOrderLine?->salesOrder?->customer
-            ?? $sheet->product?->customer;
+        /** @var QuotationLine|null $quotationLine */
+        $quotationLine = $sheet->quotationLine;
+        /** @var SalesOrderLine|null $orderLine */
+        $orderLine = $sheet->salesOrderLine;
+        /** @var Product|null $product */
+        $product = $sheet->product;
+
+        $customer = $quotationLine->quotation->customer
+            ?? $orderLine->salesOrder->customer
+            ?? $product->customer;
 
         return $customer === null ? null : ['id' => $customer->id, 'name' => $customer->name];
     }
@@ -286,20 +318,27 @@ class CostSheetPage
     /** @return array{kind: string, label: string, href: string, line_no: ?int}|null */
     private function document(CostSheet $sheet): ?array
     {
-        if ($sheet->jobCard !== null) {
-            return ['kind' => 'job_card', 'label' => $sheet->jobCard->number ?? "Job card #{$sheet->jobCard->id}", 'href' => "/job-cards/{$sheet->jobCard->id}", 'line_no' => null];
+        /** @var JobCard|null $jobCard */
+        $jobCard = $sheet->jobCard;
+        /** @var SalesOrderLine|null $orderLine */
+        $orderLine = $sheet->salesOrderLine;
+        /** @var QuotationLine|null $quotationLine */
+        $quotationLine = $sheet->quotationLine;
+
+        if ($jobCard !== null) {
+            return ['kind' => 'job_card', 'label' => $jobCard->number ?? "Job card #{$jobCard->id}", 'href' => "/job-cards/{$jobCard->id}", 'line_no' => null];
         }
 
-        if ($sheet->salesOrderLine !== null) {
-            $order = $sheet->salesOrderLine->salesOrder;
+        if ($orderLine !== null) {
+            $order = $orderLine->salesOrder;
 
-            return ['kind' => 'sales_order', 'label' => $order?->number ?? "Order #{$order?->id}", 'href' => "/sales-orders/{$order?->id}", 'line_no' => $sheet->salesOrderLine->line_no];
+            return ['kind' => 'sales_order', 'label' => $order->number ?? "Order #{$order?->id}", 'href' => "/sales-orders/{$order?->id}", 'line_no' => $orderLine->line_no];
         }
 
-        if ($sheet->quotationLine !== null) {
-            $quotation = $sheet->quotationLine->quotation;
+        if ($quotationLine !== null) {
+            $quotation = $quotationLine->quotation;
 
-            return ['kind' => 'quotation', 'label' => ($quotation?->number ?? "Quotation #{$quotation?->id}").($quotation?->revision_no ? " R{$quotation->revision_no}" : ''), 'href' => "/quotations/{$quotation?->id}", 'line_no' => $sheet->quotationLine->line_no];
+            return ['kind' => 'quotation', 'label' => ($quotation->number ?? "Quotation #{$quotation?->id}").($quotation?->revision_no ? " R{$quotation->revision_no}" : ''), 'href' => "/quotations/{$quotation?->id}", 'line_no' => $quotationLine->line_no];
         }
 
         return null;
@@ -315,36 +354,45 @@ class CostSheetPage
     private function revisions(CostSheet $sheet): array
     {
         $query = CostSheet::query()->with(['quotationLine.quotation', 'approver:id,name']);
+        /** @var QuotationLine|null $quotationLine */
+        $quotationLine = $sheet->quotationLine;
+        $quotation = $quotationLine?->quotation;
 
         if ($sheet->sales_order_line_id !== null) {
             $query->where('sales_order_line_id', $sheet->sales_order_line_id);
-        } elseif ($sheet->quotationLine?->quotation !== null) {
-            $quotation = $sheet->quotationLine->quotation;
+        } elseif ($quotation !== null) {
             $query->whereHas('quotationLine.quotation', fn ($q) => $q->where('number', $quotation->number)->where('customer_id', $quotation->customer_id))
                 ->where('product_id', $sheet->product_id);
         } else {
             $query->whereKey($sheet->id);
         }
 
-        return $query->orderByDesc('id')->get()->map(fn (CostSheet $row): array => [
-            'id' => $row->id,
-            'number' => $row->number,
-            'stage' => $row->stage,
-            'status' => $row->status,
-            'revision_no' => $row->quotationLine?->quotation?->revision_no ?? $row->revision_no,
-            'basis_qty' => (float) $row->basis_qty,
-            'material_cost' => (float) $row->material_cost,
-            'conversion_cost' => (float) $row->machine_cost + (float) $row->labour_cost + (float) $row->energy_cost,
-            'other_cost' => (float) $row->tooling_cost + (float) $row->packing_cost + (float) $row->other_cost,
-            'overhead_amount' => (float) $row->overhead_amount,
-            'total_cost' => (float) $row->total_cost,
-            'unit_cost' => (float) $row->unit_cost,
-            'revenue_per_unit' => $row->revenue_per_unit === null ? null : (float) $row->revenue_per_unit,
-            'margin_pct' => $row->marginPct(),
-            'created_at' => $row->created_at,
-            'approved_by' => $row->approver?->name,
-            'is_current' => $row->id === $sheet->id,
-        ])->all();
+        return $query->orderByDesc('id')->get()->map(function (CostSheet $row) use ($sheet): array {
+            /** @var QuotationLine|null $rowLine */
+            $rowLine = $row->quotationLine;
+            /** @var User|null $approver */
+            $approver = $row->approver;
+
+            return [
+                'id' => $row->id,
+                'number' => $row->number,
+                'stage' => $row->stage,
+                'status' => $row->status,
+                'revision_no' => $rowLine->quotation->revision_no ?? $row->revision_no,
+                'basis_qty' => (float) $row->basis_qty,
+                'material_cost' => (float) $row->material_cost,
+                'conversion_cost' => (float) $row->machine_cost + (float) $row->labour_cost + (float) $row->energy_cost,
+                'other_cost' => (float) $row->tooling_cost + (float) $row->packing_cost + (float) $row->other_cost,
+                'overhead_amount' => (float) $row->overhead_amount,
+                'total_cost' => (float) $row->total_cost,
+                'unit_cost' => (float) $row->unit_cost,
+                'revenue_per_unit' => $row->revenue_per_unit === null ? null : (float) $row->revenue_per_unit,
+                'margin_pct' => $row->marginPct(),
+                'created_at' => $row->created_at,
+                'approved_by' => $approver?->name,
+                'is_current' => $row->id === $sheet->id,
+            ];
+        })->all();
     }
 
     /**

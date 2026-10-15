@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Finance\Models;
 
 use App\Modules\MasterData\Models\Currency;
+use App\Support\Audit\Auditable;
+use App\Support\Scoping\BelongsToCustomer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -27,6 +29,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Receipt extends Model
 {
+    use Auditable;
+    use BelongsToCustomer;
+
     protected $table = 'receipts';
 
     public const UPDATED_AT = null;

@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Modules\Compliance\Http\Controllers\ComplianceController;
@@ -36,6 +39,7 @@ use App\Modules\Planning\Http\Controllers\PlanningBoardController;
 use App\Modules\Procurement\Http\Controllers\GrnController;
 use App\Modules\Procurement\Http\Controllers\PurchaseOrderController;
 use App\Modules\Procurement\Http\Controllers\PurchaseRequisitionController;
+use App\Modules\Procurement\Http\Controllers\PurchaseReturnController;
 use App\Modules\Procurement\Http\Controllers\SupplierBillController;
 use App\Modules\Procurement\Http\Controllers\SupplierRfqController;
 use App\Modules\Product\Http\Controllers\ArtworkController;
@@ -54,6 +58,7 @@ use App\Modules\Sales\Http\Controllers\PriceListController;
 use App\Modules\Sales\Http\Controllers\QuotationController;
 use App\Modules\Sales\Http\Controllers\SalesOrderController;
 use App\Modules\Sales\Http\Controllers\SalesReturnController;
+use App\Modules\Sampling\Http\Controllers\SampleRequestController;
 use App\Modules\Trade\Http\Controllers\ImportShipmentController;
 use App\Modules\Trade\Http\Controllers\LetterOfCreditController;
 use App\Support\Export\Http\Controllers\ExportController;
@@ -84,6 +89,16 @@ Route::get('/', fn () => redirect(LandingPage::for(auth()->user())))->name('home
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:login');
+
+    // NFR-19 — self-service reset. The send is throttled like the login (per email and IP).
+    Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
+    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->middleware('throttle:login')->name('password.email');
+    Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
+    Route::post('reset-password', [NewPasswordController::class, 'store'])->middleware('throttle:login')->name('password.store');
+
+    // NFR-19 — the second step of signing in; the password step parks the user here.
+    Route::get('two-factor-challenge', [TwoFactorChallengeController::class, 'create'])->name('two-factor.challenge');
+    Route::post('two-factor-challenge', [TwoFactorChallengeController::class, 'store'])->middleware('throttle:login');
 });
 
 Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
@@ -96,6 +111,10 @@ Route::middleware('auth')->group(function (): void {
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
     Route::put('profile/locale', [ProfileController::class, 'updateLocale'])->name('profile.locale');
+    // NFR-19 — two-step sign-in, set up and confirmed by the account's own owner.
+    Route::post('profile/two-factor', [ProfileController::class, 'twoFactorSetup'])->name('profile.two-factor.setup');
+    Route::post('profile/two-factor/confirm', [ProfileController::class, 'twoFactorConfirm'])->name('profile.two-factor.confirm');
+    Route::delete('profile/two-factor', [ProfileController::class, 'twoFactorDisable'])->name('profile.two-factor.disable');
 
     // Own-user inbox: every authenticated user reads their own rows. A permission here
     // would either lock the bell or grant nothing the ownership query does not already.
@@ -169,6 +188,8 @@ Route::middleware('auth')->group(function (): void {
 
     // A supplier's people, the materials they sell and how to reach them are kept on the
     // supplier's own page, as a customer's are. `supplier.update` is the gate throughout.
+    Route::post('suppliers/{supplier}/approve', [SupplierController::class, 'approve'])
+        ->middleware('can:supplier.approve')->name('suppliers.approve');
     Route::post('suppliers/{supplier}/contacts', [SupplierContactController::class, 'store'])
         ->middleware('can:supplier.update')->name('suppliers.contacts.store');
     Route::put('suppliers/{supplier}/contacts/{contact}', [SupplierContactController::class, 'update'])
@@ -270,6 +291,23 @@ Route::middleware('auth')->group(function (): void {
     Route::post('inquiries/{inquiry}/transition', [InquiryController::class, 'transition'])
         ->middleware('can:inquiry.view')->name('inquiries.transition');
 
+    // Samples (AS-5 … AS-7): request, sample run, parcel, and the customer's decision per line.
+    Route::resource('sample-requests', SampleRequestController::class)->except(['destroy'])
+        ->middlewareFor(['index', 'show'], 'can:sample_request.view_any')
+        ->middlewareFor(['create', 'store'], 'can:sample_request.create')
+        ->middlewareFor(['edit', 'update'], 'can:sample_request.update');
+    Route::post('sample-requests/{sample_request}/transition', [SampleRequestController::class, 'transition'])
+        ->middleware('can:sample_request.update')->name('sample-requests.transition');
+    Route::post('sample-requests/{sample_request}/dispatch', [SampleRequestController::class, 'dispatch'])
+        ->middleware('can:sample_request.dispatch')->name('sample-requests.dispatch');
+    Route::put('sample-requests/{sample_request}/dispatches/{dispatch}', [SampleRequestController::class, 'delivered'])
+        ->middleware('can:sample_request.dispatch')->name('sample-requests.delivered');
+    Route::post('sample-requests/{sample_request}/lines/{line}/decision', [SampleRequestController::class, 'decide'])
+        ->middleware('can:sample_request.update')->name('sample-requests.decide');
+    // The sample run is a job card, so raising it is the planner's verb, not the merchandiser's.
+    Route::post('sample-requests/{sample_request}/lines/{line}/job-card', [SampleRequestController::class, 'raiseJobCard'])
+        ->middleware('can:job_card.create')->name('sample-requests.job-card');
+
     Route::resource('quotations', QuotationController::class)->except(['destroy'])
         ->middlewareFor(['index', 'show'], 'can:quotation.view_any')
         ->middlewareFor(['create', 'store'], 'can:quotation.create')
@@ -354,6 +392,22 @@ Route::middleware('auth')->group(function (): void {
 
     Route::post('purchase-orders/{purchaseOrder}/transition', [PurchaseOrderController::class, 'transition'])
         ->middleware('can:purchase_order.view')->name('purchase-orders.transition');
+
+    // PR-7 — supplier returns, out of the lots a posted receipt created.
+    Route::get('purchase-returns', [PurchaseReturnController::class, 'index'])
+        ->middleware('can:purchase_return.view_any')->name('purchase-returns.index');
+    Route::get('purchase-returns/create', [PurchaseReturnController::class, 'create'])
+        ->middleware('can:purchase_return.create')->name('purchase-returns.create');
+    Route::get('purchase-returns/grn/{grn}', [PurchaseReturnController::class, 'lots'])
+        ->middleware('can:purchase_return.create')->name('purchase-returns.lots');
+    Route::post('purchase-returns', [PurchaseReturnController::class, 'store'])
+        ->middleware('can:purchase_return.create')->name('purchase-returns.store');
+    Route::get('purchase-returns/{purchase_return}', [PurchaseReturnController::class, 'show'])
+        ->middleware('can:purchase_return.view')->name('purchase-returns.show');
+    Route::post('purchase-returns/{purchase_return}/transition', [PurchaseReturnController::class, 'transition'])
+        ->middleware('can:purchase_return.update')->name('purchase-returns.transition');
+    Route::put('purchase-returns/{purchase_return}/debit-note', [PurchaseReturnController::class, 'debitNote'])
+        ->middleware('can:purchase_return.update')->name('purchase-returns.debit-note');
 
     Route::get('grns', [GrnController::class, 'index'])
         ->middleware('can:grn.view_any')->name('grns.index');
@@ -654,6 +708,8 @@ Route::middleware('auth')->group(function (): void {
     // Issue and cancel carry their own permission inside the state machine.
     Route::post('invoices/{invoice}/transition', [SalesInvoiceController::class, 'transition'])
         ->middleware('can:sales_invoice.view')->name('invoices.transition');
+    Route::put('invoices/{invoice}/references', [SalesInvoiceController::class, 'updateReferences'])
+        ->middleware('can:sales_invoice.update')->name('invoices.references');
 
     // P2-1 — credit notes: approve and apply carry their own permission in the state machine.
     Route::get('credit-notes', [CreditNoteController::class, 'index'])

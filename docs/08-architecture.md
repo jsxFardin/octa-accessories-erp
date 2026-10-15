@@ -1,6 +1,6 @@
 # 08 — Application Architecture
 
-Stack locked in [00-overview §8](00-overview.md#8-key-architectural-decisions): **Laravel 12 · Inertia 2 · Vue 3 · Tailwind 4 · MySQL 8.0 · Redis 7**, single-company deployment.
+Stack locked in [00-overview §8](00-overview.md#8-key-architectural-decisions): **Laravel 13 · Inertia 3 · Vue 3 · Tailwind 4 · MySQL 8.0 · Redis 7**, single-company deployment.
 
 ---
 
@@ -149,13 +149,13 @@ resources/js/
     Domain/         LotPicker, MachinePicker, DefectGrid, CostSheetPanel,
                     PlanningBoard, GenealogyTree, ArtworkViewer
   Composables/      useFilters, usePermissions, useScanner, useOfflineQueue
-  stores/           Pinia — only for genuinely global state (scanner session, offline queue)
+  composables/      offline queue, device session, list filters — module-level state, no Pinia
 ```
 
 ### Frontend rules
 
 - **No client-side data fetching for pages.** Inertia supplies props. Data changes happen via `router.post` / `router.reload`.
-- **Pinia is for device state**, not server state. The offline queue and scanner session are legitimate; a cached customer list is not.
+- **Device state lives in composables and localStorage**, not in a store. The offline queue and the device session are legitimate client state; a cached customer list is not.
 - **Three layouts, three design languages.** `AppLayout` is dense (desk users, keyboard-driven). `FloorLayout` is large-target, high-contrast, four buttons maximum (gloves, glare). `PortalLayout` is mobile-first and branded.
 - **Print is server-rendered.** Challans, invoices, job cards, certificates and carton labels are PDFs generated server-side, not browser print CSS. They are legal and customer-facing documents.
 
@@ -176,16 +176,16 @@ resources/js/
 
 | Need | Package | Note |
 |---|---|---|
-| Permissions | `spatie/laravel-permission` | Cached |
-| Media | `spatie/laravel-medialibrary` | Artwork, attachments, previews |
-| Activity log | `spatie/laravel-activitylog` | Feeds `audit_logs` |
+| Permissions | Own `roles` / `permissions` / `role_permissions` tables with a per-user cache; `Gate::before` maps ability names to permission rows | No package |
+| Media | Streamed from the local disk behind permission checks (`ArtworkVersionController@file`); no media package | Previews are not generated yet |
+| Activity log | Own `Auditable` trait + `AuditLogger` writing `audit_logs`; state machines log transitions with their context | No package |
 | Excel | `openspout/openspout` | Streams; PhpSpreadsheet dies on large exports |
-| PDF | `barryvdh/laravel-dompdf` for documents; `spatie/laravel-pdf` (headless Chrome) where layout is complex | |
+| PDF | `barryvdh/laravel-dompdf` through `DocumentRegistry` | |
 | Barcodes | `picqer/php-barcode-generator` (Code 128) + `bacon/bacon-qr-code` | |
-| WebSockets | `laravel/reverb` | Self-hosted, no third-party |
-| Queues | Redis + Horizon | |
+| WebSockets | none yet — pages reload after a write; a live board (MF-9) would bring `laravel/reverb` | Self-hosted when it comes, no third-party |
+| Queues | Redis, `queue:work` under systemd; `queue:health` watches the worker | Horizon is not installed |
 | Charts | Apache ECharts (npm, self-hosted) | No CDN |
-| Testing | Pest 3 | |
+| Testing | Pest 4 (PHP), Vitest (pure JS modules) | |
 | Static analysis | Larastan level 6 | |
 
 Deliberately **not** used: a state-machine package (the domain rules are specific enough to warrant explicit classes), an admin panel generator (the shop-floor and planning screens are bespoke and a generator fights them), GraphQL (nothing needs it).
@@ -224,7 +224,7 @@ Nothing that affects a stock decision is served from a TTL cache. Availability c
 
 | Environment | Purpose |
 |---|---|
-| local | Docker Compose: app, mysql, redis, reverb, mailpit |
+| local | `composer dev`: artisan serve, queue listener, pail and Vite side by side against local MySQL and Redis; no Docker Compose is shipped |
 | staging | Mirror of production, anonymised copy of production data |
 | production | Single VM or small cluster; MySQL primary with a GTID-based replica |
 
@@ -243,7 +243,7 @@ Business parameters (overhead %, margin floor, tolerances, cut gaps, approval ba
 | Device API | Pest feature | Idempotency, offline ordering, conflicts |
 | Portal isolation | Pest feature | Cross-customer access on every portal route |
 | Frontend | Vitest | Calculators and formatters only; no component-render theatre |
-| Smoke | Playwright | Six critical paths (order → job card → QC → pack → challan → invoice) |
+| Smoke | Pest `RouteSmokeTest` opens every GET route; browser walkthroughs are manual (`docs/e2e-browser-prompt.md`) | No Playwright yet |
 
 **Non-negotiable tests** (these encode the two gates):
 
@@ -262,11 +262,11 @@ it('margin is applied on price, not on cost')
 ## 10. Deployment
 
 ```
-GitHub Actions:
-  lint (Pint) → static analysis (Larastan) → tests (Pest, MySQL 8.0 service)
-  → schema check (load docs/02a-schema.sql into a scratch database)
-  → invariant check (the five assertions in 02-database-schema §9)
-  → build assets (Vite) → deploy
+GitHub Actions (.github/workflows/ci.yml):
+  lint (Pint) → static analysis (Larastan level 6) → Vitest → build assets (Vite)
+  → tests (Pest, MySQL 8 service; the schema and its invariants are asserted by
+    tests/Feature/Database) → composer audit → npm audit
+  Deploy is the runbook in 11-deployment.md; it is not automated yet.
 ```
 
 Zero-downtime deploy: build, migrate, cache config/routes/views, restart queues and Reverb. Migrations are additive-first — a deploy never drops a column in the same release that stops using it.

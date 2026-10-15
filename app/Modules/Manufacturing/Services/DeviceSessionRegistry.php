@@ -8,6 +8,8 @@ use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 
 /**
@@ -20,14 +22,32 @@ class DeviceSessionRegistry
 {
     private const TTL_HOURS = 9;
 
+    /**
+     * Wrong PINs tolerated per badge before it is locked, and for how long.
+     *
+     * The route throttle counts per IP, and a factory floor shares one NAT address, so on its
+     * own it bounds a whole shed's attempts rather than one badge's: ten a minute is still
+     * 14,400 guesses a day at a four-digit space. Five wrong PINs lock the badge for fifteen
+     * minutes, which turns a day's brute force into months.
+     */
+    public const PIN_ATTEMPTS = 5;
+
+    public const PIN_LOCKOUT_SECONDS = 900;
+
     public function issue(string $cardNo, string $pin, ?string $machineCode = null): ?DeviceSession
     {
+        if ($this->isLockedOut($cardNo)) {
+            return null;
+        }
+
         $employee = DB::table('employees')
             ->where('card_no', $cardNo)
             ->where('is_active', true)
             ->first();
 
         if ($employee === null || $employee->user_id === null) {
+            $this->rejected($cardNo, 'unknown badge');
+
             return null;
         }
 
@@ -35,6 +55,8 @@ class DeviceSessionRegistry
         $user = User::query()->find($employee->user_id);
 
         if ($user === null || ! $user->is_active) {
+            $this->rejected($cardNo, 'inactive user');
+
             return null;
         }
 
@@ -42,10 +64,48 @@ class DeviceSessionRegistry
         // last four characters — printed on the card the operator wears — so reading someone's
         // badge was enough to book output as them (06-rbac §6).
         if ($employee->pin_hash === null || ! Hash::check($pin, (string) $employee->pin_hash)) {
+            $this->rejected($cardNo, $employee->pin_hash === null ? 'no PIN set' : 'wrong PIN');
+
             return null;
         }
 
+        RateLimiter::clear($this->attemptsKey($cardNo));
+
         return $this->mint($employee, $user, $machineCode);
+    }
+
+    /** True while a badge is serving its lockout; the caller says so instead of "not recognised". */
+    public function isLockedOut(string $cardNo): bool
+    {
+        return RateLimiter::tooManyAttempts($this->attemptsKey($cardNo), self::PIN_ATTEMPTS);
+    }
+
+    /** Seconds until a locked badge may try again; 0 when it is not locked. */
+    public function lockoutSecondsRemaining(string $cardNo): int
+    {
+        return $this->isLockedOut($cardNo) ? RateLimiter::availableIn($this->attemptsKey($cardNo)) : 0;
+    }
+
+    /**
+     * Every refusal counts against the badge and leaves a line in the log, so a run of wrong
+     * PINs against one badge is visible after the fact and stops before it succeeds.
+     */
+    private function rejected(string $cardNo, string $reason): void
+    {
+        $attempts = RateLimiter::hit($this->attemptsKey($cardNo), self::PIN_LOCKOUT_SECONDS);
+
+        Log::warning('floor.sign_in_rejected', [
+            'card_no' => $cardNo,
+            'reason' => $reason,
+            'attempts' => $attempts,
+            'locked' => $attempts >= self::PIN_ATTEMPTS,
+            'ip' => request()->ip(),
+        ]);
+    }
+
+    private function attemptsKey(string $cardNo): string
+    {
+        return 'floor-pin:'.Str::lower(trim($cardNo));
     }
 
     /**
@@ -97,8 +157,28 @@ class DeviceSessionRegistry
     public function resolve(string $token): ?DeviceSession
     {
         $payload = Cache::get($this->key($token));
+        $session = $payload === null ? null : DeviceSession::fromArray($payload);
 
-        return $payload === null ? null : DeviceSession::fromArray($payload);
+        if ($session === null) {
+            return null;
+        }
+
+        // A badge or an account deactivated mid-shift stops working at the next request,
+        // not when the nine-hour token happens to lapse. One indexed lookup per API call.
+        $live = DB::table('employees')
+            ->join('users', 'users.id', '=', 'employees.user_id')
+            ->where('employees.id', $session->employeeId)
+            ->where('employees.is_active', true)
+            ->where('users.is_active', true)
+            ->exists();
+
+        if (! $live) {
+            $this->revoke($token);
+
+            return null;
+        }
+
+        return $session;
     }
 
     public function revoke(string $token): void

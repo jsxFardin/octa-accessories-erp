@@ -63,6 +63,18 @@ class FloorTerminalController extends Controller
         $session = $this->sessions->issue($data['card_no'], $data['pin'], $data['machine_code'] ?? null);
 
         if ($session === null) {
+            $wait = $this->sessions->lockoutSecondsRemaining($data['card_no']);
+
+            if ($wait > 0) {
+                $minutes = (int) ceil($wait / 60);
+
+                return back()->with('error', sprintf(
+                    'অনেকবার ভুল পিন। %d মিনিট পর আবার চেষ্টা করুন · Too many wrong PINs for this badge. Try again in %d minutes.',
+                    $minutes,
+                    $minutes,
+                ));
+            }
+
             return back()->with('error', 'ব্যাজ বা পিন মেলেনি · Badge or PIN not recognised.');
         }
 
@@ -225,6 +237,10 @@ class FloorTerminalController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        // A kiosk may still carry the hash of whoever was signed in at the desk before this
+        // badge; `AuthenticateSession` would compare the new operator against it and sign them
+        // straight back out. A badge sign-in starts that check afresh.
+        $request->session()->forget('password_hash_'.config('auth.defaults.guard'));
         $request->session()->put(self::TOKEN_KEY, $session->token);
 
         // `can:operation.terminal` guards the queue. Refusing here, with a reason, beats

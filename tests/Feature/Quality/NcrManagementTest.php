@@ -186,15 +186,16 @@ it('cannot close while the CAPA action is still incomplete', function (): void {
     expect($ncr->refresh()->status)->toBe(Ncr::INVESTIGATING);
 });
 
-it('cannot close a downgrade NCR while the unimplemented lot conversion is pending', function (): void {
+// GAP Q-03 — the downgrade is applied at rejection (QL-4 AC4), so the NCR can close.
+it('closes a downgrade NCR now that the second-quality lot conversion is applied at rejection', function (): void {
     postRejectedInspection($this, majors: 50, disposition: 'downgrade');
     $ncr = walkNcr($this, latestNcr(), 'action_taken');
 
     $this->actingAs($this->qc)->post("/ncrs/{$ncr->id}/verify", ['effectiveness' => 'effective'])
-        ->assertSessionHas('error');
+        ->assertSessionMissing('error');
 
-    expect($ncr->refresh()->status)->toBe(Ncr::ACTION_TAKEN)
-        ->and($ncr->pendingAction()['status'])->toBe('pending');
+    expect($ncr->refresh()->status)->not->toBe(Ncr::ACTION_TAKEN)
+        ->and($ncr->pendingAction()['status'])->toBe('applied');
 });
 
 it('keeps the P1-3 rework loop intact when the NCR later closes', function (): void {
@@ -218,14 +219,15 @@ it('does not post stock when a scrap NCR is investigated and closed', function (
 
     postRejectedInspection($this, majors: 50, disposition: 'scrap');
 
-    expect(DB::table('stock_lots')->where('id', $receipt->lot_id)->value('status'))->toBe('blocked');
+    // GAP Q-03 — the write-off happens at rejection (QL-4 AC5); closing the NCR posts nothing more.
+    expect(DB::table('stock_lots')->where('id', $receipt->lot_id)->value('status'))->toBe('scrapped');
 
     $ledgerBefore = DB::table('stock_ledger')->count();
 
     walkNcr($this, latestNcr(), 'closed');
 
     expect(DB::table('stock_ledger')->count())->toBe($ledgerBefore)
-        ->and(DB::table('stock_lots')->where('id', $receipt->lot_id)->value('status'))->toBe('blocked')
+        ->and(DB::table('stock_lots')->where('id', $receipt->lot_id)->value('status'))->toBe('scrapped')
         ->and($this->jobCard->refresh()->status)->toBe(JobCard::QC_PENDING);
 });
 
@@ -302,4 +304,15 @@ it('refuses investigation without an owner', function (): void {
 
     expect($ncr->refresh()->status)->toBe(Ncr::OPEN)
         ->and(Capa::query()->where('ncr_id', $ncr->id)->count())->toBe(0);
+});
+
+// GAP Q-06 — QL-7 AC2: the CAPA deadline follows the severity unless the investigator sets one.
+it('dates the CAPA from the severity when the investigator gives no due date', function (): void {
+    postRejectedInspection($this, majors: 50, disposition: 'rework');
+    $ncr = walkNcr($this, latestNcr(), 'investigating');
+    $days = (int) DB::table('settings')->where('key', 'ncr_capa_days_'.$ncr->severity)->value('value');
+
+    expect($days)->toBeGreaterThan(0)
+        ->and(DB::table('capas')->where('ncr_id', $ncr->id)->value('due_date'))
+        ->toBe(Illuminate\Support\Carbon::parse((string) $ncr->raised_on)->addDays($days)->toDateString());
 });

@@ -91,7 +91,7 @@ class CreditNoteStateMachine extends StateMachine
      */
     private function guardApproved(CreditNote $note): void
     {
-        app(\App\Support\Periods\PeriodLock::class)->assertOpen($note->issued_on, 'a credit note');
+        app(\App\Support\Periods\PeriodLock::class)->assertOpen($note->note_date, 'a credit note');
 
         $band = $this->settings->decimal('credit_note_approval_band_accounts', 50000);
         $value = $this->baseValue($note);

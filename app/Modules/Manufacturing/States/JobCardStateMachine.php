@@ -84,6 +84,7 @@ class JobCardStateMachine extends StateMachine
             JobCard::PLANNED => $this->guardPlanned($document),
             JobCard::RELEASED => $this->guardReleased($document, $context),
             JobCard::ON_HOLD => $this->guardHold($context),
+            JobCard::IN_PRODUCTION => $this->guardResume($from, $context),
             JobCard::QC_PENDING => $this->guardQcPending($document),
             JobCard::COMPLETED => $this->guardCompleted($document, $from, $context),
             JobCard::CLOSED => $this->guardClosed($document, $context),
@@ -127,11 +128,38 @@ class JobCardStateMachine extends StateMachine
         throw TransitionDenied::guard('J1', "This job card cannot be released.\n• ".implode("\n• ", $failed));
     }
 
+    /**
+     * The resolution that lifted a hold sits on the audit row beside the reason it answers.
+     *
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
+    protected function auditContext(array $context): array
+    {
+        return [
+            ...parent::auditContext($context),
+            ...array_intersect_key($context, array_flip(['hold_resolution'])),
+        ];
+    }
+
     /** @param array<string, mixed> $context */
     private function guardHold(array $context): void
     {
         if (blank($context['hold_reason'] ?? null)) {
             throw TransitionDenied::guard('J1', 'A hold needs a reason; the planning board frees the machine slot on the strength of it.');
+        }
+    }
+
+    /**
+     * MF-6 AC3 — a hold is lifted by saying what was done about it, not by pressing Resume.
+     * The resolution rides on the transition's audit row beside the reason it answers.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function guardResume(string $from, array $context): void
+    {
+        if ($from === JobCard::ON_HOLD && blank($context['hold_resolution'] ?? null)) {
+            throw TransitionDenied::guard('MF-6', 'Say how the hold was resolved before resuming — the reason it was held is on the card, and the audit trail pairs the two.');
         }
     }
 
@@ -405,8 +433,9 @@ class JobCardStateMachine extends StateMachine
             // opening a blank form.
             JobCard::PLANNED => $this->onPlanned($document),
             JobCard::RELEASED => $this->onReleased($document, $context),
-            JobCard::IN_PRODUCTION => $this->onInProduction($document),
+            JobCard::IN_PRODUCTION => $this->onInProduction($document, $from),
             JobCard::ON_HOLD => $document->forceFill(['hold_reason' => $context['hold_reason']])->save(),
+            JobCard::QC_PENDING => $this->onQcPending($document),
             JobCard::COMPLETED => $this->onCompleted($document, $from),
             JobCard::CLOSED => $this->onClosed($document),
             JobCard::CANCELLED => app(\App\Modules\Inventory\Services\ReservationService::class)
@@ -442,8 +471,13 @@ class JobCardStateMachine extends StateMachine
             ->update(['status' => JobCardOperation::READY]);
     }
 
-    private function onInProduction(JobCard $jobCard): void
+    private function onInProduction(JobCard $jobCard, string $from = ''): void
     {
+        // The hold is over; a reason left on the card would read as a hold still in force.
+        if ($from === JobCard::ON_HOLD) {
+            $jobCard->forceFill(['hold_reason' => null])->save();
+        }
+
         if ($jobCard->actual_start === null) {
             $jobCard->forceFill(['actual_start' => now()])->save();
         }
@@ -455,11 +489,44 @@ class JobCardStateMachine extends StateMachine
      * `actual_finish` is not re-stamped on the way back: the job finished when it finished,
      * and overwriting it with the moment of an administrative correction would lose that.
      */
+    /**
+     * 05-workflows §6 — the final AQL inspection is raised the moment the card reaches QC, so
+     * the inspector's queue shows the job instead of relying on someone to open a blank form.
+     * The verdict lands on this row (QcInspectionController reuses a pending one).
+     */
+    private function onQcPending(JobCard $jobCard): void
+    {
+        $exists = DB::table('qc_inspections')
+            ->where('job_card_id', $jobCard->getKey())
+            ->where('stage', 'final')
+            ->where('result', 'pending')
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
+        DB::table('qc_inspections')->insert([
+            'number' => $this->numbers->next('qc_inspection'),
+            'stage' => 'final',
+            'job_card_id' => $jobCard->getKey(),
+            'lot_size' => (int) ceil(max(1, $jobCard->finalOperationOutput()['good'])),
+            'result' => 'pending',
+            'inspected_on' => now()->toDateString(),
+            'created_at' => now(),
+        ]);
+    }
+
     private function onCompleted(JobCard $jobCard, string $from): void
     {
         $jobCard->forceFill($from === JobCard::CLOSED
             ? ['closed_at' => null]
             : ['actual_finish' => now()])->save();
+
+        // AS-5 AC4 — a sample run's completion is what marks its sample line produced.
+        if ($from !== JobCard::CLOSED && $jobCard->sample_request_line_id !== null) {
+            app(\App\Modules\Sampling\Services\SampleProduction::class)->onJobCardCompleted($jobCard);
+        }
     }
 
     private function onClosed(JobCard $jobCard): void

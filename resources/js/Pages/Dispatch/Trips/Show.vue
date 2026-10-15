@@ -21,7 +21,10 @@ const props = defineProps({
  * one moment the odometer's start reading is known. It used to be a bare click that recorded
  * neither a reading nor a second thought.
  */
-const startForm = useForm({ start_odometer: props.trip.start_odometer });
+const startForm = useForm({ start_odometer: props.trip.start_odometer, overload_reason: '' });
+
+// DF-4 AC3 — said before Start is pressed; the server refuses it without a reason.
+const overloaded = computed(() => Number(props.trip.capacity_kg) > 0 && Number(props.trip.load_kg) > Number(props.trip.capacity_kg));
 const startOpen = ref(false);
 
 function submitStart() {
@@ -307,6 +310,12 @@ const dial = (phone) => `tel:${String(phone).replace(/[^\d+]/g, '')}`;
                     The {{ stops.length }} delivery {{ stops.length === 1 ? 'note' : 'notes' }} on this trip will be marked
                     as in transit. Start it when the vehicle is loaded and leaving.
                 </p>
+                <p v-if="overloaded" class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    This trip loads {{ pcs(trip.load_kg) }} kg onto a vehicle rated for {{ pcs(trip.capacity_kg) }} kg.
+                </p>
+                <FormField v-if="overloaded" label="Why is it going anyway?" :error="startForm.errors.overload_reason" required>
+                    <TextInput v-model="startForm.overload_reason" maxlength="255" placeholder="e.g. light cartons, dispatcher checked the axle load" />
+                </FormField>
                 <FormField
                     label="Start odometer (km)"
                     :error="startForm.errors.start_odometer"

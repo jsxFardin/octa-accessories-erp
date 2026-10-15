@@ -138,6 +138,32 @@ class SupplierBillStateMachine extends StateMachine
             }
         }
 
+        // FN-4 — the value check. Quantities and rates are matched line by line above; the
+        // total has to land inside tolerance of what the receipt is worth at the order's
+        // rates, or a bill padded with a line the order never had sails through on a
+        // per-item view.
+        $receivedValue = 0.0;
+
+        foreach ($grnLines as $itemId => $grnLine) {
+            $poLine = $poLines->get($itemId);
+            $receivedValue += (float) $grnLine->accepted_qty * (float) ($poLine->rate ?? $grnLine->rate ?? 0);
+        }
+
+        $valueTolerance = (float) (DB::table('settings')->where('key', 'supplier_bill_value_tolerance_pct')->value('value') ?? 2);
+        $billed = (float) $bill->lines()->get()->sum(fn ($line): float => (float) $line->qty * (float) $line->rate);
+
+        if ($receivedValue > 0 && $billed > $receivedValue * (1 + $valueTolerance / 100) + 0.0001) {
+            throw TransitionDenied::guard(
+                'FN-4',
+                sprintf(
+                    'The bill comes to %s against %s received at the order\'s rates — more than the %s%% tolerance allows. Check the lines against the receipt, or have the order amended first.',
+                    number_format($billed, 2),
+                    number_format($receivedValue, 2),
+                    rtrim(rtrim(number_format($valueTolerance, 2, '.', ''), '0'), '.'),
+                ),
+            );
+        }
+
         if ($warnings !== [] && empty($context['override'])) {
             $user = auth()->user();
 

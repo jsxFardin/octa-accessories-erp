@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Quality\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Inventory\Models\StockLot;
+use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Manufacturing\Models\JobCardOperation;
 use App\Modules\Manufacturing\Services\FgReceiptService;
@@ -16,6 +18,7 @@ use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
 use App\Support\Notifications\Notifier;
 use App\Support\Numbering\NumberAllocator;
+use App\Support\States\StateMachine;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,6 +44,7 @@ class QcInspectionController extends Controller
         private readonly FgReceiptService $fgReceipts,
         private readonly JobCardStateMachine $jobCards,
         private readonly Notifier $notifier,
+        private readonly StockPostingService $posting,
     ) {}
 
     public function index(Request $request): Response
@@ -147,7 +151,7 @@ class QcInspectionController extends Controller
             'grn_line_id' => ['nullable', 'integer', 'exists:grn_lines,id'],
             // Stage vocabulary must match `qc_inspections_stage_chk` — the CHECK constraint is
             // the canonical list. `pre_dispatch` was a drift that the database rejected mid-save.
-            'stage' => ['required', Rule::in(['incoming', 'in_process', 'final', 'pre_shipment'])],
+            'stage' => ['required', Rule::in(['incoming', 'in_process', 'final', 'pre_shipment', 'customer'])],
             'lot_size' => ['required', 'integer', 'min:1'],
             'major_found' => ['integer', 'min:0'],
             'minor_found' => ['integer', 'min:0'],
@@ -185,7 +189,16 @@ class QcInspectionController extends Controller
             (int) ($data['major_found'] ?? 0),
             (int) ($data['critical_found'] ?? 0),
             $seeded ?: null,
+            (int) ($data['minor_found'] ?? 0),
         );
+
+        // QC1 — the inspection names the plan row its sample came from, so an auditor can
+        // re-derive the verdict. The lookup had the rows and never kept the id.
+        $aqlPlanId = DB::table('aql_plans')
+            ->where('standard', 'ISO 2859-1')->where('inspection_level', 'II')->where('aql_value', 2.5)
+            ->where('lot_size_from', '<=', (int) $data['lot_size'])
+            ->where('lot_size_to', '>=', (int) $data['lot_size'])
+            ->value('id');
 
         // BR-33 / QC2 — mirrored here so the message is useful; the CHECK constraint is what
         // makes it impossible.
@@ -193,9 +206,23 @@ class QcInspectionController extends Controller
             return back()->with('error', 'BR-33: a rejected lot needs a disposition — rework, concession, downgrade or scrap.');
         }
 
-        $inspection = DB::transaction(function () use ($data, $outcome, $request): QcInspection {
-            $inspection = QcInspection::query()->create([
-                'number' => $this->numbers->next('qc_inspection'),
+        $inspection = DB::transaction(function () use ($data, $outcome, $aqlPlanId, $request): QcInspection {
+            // QL-1 AC1 — a lot received into quarantine already has its inspection waiting,
+            // raised by the GRN posting with the number allocated. The verdict lands on that
+            // row rather than beside it, so the queue of pending incoming inspections empties
+            // as the inspector works through it.
+            $pending = match (true) {
+                $data['stage'] === 'incoming' && ! empty($data['lot_id']) => QcInspection::query()
+                    ->where('stage', 'incoming')->where('lot_id', $data['lot_id'])->where('result', 'pending')->first(),
+                // The final inspection the card raised on reaching QC (JobCardStateMachine).
+                $data['stage'] === 'final' && ! empty($data['job_card_id']) => QcInspection::query()
+                    ->where('stage', 'final')->where('job_card_id', $data['job_card_id'])->where('result', 'pending')->first(),
+                default => null,
+            };
+
+            $inspection = $pending ?? new QcInspection(['number' => $this->numbers->next('qc_inspection')]);
+            $inspection->fill([
+                'aql_plan_id' => $aqlPlanId,
                 'job_card_id' => $data['job_card_id'] ?? null,
                 'job_card_operation_id' => $data['job_card_operation_id'] ?? null,
                 'lot_id' => $data['lot_id'] ?? null,
@@ -216,7 +243,7 @@ class QcInspectionController extends Controller
                 'inspector_id' => $request->user()->id,
                 'inspected_on' => now()->toDateString(),
                 'created_by' => $request->user()->id,
-            ]);
+            ])->save();
 
             foreach ($data['defects'] ?? [] as $defect) {
                 DB::table('qc_inspection_defects')->insert([
@@ -233,6 +260,13 @@ class QcInspectionController extends Controller
                 && in_array($inspection->result, ['accepted', 'accepted_with_concession'], true)
                 && $inspection->job_card_id !== null) {
                 $this->fgReceipts->releaseForJob((int) $inspection->job_card_id);
+            }
+
+            // QL-1 AC3 — the incoming verdict moves the received lot: accepted to `available`,
+            // rejected to `blocked` with its disposition owed on the NCR below. Whole-lot
+            // granularity; the GRN line's accepted and rejected quantities follow.
+            if ($inspection->stage === 'incoming' && $inspection->lot_id !== null) {
+                $this->settleIncomingLot($inspection);
             }
 
             // P1-3 — a rejection is a controlled event, not a note: raise the NCR, freeze the
@@ -305,6 +339,22 @@ class QcInspectionController extends Controller
                 ->where('kind', 'finished_goods')
                 ->where('status', 'quarantine')
                 ->update(['status' => 'blocked']);
+
+            // QL-4 AC4/AC5 — the disposition moves stock, not just a status. Scrap writes the
+            // waste off at lot cost; downgrade moves the pieces into a second-quality lot that
+            // carries no certification claim and so can never ship under one.
+            match ($inspection->disposition) {
+                'scrap' => $this->scrapBlockedLots($inspection, $ncr, $request),
+                'downgrade' => $this->downgradeBlockedLots($inspection, $ncr),
+                default => null,
+            };
+        }
+
+        // QL-2 AC2 — a failed in-process check stops the job and tells the supervisor. A
+        // rework disposition is the exception: the step is reopened below and the card keeps
+        // running, because the fix is to run it again.
+        if ($inspection->stage === 'in_process' && $inspection->disposition !== 'rework') {
+            $this->holdForFailedCheck($inspection, $ncr);
         }
 
         // 3. Rework goes back to the floor through the state machine — the flagged operation
@@ -326,6 +376,121 @@ class QcInspectionController extends Controller
                 $this->jobCards->transition($jobCard, JobCard::IN_PRODUCTION);
             }
         }
+    }
+
+    /** QL-1 AC3 — the received lot leaves quarantine one way or the other. */
+    private function settleIncomingLot(QcInspection $inspection): void
+    {
+        $accepted = in_array($inspection->result, ['accepted', 'accepted_with_concession'], true);
+
+        DB::table('stock_lots')
+            ->where('id', $inspection->lot_id)
+            ->whereIn('status', ['quarantine', 'blocked'])
+            ->update(['status' => $accepted ? 'available' : 'blocked']);
+
+        if ($inspection->grn_line_id !== null) {
+            $received = (float) DB::table('grn_lines')->where('id', $inspection->grn_line_id)->value('received_qty');
+
+            DB::table('grn_lines')->where('id', $inspection->grn_line_id)->update([
+                'accepted_qty' => $accepted ? $received : 0,
+                'rejected_qty' => $accepted ? 0 : $received,
+            ]);
+        }
+    }
+
+    /**
+     * QL-4 AC5 — scrap is a waste movement at lot cost, and a waste log that carries the
+     * value, so the cost of quality is a figure rather than a feeling.
+     */
+    private function scrapBlockedLots(QcInspection $inspection, Ncr $ncr, Request $request): void
+    {
+        foreach ($this->blockedLotsOf((int) $inspection->job_card_id) as $lot) {
+            $qty = (float) $lot->balance_qty;
+
+            $this->posting->post($lot, 'scrap', -$qty, $inspection, null, "QC scrap: {$inspection->number} / {$ncr->number}");
+
+            DB::table('waste_logs')->insert([
+                'job_card_id' => $inspection->job_card_id,
+                'job_card_operation_id' => $inspection->job_card_operation_id,
+                'item_id' => $lot->item_id,
+                'lot_id' => $lot->getKey(),
+                'waste_type' => 'other',
+                'qty' => $qty,
+                'uom_id' => $lot->uom_id,
+                'value' => round($qty * (float) $lot->unit_cost, 4),
+                'occurred_at' => now(),
+                'reported_by' => $request->user()->id,
+                'remarks' => "Scrapped at final QC ({$inspection->number}, {$ncr->number})",
+            ]);
+
+            // The posting marks a lot drawn to zero as consumed; these pieces were destroyed.
+            DB::table('stock_lots')->where('id', $lot->getKey())->update(['status' => 'scrapped']);
+        }
+    }
+
+    /**
+     * QL-4 AC4 — the pieces move to a `second_quality` lot: same product, same cost, no
+     * certification claim. BR-40 then dilutes any list it is packed into, and the picker
+     * shows the kind, so it cannot be sold as first quality by accident.
+     */
+    private function downgradeBlockedLots(QcInspection $inspection, Ncr $ncr): void
+    {
+        foreach ($this->blockedLotsOf((int) $inspection->job_card_id) as $lot) {
+            $qty = (float) $lot->balance_qty;
+            $cost = (float) $lot->unit_cost;
+
+            $this->posting->post($lot, 'adjustment_out', -$qty, $inspection, $cost, "Downgraded at final QC: {$inspection->number} / {$ncr->number}");
+
+            $this->posting->receive(
+                [
+                    'lot_no' => $this->numbers->nextLotNumber(),
+                    'product_id' => $lot->product_id,
+                    'item_id' => $lot->item_id,
+                    'kind' => 'second_quality',
+                    'warehouse_id' => $lot->warehouse_id,
+                    'uom_id' => $lot->uom_id,
+                    'job_card_id' => $lot->job_card_id,
+                    'received_on' => now()->toDateString(),
+                    'cert_scheme' => null,
+                    'cert_claim_pct' => 0,
+                    'status' => 'available',
+                ],
+                $qty,
+                $cost,
+                $inspection,
+                movementType: 'adjustment_in',
+            );
+        }
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Collection<int, StockLot> */
+    private function blockedLotsOf(int $jobCardId): \Illuminate\Database\Eloquent\Collection
+    {
+        return StockLot::query()
+            ->where('job_card_id', $jobCardId)
+            ->where('kind', 'finished_goods')
+            ->where('status', 'blocked')
+            ->where('balance_qty', '>', 0)
+            ->orderBy('id')
+            ->get();
+    }
+
+    /** QL-2 AC2 — the card stops until a supervisor lifts the hold with a resolution (MF-6). */
+    private function holdForFailedCheck(QcInspection $inspection, Ncr $ncr): void
+    {
+        $jobCard = JobCard::query()->find($inspection->job_card_id);
+
+        if ($jobCard === null || $jobCard->status !== JobCard::IN_PRODUCTION) {
+            return;
+        }
+
+        $reason = sprintf('In-process QC %s rejected (%s). Disposition: %s.', $inspection->number, $ncr->number, $inspection->disposition);
+
+        // As the system: the hold is the consequence of the verdict, not a second decision
+        // by the inspector, who holds no job_card.update.
+        StateMachine::asSystem(fn () => $this->jobCards->transition($jobCard, JobCard::ON_HOLD, ['hold_reason' => $reason]));
+
+        $this->notifier->notifyJobCardHeld($jobCard, $reason);
     }
 
     public function show(QcInspection $inspection): Response

@@ -25,6 +25,7 @@ CREATE TABLE purchase_returns (
     supplier_id BIGINT UNSIGNED NOT NULL,
     returned_on DATE NOT NULL DEFAULT (CURRENT_DATE),
     reason      VARCHAR(500) NOT NULL,
+    debit_note_no VARCHAR(60),                          -- PR-7 AC3: the debit note Accounts raise against the supplier
     status      VARCHAR(20)  NOT NULL DEFAULT 'draft',
     created_by  BIGINT UNSIGNED,
     created_at  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),

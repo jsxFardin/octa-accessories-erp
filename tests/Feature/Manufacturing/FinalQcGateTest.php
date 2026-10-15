@@ -45,7 +45,8 @@ it('blocks completion when required final QC has not happened', function (): voi
     expect($this->jobCard->operations()->where('requires_qc', true)->exists())->toBeTrue();
 
     expect(fn () => $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED))
-        ->toThrow(TransitionDenied::class, 'requires final QC');
+        // The card raised its final inspection on reaching QC (05-workflows §6); it is pending.
+        ->toThrow(TransitionDenied::class, 'pending');
 });
 
 it('allows completion after an accepted final inspection', function (): void {
@@ -100,7 +101,8 @@ it('ignores another job\'s inspection and non-final stages', function (): void {
     $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
 
     expect(fn () => $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED))
-        ->toThrow(TransitionDenied::class, 'requires final QC');
+        // The card raised its final inspection on reaching QC (05-workflows §6); it is pending.
+        ->toThrow(TransitionDenied::class, 'pending');
 });
 
 it('leaves QC-free routings alone unless the factory default demands otherwise', function (): void {
@@ -116,7 +118,8 @@ it('applies the global default when the setting is on', function (): void {
     app(App\Support\Settings\Settings::class)->set('qc_final_required_default', true);
 
     expect(fn () => $this->states->transition($this->jobCard->refresh(), JobCard::COMPLETED))
-        ->toThrow(TransitionDenied::class, 'requires final QC');
+        // The card raised its final inspection on reaching QC (05-workflows §6); it is pending.
+        ->toThrow(TransitionDenied::class, 'pending');
 });
 
 it('cannot be bypassed over HTTP by a user without the transition permission', function (): void {

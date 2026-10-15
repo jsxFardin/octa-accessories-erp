@@ -423,7 +423,7 @@ class QuotationController extends Controller
         $payload = $quotation->toArray();
         $payload['lines'] = $quotation->lines->map(fn ($line): array => [
             ...$line->toArray(),
-            'extra_costs' => \App\Modules\Costing\CostComponents::fromLines($sheets->get($line->id)?->lines ?? []),
+            'extra_costs' => \App\Modules\Costing\CostComponents::fromLines($sheets->get($line->id)->lines ?? []),
             'overhead_pct' => $line->cost_overrides['overhead_pct'] ?? '',
             'admin_pct' => $line->cost_overrides['admin_pct'] ?? '',
             'customer_pays_tooling' => (bool) ($line->cost_overrides['customer_pays_tooling'] ?? false),
@@ -461,7 +461,11 @@ class QuotationController extends Controller
 
         // Q4 — revising creates n+1 and leaves the prior revision read-only.
         if ($data['to'] === 'revised') {
-            $revision = $this->revise($quotation);
+            try {
+                $revision = $this->revise($quotation);
+            } catch (TransitionDenied $e) {
+                return back()->with('error', $e->getMessage());
+            }
 
             return redirect()
                 ->route('quotations.show', $revision)
@@ -498,6 +502,11 @@ class QuotationController extends Controller
     private function revise(Quotation $quotation): Quotation
     {
         return DB::transaction(function () use ($quotation): Quotation {
+            // The prior revision retires through the machine — table, `quotation.revise`
+            // permission and audit row — not by a bare status write. Only a sent or expired
+            // quotation has anything to revise; a draft is simply edited.
+            $this->states->transition($quotation, 'revised');
+
             $revision = $quotation->replicate(['sent_at', 'decided_at', 'reject_reason']);
             $revision->revision_no = (int) $quotation->revision_no + 1;
             $revision->status = 'draft';
@@ -507,9 +516,24 @@ class QuotationController extends Controller
                 $copy = $line->replicate();
                 $copy->quotation_id = $revision->id;
                 $copy->save();
-            }
 
-            $quotation->update(['status' => 'revised']);
+                // SL-4 AC1 — the costing comes with the line. The prior revision's sheets are
+                // locked by its sending; the copies are open so the revision can be re-priced
+                // and, until it is re-saved, still has a sheet per line to be sent with (Q1).
+                foreach (CostSheet::query()->where('quotation_line_id', $line->id)->with('lines')->get() as $sheet) {
+                    $sheetCopy = $sheet->replicate(['approved_by', 'approved_at']);
+                    $sheetCopy->quotation_line_id = $copy->id;
+                    $sheetCopy->is_locked = false;
+                    $sheetCopy->status = CostSheet::DRAFT;
+                    $sheetCopy->save();
+
+                    foreach ($sheet->lines as $sheetLine) {
+                        $lineCopy = $sheetLine->replicate();
+                        $lineCopy->cost_sheet_id = $sheetCopy->id;
+                        $lineCopy->save();
+                    }
+                }
+            }
 
             return $revision;
         });

@@ -37,6 +37,7 @@ CREATE TABLE grn_lines (
     cert_scheme       VARCHAR(20),
     cert_claim_pct    DECIMAL(9,4) NOT NULL DEFAULT 0,
     cert_document_no  VARCHAR(80),
+    over_receipt_reason VARCHAR(255),                    -- PR-4 AC2: why more than the order line plus tolerance arrived
     UNIQUE KEY grn_lines_uq (grn_id, line_no),
     KEY grn_lines_poline_idx (po_line_id),
     KEY grn_lines_item_idx (item_id),

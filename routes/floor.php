@@ -29,7 +29,7 @@ Route::prefix('floor')->name('floor.')->group(function (): void {
      * lanyard in plain sight: without a limit the pair is guessable at machine speed.
      */
     Route::post('session', [FloorTerminalController::class, 'signIn'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:badge')
         ->name('session.store');
 
     // `operation.terminal` (AppServiceProvider) — whoever may run or inspect an operation.

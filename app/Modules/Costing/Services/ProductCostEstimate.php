@@ -36,7 +36,7 @@ class ProductCostEstimate
         // --- Material: the bill at this quantity, each line grossed up by its own wastage ---
         $bom = $product->activeBom;
 
-        foreach ($bom?->lines ?? [] as $line) {
+        foreach ($bom->lines ?? [] as $line) {
             $item = $line->item;
 
             if ($item === null) {
@@ -51,7 +51,7 @@ class ProductCostEstimate
             $lines[] = new CostLine(
                 seq: $seq++,
                 costType: self::materialType($item),
-                basis: (string) ($line->uom?->code ?? $item->baseUom?->code ?? 'unit'),
+                basis: (string) ($line->uom->code ?? $item->baseUom->code ?? 'unit'),
                 qty: round($gross, 6),
                 rate: $rate,
                 amount: round($amount, 4),
@@ -70,26 +70,26 @@ class ProductCostEstimate
         $need = $qty;
         $stepQty = [];
 
-        foreach (($product->routing?->operations ?? collect())->sortByDesc('sequence_no') as $operation) {
+        foreach (($product->routing->operations ?? collect())->sortByDesc('sequence_no') as $operation) {
             $need = $need * (1 + (float) $operation->wastage_pct / 100);
             $stepQty[$operation->id] = $need;
         }
 
-        foreach ($product->routing?->operations ?? [] as $operation) {
+        foreach ($product->routing->operations ?? [] as $operation) {
             $rate = (float) ($operation->std_rate_per_hour ?? 0);
             $machine = Machine::query()->where('machine_group_id', $operation->machine_group_id)->where('is_active', true)->orderByDesc('hourly_rate')->first();
             $runHours = $rate > 0 ? $stepQty[$operation->id] / $rate : 0.0;
             $stepHours = $runHours + (float) $operation->setup_minutes / 60;
             $hours += $stepHours;
 
-            $machineAmount = $stepHours * (float) ($machine?->hourly_rate ?? 0);
+            $machineAmount = $stepHours * (float) ($machine->hourly_rate ?? 0);
             $labourAmount = $stepHours * (float) $operation->manning_level * $labourRate;
-            $energyAmount = $stepHours * (float) ($machine?->kw_rating ?? 0) * $tariff;
+            $energyAmount = $stepHours * (float) ($machine->kw_rating ?? 0) * $tariff;
             $machineCost += $machineAmount;
             $labourCost += $labourAmount;
             $energyCost += $energyAmount;
 
-            $lines[] = new CostLine($seq++, 'machine', 'hour', round($stepHours, 4), (float) ($machine?->hourly_rate ?? 0), round($machineAmount, 4), 'CS-C', "{$operation->name}: machine");
+            $lines[] = new CostLine($seq++, 'machine', 'hour', round($stepHours, 4), (float) ($machine->hourly_rate ?? 0), round($machineAmount, 4), 'CS-C', "{$operation->name}: machine");
             $lines[] = new CostLine($seq++, 'labour', 'hour', round($stepHours, 4), round((float) $operation->manning_level * $labourRate, 4), round($labourAmount, 4), 'CS-C', "{$operation->name}: labour");
 
             if ($energyAmount > 0) {
@@ -154,7 +154,7 @@ class ProductCostEstimate
     /** The cost line a material lands on: by what it is, then by what it is made of. */
     public static function materialType(\App\Modules\MasterData\Models\Item $item): string
     {
-        return match ($item->category?->item_class ?? null) {
+        return match ($item->category->item_class ?? null) {
             'yarn' => 'material_yarn',
             'ribbon', 'tape' => 'material_ribbon',
             'ink' => 'material_ink',

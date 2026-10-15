@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Procurement\Models;
 
+use App\Support\Audit\Auditable;
 use App\Support\Scoping\ScopedToFactoryUnit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -35,6 +36,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class PurchaseOrder extends Model
 {
+    use Auditable;
     use ScopedToFactoryUnit;
 
     protected $table = 'purchase_orders';

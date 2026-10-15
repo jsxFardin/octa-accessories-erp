@@ -181,7 +181,7 @@ class OperationScheduler
     {
         $machine = DB::table('machines')
             ->where('id', $machineId)
-            ->first(['id', 'code', 'name', 'is_active', 'status', 'machine_group_id', 'efficiency_pct']);
+            ->first(['id', 'code', 'name', 'is_active', 'status', 'machine_group_id', 'efficiency_pct', 'web_width_mm', 'max_colours']);
 
         if ($machine === null || ! $machine->is_active || $machine->status === 'retired') {
             throw ValidationException::withMessages([
@@ -196,6 +196,28 @@ class OperationScheduler
             throw ValidationException::withMessages([
                 'machine_id' => "{$operation->name} runs on {$group}. {$machine->code} is not in that group.",
             ]);
+        }
+
+        // MD-3 AC3 / PL-2 AC1 — inside the right group is not the same as able to run it: a
+        // 200 mm press cannot print a 260 mm web, and a four-colour press cannot print six.
+        // Checked against the spec the job card snapshotted; a machine with no figure on
+        // file is not held to one.
+        $spec = $operation->jobCard?->spec;
+
+        if ($spec !== null) {
+            $web = (float) ($spec->web_width_mm ?? $spec->label_width_mm ?? 0);
+
+            if ($machine->web_width_mm !== null && $web > (float) $machine->web_width_mm + 0.001) {
+                throw ValidationException::withMessages([
+                    'machine_id' => sprintf('%s takes a web up to %s mm; this job needs %s mm.', $machine->code, rtrim(rtrim((string) $machine->web_width_mm, '0'), '.'), rtrim(rtrim((string) $web, '0'), '.')),
+                ]);
+            }
+
+            if ($machine->max_colours !== null && (int) $spec->colours > (int) $machine->max_colours) {
+                throw ValidationException::withMessages([
+                    'machine_id' => sprintf('%s prints up to %d colours; this job has %d.', $machine->code, (int) $machine->max_colours, (int) $spec->colours),
+                ]);
+            }
         }
 
         return $machine;

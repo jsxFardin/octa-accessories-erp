@@ -6,7 +6,7 @@ Build-ready specification for a **Label & Garment-Accessory Manufacturing ERP**,
 
 Not a garment ERP. Production here is machine-centred and process-routed — loom, flexo press, screen table, heat-transfer press, offset press, thermal printer — with in-house plate and screen making, a physical testing laboratory, FSC/GRS/OEKO-TEX chain-of-custody obligations, and an owned delivery fleet.
 
-**Stack:** Laravel 12 · Inertia 2 · Vue 3 · Tailwind 4 · MySQL 8.0 · Redis 7 · single-company deployment.
+**Stack:** Laravel 13 · Inertia 3 · Vue 3 · Tailwind 4 · MySQL 8.0 · Redis 7 · single-company deployment.
 
 ---
 

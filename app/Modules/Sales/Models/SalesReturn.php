@@ -6,6 +6,7 @@ namespace App\Modules\Sales\Models;
 
 use App\Modules\Finance\Models\SalesInvoice;
 use App\Support\Audit\Auditable;
+use App\Support\Scoping\BelongsToCustomer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -31,10 +32,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $created_by
  * @property \Illuminate\Support\Carbon $created_at
  * @property-read \Illuminate\Database\Eloquent\Collection<int, SalesReturnLine> $lines
+ * @property-read string|null $customer_name
  */
 class SalesReturn extends Model
 {
     use Auditable;
+    use BelongsToCustomer;
 
     public const DRAFT = 'draft';
 

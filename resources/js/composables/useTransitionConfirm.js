@@ -46,6 +46,15 @@ const BY_DOCUMENT = {
         open: { verb: 'Submit', message: 'The inquiry is given its number and can then be quoted.' },
         cancelled: { ...CANCEL, message: 'Use this for an inquiry raised by mistake. It can no longer be quoted. If the customer simply went elsewhere, use "Mark lost" instead.' },
     },
+    purchase_return: {
+        posted: { verb: 'Post', message: 'The goods leave the lots they were received into, at those lots\' cost. This cannot be undone from this screen.', tone: 'danger' },
+        cancelled: { ...CANCEL, message: 'Nothing has been posted, so nothing is unwound.' },
+    },
+    sample_request: {
+        in_development: { verb: 'Start development', message: 'The sample room has taken it on. Lines can still be edited until a job card is raised.' },
+        ready: { verb: 'Mark ready', message: 'The pieces exist and the request can be dispatched to the customer.' },
+        cancelled: { ...CANCEL, message: 'Nothing more is made or sent for this request.' },
+    },
     quotation: {
         sent: { verb: 'Mark as sent', title: (name) => `Mark ${name} as sent?`, label: 'Mark as sent', message: 'The quotation is given its number and its prices and exchange rate are fixed. It can no longer be edited — a change after this is a new revision. Nothing is emailed from here.' },
         accepted: { verb: 'Record acceptance', title: (name) => `Record that the customer accepted ${name}?`, label: 'Record acceptance', message: 'An accepted quotation can be converted to a sales order.' },

@@ -408,9 +408,12 @@ Non-certified input dilutes the claim. Rounding is **down** to the nearest 1%, n
 A product may be sold as GRS-certified only if `grs_pct_output >= 20` (GRS minimum for the "GRS" claim; 50% for the labelled claim). The threshold is stored per scheme in `certification_scopes`, not hard-coded.
 
 ### BR-42 — Reconciliation
-Per scheme, per reporting period:
+Per scheme, per reporting period. The input side is what the certified lots *consumed* into
+jobs (the `conversion` leg) when there is one, falling back to the GRN receipt quantity for
+lots received before conversion was recorded — a receipt that is still on the shelf is not
+yet input to anything the output could be reconciled against.
 ```
-certified_input_qty  = SUM(GRN lot qty where claim = scheme)
+certified_input_qty  = SUM(consumed certified lot qty where claim = scheme), else GRN lot qty
 certified_output_qty = SUM(packing list qty claimed as scheme)
 conversion_factor    = certified_output / certified_input
 ```

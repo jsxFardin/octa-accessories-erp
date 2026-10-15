@@ -40,6 +40,9 @@ it('BR-43: the certificate the shipping rule demands can be recorded', function 
             'expires_on' => $certificate->expires_on,
             'status' => 'active',
             'reminder_days' => 60,
+            // CP-1 AC1 — issuing body, scope and the signed PDF are mandatory at registration.
+            'issuing_body' => $certificate->issuing_body ?? 'Control Union',
+            'scope_description' => $certificate->scope_description ?? 'Woven and printed labels, Unit 1.',
             'document_path' => 'compliance/GRS-signed.pdf',
         ])->assertSessionHasNoErrors();
 

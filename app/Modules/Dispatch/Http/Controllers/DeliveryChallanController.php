@@ -233,12 +233,16 @@ class DeliveryChallanController extends Controller
             'pod_ref' => ['nullable', 'string', 'max:120'],
             'courier_name' => ['nullable', 'string', 'max:80'],
             'tracking_no' => ['nullable', 'string', 'max:80'],
+            // DF-3 AC6 — the security gate's pass number, taken when the goods leave. The
+            // column was on the table and shown on the page; nothing ever wrote it.
+            'gate_pass_no' => ['nullable', 'string', 'max:40'],
         ]);
 
-        if (filled($data['courier_name'] ?? null) || filled($data['tracking_no'] ?? null)) {
+        if (filled($data['courier_name'] ?? null) || filled($data['tracking_no'] ?? null) || filled($data['gate_pass_no'] ?? null)) {
             $deliveryChallan->fill([
                 'courier_name' => $data['courier_name'] ?? $deliveryChallan->courier_name,
                 'tracking_no' => $data['tracking_no'] ?? $deliveryChallan->tracking_no,
+                'gate_pass_no' => $data['gate_pass_no'] ?? $deliveryChallan->gate_pass_no,
             ])->save();
         }
 

@@ -256,7 +256,10 @@ class DemoDataSeeder extends Seeder
             Auth::id() ? (int) Auth::id() : null,
         );
 
-        return $item->product()->firstOrFail();
+        /** @var Product $product */
+        $product = $item->product()->firstOrFail();
+
+        return $product;
     }
 
     private function spec(Product $product): ProductSpec
@@ -616,11 +619,13 @@ class DemoDataSeeder extends Seeder
 
     private function jobCard(SalesOrder $order, Product $product, ProductSpec $spec, Artwork $artwork, Bom $bom): void
     {
-        if (JobCard::query()->where('sales_order_line_id', $order->lines->first()?->id)->exists()) {
+        /** @var SalesOrderLine $line */
+        $line = $order->lines()->firstOrFail();
+
+        if (JobCard::query()->where('sales_order_line_id', $line->id)->exists()) {
             return;
         }
 
-        $line = $order->lines()->first();
         $approvedVersion = $artwork->approvedVersion()->firstOrFail();
         $consumption = new ConsumptionCalculator;
         $capacity = new CapacityCalculator;
@@ -677,7 +682,7 @@ class DemoDataSeeder extends Seeder
                 'scheduled_start' => $scheduledStart,
                 'scheduled_finish' => $scheduledStart->copy()->addMinutes((int) $minutes),
                 'requires_qc' => $operation->requires_qc,
-                'is_optional' => $operation->is_optional,
+                'is_optional' => $operation->getAttribute('is_optional'),
                 'status' => JobCardOperation::PENDING,
             ]);
 

@@ -126,3 +126,12 @@ it('moves the item weighted average on receipt', function (): void {
     // BR-36 — receiving above the average pulls it up, and by less than the full difference.
     expect($after)->toBeGreaterThan($before)->toBeLessThan(2000.0);
 });
+
+// GAP D-01 — I1 / NFR-13: the ledger is append-only in the model, not only by convention.
+it('refuses to edit or delete a ledger row', function (): void {
+    $entry = App\Modules\Inventory\Models\StockLedgerEntry::query()->firstOrFail();
+
+    expect(fn () => $entry->update(['remarks' => 'rewritten']))->toThrow(LogicException::class)
+        ->and(fn () => $entry->delete())->toThrow(LogicException::class)
+        ->and(App\Modules\Inventory\Models\StockLedgerEntry::query()->whereKey($entry->id)->exists())->toBeTrue();
+});

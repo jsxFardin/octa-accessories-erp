@@ -78,7 +78,7 @@ describe('sidebar visibility', () => {
     });
 
     it('puts every screen on its own row, not behind a folder or a tab strip', () => {
-        expect(itemsOf('Sales')).toEqual(['Inquiries', 'Quotations', 'Sales orders', 'Customers', 'Price lists']);
+        expect(itemsOf('Sales')).toEqual(['Inquiries', 'Quotations', 'Sales orders', 'Samples', 'Customers', 'Price lists']);
         expect(itemsOf('Production')).toContain('Material plan');
         expect(itemsOf('Products')).toEqual(['Products', 'Artwork', 'BOMs', 'Routings', 'Tools']);
         expect(itemsOf('Inventory')).toContain('On-hand');

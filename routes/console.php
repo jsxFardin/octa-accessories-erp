@@ -46,3 +46,31 @@ Schedule::command('quotations:expire')
     ->dailyAt('00:30')
     ->timezone((string) config('app.display_timezone', 'Asia/Dhaka'))
     ->withoutOverlapping();
+
+/*
+ * FN-6 — an invoice past its due date is overdue, and accounts hear about it that morning.
+ * The transition and the notification existed; only a person remembering to press the button
+ * ever made the move.
+ */
+Schedule::command('invoices:mark-overdue')
+    ->dailyAt('00:45')
+    ->timezone((string) config('app.display_timezone', 'Asia/Dhaka'))
+    ->withoutOverlapping();
+
+/*
+ * CP-1 — certificates past their date stop being claimable overnight (BR-43 reads the
+ * status), and the ones inside their reminder window are raised with compliance and the MD.
+ */
+Schedule::command('certifications:expire')
+    ->dailyAt('01:15')
+    ->timezone((string) config('app.display_timezone', 'Asia/Dhaka'))
+    ->withoutOverlapping();
+
+/*
+ * IN-8 / BR-39 — a lot past its expiry date is not issuable. The status is what the issue
+ * screen and the FIFO suggestion read.
+ */
+Schedule::command('stock:expire-lots')
+    ->dailyAt('01:30')
+    ->timezone((string) config('app.display_timezone', 'Asia/Dhaka'))
+    ->withoutOverlapping();

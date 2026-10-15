@@ -173,7 +173,7 @@ class RoleSeeder extends Seeder
             'grants' => [
                 'reference_data:read',
                 'stock_lot.*', 'stock_issue.*', 'stock_transfer.*', 'stock_adjustment.*',
-                'physical_count.*', 'grn.*', 'item.*', 'purchase_requisition.*',
+                'physical_count.*', 'grn.*', 'purchase_return.*', 'item.*', 'purchase_requisition.*',
                 'stock_adjustment.approve', 'physical_count.approve',
                 'job_card:read', 'purchase_order:read', 'packing_list.*', 'report.*',
             ],
@@ -230,7 +230,7 @@ class RoleSeeder extends Seeder
                 'purchase_requisition.create', 'purchase_requisition.update',
                 'purchase_requisition.submit', 'purchase_requisition.export',
                 'rfq.*', 'purchase_order.create', 'purchase_order.update',
-                'purchase_order.submit', 'purchase_order:read', 'grn.*',
+                'purchase_order.submit', 'purchase_order:read', 'grn.*', 'purchase_return.*',
                 'supplier.view_any', 'supplier.view', 'supplier.create', 'supplier.update',
                 'supplier.export',
                 'item.*', 'supplier_bill.*', 'stock_lot:read', 'report.*',
@@ -246,7 +246,7 @@ class RoleSeeder extends Seeder
             'label' => 'Purchase manager',
             'grants' => [
                 'reference_data:read',
-                'purchase_requisition.*', 'rfq.*', 'purchase_order.*', 'grn.*',
+                'purchase_requisition.*', 'rfq.*', 'purchase_order.*', 'grn.*', 'purchase_return.*',
                 'supplier.*', 'supplier.approve', 'item.*', 'supplier_bill.*',
                 'purchase_order.approve', 'stock_lot:read', 'report.*',
                 'letter_of_credit.*', 'import_shipment.*',
@@ -289,7 +289,7 @@ class RoleSeeder extends Seeder
                 // who cannot say no is not approving anything.
                 'sales_return.approve', 'sales_return.update', 'sales_return:read',
                 'customer.*', 'supplier.*',
-                'sales_order:read', 'delivery_challan:read', 'purchase_order:read', 'grn:read',
+                'sales_order:read', 'delivery_challan:read', 'purchase_order:read', 'grn:read', 'purchase_return:read',
                 'audit_log:read', 'report.*',
                 'expense.*', 'expense.approve', 'expense.pay', 'bank_account.*',
                 // Accounts enter the C&F and freight bills and push them into stock; the
@@ -354,11 +354,6 @@ class RoleSeeder extends Seeder
     }
 
     /**
-     * @param  list<string>  $grants
-     * @param  list<string>  $catalogue
-     * @return list<string>
-     */
-    /**
      * Rights a wildcard never confers. Accepting a margin under the floor (spec §4) is an
      * approval someone is named for; `sales_order.*` on a merchandiser must not carry it.
      *
@@ -366,6 +361,11 @@ class RoleSeeder extends Seeder
      */
     private const EXPLICIT_ONLY = ['sales_order.confirm_below_margin', 'cost_sheet.override_margin', 'cost_sheet.approve'];
 
+    /**
+     * @param  list<string>  $grants
+     * @param  list<string>  $catalogue
+     * @return list<string>
+     */
     private function expand(array $grants, array $catalogue): array
     {
         $granted = [];

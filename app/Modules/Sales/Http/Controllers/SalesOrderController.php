@@ -214,6 +214,23 @@ class SalesOrderController extends Controller
             ->orderByDesc('si.id')
             ->get(['si.id', 'si.number', 'si.status', 'si.invoice_date', 'si.due_date', 'si.total', 'si.received_amount', 'cur.code as currency']);
 
+        // One query each for the artwork and BOM readiness of every line, instead of two per
+        // line: a twenty-line order used to open forty-plus queries to draw its banner.
+        $productIds = $salesOrder->lines->pluck('product_id')->filter()->map(fn ($id): int => (int) $id)->unique()->values();
+        $approvedArtwork = DB::table('artwork_versions as av')
+            ->join('artworks as a', 'a.id', '=', 'av.artwork_id')
+            ->whereIn('a.product_id', $productIds)
+            ->where('av.status', ArtworkVersion::APPROVED)
+            ->distinct()
+            ->pluck('a.product_id')
+            ->map(fn ($id): int => (int) $id);
+        $activeBoms = DB::table('boms')
+            ->whereIn('product_id', $productIds)
+            ->where('status', 'active')
+            ->distinct()
+            ->pluck('product_id')
+            ->map(fn ($id): int => (int) $id);
+
         return Inertia::render('Sales/SalesOrders/Show', [
             'order' => [
                 ...$salesOrder->only([
@@ -246,9 +263,7 @@ class SalesOrderController extends Controller
                 'product' => $line->product?->only(['id', 'code', 'name', 'product_type']),
                 'spec_version' => $line->spec?->version_no,
                 'spec_is_current' => $line->spec?->isCurrent() ?? false,
-                'artwork_approved' => $line->product?->artworks
-                    ->flatMap->versions
-                    ->contains(fn ($v): bool => $v->status === ArtworkVersion::APPROVED) ?? false,
+                'artwork_approved' => $approvedArtwork->contains((int) $line->product_id),
                 // BR-44 — the band the shipment must land inside, shown next to the quantity
                 // rather than discovered at the loading bay.
                 'delivery_band' => [
@@ -267,10 +282,8 @@ class SalesOrderController extends Controller
                 // So the banner can link to the product instead of only naming it.
                 'product_id' => $line->product_id,
                 'spec' => $line->spec?->isCurrent() ?? false,
-                'artwork' => $line->product?->artworks
-                    ->flatMap->versions
-                    ->contains(fn ($v): bool => $v->status === ArtworkVersion::APPROVED) ?? false,
-                'bom' => $line->product?->activeBom()->exists() ?? false,
+                'artwork' => $approvedArtwork->contains((int) $line->product_id),
+                'bom' => $activeBoms->contains((int) $line->product_id),
             ]),
             'creditCheck' => $this->states->creditCheck($salesOrder),
             'availableTransitions' => $this->states->available($salesOrder),
@@ -662,6 +675,11 @@ class SalesOrderController extends Controller
     {
         $keptIds = [];
 
+        // BR-44 — a line that names no band takes the customer's, then the house default.
+        $customer = $order->customer;
+        $overDefault = $customer->over_tolerance_pct ?? $this->settings->decimal('over_tolerance_pct', 5);
+        $underDefault = $customer->under_tolerance_pct ?? $this->settings->decimal('under_tolerance_pct', 5);
+
         foreach ($lines as $index => $line) {
             $attributes = [
                 'sales_order_id' => $order->id,
@@ -672,8 +690,8 @@ class SalesOrderController extends Controller
                 'ordered_qty' => $line['ordered_qty'],
                 'rate_per_m' => $line['rate_per_m'],
                 'tooling_charge' => $line['tooling_charge'] ?? 0,
-                'over_tolerance_pct' => $line['over_tolerance_pct'] ?? $this->settings->decimal('over_tolerance_pct', 5),
-                'under_tolerance_pct' => $line['under_tolerance_pct'] ?? $this->settings->decimal('under_tolerance_pct', 5),
+                'over_tolerance_pct' => $line['over_tolerance_pct'] ?? $overDefault,
+                'under_tolerance_pct' => $line['under_tolerance_pct'] ?? $underDefault,
                 'promised_date' => $line['promised_date'] ?? null,
                 // BR-1 — a line value is quantity over 1000 times the per-M rate.
                 'line_total' => $this->costing->lineValue((int) $line['ordered_qty'], (float) $line['rate_per_m'])
@@ -777,10 +795,11 @@ class SalesOrderController extends Controller
         return [
             'priorities' => Vocabulary::options('order_priority'),
             'customers' => Customer::query()->active()->orderBy('name')
-                ->get(['id', 'code', 'name', 'credit_limit', 'min_order_value']),
+                ->get(['id', 'code', 'name', 'credit_limit', 'min_order_value', 'over_tolerance_pct', 'under_tolerance_pct']),
             'currencies' => $this->rates->currencyOptions(),
             'products' => Product::query()->active()->with('currentSpec:id,product_id,version_no')
                 ->get(['id', 'item_id', 'customer_id', 'product_type'])->sortBy('code')->values(),
+            // The house band; the form prefers the chosen customer's own (BR-44).
             'defaults' => [
                 'over_tolerance_pct' => $this->settings->decimal('over_tolerance_pct', 5),
                 'under_tolerance_pct' => $this->settings->decimal('under_tolerance_pct', 5),

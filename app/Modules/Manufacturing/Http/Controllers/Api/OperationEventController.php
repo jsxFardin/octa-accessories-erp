@@ -38,6 +38,10 @@ class OperationEventController extends Controller
         $this->assertWithinUnit($request, $operation);
 
         return $this->idempotent($request, $operation, 'start', function () use ($request, $operation): array {
+            // J1 — `log` has always asked whether the card is released; `start` took the id
+            // off the URL and flipped a planned or held card's step to in_progress by itself.
+            $this->bookings->assertCardAcceptsStart($operation);
+
             // J2 — an operation cannot start before its predecessor is done, unless the
             // routing marks it parallel.
             $blocker = $operation->blockingPredecessor();
@@ -60,6 +64,12 @@ class OperationEventController extends Controller
             $occurredAt = $this->occurredAt($request);
 
             DB::transaction(function () use ($operation, $occurredAt, $request): void {
+                // A paused step resumes: the open downtime closes with its minutes, so the
+                // stop is on record and the costing (BR-23) takes it out of machine time.
+                if ($operation->status === JobCardOperation::PAUSED) {
+                    $this->bookings->closeOpenDowntime($operation, $occurredAt);
+                }
+
                 $operation->forceFill([
                     'status' => JobCardOperation::IN_PROGRESS,
                     'started_at' => $operation->started_at ?? $occurredAt,
@@ -155,6 +165,36 @@ class OperationEventController extends Controller
         });
     }
 
+    /**
+     * MF-4 AC2 — PAUSE: the step stops with a reason and the downtime stays open until START.
+     * The minutes are not typed; they are the time between the two presses.
+     */
+    public function pause(Request $request, JobCardOperation $operation): JsonResponse
+    {
+        $this->assertWithinUnit($request, $operation);
+
+        $data = $request->validate([
+            'downtime_reason_id' => ['required', 'integer', 'exists:downtime_reasons,id'],
+            'shift_id' => ['nullable', 'integer', 'exists:shifts,id'],
+            'remarks' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        return $this->idempotent($request, $operation, 'pause', function () use ($request, $operation, $data): array {
+            $session = $request->attributes->get('device_session');
+
+            $id = $this->bookings->pause(
+                $operation,
+                $this->occurredAt($request),
+                (int) $data['downtime_reason_id'],
+                $session->employeeId,
+                $data['shift_id'] ?? null,
+                $data['remarks'] ?? null,
+            );
+
+            return ['operation_id' => $operation->id, 'status' => JobCardOperation::PAUSED, 'downtime_log_id' => $id];
+        });
+    }
+
     public function downtime(Request $request, JobCardOperation $operation): JsonResponse
     {
         $this->assertWithinUnit($request, $operation);
@@ -168,6 +208,9 @@ class OperationEventController extends Controller
         ]);
 
         return $this->idempotent($request, $operation, 'downtime', function () use ($request, $operation, $data): array {
+            // J1 — a stop is a production record too; it belongs to a card that is being run.
+            $this->bookings->assertCardIsRunnable($operation);
+
             $occurredAt = $this->occurredAt($request);
             $session = $request->attributes->get('device_session');
 

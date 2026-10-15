@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Modules\Finance\Models\CreditNote;
 use App\Modules\Finance\Models\SalesInvoice;
 use App\Modules\Finance\States\CreditNoteStateMachine;
+use App\Modules\Manufacturing\Models\JobCard;
 use App\Modules\Quality\Models\Ncr;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Notifications\DocumentNotification;
@@ -225,6 +226,55 @@ class Notifier
                         $this->money((float) $invoice->total - (float) $invoice->received_amount, $invoice->currency_id),
                     ),
                     'dedupe_key' => 'invoice:overdue:'.$invoice->id,
+                ]);
+            }
+        });
+    }
+
+    /**
+     * CP-1 AC2 — a certificate inside its reminder window, to compliance and whoever else may
+     * see the registry. Once per certificate per expiry date: a renewed certificate carries a
+     * new date and earns a new reminder.
+     */
+    public function notifyCertificateExpiring(object $certificate): void
+    {
+        $this->afterCommit(function () use ($certificate): void {
+            $expiresOn = (string) $certificate->expires_on;
+            $daysLeft = (int) now()->startOfDay()->diffInDays(\Carbon\CarbonImmutable::parse($expiresOn)->startOfDay(), false);
+
+            foreach ($this->usersWith(['certification.view_any', 'coc.reconcile']) as $user) {
+                $this->deliver($user, [
+                    'document_type' => 'certification',
+                    'document_id' => (int) $certificate->id,
+                    'document_number' => (string) $certificate->certificate_no,
+                    'action' => 'expiring',
+                    'href' => '/compliance',
+                    'title' => sprintf('%s certificate %s expires in %d day%s', $certificate->scheme, $certificate->certificate_no, $daysLeft, $daysLeft === 1 ? '' : 's'),
+                    'body' => sprintf(
+                        'It expires on %s. Once it has, no shipment can claim %s until a renewed certificate is on file. Start the renewal now; the audit takes about as long as the warning.',
+                        $expiresOn,
+                        $certificate->scheme,
+                    ),
+                    'dedupe_key' => 'certification:expiring:'.$certificate->id.':'.$expiresOn,
+                ]);
+            }
+        });
+    }
+
+    /** QL-2 AC2 — a card stopped by a failed in-process check, to whoever can resume it. */
+    public function notifyJobCardHeld(JobCard $jobCard, string $reason): void
+    {
+        $this->afterCommit(function () use ($jobCard, $reason): void {
+            foreach ($this->usersWith(['job_card.update']) as $user) {
+                $this->deliver($user, [
+                    'document_type' => 'job_card',
+                    'document_id' => (int) $jobCard->id,
+                    'document_number' => $jobCard->number,
+                    'action' => 'held',
+                    'href' => '/job-cards/'.$jobCard->id,
+                    'title' => 'Job card '.$jobCard->number.' is on hold after a failed QC check',
+                    'body' => $reason.' Nothing new starts on the card until it is resumed with a resolution.',
+                    'dedupe_key' => 'job_card:held:'.$jobCard->id.':'.md5($reason),
                 ]);
             }
         });

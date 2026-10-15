@@ -59,7 +59,13 @@ class MaterialIssueController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = MaterialIssue::query();
+        $query = MaterialIssue::query()
+            ->select('material_issues.*')
+            ->addSelect([
+                'job_card_number' => DB::table('job_cards')->select('number')->whereColumn('job_cards.id', 'material_issues.job_card_id')->limit(1),
+                'warehouse_code' => DB::table('warehouses')->select('code')->whereColumn('warehouses.id', 'material_issues.warehouse_id')->limit(1),
+                'line_count' => DB::table('material_issue_lines')->selectRaw('COUNT(*)')->whereColumn('material_issue_lines.material_issue_id', 'material_issues.id'),
+            ]);
 
         $this->applyListing(
             $query,
@@ -74,11 +80,11 @@ class MaterialIssueController extends Controller
             'issues' => $query->paginate($this->perPage($request))->withQueryString()->through(
                 fn (MaterialIssue $issue): array => [
                     ...$issue->only(['id', 'number', 'issued_on', 'issue_type', 'status', 'job_card_id']),
-                    // The row said `job_card_id: 14`. Which job that is was a second lookup.
-                    'job_card_number' => DB::table('job_cards')->where('id', $issue->job_card_id)->value('number'),
-                    'warehouse' => DB::table('warehouses')->where('id', $issue->warehouse_id)->value('code'),
-                    'line_count' => DB::table('material_issue_lines')
-                        ->where('material_issue_id', $issue->id)->count(),
+                    // The row said `job_card_id: 14`. Which job that is was a second lookup —
+                    // and, until the subselects below, three more queries per row.
+                    'job_card_number' => $issue->job_card_number,
+                    'warehouse' => $issue->warehouse_code,
+                    'line_count' => (int) $issue->line_count,
                 ],
             ),
             'filters' => $this->listingFilters($request, ['status', 'job_card']),
@@ -230,6 +236,67 @@ class MaterialIssueController extends Controller
     }
 
     /**
+     * MF-2 AC4 — the ceiling per item is the BOM requirement scaled to the planned quantity,
+     * plus the line's wastage allowance. Already issued (net of returns) plus what this issue
+     * adds may pass it only with a reason on the line, which the audit trail then carries.
+     * A job without a BOM, or an item the BOM does not name, has no ceiling to check against.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function assertWithinRequirement(array $data): void
+    {
+        $card = JobCard::query()->with('bom.lines')->find($data['job_card_id']);
+
+        if ($card === null || $card->bom === null) {
+            return;
+        }
+
+        $ceilings = $card->bom->lines->mapWithKeys(fn ($line): array => [
+            (int) $line->item_id => $card->bom->scaleTo((float) $line->qty_per_base, (float) $card->planned_qty)
+                * (1 + (float) ($line->wastage_pct ?? 0) / 100),
+        ]);
+
+        $issued = DB::table('material_issue_lines as l')
+            ->join('material_issues as mi', 'mi.id', '=', 'l.material_issue_id')
+            ->where('mi.job_card_id', $card->getKey())
+            ->where('mi.status', 'posted')
+            ->selectRaw("l.item_id, COALESCE(SUM(CASE WHEN mi.issue_type = 'return' THEN -l.qty ELSE l.qty END), 0) AS qty")
+            ->groupBy('l.item_id')
+            ->pluck('qty', 'item_id');
+
+        $adding = [];
+
+        foreach ($data['lines'] as $line) {
+            $adding[(int) $line['item_id']] = ($adding[(int) $line['item_id']] ?? 0) + (float) $line['qty'];
+        }
+
+        $errors = [];
+
+        foreach ($data['lines'] as $index => $line) {
+            $itemId = (int) $line['item_id'];
+            $ceiling = $ceilings->get($itemId);
+
+            if ($ceiling === null || filled($line['over_issue_reason'] ?? null)) {
+                continue;
+            }
+
+            $after = (float) ($issued[$itemId] ?? 0) + $adding[$itemId];
+
+            if ($after > $ceiling + 0.000001) {
+                $errors["lines.{$index}.over_issue_reason"] = sprintf(
+                    'This would bring the job to %s against a requirement of %s including wastage. Say why more is needed, or issue less.',
+                    rtrim(rtrim(number_format($after, 6, '.', ''), '0'), '.'),
+                    rtrim(rtrim(number_format($ceiling, 6, '.', ''), '0'), '.'),
+                );
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
+    /**
      * BR-37 — candidate lots for a required quantity, ranked. Returns whether each pick
      * breaks FIFO so the screen can demand a reason for exactly those lines.
      */
@@ -361,9 +428,16 @@ class MaterialIssueController extends Controller
             'lines.*.uom_id' => ['required', 'integer', 'exists:uoms,id'],
             'lines.*.qty' => ['required', 'numeric', 'gt:0'],
             'lines.*.fifo_override_reason' => ['nullable', 'string', 'max:255'],
+            // MF-2 AC4 — issuing more than the BOM requirement plus its wastage allowance
+            // needs saying why. The ceiling is checked per item inside the transaction.
+            'lines.*.over_issue_reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         $data['issue_type'] = $data['issue_type'] ?? MaterialIssue::TYPE_ISSUE;
+
+        if ($data['issue_type'] === MaterialIssue::TYPE_ISSUE) {
+            $this->assertWithinRequirement($data);
+        }
 
         try {
             $issue = DB::transaction(function () use ($data, $request): MaterialIssue {
@@ -438,6 +512,7 @@ class MaterialIssueController extends Controller
                 'qty' => $line['qty'],
                 'unit_cost' => $lot->unit_cost,
                 'fifo_override_reason' => $line['fifo_override_reason'] ?? null,
+                'over_issue_reason' => $line['over_issue_reason'] ?? null,
             ]);
 
             // Manufacturing does not write the ledger; it goes through the inventory

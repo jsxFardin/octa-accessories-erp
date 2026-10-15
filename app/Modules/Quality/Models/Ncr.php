@@ -122,8 +122,8 @@ class Ncr extends Model
 
     /**
      * Whether the QC disposition still needs an operational action that this NCR must not
-     * pretend is done. P1-3 already applied rework and the scrap freeze; downgrade's
-     * second-quality lot conversion is not implemented and therefore stays pending.
+     * pretend is done. Rework, scrap and downgrade are applied at rejection; a concession
+     * waits on the customer's evidence.
      *
      * @return array{kind: string, status: 'applied'|'pending'|'none', detail: string}
      */
@@ -150,7 +150,7 @@ class Ncr extends Model
             'scrap' => [
                 'kind' => 'scrap',
                 'status' => 'applied',
-                'detail' => 'Rejected finished-goods lots were blocked at QC rejection. Waste posting is not performed from the NCR.',
+                'detail' => 'Rejected finished-goods lots were scrapped at QC rejection: a waste movement at lot cost and a valued waste log.',
             ],
             'concession' => filled($this->inspection?->disposition_ref) ? [
                 'kind' => 'concession',
@@ -163,8 +163,8 @@ class Ncr extends Model
             ],
             'downgrade' => [
                 'kind' => 'downgrade',
-                'status' => 'pending',
-                'detail' => 'Downgrade to a second-quality lot is not implemented — this NCR cannot close while that action is pending.',
+                'status' => 'applied',
+                'detail' => 'Rejected finished-goods lots were moved to a second-quality lot with no certification claim at QC rejection.',
             ],
             default => [
                 'kind' => $disposition,

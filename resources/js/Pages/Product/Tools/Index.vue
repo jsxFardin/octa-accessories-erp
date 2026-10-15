@@ -9,13 +9,13 @@ import DateInput from '@/Components/Ui/DateInput.vue';
 import EmptyState from '@/Components/Ui/EmptyState.vue';
 import FilterBar from '@/Components/Ui/FilterBar.vue';
 import FormField from '@/Components/Ui/FormField.vue';
+import Modal from '@/Components/Ui/Modal.vue';
 import SelectInput from '@/Components/Ui/SelectInput.vue';
 import SlideOver from '@/Components/Ui/SlideOver.vue';
 import TextInput from '@/Components/Ui/TextInput.vue';
 import { baseCurrency, date, pcs, todayIso } from '@/plugins/formatting';
 import { can } from '@/plugins/permissions';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { useGuardedAction } from '@/composables/useGuardedAction';
 
 const props = defineProps({
     tools: { type: Object, required: true },
@@ -167,15 +167,23 @@ function submit() {
     else form.post('/tools', options);
 }
 
-const { busy, run } = useGuardedAction();
+// PD-5 AC4 — a tool leaves service with the reason on its audit row.
+const retireOpen = ref(false);
+const retiring = ref(null);
+const retireForm = useForm({ reason: '' });
 
 function retire(tool) {
-    run(`retire-${tool.id}`, {
-        title: `Retire ${tool.code}?`,
-        message: 'It can no longer be chosen for a job, and it cannot be brought back. Its history stays on the jobs it ran.',
-        confirmLabel: 'Retire tool',
-        tone: 'danger',
-    }, (done) => router.post(`/tools/${tool.id}/retire`, {}, { preserveScroll: true, ...done }));
+    retiring.value = tool;
+    retireForm.reset();
+    retireForm.clearErrors();
+    retireOpen.value = true;
+}
+
+function submitRetire() {
+    retireForm.post(`/tools/${retiring.value.id}/retire`, {
+        preserveScroll: true,
+        onSuccess: () => { retireOpen.value = false; },
+    });
 }
 </script>
 
@@ -230,8 +238,7 @@ function retire(tool) {
                         <Button
                             size="sm" variant="ghost"
                             :aria-label="`Retire ${row.code}`"
-                            :loading="busy === `retire-${row.id}`"
-                            :disabled="busy !== null || row.status === 'in_use'"
+                            :disabled="row.status === 'in_use'"
                             :title="row.status === 'in_use' ? 'On a machine: finish or hold the job using it first.' : null"
                             data-retire
                             @click="retire(row)"
@@ -331,5 +338,14 @@ function retire(tool) {
                 >{{ editing ? 'Save changes' : 'Register tool' }}</Button>
             </template>
         </SlideOver>
+            <Modal v-model:open="retireOpen" :title="`Retire ${retiring?.code ?? ''}?`" subtitle="It can no longer be chosen for a job, and it cannot be brought back. Its history stays on the jobs it ran." width="max-w-sm">
+            <FormField label="Why is it being retired?" :error="retireForm.errors.reason" required hint="Worn out, damaged, lost — a plate retired at half its life is a question for the supplier.">
+                <TextInput v-model="retireForm.reason" maxlength="255" />
+            </FormField>
+            <template #footer>
+                <Button @click="retireOpen = false">Cancel</Button>
+                <Button variant="danger" :loading="retireForm.processing" :disabled="!retireForm.reason" data-retire-confirm @click="submitRetire">Retire tool</Button>
+            </template>
+        </Modal>
     </AppLayout>
 </template>

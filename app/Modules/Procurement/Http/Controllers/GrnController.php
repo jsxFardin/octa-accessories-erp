@@ -9,6 +9,7 @@ use App\Modules\Compliance\Services\CocPeriodGuard;
 use App\Modules\Inventory\Services\StockPostingService;
 use App\Modules\MasterData\Models\Item;
 use App\Modules\Procurement\Models\Grn;
+use App\Modules\Quality\Models\QcInspection;
 use App\Support\Calculators\InventoryValuator;
 use App\Support\Http\ContextualId;
 use App\Support\Http\ListsResources;
@@ -17,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -192,6 +194,48 @@ class GrnController extends Controller
     }
 
     /**
+     * PR-3 AC6 — what the order bought certified must arrive certified.
+     *
+     * A line answering a purchase-order line that declares a claim has to carry that scheme.
+     * Receiving it plain would book certified-priced yarn as ordinary stock and lose the
+     * chain of custody at the door, silently; receiving it under a different scheme is a
+     * data-entry slip either way.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function assertClaimsMatchOrder(array $lines): void
+    {
+        $poLineIds = collect($lines)->pluck('po_line_id')->filter()->map(fn ($id): int => (int) $id);
+
+        if ($poLineIds->isEmpty()) {
+            return;
+        }
+
+        $declared = DB::table('purchase_order_lines')
+            ->whereIn('id', $poLineIds)
+            ->whereNotNull('cert_claim')
+            ->pluck('cert_claim', 'id');
+
+        $errors = [];
+
+        foreach ($lines as $index => $line) {
+            $claim = $declared[(int) ($line['po_line_id'] ?? 0)] ?? null;
+
+            if ($claim === null) {
+                continue;
+            }
+
+            if (($line['cert_scheme'] ?? null) !== $claim) {
+                $errors["lines.{$index}.cert_scheme"] = "The purchase order bought this line as {$claim}-certified. Receive it under {$claim} with the supplier's transaction certificate, or amend the order first.";
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
+    /**
      * Refresh a purchase order's received quantities, and its status, from its goods receipts.
      *
      * The order is `received` once every line has its full quantity, `partially_received` while
@@ -331,7 +375,7 @@ class GrnController extends Controller
             $locked = Grn::query()->lockForUpdate()->findOrFail($grn->getKey());
 
             if ($locked->status !== 'draft') {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     'lines' => 'This goods receipt has already been posted.',
                 ]);
             }
@@ -382,10 +426,22 @@ class GrnController extends Controller
             'lines.*.supplier_batch_no' => ['nullable', 'string', 'max:60'],
             'lines.*.roll_length_m' => ['nullable', 'numeric', 'gt:0'],
             'lines.*.expiry_date' => ['nullable', 'date', 'after:today'],
+            // CP-2 AC1 — a certified receipt is scheme, percentage and the supplier's
+            // transaction-certificate number together, or none of them. A claim with no TC
+            // number is the first thing a GRS auditor rejects, and the input side of the
+            // reconciliation (BR-42) is only as good as the document behind it.
             'lines.*.cert_scheme' => ['nullable', Rule::in(['GRS', 'FSC', 'OEKO_TEX', 'SCOPE'])],
-            'lines.*.cert_claim_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'lines.*.cert_document_no' => ['nullable', 'string', 'max:80'],
+            'lines.*.cert_claim_pct' => ['nullable', 'numeric', 'min:0', 'max:100', 'required_with:lines.*.cert_scheme'],
+            'lines.*.cert_document_no' => ['nullable', 'string', 'max:80', 'required_with:lines.*.cert_scheme'],
+            // PR-4 AC2 — more than the order line plus tolerance needs saying why.
+            'lines.*.over_receipt_reason' => ['nullable', 'string', 'max:255'],
+        ], [
+            'lines.*.cert_claim_pct.required_with' => 'A certified line needs its claimed percentage.',
+            'lines.*.cert_document_no.required_with' => 'A certified line needs the supplier\'s transaction-certificate number.',
         ]);
+
+        $this->assertClaimsMatchOrder($data['lines']);
+        $this->assertWithinOrderTolerance($data['lines']);
 
         // A line id belonging to a different order would read that order's quantities onto
         // this receipt. Ids that do not belong are dropped rather than refused: the pairing is
@@ -477,7 +533,59 @@ class GrnController extends Controller
                 'cert_scheme' => $line['cert_scheme'] ?? null,
                 'cert_claim_pct' => $line['cert_claim_pct'] ?? 0,
                 'cert_document_no' => $line['cert_document_no'] ?? null,
+                'over_receipt_reason' => $line['over_receipt_reason'] ?? null,
             ]);
+        }
+    }
+
+    /**
+     * PR-4 AC2 — a receipt may run over the order line by the tolerance; past that the store
+     * keeper says why, and the reason stays on the line. Suppliers round up to a pack, which
+     * is the tolerance's job; a pallet nobody ordered is not.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function assertWithinOrderTolerance(array $lines): void
+    {
+        $poLineIds = collect($lines)->pluck('po_line_id')->filter()->map(fn ($id): int => (int) $id);
+
+        if ($poLineIds->isEmpty()) {
+            return;
+        }
+
+        $tolerance = (float) (DB::table('settings')->where('key', 'over_receipt_tolerance_pct')->value('value') ?? 5);
+        $poLines = DB::table('purchase_order_lines')->whereIn('id', $poLineIds)->get(['id', 'qty', 'received_qty'])->keyBy('id');
+
+        $adding = [];
+
+        foreach ($lines as $line) {
+            $adding[(int) ($line['po_line_id'] ?? 0)] = ($adding[(int) ($line['po_line_id'] ?? 0)] ?? 0) + (float) $line['qty'];
+        }
+
+        $errors = [];
+
+        foreach ($lines as $index => $line) {
+            $poLine = $poLines->get((int) ($line['po_line_id'] ?? 0));
+
+            if ($poLine === null || filled($line['over_receipt_reason'] ?? null)) {
+                continue;
+            }
+
+            $after = (float) $poLine->received_qty + $adding[(int) $line['po_line_id']];
+            $ceiling = (float) $poLine->qty * (1 + $tolerance / 100);
+
+            if ($after > $ceiling + 0.000001) {
+                $errors["lines.{$index}.over_receipt_reason"] = sprintf(
+                    'This would bring the order line to %s received against %s ordered — past the %s%% tolerance. Say why the extra is being accepted, or receive less.',
+                    rtrim(rtrim(number_format($after, 6, '.', ''), '0'), '.'),
+                    rtrim(rtrim(number_format((float) $poLine->qty, 6, '.', ''), '0'), '.'),
+                    rtrim(rtrim(number_format($tolerance, 2, '.', ''), '0'), '.'),
+                );
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
         }
     }
 
@@ -521,9 +629,14 @@ class GrnController extends Controller
 
             $item = Item::query()->find($line->item_id);
 
+            // QL-1 AC1 / PR-4 AC5 — an item flagged for incoming QC is received into
+            // quarantine, with its inspection already raised: the lot is not issuable until
+            // the inspector passes it, and the queue shows what is waiting.
+            $quarantined = (bool) ($item->requires_incoming_qc ?? false);
+
             // The lot inherits the claim from the GRN line (I5). This copy is the link an
             // auditor follows from a shipment back to a supplier certificate.
-            $this->posting->receive(
+            $lot = $this->posting->receive(
                 [
                     'lot_no' => $this->numbers->nextLotNumber(),
                     'item_id' => $line->item_id,
@@ -544,12 +657,25 @@ class GrnController extends Controller
                     'cert_scheme' => $line->cert_scheme,
                     'cert_claim_pct' => $line->cert_claim_pct ?? 0,
                     'cert_document_no' => $line->cert_document_no,
-                    'status' => 'available',
+                    'status' => $quarantined ? 'quarantine' : 'available',
                 ],
                 $qty,
                 $baseUnitCost,
                 $grn,
             );
+
+            if ($quarantined) {
+                QcInspection::query()->create([
+                    'number' => $this->numbers->next('qc_inspection'),
+                    'stage' => 'incoming',
+                    'grn_line_id' => $line->id,
+                    'lot_id' => $lot->getKey(),
+                    'lot_size' => (int) ceil($qty),
+                    'result' => 'pending',
+                    'inspected_on' => $receivedOn,
+                    'created_by' => $userId,
+                ]);
+            }
 
             // BR-42 — the certified input side of the reconciliation, written at the only
             // point a certified claim legitimately enters the system.

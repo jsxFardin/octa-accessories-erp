@@ -189,6 +189,8 @@ function addPicks(item, picks) {
             unit_cost: pick.unit_cost,
             breaks_fifo: pick.breaks_fifo,
             fifo_override_reason: '',
+        over_issue_reason: '',
+            over_issue_reason: '',
         }];
     }
 }
@@ -210,6 +212,8 @@ function acceptSuggestion() {
             unit_cost: pick.unit_cost,
             breaks_fifo: pick.breaks_fifo,
             fifo_override_reason: '',
+        over_issue_reason: '',
+            over_issue_reason: '',
         }];
     }
 
@@ -253,6 +257,7 @@ const lineColumns = computed(() => (isReturn.value
         { key: 'available', label: 'Quantity', align: 'right', errorKeys: ['qty'] },
         { key: 'value', label: 'Value', align: 'right', errorKeys: [] },
         { key: 'fifo_override_reason', label: 'Reason for skipping an older lot', width: '18rem' },
+        { key: 'over_issue_reason', label: 'Reason for issuing over requirement', width: '18rem', errorKeys: ['over_issue_reason'] },
     ]));
 
 const totalValue = computed(() =>
@@ -315,6 +320,7 @@ function addReturnLot(lotId) {
         returnable_qty: lot.returnable_qty,
         breaks_fifo: false,
         fifo_override_reason: '',
+        over_issue_reason: '',
     }];
 }
 
@@ -362,6 +368,7 @@ function submit() {
             uom_id: line.uom_id,
             qty: line.qty,
             fifo_override_reason: line.fifo_override_reason || null,
+            over_issue_reason: line.over_issue_reason || null,
         })),
     })).post('/material-issues');
 }
@@ -687,6 +694,10 @@ function submit() {
                             :error="!line.fifo_override_reason ? 'required' : null"
                         />
                         <span v-else class="text-xs text-ink-500">not needed</span>
+                    </template>
+                    <!-- The server asks for this only when the job would pass its requirement plus wastage. -->
+                    <template #cell:over_issue_reason="{ line }">
+                        <TextInput v-model="line.over_issue_reason" placeholder="Only if more than the BOM allows" />
                     </template>
 
                     <template v-if="form.lines.length" #footer>

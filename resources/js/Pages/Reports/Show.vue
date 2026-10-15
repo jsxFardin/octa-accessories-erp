@@ -27,6 +27,8 @@ const totalColumns = computed(() =>
 );
 
 const reconciliation = computed(() => props.extras?.reconciliation ?? null);
+// FN-6 — the receivables ageing strip: outstanding per bucket, base currency.
+const ageing = computed(() => props.extras?.ageing ?? []);
 const movements = computed(() => props.extras?.movements ?? []);
 
 /**
@@ -152,6 +154,20 @@ function rowHref(row) {
                         {{ reconciliation.checked }} lot balance(s) checked against the stock movements recorded
                     </span>
                 </div>
+            </div>
+
+            <div v-if="ageing.length" class="grid grid-cols-2 gap-2 sm:grid-cols-5" data-ageing>
+                <button
+                    v-for="bucket in ageing"
+                    :key="bucket.bucket"
+                    type="button"
+                    class="rounded-lg border px-3 py-2 text-left shadow-sm transition hover:border-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none"
+                    :class="applied.bucket === bucket.bucket ? 'border-brand-400 bg-brand-50' : bucket.bucket === '90_plus' && bucket.amount > 0 ? 'border-rose-200 bg-rose-50/60' : 'border-slate-200 bg-white'"
+                    @click="router.get(location.pathname, { ...applied, bucket: applied.bucket === bucket.bucket ? undefined : bucket.bucket }, { preserveState: true, preserveScroll: true })"
+                >
+                    <p class="text-xs text-ink-500">{{ bucket.label }}</p>
+                    <p class="mt-0.5 text-base font-semibold tnum" :class="bucket.amount > 0 ? 'text-ink-900' : 'text-ink-400'">{{ money(bucket.amount) }}</p>
+                </button>
             </div>
 
             <div

@@ -98,6 +98,10 @@ const orderCurrency = computed(() => props.purchaseOrder?.currency ?? baseCurren
             <Button v-if="grn.status !== 'draft' && lots.length" :href="`/grns/${grn.id}/labels`" external target="_blank">
                 Print lot labels
             </Button>
+            <!-- PR-7 — short, damaged or wrong goods go back from the lots this receipt created. -->
+            <Button v-if="grn.status === 'posted' && lots.some((lot) => Number(lot.balance_qty) > 0) && can('purchase_return.create')" :href="`/purchase-returns/create?grn=${grn.id}`">
+                Return to supplier
+            </Button>
             <!-- A bill is for goods that were received; a draft has received nothing. -->
             <Button
                 v-else-if="can('supplier_bill.create')"

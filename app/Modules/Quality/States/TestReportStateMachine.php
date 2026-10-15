@@ -9,6 +9,7 @@ use App\Support\Numbering\NumberAllocator;
 use App\Support\States\StateMachine;
 use App\Support\States\TransitionDenied;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 /**
  * QL-6 — test report lifecycle. Once issued, the report and its lines are immutable (QC3).
@@ -53,6 +54,23 @@ class TestReportStateMachine extends StateMachine
         if ($to === 'issued') {
             if ($document->lines()->doesntExist()) {
                 throw TransitionDenied::guard('QL-6', 'A report with no results cannot be issued.');
+            }
+
+            // QL-6 AC1 / QL-5 AC4 — "mandatory" is what the customer requires for this product
+            // (or for everything they buy), not merely which tests exist. A report issued
+            // without one of them is a certificate that answers the wrong question.
+            if ($document->customer_id !== null) {
+                $missing = DB::table('customer_test_requirements as r')
+                    ->join('lab_tests as t', 't.id', '=', 'r.lab_test_id')
+                    ->where('r.customer_id', $document->customer_id)
+                    ->where('r.is_mandatory', true)
+                    ->where(fn ($q) => $q->whereNull('r.product_id')->orWhere('r.product_id', $document->product_id))
+                    ->whereNotIn('r.lab_test_id', $document->lines()->select('lab_test_id'))
+                    ->pluck('t.name');
+
+                if ($missing->isNotEmpty()) {
+                    throw TransitionDenied::guard('QL-6', 'The customer requires these tests on this report and they have no result yet: '.$missing->join(', ').'.');
+                }
             }
 
             $mandatoryFailed = $document->lines()

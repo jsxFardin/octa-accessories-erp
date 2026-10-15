@@ -1,6 +1,6 @@
 <script setup>
-import { ref } from 'vue';
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Badge from '@/Components/Ui/Badge.vue';
 import Button from '@/Components/Ui/Button.vue';
@@ -76,6 +76,13 @@ function openEdit(user) {
     form.clearErrors();
     open.value = true;
 }
+
+/**
+ * The server refuses a role change without `user.assign_role` and refuses anyone changing
+ * their own role; the field says so up front rather than after a failed save.
+ */
+const roleLocked = computed(() => editing.value !== null
+    && (!can('user.assign_role') || editing.value.id === usePage().props.auth?.user?.id));
 
 function submit() {
     const options = { preserveScroll: true, onSuccess: () => (open.value = false) };
@@ -154,9 +161,16 @@ const columns = [
                     <span v-else class="text-xs text-ink-400">no role</span>
                 </template>
 
-                <template #cell:card_no="{ value }">
+                <template #cell:card_no="{ value, row }">
                     <span v-if="value" class="font-mono text-xs text-ink-700">{{ value }}</span>
                     <span v-else class="text-xs text-ink-400">—</span>
+                    <Badge
+                        v-if="value && !row.has_floor_pin"
+                        tone="warning"
+                        label="No PIN"
+                        title="This badge cannot sign in at the terminal until a PIN is set (Edit → Floor PIN)."
+                        class="ml-1"
+                    />
                 </template>
 
                 <template #cell:last_login_at="{ value }">{{ value ? datetime(value) : 'never' }}</template>
@@ -203,7 +217,9 @@ const columns = [
                     -->
                     <FormField
                         label="Role"
-                        hint="Manage what each role can do under Roles & permissions."
+                        :hint="roleLocked
+                            ? 'Changing a role needs the assign-role permission. The rest of the form can still be saved.'
+                            : 'Manage what each role can do under Roles & permissions.'"
                         :error="form.errors.role_id"
                         required
                     >
@@ -213,6 +229,7 @@ const columns = [
                             :options="roles"
                             value-key="id"
                             label-key="label"
+                            :disabled="roleLocked"
                         />
                     </FormField>
 

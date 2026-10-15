@@ -26,7 +26,8 @@ CREATE TABLE users (
     remember_token    VARCHAR(100),
     email_verified_at DATETIME(3),
     is_active         BOOLEAN NOT NULL DEFAULT TRUE,
-    two_factor_secret VARCHAR(255),
+    two_factor_secret TEXT,                         -- encrypted TOTP secret (NFR-19); a Crypt payload is longer than 255
+    two_factor_confirmed_at DATETIME(3),            -- set once a code from the authenticator has been verified
     last_login_at     DATETIME(3),
     locale            VARCHAR(10) NOT NULL DEFAULT 'en',
     created_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),

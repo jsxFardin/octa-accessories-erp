@@ -60,7 +60,8 @@ CREATE TABLE users (
     remember_token    VARCHAR(100),
     email_verified_at DATETIME(3),
     is_active         BOOLEAN NOT NULL DEFAULT TRUE,
-    two_factor_secret VARCHAR(255),
+    two_factor_secret TEXT,                         -- encrypted TOTP secret (NFR-19); a Crypt payload is longer than 255
+    two_factor_confirmed_at DATETIME(3),            -- set once a code from the authenticator has been verified
     last_login_at     DATETIME(3),
     locale            VARCHAR(10) NOT NULL DEFAULT 'en',
     created_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -598,6 +599,7 @@ CREATE TABLE items (
     tool_cavities          SMALLINT UNSIGNED,
     service_charge_basis   VARCHAR(20),
     qc_plan_ref            VARCHAR(80),
+    requires_incoming_qc   BOOLEAN NOT NULL DEFAULT FALSE,   -- QL-1: received lots wait in quarantine for an inspection
     inventory_account      VARCHAR(40),
     cogs_account           VARCHAR(40),
     attributes             JSON NOT NULL DEFAULT (JSON_OBJECT()),
@@ -714,6 +716,7 @@ CREATE TABLE customers (
     min_order_value     DECIMAL(18,4) NOT NULL DEFAULT 0,
     over_tolerance_pct  DECIMAL(9,4)  NOT NULL DEFAULT 5,
     under_tolerance_pct DECIMAL(9,4)  NOT NULL DEFAULT 5,
+    requires_sample_approval BOOLEAN NOT NULL DEFAULT FALSE,     -- AS-7 AC3: no bulk job card release without an approved pre-production sample
     bin_no              VARCHAR(40),
     tin_no              VARCHAR(40),
     email               VARCHAR(190),
@@ -1754,6 +1757,7 @@ CREATE TABLE grn_lines (
     cert_scheme       VARCHAR(20),
     cert_claim_pct    DECIMAL(9,4) NOT NULL DEFAULT 0,
     cert_document_no  VARCHAR(80),
+    over_receipt_reason VARCHAR(255),                    -- PR-4 AC2: why more than the order line plus tolerance arrived
     UNIQUE KEY grn_lines_uq (grn_id, line_no),
     KEY grn_lines_poline_idx (po_line_id),
     KEY grn_lines_item_idx (item_id),
@@ -1774,6 +1778,7 @@ CREATE TABLE purchase_returns (
     supplier_id BIGINT UNSIGNED NOT NULL,
     returned_on DATE NOT NULL DEFAULT (CURRENT_DATE),
     reason      VARCHAR(500) NOT NULL,
+    debit_note_no VARCHAR(60),                          -- PR-7 AC3: the debit note Accounts raise against the supplier
     status      VARCHAR(20)  NOT NULL DEFAULT 'draft',
     created_by  BIGINT UNSIGNED,
     created_at  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -2011,7 +2016,8 @@ CREATE TABLE stock_adjustments (
     number       VARCHAR(30),
     warehouse_id BIGINT UNSIGNED NOT NULL,
     adjusted_on  DATE NOT NULL DEFAULT (CURRENT_DATE),
-    reason       VARCHAR(500) NOT NULL,
+    reason_code  VARCHAR(30)  NOT NULL DEFAULT 'other',   -- IN-5: the controlled list (StockAdjustmentController::REASONS)
+    reason       VARCHAR(500) NOT NULL,                   -- the detail behind the code
     status       VARCHAR(20)  NOT NULL DEFAULT 'draft',
     approved_by  BIGINT UNSIGNED,
     created_by   BIGINT UNSIGNED,
@@ -2364,6 +2370,7 @@ CREATE TABLE material_issue_lines (
     qty                  DECIMAL(18,6) NOT NULL,
     unit_cost            DECIMAL(18,4) NOT NULL DEFAULT 0,
     fifo_override_reason VARCHAR(255),                     -- BR-37
+    over_issue_reason    VARCHAR(255),                     -- MF-2 AC4: why more than requirement + wastage was issued
     UNIQUE KEY material_issue_lines_uq (material_issue_id, line_no),
     KEY material_issue_lines_item_idx (item_id),
     KEY material_issue_lines_lot_idx (lot_id),

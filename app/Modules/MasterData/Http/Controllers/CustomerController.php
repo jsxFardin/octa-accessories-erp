@@ -7,6 +7,7 @@ namespace App\Modules\MasterData\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\MasterData\Models\Brand;
 use App\Modules\MasterData\Models\Customer;
+use App\Modules\MasterData\Models\CustomerAddress;
 use App\Modules\MasterData\Models\PaymentTerm;
 use App\Support\Http\ListsResources;
 use App\Support\Reference\Countries;
@@ -77,15 +78,16 @@ class CustomerController extends Controller
 
         return Inertia::render('MasterData/Customers/Index', [
             'customers' => $query->paginate($this->perPage($request))->withQueryString()->through(
+                // The aggregates are subselects on this query, not columns the model knows.
                 fn (Customer $customer): array => [
                     ...$customer->only(['id', 'code', 'name', 'kind', 'email', 'phone', 'credit_limit', 'is_active', 'contacts_count']),
                     'currency' => $customer->currency?->code,
-                    'open_order_value' => round((float) $customer->open_order_value, 2),
-                    'open_order_count' => (int) $customer->open_order_count,
-                    'outstanding' => round((float) $customer->outstanding, 2),
-                    'overdue' => round((float) $customer->overdue, 2),
-                    'last_order_on' => $customer->last_order_on,
-                    'quotations_out' => (int) $customer->quotations_out,
+                    'open_order_value' => round((float) $customer->getAttribute('open_order_value'), 2),
+                    'open_order_count' => (int) $customer->getAttribute('open_order_count'),
+                    'outstanding' => round((float) $customer->getAttribute('outstanding'), 2),
+                    'overdue' => round((float) $customer->getAttribute('overdue'), 2),
+                    'last_order_on' => $customer->getAttribute('last_order_on'),
+                    'quotations_out' => (int) $customer->getAttribute('quotations_out'),
                 ],
             ),
             'filters' => $this->listingFilters($request, ['active', 'kind']),
@@ -154,6 +156,39 @@ class CustomerController extends Controller
         );
     }
 
+    /** @return list<array<string, mixed>> */
+    private function ledger(Customer $customer): array
+    {
+        $invoices = DB::table('sales_invoices as si')->leftJoin('currencies as cur', 'cur.id', '=', 'si.currency_id')
+            ->where('si.customer_id', $customer->id)->whereNotIn('si.status', ['draft', 'cancelled'])
+            ->selectRaw("'invoice' as kind, si.invoice_date as entry_date, si.id as document_id, si.number as document_number, si.total as debit, 0 as credit, cur.code as currency, si.status")
+            ->get();
+        $receipts = DB::table('receipt_allocations as ra')->join('receipts as r', 'r.id', '=', 'ra.receipt_id')
+            ->join('sales_invoices as si', 'si.id', '=', 'ra.sales_invoice_id')->leftJoin('currencies as cur', 'cur.id', '=', 'r.currency_id')
+            ->where('si.customer_id', $customer->id)
+            ->selectRaw("'receipt' as kind, r.receipt_date as entry_date, r.id as document_id, r.number as document_number, 0 as debit, ra.amount as credit, cur.code as currency, r.method as status")
+            ->get();
+        $credits = DB::table('credit_notes as cn')->leftJoin('currencies as cur', 'cur.id', '=', 'cn.currency_id')
+            ->where('cn.customer_id', $customer->id)->where('cn.status', 'applied')
+            ->selectRaw("'credit_note' as kind, cn.note_date as entry_date, cn.id as document_id, cn.number as document_number, 0 as debit, cn.amount as credit, cur.code as currency, cn.reason as status")
+            ->get();
+
+        return collect([...$invoices, ...$receipts, ...$credits])
+            ->sortByDesc(fn ($row): string => $row->entry_date.'|'.$row->document_id)
+            ->take(40)
+            ->map(fn ($row): array => (array) $row)
+            ->values()
+            ->all();
+    }
+
+    /** @return list<array{bucket: string, label: string, amount: float}> */
+    private function ageing(Customer $customer): array
+    {
+        $request = Request::create('/reports/receivables', 'GET', ['customer' => $customer->id]);
+
+        return app(\App\Modules\Reporting\Queries\ReceivableReport::class)->extras($request)['ageing'];
+    }
+
     public function show(Customer $customer): Response
     {
         $customer->load(['contacts', 'addresses', 'currency:id,code,name', 'paymentTerm:id,code,name,net_days']);
@@ -184,17 +219,19 @@ class CustomerController extends Controller
             ->whereNotIn('status', ['draft', 'cancelled'])
             ->selectRaw('COUNT(*) AS n, COALESCE(SUM(total * exchange_rate), 0) AS value')
             ->first();
+        /** @var CustomerAddress|null $defaultAddress */
+        $defaultAddress = $customer->addresses->sortByDesc('is_default')->first();
 
         return Inertia::render('MasterData/Customers/Show', [
             'customer' => [
                 ...$customer->only([
                     'id', 'code', 'name', 'kind', 'email', 'phone', 'bin_no', 'tin_no', 'credit_limit',
-                    'min_order_value', 'over_tolerance_pct', 'under_tolerance_pct', 'is_active',
+                    'min_order_value', 'over_tolerance_pct', 'under_tolerance_pct', 'requires_sample_approval', 'is_active',
                 ]),
                 'currency' => $customer->currency?->only(['id', 'code', 'name']),
                 'payment_term' => $customer->paymentTerm?->only(['id', 'code', 'name', 'net_days']),
                 // The country is the default address's, not a column of the customer's.
-                'country' => $customer->addresses->sortByDesc('is_default')->first()?->country,
+                'country' => $defaultAddress?->country,
             ],
             'contacts' => $customer->contacts->sortByDesc('is_primary')->values()
                 ->map(fn ($contact) => $contact->only(['id', 'name', 'designation', 'email', 'phone', 'is_primary'])),
@@ -237,6 +274,11 @@ class CustomerController extends Controller
                 ->whereNotIn('si.status', ['draft', 'cancelled', 'paid'])
                 ->orderBy('si.due_date')->limit(10)
                 ->get(['si.id', 'si.number', 'si.invoice_date', 'si.due_date', 'si.total', 'si.received_amount', 'si.status', 'cur.code as currency']),
+            // FN-6 — the customer ledger: every issued invoice, receipt allocation and applied
+            // credit against them, newest first, in the document's currency; and the ageing
+            // of what is still owed, in the base currency the limit is stated in.
+            'ledger' => $this->ledger($customer),
+            'ageing' => $this->ageing($customer),
             'priceLists' => DB::table('price_lists as pl')->leftJoin('currencies as cur', 'cur.id', '=', 'pl.currency_id')
                 ->where('pl.customer_id', $customer->id)
                 ->orderByDesc('pl.valid_from')
@@ -284,6 +326,7 @@ class CustomerController extends Controller
             'min_order_value' => ['numeric', 'min:0'],
             'over_tolerance_pct' => ['numeric', 'min:0', 'max:100'],
             'under_tolerance_pct' => ['numeric', 'min:0', 'max:100'],
+            'requires_sample_approval' => ['boolean'],
             'bin_no' => ['nullable', 'string', 'max:40'],
             'tin_no' => ['nullable', 'string', 'max:40'],
             'is_active' => ['boolean'],

@@ -93,6 +93,7 @@ it('stops an issue from taking another job\'s reserved quantity', function (): v
         'lines' => [[
             'item_id' => $lot->item_id, 'lot_id' => $lot->id, 'uom_id' => $lot->uom_id,
             'qty' => $free + (float) $claimed->qty, // wants the claim too
+            'over_issue_reason' => 'Fixture: issued beyond the requirement on purpose',
         ]],
     ])->assertSessionHas('error');
 
@@ -114,6 +115,8 @@ it('consumes the claim as the owning job issues, and keeps history rows', functi
         'lines' => [[
             'item_id' => $lot->item_id, 'lot_id' => $lot->id, 'uom_id' => $lot->uom_id,
             'qty' => (float) $claimed->qty,
+            // MF-2 AC4 — the demo job already carries issues; the fixture overshoots on purpose.
+            'over_issue_reason' => 'Fixture: issued beyond the requirement on purpose',
         ]],
     ])->assertSessionHasNoErrors();
 
@@ -149,4 +152,23 @@ it('feeds the MRP and availability arithmetic', function (): void {
     // The previously dead reserved() term now reads real claims — excluding the owner's own.
     expect($after)->toBeGreaterThan($before)
         ->and($availability->reserved($itemId, (int) $this->jobCard->id))->toBeQty($before);
+});
+
+// GAP P-04 — SL-8 AC3: closing or cancelling the order gives back what its job cards hold.
+it('releases every active reservation of the order when the order closes', function (): void {
+    $this->states->transition($this->jobCard, JobCard::RELEASED, ['material_waiver_reason' => 'seeded shortage']);
+
+    expect(DB::table('stock_reservations')->where('job_card_id', $this->jobCard->id)->where('status', 'active')->count())
+        ->toBeGreaterThan(0);
+
+    $orderId = (int) DB::table('sales_order_lines')->where('id', $this->jobCard->sales_order_line_id)->value('sales_order_id');
+    $order = App\Modules\Sales\Models\SalesOrder::query()->findOrFail($orderId);
+
+    // Delivered in full; the status column is the only fixture, the close goes through the machine.
+    $order->forceFill(['status' => 'delivered'])->save();
+    app(App\Modules\Sales\States\SalesOrderStateMachine::class)->transition($order, 'closed');
+
+    expect(DB::table('stock_reservations')->where('job_card_id', $this->jobCard->id)->where('status', 'active')->count())->toBe(0)
+        ->and(DB::table('stock_reservations')->where('job_card_id', $this->jobCard->id)->where('status', 'released')->count())
+        ->toBeGreaterThan(0);
 });

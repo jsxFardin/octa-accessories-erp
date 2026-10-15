@@ -164,10 +164,10 @@ it('registers, edits and retires a tool', function (): void {
     $tool->update(['status' => 'in_use']);
     $this->put("/tools/{$tool->id}", ['code' => 'TOOL-T-01', 'kind' => 'cutting_die', 'status' => 'available'])->assertSessionHasNoErrors();
     expect($tool->refresh()->status)->toBe('in_use');
-    $this->post("/tools/{$tool->id}/retire")->assertSessionHas('error');
+    $this->post("/tools/{$tool->id}/retire", ['reason' => 'Worn'])->assertSessionHas('error');
 
     $tool->update(['status' => 'available']);
-    $this->post("/tools/{$tool->id}/retire")->assertSessionHas('success');
+    $this->post("/tools/{$tool->id}/retire", ['reason' => 'Worn'])->assertSessionHas('success');
     expect($tool->refresh()->status)->toBe('scrapped');
 
     // Retired is final.
@@ -262,4 +262,25 @@ it('edits a draft bill of materials, and starts a new version from the newest on
     // Saving a draft with "activate" promotes it, as creating one does.
     $this->put("/boms/{$draft->id}", ['base_qty' => 1000, 'lines' => $lines(7.25), 'activate' => true])->assertSessionHasNoErrors();
     expect($draft->refresh()->status)->toBe('active')->and($active->refresh()->status)->toBe('superseded');
+});
+
+// GAP E-04 — the activate route, as the product page's button uses it.
+it('activates a draft BOM through its own route and supersedes the active one', function (): void {
+    $this->actingAs(App\Models\User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+    $product = Product::query()->whereCode('PRD-NFJ-CARE-01')->firstOrFail();
+    $active = $product->activeBom()->firstOrFail();
+    $line = $active->lines()->firstOrFail();
+
+    $this->post("/products/{$product->id}/boms", [
+        'base_qty' => 1000,
+        'lines' => [['item_id' => $line->item_id, 'uom_id' => $line->uom_id, 'qty_per_base' => 9.5, 'wastage_pct' => 2]],
+    ])->assertSessionHasNoErrors();
+
+    $draft = $product->boms()->where('status', 'draft')->latest('id')->firstOrFail();
+
+    $this->post("/boms/{$draft->id}/activate")->assertSessionHas('success');
+
+    expect($draft->fresh()->status)->toBe('active')
+        ->and($active->fresh()->status)->toBe('superseded')
+        ->and($product->boms()->where('status', 'active')->count())->toBe(1);
 });

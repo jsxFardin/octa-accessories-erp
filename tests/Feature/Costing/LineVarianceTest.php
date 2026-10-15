@@ -104,3 +104,28 @@ it('reports the variance of every closed job, footing usage, price, conversion a
 
     $this->get('/reports/cost-variance')->assertOk()->assertInertia(fn ($page) => $page->where('report.key', 'cost-variance'));
 });
+
+// GAP M-05 — MF-4 AC4 / BR-23: downtime is not machine time.
+it('takes downtime out of the hours an operation is charged for', function (): void {
+    $operation = $this->job->operations->first();
+    $machineBefore = collect($this->post->lines)->first(fn ($line): bool => $line->cost_type === 'machine' && str_starts_with((string) $line->description, $operation->name));
+
+    DB::table('downtime_logs')->insert([
+        'machine_id' => $operation->fresh()->machine_id,
+        'job_card_operation_id' => $operation->id,
+        'downtime_reason_id' => DB::table('downtime_reasons')->value('id'),
+        'started_at' => now()->subMinutes(30),
+        'ended_at' => now(),
+        'minutes' => 30,
+        'reported_by' => DB::table('employees')->value('id'),
+    ]);
+
+    $post = app(PostProductionCosting::class)->snapshot($this->job->fresh());
+    $machineAfter = collect($post->lines)->first(fn ($line): bool => $line->cost_type === 'machine' && str_starts_with((string) $line->description, $operation->name));
+
+    // 120 minutes on the clock, 30 of them standing: 1.5 hours charged, not 2.
+    expect((float) $machineBefore->qty)->toBe(2.0)
+        ->and((float) $machineAfter->qty)->toBe(1.5)
+        ->and((float) $machineAfter->amount)->toBeMoney(round((float) $machineBefore->amount * 0.75, 4))
+        ->and($machineAfter->description)->toContain('less 30 min downtime');
+});

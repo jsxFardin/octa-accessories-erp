@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\RequireTwoFactor;
 use App\Http\Middleware\SetLocale;
 use App\Support\Http\LandingPage;
 use Illuminate\Foundation\Application;
@@ -8,6 +10,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\AuthenticateSession;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -44,11 +47,30 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // NFR-58 — a request id on every log line and response, before anything else runs.
+        $middleware->web(prepend: [AssignRequestId::class]);
+        $middleware->api(prepend: [AssignRequestId::class]);
+
         $middleware->web(append: [
+            /*
+             * NFR-26 — a password change signs every other session out. The middleware keeps
+             * the password hash the session was opened with and logs the session out the
+             * moment the account's hash no longer matches: a reset by the owner, or by an
+             * administrator, ends a stolen or shared session on its next request.
+             */
+            AuthenticateSession::class,
+            // NFR-19 — roles that move money or change permissions enrol in two-step sign-in
+            // before they use anything but their profile.
+            RequireTwoFactor::class,
             SetLocale::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+            // NFR-27 — 60 writes a minute per user; reads are not counted (AppServiceProvider).
+            'throttle:writes',
         ]);
+
+        // NFR-27 — 120 requests a minute per device token (AppServiceProvider).
+        $middleware->throttleApi();
 
         $middleware->alias([
             'device' => App\Http\Middleware\EnsureDeviceSession::class,
@@ -151,7 +173,7 @@ return Application::configure(basePath: dirname(__DIR__))
                         'permissions' => $user->permissionNames(),
                     ],
                 ],
-                'app' => $user === null ? [] : app(\App\Support\Settings\Organisation::class)->forFrontend(),
+                'app' => $user === null ? [] : app(App\Support\Settings\Organisation::class)->forFrontend(),
             ])
                 ->toResponse($request)
                 ->setStatusCode($response->getStatusCode());

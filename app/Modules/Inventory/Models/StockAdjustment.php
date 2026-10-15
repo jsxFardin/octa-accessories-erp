@@ -47,6 +47,7 @@ class StockAdjustment extends Model
         'number',
         'warehouse_id',
         'adjusted_on',
+        'reason_code',
         'reason',
         'created_by',
     ];

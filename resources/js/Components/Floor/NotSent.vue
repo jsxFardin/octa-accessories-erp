@@ -49,6 +49,7 @@ function when(iso) {
 
 function reason(record) {
     if (record.expired) return label('reason_expired');
+    if (record.sessionLost) return label('reason_session');
 
     return record.code ? refusal(record) : label('reason_refused');
 }

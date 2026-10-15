@@ -8,7 +8,9 @@ use App\Modules\Quality\Models\Capa;
 use App\Modules\Quality\Models\Ncr;
 use App\Modules\Quality\States\NcrStateMachine;
 use App\Support\Notifications\Notifier;
+use App\Support\Settings\Settings;
 use App\Support\States\TransitionDenied;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -23,6 +25,7 @@ class NcrService
     public function __construct(
         private readonly NcrStateMachine $states,
         private readonly Notifier $notifier,
+        private readonly Settings $settings,
     ) {}
 
     public function assign(Ncr $ncr, int $ownerId): Ncr
@@ -75,6 +78,12 @@ class NcrService
 
             $responsibleId = isset($data['responsible_id']) ? (int) $data['responsible_id'] : $locked->owner_id;
 
+            // QL-7 AC2 — the deadline follows the severity unless the investigator sets one:
+            // a critical finding is owed an answer in a week, a minor one in a month.
+            $dueDate = $data['due_date'] ?? Carbon::parse((string) ($locked->raised_on ?? now()->toDateString()))
+                ->addDays($this->settings->int('ncr_capa_days_'.$locked->severity, 14))
+                ->toDateString();
+
             if (! $this->hasCorrectiveCapa($locked)) {
                 Capa::query()->create([
                     'ncr_id' => $locked->id,
@@ -82,7 +91,7 @@ class NcrService
                     'root_cause' => (string) $data['root_cause'],
                     'action' => (string) $data['action'],
                     'responsible_id' => $responsibleId,
-                    'due_date' => $data['due_date'] ?? null,
+                    'due_date' => $dueDate,
                     'status' => Capa::IN_PROGRESS,
                 ]);
             }
@@ -94,7 +103,7 @@ class NcrService
                     'root_cause' => (string) $data['root_cause'],
                     'action' => (string) $data['preventive_action'],
                     'responsible_id' => $responsibleId,
-                    'due_date' => $data['due_date'] ?? null,
+                    'due_date' => $dueDate,
                     'status' => Capa::IN_PROGRESS,
                 ]);
             }

@@ -136,7 +136,7 @@ const kpis = computed(() => {
                 ? `${pcs(a.receivables.overdue_count)} ${a.receivables.overdue_count === 1 ? 'invoice' : 'invoices'} past due · ${money(a.receivables.outstanding)} outstanding in all`
                 : `Nothing past due · ${money(a.receivables.outstanding)} outstanding in all`,
             tone: a.receivables.overdue_amount > 0 ? 'warning' : 'neutral',
-            href: '/sales-invoices?overdue=1',
+            href: '/invoices?overdue=1',
         });
     }
 

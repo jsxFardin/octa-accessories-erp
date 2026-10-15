@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Quality\Models;
 
 use App\Modules\Manufacturing\Models\JobCardOperation;
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -37,6 +38,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class QcInspection extends Model
 {
+    use Auditable;
+
     protected $table = 'qc_inspections';
 
     public const UPDATED_AT = null;

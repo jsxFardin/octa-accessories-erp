@@ -379,3 +379,17 @@ it('refuses a certified shipment when the certificate has no document on file', 
 
     expect($challan->refresh()->status)->toBe('draft');
 });
+
+// GAP P-11 — DF-3 AC6: the gate pass number is captured when the goods leave.
+it('records the gate pass number on the handover to in_transit', function (): void {
+    $challan = packAndDraftChallan($this, 1000);
+
+    $this->post("/delivery-challans/{$challan->id}/transition", ['to' => 'issued'])->assertSessionHas('success');
+    $this->post("/delivery-challans/{$challan->id}/transition", ['to' => 'in_transit', 'gate_pass_no' => 'GP-2026-0417'])
+        ->assertSessionHas('success');
+
+    $challan->refresh();
+
+    expect($challan->status)->toBe('in_transit')
+        ->and($challan->gate_pass_no)->toBe('GP-2026-0417');
+});

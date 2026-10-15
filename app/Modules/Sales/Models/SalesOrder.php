@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Models;
 
 use App\Support\Audit\Auditable;
+use App\Support\Scoping\BelongsToCustomer;
 use App\Support\Scoping\ScopedToFactoryUnit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +42,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SalesOrder extends Model
 {
     use Auditable;
+    use BelongsToCustomer;
     use ScopedToFactoryUnit;
 
     protected $table = 'sales_orders';
@@ -118,7 +120,11 @@ class SalesOrder extends Model
         return $this->belongsTo(Quotation::class, 'quotation_id');
     }
 
-    /** Whoever is handling it — set when the order is raised, reassignable later. */
+    /**
+     * Whoever is handling it — set when the order is raised, reassignable later.
+     *
+     * @return BelongsTo<\App\Models\User, $this>
+     */
     public function merchandiser(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'merchandiser_id');
@@ -139,6 +145,7 @@ class SalesOrder extends Model
         return $this->belongsTo(\App\Modules\MasterData\Models\CustomerAddress::class, 'delivery_address_id');
     }
 
+    /** @return HasMany<SalesOrderLine, $this> */
     public function lines(): HasMany
     {
         return $this->hasMany(SalesOrderLine::class, 'sales_order_id')->orderBy('line_no');

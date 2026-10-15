@@ -101,6 +101,8 @@ class PurchaseRequisitionController extends Controller
             ->where('mr.mrp_run_id', $runId)
             ->where('mr.is_shortage', true)
             ->where('mr.suggested_po_qty', '>', 0)
+            // PL-5 AC3 — a shortage a requisition already covers is not raised twice.
+            ->whereNull('mr.pr_line_id')
             ->orderBy('mr.need_date')
             ->get(['mr.item_id', 'i.base_uom_id', 'mr.suggested_po_qty', 'mr.need_date'])
             ->map(fn (object $row): array => [
@@ -117,6 +119,7 @@ class PurchaseRequisitionController extends Controller
         }
 
         return [
+            'mrp_run_id' => $runId,
             'remarks' => 'Shortages from the material plan run on '.date('j M Y', (int) strtotime((string) $runAt)).'.',
             'lines' => $lines,
         ];
@@ -127,14 +130,22 @@ class PurchaseRequisitionController extends Controller
         $data = $this->validated($request);
 
         $requisition = DB::transaction(function () use ($data, $request): PurchaseRequisition {
+            $runId = (int) ($data['mrp_run_id'] ?? 0);
+
             $requisition = PurchaseRequisition::query()->create([
-                ...collect($data)->except('lines')->all(),
-                'origin' => 'manual',
+                ...collect($data)->except(['lines', 'mrp_run_id'])->all(),
+                // PR-1 AC1 — a requisition the plan asked for is marked as such, and the
+                // run's requirement rows learn which line answers them (PL-5 AC2).
+                'origin' => $runId > 0 ? 'mrp' : 'manual',
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
             ]);
 
             $this->syncLines($requisition, $data['lines']);
+
+            if ($runId > 0) {
+                $this->linkRequirements($requisition, $runId);
+            }
 
             return $requisition;
         });
@@ -234,6 +245,7 @@ class PurchaseRequisitionController extends Controller
             'lines.*.uom_id' => ['required', 'integer', 'exists:uoms,id'],
             'lines.*.qty' => ['required', 'numeric', 'gt:0'],
             'lines.*.required_by' => ['nullable', 'date'],
+            'mrp_run_id' => ['nullable', 'integer', 'exists:mrp_runs,id'],
             'lines.*.remarks' => ['nullable', 'string', 'max:255'],
         ]);
     }
@@ -253,6 +265,22 @@ class PurchaseRequisitionController extends Controller
                 'required_by' => $line['required_by'] ?? null,
                 'remarks' => $line['remarks'] ?? null,
             ]);
+        }
+    }
+
+    /** PL-5 AC2 — each shortage row points at the requisition line raised for it. */
+    private function linkRequirements(PurchaseRequisition $requisition, int $runId): void
+    {
+        $lineIds = DB::table('purchase_requisition_lines')
+            ->where('pr_id', $requisition->id)
+            ->pluck('id', 'item_id');
+
+        foreach ($lineIds as $itemId => $lineId) {
+            DB::table('material_requirements')
+                ->where('mrp_run_id', $runId)
+                ->where('item_id', $itemId)
+                ->whereNull('pr_line_id')
+                ->update(['pr_line_id' => $lineId]);
         }
     }
 

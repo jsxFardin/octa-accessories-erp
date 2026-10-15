@@ -8,6 +8,9 @@ use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
+ * @property-read string|null $job_card_number
+ * @property-read string|null $warehouse_code
+ * @property-read int $line_count
  * @property int $id
  * @property string|null $number
  * @property int $job_card_id

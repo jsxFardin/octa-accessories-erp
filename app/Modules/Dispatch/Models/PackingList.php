@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Dispatch\Models;
 
 use App\Support\Audit\Auditable;
+use App\Support\Scoping\BelongsToCustomer;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -28,6 +29,7 @@ use Illuminate\Database\Eloquent\Model;
 class PackingList extends Model
 {
     use Auditable;
+    use BelongsToCustomer;
 
     protected $table = 'packing_lists';
 

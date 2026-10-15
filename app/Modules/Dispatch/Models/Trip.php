@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Dispatch\Models;
 
+use App\Support\Audit\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -25,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Trip extends Model
 {
+    use Auditable;
+
     protected $table = 'trips';
 
     public $timestamps = false;

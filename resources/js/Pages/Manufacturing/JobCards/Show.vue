@@ -620,6 +620,20 @@ function reopen() {
 }
 const holdForm = useForm({ to: 'on_hold', hold_reason: '' });
 
+// MF-6 AC3 — a hold is lifted by saying what was done about it.
+const resumeOpen = ref(false);
+const resumeForm = useForm({ to: 'in_production', hold_resolution: '' });
+
+function resume() {
+    resumeForm.post(`/job-cards/${props.jobCard.id}/transition`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            resumeOpen.value = false;
+            resumeForm.reset('hold_resolution');
+        },
+    });
+}
+
 const checks = computed(() => Object.values(props.releaseGate.checks));
 
 /**
@@ -909,7 +923,7 @@ const bomColumns = [
                 v-if="availableTransitions.includes('in_production')"
                 size="sm"
                 :variant="jobCard.status === 'released' ? 'primary' : 'secondary'"
-                @click="transition('in_production')"
+                @click="jobCard.status === 'on_hold' ? (resumeOpen = true) : transition('in_production')"
             >
                 {{ jobCard.status === 'on_hold' ? 'Resume' : 'Start production' }}
             </Button>
@@ -1860,6 +1874,19 @@ const bomColumns = [
                 <Button @click="close">Cancel</Button>
                 <Button variant="danger" :loading="holdForm.processing" :disabled="!holdForm.hold_reason" @click="hold">
                     Hold
+                </Button>
+            </template>
+        </Modal>
+
+        <Modal v-model:open="resumeOpen" title="Resume this job card" :subtitle="jobCard.hold_reason ? `Held because: ${jobCard.hold_reason}` : 'The hold is lifted once you say what was done about it.'">
+            <FormField label="How was the hold resolved?" :error="resumeForm.errors.hold_resolution" required>
+                <textarea v-model="resumeForm.hold_resolution" rows="3" class="form-textarea" />
+            </FormField>
+
+            <template #footer="{ close }">
+                <Button @click="close">Cancel</Button>
+                <Button variant="primary" :loading="resumeForm.processing" :disabled="!resumeForm.hold_resolution" @click="resume">
+                    Resume production
                 </Button>
             </template>
         </Modal>

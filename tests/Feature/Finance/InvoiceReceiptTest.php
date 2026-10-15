@@ -195,3 +195,53 @@ it('keeps billing away from users without invoice permissions', function (): voi
 
     expect(SalesInvoice::query()->count())->toBe(0);
 });
+
+// GAP F-01 — FN-1 AC3: tax follows the order line's tax code; the Mushak number is captured.
+it('bills VAT from the order line tax code and takes the Mushak number after issue', function (): void {
+    $vat = DB::table('taxes')->where('code', 'VAT15')->firstOrFail();
+    DB::table('sales_order_lines')->where('id', $this->soLineId)->update(['tax_id' => $vat->id]);
+
+    $invoice = issueInvoice($this);
+    $line = DB::table('sales_invoice_lines')->where('sales_invoice_id', $invoice->id)->first();
+
+    expect((float) $line->tax_amount)->toBeMoney(round((float) $line->amount * 0.15, 4))
+        ->and((float) $invoice->tax_amount)->toBeMoney((float) $line->tax_amount)
+        ->and((float) $invoice->total)->toBeMoney((float) $invoice->subtotal + (float) $invoice->tax_amount);
+
+    $this->put("/invoices/{$invoice->id}/references", ['mushak_no' => 'MUSHAK-6.3-000912', 'lc_no' => null, 'remarks' => null])
+        ->assertSessionHas('success');
+
+    $invoice->refresh();
+
+    expect($invoice->mushak_no)->toBe('MUSHAK-6.3-000912')
+        ->and($invoice->status)->toBe('issued')
+        ->and((float) $invoice->total)->toBeMoney((float) $invoice->subtotal + (float) $invoice->tax_amount)
+        ->and(DB::table('audit_logs')->where('auditable_type', SalesInvoice::class)->where('auditable_id', $invoice->id)
+            ->where('event', 'updated')->where('new_values', 'like', '%MUSHAK-6.3-000912%')->exists())->toBeTrue();
+});
+
+// GAP E-04 — the customer return was only ever driven through its state machine.
+it('takes a customer return through its routes: draft, approve, post', function (): void {
+    $invoice = issueInvoice($this);
+    $line = DB::table('sales_invoice_lines')->where('sales_invoice_id', $invoice->id)->firstOrFail();
+    $warehouseId = (int) DB::table('warehouses')->where('kind', 'finished_goods')->value('id');
+    $balanceBefore = (float) DB::table('stock_lots')->where('id', $this->lot->id)->value('balance_qty');
+
+    $this->actingAs(User::query()->where('email', 'dispatch@octapussolution.com')->firstOrFail());
+    $this->post('/sales-returns', [
+        'sales_invoice_id' => $invoice->id, 'warehouse_id' => $warehouseId, 'returned_on' => now()->toDateString(),
+        'reason' => 'Shade variation on 200 pieces.',
+        'lines' => [['sales_invoice_line_id' => $line->id, 'lot_id' => $this->lot->id, 'qty' => 200]],
+    ])->assertSessionHasNoErrors();
+
+    $return = App\Modules\Sales\Models\SalesReturn::query()->latest('id')->firstOrFail();
+    expect($return->status)->toBe('draft');
+
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+    $this->post("/sales-returns/{$return->id}/transition", ['to' => 'approved'])->assertSessionHas('success');
+    $this->post("/sales-returns/{$return->id}/transition", ['to' => 'posted'])->assertSessionHas('success');
+
+    expect($return->fresh()->status)->toBe('posted')
+        ->and((float) DB::table('stock_lots')->where('id', $this->lot->id)->value('balance_qty'))->toBeQty($balanceBefore + 200)
+        ->and(DB::table('stock_ledger')->where('source_type', App\Modules\Sales\Models\SalesReturn::class)->where('source_id', $return->id)->where('movement_type', 'sales_return')->exists())->toBeTrue();
+});

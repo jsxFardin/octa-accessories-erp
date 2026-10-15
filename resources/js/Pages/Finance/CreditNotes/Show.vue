@@ -114,6 +114,7 @@ function refundCredit() {
                 <dl class="grid grid-cols-2 gap-2 text-sm">
                     <div><dt class="text-xs text-ink-500">Amount</dt><dd class="font-medium tnum">{{ money(creditNote.amount, creditNote.currency) }}</dd></div>
                     <div><dt class="text-xs text-ink-500">Reason</dt><dd class="font-medium">{{ titleCase(creditNote.reason) }}</dd></div>
+                    <div v-if="creditNote.ncr"><dt class="text-xs text-ink-500">NCR</dt><dd class="font-medium"><Link :href="`/ncrs/${creditNote.ncr.id}`" class="text-brand-700 hover:underline">{{ creditNote.ncr.number }}</Link></dd></div>
                 </dl>
                 <p v-if="creditNote.remarks" class="mt-3 whitespace-pre-line text-sm text-ink-600">{{ creditNote.remarks }}</p>
                 <p class="mt-3 rounded bg-slate-50 px-2 py-1 text-xs text-ink-500">

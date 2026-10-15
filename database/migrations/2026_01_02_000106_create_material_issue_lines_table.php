@@ -28,6 +28,7 @@ CREATE TABLE material_issue_lines (
     qty                  DECIMAL(18,6) NOT NULL,
     unit_cost            DECIMAL(18,4) NOT NULL DEFAULT 0,
     fifo_override_reason VARCHAR(255),                     -- BR-37
+    over_issue_reason    VARCHAR(255),                     -- MF-2 AC4: why more than requirement + wastage was issued
     UNIQUE KEY material_issue_lines_uq (material_issue_id, line_no),
     KEY material_issue_lines_item_idx (item_id),
     KEY material_issue_lines_lot_idx (lot_id),

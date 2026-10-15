@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\States;
 
+use App\Modules\Inventory\Services\ReservationService;
 use App\Modules\Product\Models\ArtworkVersion;
 use App\Modules\Product\Models\ProductSpec;
 use App\Modules\Sales\Models\SalesOrder;
@@ -198,16 +199,18 @@ class SalesOrderStateMachine extends StateMachine
         match ($to) {
             'confirmed' => $this->onConfirmed($document),
             'credit_hold' => null,
-            'closed' => $document->forceFill([
-                'closed_at' => now(),
-                'close_reason' => $context['close_reason'] ?? null,
-            ])->save(),
-            'cancelled' => $document->forceFill([
-                'closed_at' => now(),
-                'close_reason' => $context['close_reason'] ?? 'Cancelled',
-            ])->save(),
+            'closed' => $this->onClosed($document, $context['close_reason'] ?? null),
+            'cancelled' => $this->onClosed($document, $context['close_reason'] ?? 'Cancelled'),
             default => null,
         };
+    }
+
+    /** SL-8 AC3 — a closed or cancelled order releases what its job cards still reserve. */
+    private function onClosed(SalesOrder $order, ?string $reason): void
+    {
+        $order->forceFill(['closed_at' => now(), 'close_reason' => $reason])->save();
+
+        app(ReservationService::class)->releaseForOrder((int) $order->getKey());
     }
 
     private function onConfirmed(SalesOrder $order): void

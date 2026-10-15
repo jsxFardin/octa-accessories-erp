@@ -214,3 +214,89 @@ it('blocks users without packing permissions', function (): void {
 
     $this->post("/packing-lists/{$list->id}/transition", ['to' => 'packed'])->assertForbidden();
 });
+
+// GAP C-01 — BR-41: below the scheme's minimum, the goods are packed without a claim.
+it('withholds the scheme when the diluted claim falls short of the minimum (BR-41)', function (): void {
+    $certified = DB::table('stock_lots')->where('cert_scheme', 'GRS')->whereNotNull('item_id')->first();
+
+    // Certified input that itself carries only 15 %: whatever else the job consumed, the
+    // weighted claim cannot rise above that, and GRS asks for 20.
+    DB::table('stock_lots')->where('id', $certified->id)->update(['cert_claim_pct' => 15]);
+    $issueId = DB::table('material_issues')->insertGetId([
+        'number' => 'MI-PACK-2', 'job_card_id' => $this->jobCard->id, 'warehouse_id' => $certified->warehouse_id,
+        'issued_on' => now()->toDateString(), 'issue_type' => 'issue', 'status' => 'posted', 'created_at' => now(),
+    ]);
+    DB::table('material_issue_lines')->insert([
+        'material_issue_id' => $issueId, 'line_no' => 1, 'item_id' => $certified->item_id,
+        'lot_id' => $certified->id, 'uom_id' => $certified->uom_id, 'qty' => 100, 'unit_cost' => 50,
+    ]);
+
+    $lot = makeFgLot($this, 2000);
+    $minimum = App\Modules\Dispatch\States\PackingListStateMachine::minimumClaimPct('GRS');
+
+    expect($minimum)->toBeGreaterThan(0.0)
+        ->and((float) $lot->cert_claim_pct)->toBeLessThan($minimum);
+
+    $list = draftPackingList($this, $lot, 2000);
+    $this->post("/packing-lists/{$list->id}/transition", ['to' => 'packed'])->assertSessionHas('success');
+
+    $list->refresh();
+
+    expect($list->cert_claim_scheme)->toBeNull()
+        ->and((float) $list->cert_claim_pct)->toBeGreaterThan(0.0);
+
+    // The page says why, instead of "none".
+    $this->get("/packing-lists/{$list->id}")
+        ->assertInertia(fn ($page) => $page
+            ->where('packingList.claim.claimed', false)
+            ->where('packingList.claim.scheme', 'GRS')
+            ->where('packingList.claim.minimum_pct', fn ($value): bool => (float) $value === $minimum));
+});
+
+// GAP C-02 — DF-1 AC3: a second-quality lot carries no claim and is flagged to the packer.
+it('shows a B-grade lot to the packer and never counts it as certified', function (): void {
+    $certified = DB::table('stock_lots')->where('cert_scheme', 'GRS')->whereNotNull('item_id')->first();
+    $issueId = DB::table('material_issues')->insertGetId([
+        'number' => 'MI-PACK-3', 'job_card_id' => $this->jobCard->id, 'warehouse_id' => $certified->warehouse_id,
+        'issued_on' => now()->toDateString(), 'issue_type' => 'issue', 'status' => 'posted', 'created_at' => now(),
+    ]);
+    DB::table('material_issue_lines')->insert([
+        'material_issue_id' => $issueId, 'line_no' => 1, 'item_id' => $certified->item_id,
+        'lot_id' => $certified->id, 'uom_id' => $certified->uom_id, 'qty' => 100, 'unit_cost' => 50,
+    ]);
+
+    // Accepted final QC, then a B-grade receipt.
+    $this->actingAs(User::query()->where('email', 'qc@octapussolution.com')->firstOrFail());
+    $this->post('/qc-inspections', ['job_card_id' => $this->jobCard->id, 'stage' => 'final', 'lot_size' => 500, 'major_found' => 0]);
+    $this->actingAs(User::query()->where('email', 'admin@octapussolution.com')->firstOrFail());
+    $receipt = $this->fgService->post($this->jobCard->refresh(), 1000, $this->fgWarehouseId, (string) Str::uuid(), grade: 'B');
+    $lot = DB::table('stock_lots')->where('id', $receipt->lot_id)->first();
+
+    expect($lot->cert_scheme)->toBeNull()
+        ->and((float) $lot->cert_claim_pct)->toBe(0.0)
+        ->and($lot->status)->toBe('available');
+
+    $list = draftPackingList($this, $lot, 500);
+
+    $this->get("/packing-lists/{$list->id}")
+        ->assertInertia(fn ($page) => $page
+            ->where('cartons.0.contents.0.grade', 'B')
+            ->where('availableLots', fn ($lots) => collect($lots)->contains(fn ($row) => (int) $row['id'] === (int) $lot->id && $row['grade'] === 'B')));
+});
+
+// GAP E-04 — carton edits and removals had no behavioural test.
+it('edits a carton\'s weights, removes a content line, and removes an empty carton', function (): void {
+    $lot = makeFgLot($this, 1000);
+    $list = draftPackingList($this, $lot, 400);
+    $carton = DB::table('cartons')->where('packing_list_id', $list->id)->firstOrFail();
+    $content = DB::table('carton_contents')->where('carton_id', $carton->id)->firstOrFail();
+
+    $this->put("/packing-lists/{$list->id}/cartons/{$carton->id}", ['gross_weight_kg' => 12.5, 'net_weight_kg' => 11.8])->assertSessionHasNoErrors();
+    expect((float) DB::table('cartons')->where('id', $carton->id)->value('gross_weight_kg'))->toBe(12.5);
+
+    $this->delete("/packing-lists/{$list->id}/cartons/{$carton->id}/contents/{$content->id}")->assertSessionHasNoErrors();
+    expect(DB::table('carton_contents')->where('id', $content->id)->exists())->toBeFalse();
+
+    $this->delete("/packing-lists/{$list->id}/cartons/{$carton->id}")->assertSessionHasNoErrors();
+    expect(DB::table('cartons')->where('id', $carton->id)->exists())->toBeFalse();
+});

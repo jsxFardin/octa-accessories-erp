@@ -183,7 +183,11 @@ class CostingController extends Controller
         ]);
     }
 
-    /** The settings a sheet starts from, for a page that is not the settings page. */
+    /**
+     * The settings a sheet starts from, for a page that is not the settings page.
+     *
+     * @return list<string>
+     */
     public static function factoryRateKeys(): array
     {
         return ['overhead_pct', 'admin_pct', 'default_margin_pct', 'margin_floor_pct', 'labour_rate_per_hour', 'tariff_per_kwh'];

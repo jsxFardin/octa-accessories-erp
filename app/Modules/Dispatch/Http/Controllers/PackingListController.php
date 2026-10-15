@@ -117,11 +117,13 @@ class PackingListController extends Controller
         $contents = DB::table('carton_contents as cc')
             ->join('cartons as c', 'c.id', '=', 'cc.carton_id')
             ->leftJoin('stock_lots as sl', 'sl.id', '=', 'cc.lot_id')
+            // DF-1 AC3 — the grade travels with the lot to the packer's screen.
+            ->leftJoin('fg_receipts as fr', 'fr.lot_id', '=', 'sl.id')
             ->leftJoin('products as p', 'p.id', '=', 'cc.product_id')
             ->leftJoin('items as pi', 'pi.id', '=', 'p.item_id')
             ->where('c.packing_list_id', $packingList->id)
             ->get(['cc.id', 'cc.carton_id', 'cc.sales_order_line_id', 'cc.qty', 'cc.bundles',
-                'sl.lot_no', 'sl.status as lot_status', 'sl.balance_qty', 'sl.cert_scheme',
+                'sl.lot_no', 'sl.status as lot_status', 'sl.balance_qty', 'sl.cert_scheme', 'fr.grade',
                 'pi.code as product_code']);
 
         return Inertia::render('Dispatch/PackingLists/Show', [
@@ -129,6 +131,7 @@ class PackingListController extends Controller
                 ...$packingList->only(['id', 'number', 'packed_on', 'total_cartons', 'total_qty',
                     'gross_weight_kg', 'net_weight_kg', 'status', 'cert_claim_scheme', 'cert_claim_pct', 'remarks']),
                 'sales_order' => $packingList->salesOrder?->only(['id', 'number']),
+                'claim' => $this->claimSummary($packingList, $contents),
             ],
             'cartons' => $packingList->cartons->map(fn (Carton $carton): array => [
                 ...$carton->only(['id', 'carton_no', 'barcode', 'gross_weight_kg', 'net_weight_kg']),
@@ -151,14 +154,54 @@ class PackingListController extends Controller
                     ->where('sl.kind', 'finished_goods')
                     ->where('sl.status', 'available')
                     ->where('sl.balance_qty', '>', 0)
+                    ->leftJoin('fg_receipts as fr', 'fr.lot_id', '=', 'sl.id')
                     ->distinct()
                     ->get(['sl.id', 'sl.lot_no', 'sl.product_id', 'sl.balance_qty', 'sl.warehouse_id',
-                        'sl.cert_scheme', 'sl.cert_claim_pct'])
+                        'sl.cert_scheme', 'sl.cert_claim_pct', 'fr.grade'])
                 : [],
             'availableTransitions' => $this->states->available($packingList),
             'challans' => DB::table('delivery_challans')->where('packing_list_id', $packingList->id)
                 ->get(['id', 'number', 'status', 'challan_date']),
         ]);
+    }
+
+    /**
+     * BR-41 — what the page says about the claim: carried, or computed and withheld.
+     *
+     * A packed list whose diluted claim fell short of the scheme's minimum carries no scheme,
+     * and "none" on its own reads as "no certified material went in". The figure and the
+     * minimum it missed are the difference between a packer wondering and a packer knowing.
+     *
+     * @param  \Illuminate\Support\Collection<int, \stdClass>  $contents
+     * @return array{scheme: ?string, pct: float, minimum_pct: ?float, claimed: bool}|null
+     */
+    private function claimSummary(PackingList $packingList, $contents): ?array
+    {
+        if ($packingList->status === 'draft') {
+            return null;
+        }
+
+        if ($packingList->cert_claim_scheme !== null) {
+            return [
+                'scheme' => $packingList->cert_claim_scheme,
+                'pct' => (float) $packingList->cert_claim_pct,
+                'minimum_pct' => PackingListStateMachine::minimumClaimPct($packingList->cert_claim_scheme),
+                'claimed' => true,
+            ];
+        }
+
+        $schemes = $contents->pluck('cert_scheme')->filter()->unique();
+
+        if ($schemes->count() !== 1 || (float) $packingList->cert_claim_pct <= 0) {
+            return null;
+        }
+
+        return [
+            'scheme' => (string) $schemes->first(),
+            'pct' => (float) $packingList->cert_claim_pct,
+            'minimum_pct' => PackingListStateMachine::minimumClaimPct((string) $schemes->first()),
+            'claimed' => false,
+        ];
     }
 
     /** Add a carton; its number is the next integer within this list (composite unique key). */

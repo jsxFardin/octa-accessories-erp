@@ -191,6 +191,51 @@ class WorkQueue
             ];
         }
 
+        if ($user->hasPermission('inquiry.view_any')) {
+            $idleDays = $this->settings->int('inquiry_follow_up_days', 7);
+
+            $entries[] = [
+                'key' => 'inquiries_idle',
+                'label' => 'Inquiries waiting on a quotation',
+                'count' => DB::table('inquiries')
+                    ->where('status', 'open')
+                    ->where(fn ($q) => $q->where('updated_at', '<', now()->subDays($idleDays))
+                        ->orWhere(fn ($q2) => $q2->whereNull('updated_at')->where('inquiry_date', '<', now()->subDays($idleDays)->toDateString())))
+                    ->count(),
+                'href' => '/inquiries?status=open&sort=inquiry_date',
+                'tone' => 'warning',
+                'hint' => "Open for more than {$idleDays} days with nothing quoted (SL-1).",
+            ];
+        }
+
+        if ($user->hasPermission('sample_request.view_any')) {
+            // AS-6 AC2 — the merchandiser's follow-up list: parcels with the customer and no verdict.
+            $entries[] = [
+                'key' => 'samples_awaiting_decision',
+                'label' => 'Samples awaiting the customer\'s decision',
+                'count' => DB::table('sample_requests')->where('status', 'dispatched')->count(),
+                'href' => '/sample-requests?status=dispatched',
+                'tone' => 'warning',
+                'hint' => 'Dispatched and not yet approved or rejected. Chase the tracking number on the list.',
+            ];
+        }
+
+        if ($user->hasPermission('tool.view_any')) {
+            $entries[] = [
+                'key' => 'tools_near_end_of_life',
+                'label' => 'Tools near the end of their life',
+                'count' => DB::table('tools')
+                    ->whereNotIn('status', ['scrapped'])
+                    ->whereNotNull('life_impressions')
+                    ->where('life_impressions', '>', 0)
+                    ->whereRaw('used_impressions >= life_impressions * 0.9')
+                    ->count(),
+                'href' => '/tools',
+                'tone' => 'warning',
+                'hint' => 'Past 90 % of their rated impressions — order the re-make before the next job needs them (PD-5).',
+            ];
+        }
+
         if ($user->hasPermission('quotation.view_any')) {
             $entries[] = [
                 'key' => 'quotations_expiring',

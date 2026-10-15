@@ -44,7 +44,7 @@ const busy = ref(null);
  * One key per intended write, made when its form opens (or, for START, when the screen does)
  * and kept until that write has gone — sent or queued. A second tap sends the same key.
  */
-const keys = reactive({ start: idempotencyKey(), log: null, downtime: null, finish: null });
+const keys = reactive({ start: idempotencyKey(), log: null, downtime: null, finish: null, pause: null });
 
 function open(next) {
     keys[next === 'confirm-finish' ? 'finish' : next] ??= idempotencyKey();
@@ -161,6 +161,22 @@ function finish() {
 
         keys.finish = null;
         router.visit('/floor/queue');
+    });
+}
+
+function pause() {
+    return sending('pause', async () => {
+        const result = await send(`/api/v1/operations/${props.operation.id}/pause`, {
+            downtime_reason_id: Number(downtimeReasonId.value),
+            shift_id: shiftId.value ? Number(shiftId.value) : null,
+        }, keys.pause, meta.value);
+
+        if (!handled(result)) return;
+
+        keys.pause = null;
+        report(result, label('paused'));
+        mode.value = null;
+        if (!result?.queued) router.reload();
     });
 }
 
@@ -303,21 +319,27 @@ async function sendNow() {
             <!-- Four buttons. That is the whole vocabulary. -->
             <template v-if="showNotSent" />
 
+            <!-- A step that has closed takes nothing more; the server would refuse every button. -->
+            <p
+                v-else-if="['completed', 'skipped', 'cancelled'].includes(operation.status)"
+                class="flex min-h-24 flex-col items-center justify-center rounded-2xl border-2 border-slate-500 px-3 text-center"
+                data-finished
+            >
+                <span class="text-2xl font-bold text-slate-200">{{ label('step_finished') }}</span>
+                <span class="text-base text-slate-400">{{ guide('running_hint_done') }}</span>
+            </p>
+
             <div v-else-if="!mode" class="grid grid-cols-2 gap-3">
                 <!--
                     A step that is already running has nothing to start. The greyed-out START
                     that sat here looked like a fault and gave no reason; this says what is true.
                 -->
-                <p
-                    v-if="operation.status === 'in_progress'"
-                    class="flex min-h-24 flex-col items-center justify-center rounded-2xl border-2 border-emerald-400 px-3 text-center"
-                    data-running
-                >
-                    <span class="text-2xl font-bold text-emerald-300">{{ label('running') }}</span>
-                    <span class="text-base text-slate-300">{{ guide('running_hint') }}</span>
-                </p>
+                <!-- Running: the slot becomes PAUSE. Paused: it becomes START again, which resumes. -->
+                <button v-if="operation.status === 'in_progress'" class="floor-btn bg-orange-500 text-slate-900" :disabled="busy !== null" @click="open('pause')">
+                    {{ label('pause') }}
+                </button>
                 <button v-else class="floor-btn bg-emerald-500" :disabled="busy !== null" @click="start">
-                    {{ busy === 'start' ? '…' : label('start') }}
+                    {{ busy === 'start' ? '…' : (operation.status === 'paused' ? label('resume') : label('start')) }}
                 </button>
                 <button class="floor-btn bg-sky-500" :disabled="busy !== null" @click="open('log')">{{ label('output') }}</button>
                 <button class="floor-btn bg-amber-500 text-slate-900" :disabled="busy !== null" @click="open('downtime')">{{ label('downtime') }}</button>
@@ -414,6 +436,29 @@ async function sendNow() {
                     <button class="floor-btn bg-slate-600" @click="mode = null">{{ label('cancel') }}</button>
                     <button class="floor-btn bg-emerald-500 disabled:opacity-30" :disabled="!noOutputReason || busy !== null" @click="finish">
                         {{ busy === 'finish' ? '…' : label('finish') }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- PAUSE: the reason now, the minutes when START is pressed again. -->
+            <div v-else-if="mode === 'pause'" class="space-y-4">
+                <p class="text-lg text-slate-300">{{ guide('pause_hint') }}</p>
+                <select v-model="downtimeReasonId" :aria-label="label('reason')" class="w-full rounded-xl bg-white/10 px-5 py-5 text-2xl text-white">
+                    <option value="" class="text-slate-900">— {{ label('choose_reason') }} —</option>
+                    <option v-for="reason in downtimeReasons" :key="reason.id" :value="reason.id" class="text-slate-900">
+                        {{ reason.name }}
+                    </option>
+                </select>
+                <select v-if="shifts.length" v-model="shiftId" :aria-label="label('choose_shift')" class="w-full rounded-xl bg-white/10 px-5 py-4 text-2xl text-white">
+                    <option value="" class="text-slate-900">— {{ label('choose_shift') }} —</option>
+                    <option v-for="shift in shifts" :key="shift.id" :value="shift.id" class="text-slate-900">
+                        {{ shift.name }}
+                    </option>
+                </select>
+                <div class="grid grid-cols-2 gap-3">
+                    <button class="floor-btn bg-slate-600" @click="mode = null">{{ label('cancel') }}</button>
+                    <button class="floor-btn bg-orange-500 text-slate-900 disabled:opacity-30" :disabled="!downtimeReasonId || busy !== null" @click="pause">
+                        {{ busy === 'pause' ? '…' : label('pause') }}
                     </button>
                 </div>
             </div>

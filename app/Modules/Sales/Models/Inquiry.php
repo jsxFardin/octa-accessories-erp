@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Models;
 
 use App\Support\Audit\Auditable;
+use App\Support\Scoping\BelongsToCustomer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -29,6 +30,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Inquiry extends Model
 {
     use Auditable;
+    use BelongsToCustomer;
 
     /** 05-workflows §1. `won`, `lost` and `cancelled` are decided; the rest can still move. */
     public const DRAFT = 'draft';
@@ -88,17 +90,23 @@ class Inquiry extends Model
         return $this->hasMany(InquiryLine::class, 'inquiry_id')->orderBy('line_no');
     }
 
+    /** @return BelongsTo<\App\Modules\MasterData\Models\CustomerContact, $this> */
     public function contact(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\CustomerContact::class, 'customer_contact_id');
     }
 
+    /** @return BelongsTo<\App\Modules\MasterData\Models\Brand, $this> */
     public function brand(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\MasterData\Models\Brand::class, 'brand_id');
     }
 
-    /** Whoever is handling it — the creator by default, reassignable on the form. */
+    /**
+     * Whoever is handling it — the creator by default, reassignable on the form.
+     *
+     * @return BelongsTo<\App\Models\User, $this>
+     */
     public function merchandiser(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'merchandiser_id');

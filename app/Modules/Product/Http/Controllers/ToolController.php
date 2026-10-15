@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Modules\Product\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\MasterData\Models\Customer;
 use App\Modules\Product\Models\Tool;
+use App\Support\Audit\AuditLogger;
 use App\Support\Http\ListsResources;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,14 +58,19 @@ class ToolController extends Controller
 
         return Inertia::render('Product/Tools/Index', [
             'tools' => $query->paginate($this->perPage($request))->withQueryString()->through(
-                fn (Tool $tool): array => [
-                    ...$tool->only(['id', 'code', 'kind', 'product_spec_id', 'colour_index', 'location',
-                        'made_on', 'cost', 'life_impressions', 'used_impressions', 'status',
-                        'cavity_count', 'tonnage', 'owner_customer_id', 'item_id']),
-                    'owner' => $tool->ownerCustomer?->name,
-                    'product' => $tool->spec?->product?->only(['id', 'code', 'name']),
-                    'spec_version' => $tool->spec?->version_no,
-                ],
+                function (Tool $tool): array {
+                    /** @var Customer|null $owner */
+                    $owner = $tool->ownerCustomer;
+
+                    return [
+                        ...$tool->only(['id', 'code', 'kind', 'product_spec_id', 'colour_index', 'location',
+                            'made_on', 'cost', 'life_impressions', 'used_impressions', 'status',
+                            'cavity_count', 'tonnage', 'owner_customer_id', 'item_id']),
+                        'owner' => $owner?->name,
+                        'product' => $tool->spec?->product?->only(['id', 'code', 'name']),
+                        'spec_version' => $tool->spec?->version_no,
+                    ];
+                },
             ),
             'filters' => $this->listingFilters($request, ['kind', 'status']),
             'kinds' => self::KINDS,
@@ -79,7 +86,7 @@ class ToolController extends Controller
                 ->whereIn('ps.status', ['current', 'draft'])
                 ->orderBy('pi.code')->orderByDesc('ps.version_no')
                 ->get(['ps.id', 'ps.version_no', 'ps.status', 'ps.colours', 'pi.code', 'pi.name']),
-            'customers' => \App\Modules\MasterData\Models\Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
+            'customers' => Customer::query()->active()->orderBy('name')->get(['id', 'code', 'name']),
             'toolItems' => \App\Modules\MasterData\Models\Item::query()->ofType('tool')->orderBy('code')->get(['id', 'code', 'name']),
         ]);
     }
@@ -120,8 +127,12 @@ class ToolController extends Controller
      *
      * Kept, not deleted: the jobs it ran still point at it.
      */
-    public function retire(Tool $tool): RedirectResponse
+    public function retire(Request $request, Tool $tool): RedirectResponse
     {
+        // PD-5 AC4 — worn out, damaged or lost: a tool leaves service with the reason on its
+        // audit row, because a plate retired at half its life is a question for the supplier.
+        $data = $request->validate(['reason' => ['required', 'string', 'max:255']]);
+
         if ($tool->status === 'scrapped') {
             return back()->with('error', "{$tool->code} is already retired.");
         }
@@ -130,7 +141,15 @@ class ToolController extends Controller
             return back()->with('error', "{$tool->code} is on a machine. Finish or hold the job using it before retiring it.");
         }
 
+        $from = $tool->status;
         $tool->update(['status' => 'scrapped']);
+
+        app(AuditLogger::class)->record($tool, 'status_changed', ['status' => $from], [
+            'status' => 'scrapped',
+            'reason' => $data['reason'],
+            'used_impressions' => $tool->used_impressions,
+            'life_impressions' => $tool->life_impressions,
+        ]);
 
         return back()->with('success', "Tool {$tool->code} retired. It can no longer be chosen for a job.");
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Models;
 
 use App\Support\Audit\Auditable;
+use App\Support\Scoping\BelongsToCustomer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -35,6 +36,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Quotation extends Model
 {
     use Auditable;
+    use BelongsToCustomer;
 
     protected $table = 'quotations';
 
@@ -130,18 +132,27 @@ class Quotation extends Model
         return $this->belongsTo(\App\Modules\MasterData\Models\Currency::class, 'currency_id');
     }
 
+    /** @return BelongsTo<Inquiry, $this> */
     public function inquiry(): BelongsTo
     {
         return $this->belongsTo(Inquiry::class, 'inquiry_id');
     }
 
-    /** Whoever raised it — the list and the page name them, and the list filters by them. */
+    /**
+     * Whoever raised it — the list and the page name them, and the list filters by them.
+     *
+     * @return BelongsTo<\App\Models\User, $this>
+     */
     public function merchandiser(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'merchandiser_id');
     }
 
-    /** Every revision carrying this number, oldest first — the document's own history. */
+    /**
+     * Every revision carrying this number, oldest first — the document's own history.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<Quotation>
+     */
     public function revisions(): \Illuminate\Database\Eloquent\Builder
     {
         return static::query()->where('number', $this->number)->whereNotNull('number')->orderBy('revision_no');
