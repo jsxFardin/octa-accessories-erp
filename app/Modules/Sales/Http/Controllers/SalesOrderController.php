@@ -311,6 +311,13 @@ class SalesOrderController extends Controller
             // F-01/F-02 — the order's own history: confirmed, held, amended, closed and by
             // whom. Recorded all along and shown nowhere.
             'factoryUnits' => DB::table('factory_units')->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            // Export LC — the customer's credit this order is shipped under, when there is one.
+            'letterOfCredit' => DB::table('lc_sales_orders as lso')
+                ->join('letters_of_credit as lc', 'lc.id', '=', 'lso.lc_id')
+                ->leftJoin('currencies as cur', 'cur.id', '=', 'lc.currency_id')
+                ->where('lso.sales_order_id', $salesOrder->id)
+                ->orderByDesc('lc.id')
+                ->first(['lc.id', 'lc.number', 'lc.lc_no', 'lc.status', 'lc.expiry_date', 'lc.last_shipment_date', 'lso.covered_amount', 'cur.code as currency']),
             'trail' => $this->trail->for($salesOrder, $request->user()),
             // P0-4 — the fulfilment strip: every figure from its authoritative source, the
             // packed number derived from carton contents rather than cached anywhere.

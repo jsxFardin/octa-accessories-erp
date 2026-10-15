@@ -285,8 +285,12 @@ it('loads every object the specification promises', function (): void {
     // 452 and 191: the three costing stages (spec §4) — a sheet belongs to a quotation line,
     // a sales order line or a job card, and names its stage.
     // 455 and 192: the cost sheet as a document (currency, submitter, approver; a status).
-    expect($tables)->toBe(164)
+    // 165 is `lc_sales_orders` (export LC): the sales orders a customer's credit pays for, the
+    // twin of `lc_purchase_orders`. Its two foreign keys plus three on `letters_of_credit`
+    // (customer, master credit, advising bank account) make 460; the direction vocabulary and
+    // the "an import credit names a supplier, an export credit a customer" rule make 194.
+    expect($tables)->toBe(165)
         ->and($views)->toBe(5)
-        ->and($foreignKeys)->toBe(455)
-        ->and($checks)->toBe(192);
+        ->and($foreignKeys)->toBe(460)
+        ->and($checks)->toBe(194);
 });

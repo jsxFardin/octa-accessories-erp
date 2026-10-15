@@ -154,6 +154,7 @@ class ExportRegistry
                 'permission' => 'letter_of_credit.export',
                 'from' => 'letters_of_credit as lc',
                 'joins' => [['suppliers as s', 's.id', 'lc.supplier_id']],
+                'where' => [['lc.direction', 'import']],
                 'searchable' => ['lc.number', 'lc.lc_no'],
                 'filters' => ['status' => 'lc.status', 'supplier' => 'lc.supplier_id', 'kind' => 'lc.kind'],
                 'columns' => [

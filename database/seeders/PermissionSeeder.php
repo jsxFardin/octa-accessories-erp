@@ -124,6 +124,9 @@ class PermissionSeeder extends Seeder
         // and the consignment are documents of their own, and `allocate` is separated from
         // `update` because it rewrites inventory valuation (BR-36).
         'letter_of_credit' => ['Supply', ['open', 'amend']],
+        // The export twin: a customer's bank opens the credit in our favour. Accepting the
+        // terms is merchandising's; realising the proceeds is accounts'.
+        'export_lc' => ['Commercial', ['accept', 'amend', 'realise']],
         'import_shipment' => ['Supply', ['cost', 'allocate']],
 
         // Money

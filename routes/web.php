@@ -59,6 +59,7 @@ use App\Modules\Sales\Http\Controllers\QuotationController;
 use App\Modules\Sales\Http\Controllers\SalesOrderController;
 use App\Modules\Sales\Http\Controllers\SalesReturnController;
 use App\Modules\Sampling\Http\Controllers\SampleRequestController;
+use App\Modules\Trade\Http\Controllers\ExportLetterOfCreditController;
 use App\Modules\Trade\Http\Controllers\ImportShipmentController;
 use App\Modules\Trade\Http\Controllers\LetterOfCreditController;
 use App\Support\Export\Http\Controllers\ExportController;
@@ -290,6 +291,24 @@ Route::middleware('auth')->group(function (): void {
 
     Route::post('inquiries/{inquiry}/transition', [InquiryController::class, 'transition'])
         ->middleware('can:inquiry.view')->name('inquiries.transition');
+
+    // Export letters of credit — the credit a customer's bank opens in our favour (plan: export LC).
+    Route::resource('export-lcs', ExportLetterOfCreditController::class)
+        ->parameters(['export-lcs' => 'exportLc'])
+        ->except(['destroy'])
+        ->middlewareFor(['index', 'show'], 'can:export_lc.view_any')
+        ->middlewareFor(['create', 'store'], 'can:export_lc.create')
+        ->middlewareFor(['edit', 'update'], 'can:export_lc.update');
+    Route::delete('export-lcs/{exportLc}', [ExportLetterOfCreditController::class, 'destroy'])
+        ->middleware('can:export_lc.delete')->name('export-lcs.destroy');
+    Route::post('export-lcs/{exportLc}/transition', [ExportLetterOfCreditController::class, 'transition'])
+        ->middleware('can:export_lc.view')->name('export-lcs.transition');
+    Route::post('export-lcs/{exportLc}/amend', [ExportLetterOfCreditController::class, 'amend'])
+        ->middleware('can:export_lc.amend')->name('export-lcs.amend');
+    Route::post('export-lcs/{exportLc}/orders', [ExportLetterOfCreditController::class, 'attachOrder'])
+        ->middleware('can:export_lc.update')->name('export-lcs.orders.attach');
+    Route::delete('export-lcs/{exportLc}/orders/{salesOrderId}', [ExportLetterOfCreditController::class, 'detachOrder'])
+        ->middleware('can:export_lc.update')->name('export-lcs.orders.detach');
 
     // Samples (AS-5 … AS-7): request, sample run, parcel, and the customer's decision per line.
     Route::resource('sample-requests', SampleRequestController::class)->except(['destroy'])

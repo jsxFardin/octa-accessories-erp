@@ -43,7 +43,7 @@ class LetterOfCreditController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = LetterOfCredit::query()->with(['supplier:id,code,name', 'bankAccount:id,code,name', 'currency:id,code']);
+        $query = LetterOfCredit::query()->import()->with(['supplier:id,code,name', 'bankAccount:id,code,name', 'currency:id,code']);
 
         $this->applyListing(
             $query,
@@ -77,8 +77,8 @@ class LetterOfCreditController extends Controller
             ),
             'filters' => $this->listingFilters($request, ['status', 'supplier', 'kind', 'expiring']),
             'counts' => [
-                ...$this->stageCounts('letters_of_credit'),
-                'expiring' => DB::table('letters_of_credit')
+                ...LetterOfCredit::query()->import()->selectRaw('status as stage, COUNT(*) as n')->groupBy('status')->pluck('n', 'stage')->map(fn ($n): int => (int) $n)->all(),
+                'expiring' => DB::table('letters_of_credit')->where('direction', LetterOfCredit::IMPORT)
                     ->whereDate('expiry_date', '<=', now()->addDays(14)->toDateString())
                     ->whereIn('status', $live)
                     ->count(),
@@ -101,6 +101,7 @@ class LetterOfCreditController extends Controller
         $letter = DB::transaction(function () use ($data, $request): LetterOfCredit {
             return LetterOfCredit::query()->create([
                 ...$data,
+                'direction' => LetterOfCredit::IMPORT,
                 // BR-34 — the number is allocated inside the transaction that writes the row.
                 'number' => $this->numbers->next('letter_of_credit'),
                 'status' => 'draft',

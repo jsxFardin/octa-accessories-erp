@@ -268,6 +268,12 @@ class ExportController extends Controller
             $query->leftJoin($table, $left, '=', $right);
         }
 
+        // Conditions the definition pins regardless of the request: a table shared by two
+        // documents (letters of credit, import and export) exports one of them per resource.
+        foreach ($definition['where'] ?? [] as [$column, $value]) {
+            $query->where($column, $value);
+        }
+
         $term = trim((string) $request->string('q'));
 
         if ($term !== '' && $definition['searchable'] !== []) {

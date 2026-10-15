@@ -208,6 +208,23 @@ class WorkQueue
             ];
         }
 
+        if ($user->hasPermission('export_lc.view_any')) {
+            $soon = now()->addDays(14)->toDateString();
+
+            $entries[] = [
+                'key' => 'export_lcs_expiring',
+                'label' => 'Export LCs near a deadline',
+                'count' => DB::table('letters_of_credit')->where('direction', 'export')
+                    ->whereIn('status', ['advised', 'accepted', 'shipped', 'presented', 'discrepant'])
+                    ->where(fn ($q) => $q->whereDate('expiry_date', '<=', $soon)
+                        ->orWhere(fn ($q2) => $q2->whereDate('last_shipment_date', '<=', $soon)->whereIn('status', ['advised', 'accepted'])))
+                    ->count(),
+                'href' => '/export-lcs?expiring=1',
+                'tone' => 'danger',
+                'hint' => 'Expiry or last shipment date within a fortnight, or already past. An amendment takes the bank a week.',
+            ];
+        }
+
         if ($user->hasPermission('sample_request.view_any')) {
             // AS-6 AC2 — the merchandiser's follow-up list: parcels with the customer and no verdict.
             $entries[] = [

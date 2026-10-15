@@ -39,8 +39,13 @@ CREATE TABLE letters_of_credit (
     number             VARCHAR(30),
     lc_no              VARCHAR(60),
     kind               VARCHAR(20) NOT NULL DEFAULT 'sight',
-    supplier_id        BIGINT UNSIGNED NOT NULL,
-    bank_account_id    BIGINT UNSIGNED,
+    direction          VARCHAR(10) NOT NULL DEFAULT 'import',  -- import: opened by us for a supplier; export: opened by a customer's bank for us
+    supplier_id        BIGINT UNSIGNED,                        -- import side
+    customer_id        BIGINT UNSIGNED,                        -- export side (the applicant)
+    master_lc_id       BIGINT UNSIGNED,                        -- an import LC opened back-to-back against this export LC
+    issuing_bank       VARCHAR(120),                           -- export: the customer's bank
+    bank_account_id    BIGINT UNSIGNED,                        -- import: our account charged
+    advising_bank_account_id BIGINT UNSIGNED,                  -- export: our account the proceeds land in
     currency_id        BIGINT UNSIGNED NOT NULL,
     exchange_rate      DECIMAL(18,8) NOT NULL DEFAULT 1,
     amount             DECIMAL(18,4) NOT NULL DEFAULT 0,
@@ -55,22 +60,41 @@ CREATE TABLE letters_of_credit (
     incoterm           VARCHAR(20),
     port_of_loading    VARCHAR(80),
     port_of_discharge  VARCHAR(80),
+    latest_presentation_days SMALLINT UNSIGNED NOT NULL DEFAULT 21,  -- export: days after shipment the documents must reach the bank
+    partial_shipment   BOOLEAN NOT NULL DEFAULT TRUE,
+    transhipment       BOOLEAN NOT NULL DEFAULT TRUE,
+    presented_on       DATE,                                   -- export: documents handed to the bank
+    realised_on        DATE,                                   -- export: proceeds received
+    realisation_ref    VARCHAR(60),
     status             VARCHAR(25) NOT NULL DEFAULT 'draft',
     remarks            VARCHAR(500),
     created_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     created_by         BIGINT UNSIGNED,
     UNIQUE KEY letters_of_credit_number_uq (number),
     KEY letters_of_credit_supplier_idx (supplier_id, status),
+    KEY letters_of_credit_customer_idx (customer_id, status),
+    KEY letters_of_credit_direction_idx (direction, status),
+    KEY letters_of_credit_master_idx (master_lc_id),
+    KEY letters_of_credit_advising_idx (advising_bank_account_id),
     KEY letters_of_credit_expiry_idx (status, expiry_date),
     KEY letters_of_credit_bank_idx (bank_account_id),
     KEY letters_of_credit_currency_idx (currency_id),
     KEY letters_of_credit_creator_idx (created_by),
     CONSTRAINT letters_of_credit_supplier_fk FOREIGN KEY (supplier_id)     REFERENCES suppliers(id),
     CONSTRAINT letters_of_credit_bank_fk     FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id),
+    CONSTRAINT letters_of_credit_customer_fk FOREIGN KEY (customer_id)     REFERENCES customers(id),
+    CONSTRAINT letters_of_credit_master_fk   FOREIGN KEY (master_lc_id)    REFERENCES letters_of_credit(id),
+    CONSTRAINT letters_of_credit_advising_fk FOREIGN KEY (advising_bank_account_id) REFERENCES bank_accounts(id),
     CONSTRAINT letters_of_credit_currency_fk FOREIGN KEY (currency_id)     REFERENCES currencies(id),
     CONSTRAINT letters_of_credit_creator_fk  FOREIGN KEY (created_by)      REFERENCES users(id),
     CONSTRAINT letters_of_credit_kind_chk   CHECK (kind IN ('sight','usance','back_to_back','tt','da','dp')),
-    CONSTRAINT letters_of_credit_status_chk CHECK (status IN ('draft','applied','opened','shipped','retired','closed','cancelled')),
+    CONSTRAINT letters_of_credit_direction_chk CHECK (direction IN ('import','export')),
+    -- An import credit names its supplier; an export credit names its customer. Never neither.
+    CONSTRAINT letters_of_credit_party_chk CHECK (
+        (direction = 'import' AND supplier_id IS NOT NULL) OR (direction = 'export' AND customer_id IS NOT NULL)),
+    CONSTRAINT letters_of_credit_status_chk CHECK (status IN (
+        'draft','applied','opened','shipped','retired','closed','cancelled',
+        'advised','accepted','presented','discrepant','realised')),
     CONSTRAINT letters_of_credit_amount_chk CHECK (amount >= 0),
     CONSTRAINT letters_of_credit_dates_chk CHECK (
         expiry_date IS NULL OR last_shipment_date IS NULL OR last_shipment_date <= expiry_date)

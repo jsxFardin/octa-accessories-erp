@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Modules\Trade\Models;
 
 use App\Modules\MasterData\Models\Currency;
+use App\Modules\MasterData\Models\Customer;
 use App\Modules\MasterData\Models\Supplier;
 use App\Modules\Procurement\Models\PurchaseOrder;
+use App\Modules\Sales\Models\SalesOrder;
 use App\Support\Audit\Auditable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -25,7 +28,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $number
  * @property string|null $lc_no
  * @property string $kind
- * @property int $supplier_id
+ * @property string $direction
+ * @property int|null $supplier_id
+ * @property int|null $customer_id
+ * @property int|null $master_lc_id
+ * @property string|null $issuing_bank
+ * @property int|null $advising_bank_account_id
+ * @property int $latest_presentation_days
+ * @property bool $partial_shipment
+ * @property bool $transhipment
+ * @property \Illuminate\Support\Carbon|null $presented_on
+ * @property \Illuminate\Support\Carbon|null $realised_on
+ * @property string|null $realisation_ref
  * @property int|null $bank_account_id
  * @property int $currency_id
  * @property string $exchange_rate
@@ -55,6 +69,34 @@ class LetterOfCredit extends Model
 
     public const STATUSES = ['draft', 'applied', 'opened', 'shipped', 'retired', 'closed', 'cancelled'];
 
+    public const IMPORT = 'import';
+
+    public const EXPORT = 'export';
+
+    /** The export side: a customer's bank opens the credit in our favour, and we are the beneficiary. */
+    public const EXPORT_KINDS = ['sight', 'usance', 'tt', 'da', 'dp'];
+
+    public const ADVISED = 'advised';
+
+    public const ACCEPTED = 'accepted';
+
+    public const SHIPPED = 'shipped';
+
+    public const PRESENTED = 'presented';
+
+    public const DISCREPANT = 'discrepant';
+
+    public const REALISED = 'realised';
+
+    public const CLOSED = 'closed';
+
+    public const CANCELLED = 'cancelled';
+
+    public const EXPORT_STATUSES = [self::ADVISED, self::ACCEPTED, self::SHIPPED, self::PRESENTED, self::DISCREPANT, self::REALISED, self::CLOSED, self::CANCELLED];
+
+    /** Export stages where the dates are still deadlines and an amendment still makes sense. */
+    public const EXPORT_LIVE = [self::ADVISED, self::ACCEPTED, self::SHIPPED, self::PRESENTED, self::DISCREPANT];
+
     protected $table = 'letters_of_credit';
 
     public const UPDATED_AT = null;
@@ -63,8 +105,13 @@ class LetterOfCredit extends Model
         'number',
         'lc_no',
         'kind',
+        'direction',
         'supplier_id',
+        'customer_id',
+        'master_lc_id',
+        'issuing_bank',
         'bank_account_id',
+        'advising_bank_account_id',
         'currency_id',
         'exchange_rate',
         'amount',
@@ -79,6 +126,12 @@ class LetterOfCredit extends Model
         'incoterm',
         'port_of_loading',
         'port_of_discharge',
+        'latest_presentation_days',
+        'partial_shipment',
+        'transhipment',
+        'presented_on',
+        'realised_on',
+        'realisation_ref',
         'status',
         'remarks',
         'created_by',
@@ -89,7 +142,15 @@ class LetterOfCredit extends Model
     {
         return [
             'supplier_id' => 'integer',
+            'customer_id' => 'integer',
+            'master_lc_id' => 'integer',
             'bank_account_id' => 'integer',
+            'advising_bank_account_id' => 'integer',
+            'latest_presentation_days' => 'integer',
+            'partial_shipment' => 'boolean',
+            'transhipment' => 'boolean',
+            'presented_on' => 'date:Y-m-d',
+            'realised_on' => 'date:Y-m-d',
             'currency_id' => 'integer',
             'exchange_rate' => 'decimal:8',
             'amount' => 'decimal:4',
@@ -110,6 +171,54 @@ class LetterOfCredit extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * Export side — the applicant.
+     *
+     * @return BelongsTo<Customer, $this>
+     */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * Export side — our account the proceeds land in.
+     *
+     * @return BelongsTo<BankAccount, $this>
+     */
+    public function advisingBankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class, 'advising_bank_account_id');
+    }
+
+    /**
+     * The export credit an import credit was opened back-to-back against.
+     *
+     * @return BelongsTo<LetterOfCredit, $this>
+     */
+    public function masterLc(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'master_lc_id');
+    }
+
+    /** @return BelongsToMany<SalesOrder, $this> */
+    public function salesOrders(): BelongsToMany
+    {
+        return $this->belongsToMany(SalesOrder::class, 'lc_sales_orders', 'lc_id', 'sales_order_id')->withPivot('covered_amount');
+    }
+
+    /** @param  Builder<LetterOfCredit>  $query */
+    public function scopeImport(Builder $query): void
+    {
+        $query->where('direction', self::IMPORT);
+    }
+
+    /** @param  Builder<LetterOfCredit>  $query */
+    public function scopeExport(Builder $query): void
+    {
+        $query->where('direction', self::EXPORT);
     }
 
     /**

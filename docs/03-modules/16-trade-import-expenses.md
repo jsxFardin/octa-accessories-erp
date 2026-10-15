@@ -127,3 +127,30 @@ An expense may name an `import_shipment_id`. That is a reporting link, not a cos
 - AC2: The person who raised it cannot approve it.
 - AC3: An approved expense is frozen against editing.
 - AC4: Only an approved expense can be marked paid, under `expense.pay`.
+
+---
+
+## Export letters of credit (Sales side)
+
+The same `letters_of_credit` table with `direction = 'export'`: a customer's bank opens the credit in
+our favour, so the bank's `lc_no` is known on the day it is advised and is required on save; our
+`number` (ELC series) is given at the same time. `customer_id` is the applicant, `issuing_bank` their
+bank, `advising_bank_account_id` our account the proceeds land in.
+
+**Lifecycle (beneficiary's):** `advised → accepted → shipped → presented → realised → closed`, with
+`discrepant` reachable from `presented` and back, and `cancelled` while nothing has shipped. Accepting
+needs the expiry and last-shipment dates; `shipped` is written by the export shipment, never by hand;
+`realised` is accounts' (`export_lc.realise`) and needs the bank's realisation reference.
+
+Once accepted the terms are the bank's: the edit form saves only the banks, the charges and the remarks;
+value and dates move through the same amendments as an import credit (`LcAmendmentService`).
+
+`lc_sales_orders` is the twin of `lc_purchase_orders`: one credit covers several of the customer's
+orders, in the credit's currency (BR-56). The order page says which credit covers it and warns when the
+delivery date falls after the credit's last shipment date.
+
+`master_lc_id` on an import credit names the export credit it was opened back-to-back against; the
+export credit lists them against `btb_limit_pct`. Stated, not enforced.
+
+Screens: `/export-lcs` (Sales), `/export-lcs/{id}`. Dashboard: export LCs near a deadline.
+Export shipments, documents and the drawn/realised position follow in later steps (docs/PLAN_EXPORT_LC.md).

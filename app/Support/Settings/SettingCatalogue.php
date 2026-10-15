@@ -79,6 +79,8 @@ class SettingCatalogue
         'ncr_capa_days_major' => ['quality', 'CAPA deadline, major NCR', 'days', 'Days from raising a major NCR to its CAPA due date when the investigator sets none (QL-7).'],
         'ncr_capa_days_minor' => ['quality', 'CAPA deadline, minor NCR', 'days', 'Days from raising a minor NCR to its CAPA due date when the investigator sets none (QL-7).'],
         'inquiry_follow_up_days' => ['sales', 'Inquiry follow-up', 'days', 'An open inquiry with nothing quoted for this long is listed for follow-up on the dashboard (SL-1).'],
+        'export_presentation_days' => ['sales', 'LC presentation period', 'days', 'Days after shipment the documents under an export letter of credit must reach the bank; a shipped credit past this is listed for follow-up.'],
+        'btb_limit_pct' => ['sales', 'Back-to-back limit', '%', 'How much of a master export letter of credit may be opened back-to-back as import credits. Stated on the credit, not enforced.'],
         'item_activation_requires_qc_plan' => ['inventory', 'Activation needs a QC plan', null, 'When on, an item cannot be made active until a QC plan reference is recorded on it (IM-1). Turn on once inspection plans are in use.'],
         'item_activation_requires_accounts' => ['inventory', 'Activation needs account mapping', null, 'When on, an item cannot be made active until its inventory and cost-of-sales accounts are set (IM-1). Turn on once the chart of accounts is in use.'],
 

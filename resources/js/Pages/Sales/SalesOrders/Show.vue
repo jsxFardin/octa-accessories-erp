@@ -27,6 +27,8 @@ function amendValue(value) {
 const props = defineProps({
     /** PL-3 — where generated job cards run. */
     factoryUnits: { type: Array, default: () => [] },
+    /** The export LC this order is covered by, or null. */
+    letterOfCredit: { type: Object, default: null },
     order: { type: Object, required: true },
     lines: { type: Array, default: () => [] },
     readiness: { type: Array, default: () => [] },
@@ -307,6 +309,21 @@ const lineColumns = [
         </template>
 
         <div class="space-y-4">
+            <!-- The credit the customer pays through, and whether its dates still fit the order. -->
+            <div v-if="letterOfCredit" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-sm" :class="order.delivery_date && letterOfCredit.last_shipment_date && order.delivery_date > letterOfCredit.last_shipment_date ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-slate-200 bg-white text-ink-800'">
+                <span>
+                    Covered by export LC <Link :href="`/export-lcs/${letterOfCredit.id}`" class="doc-link">{{ letterOfCredit.number }}</Link>
+                    <span class="text-ink-500">· bank no. {{ letterOfCredit.lc_no }}</span>
+                    · {{ money(letterOfCredit.covered_amount, letterOfCredit.currency) }} covered
+                    <Badge :status="letterOfCredit.status" class="ml-1" />
+                </span>
+                <span class="text-xs">
+                    <template v-if="letterOfCredit.last_shipment_date">Ship by {{ date(letterOfCredit.last_shipment_date) }}</template>
+                    <template v-if="letterOfCredit.expiry_date"> · expires {{ date(letterOfCredit.expiry_date) }}</template>
+                    <template v-if="order.delivery_date && letterOfCredit.last_shipment_date && order.delivery_date > letterOfCredit.last_shipment_date"> · the delivery date is after the last shipment date</template>
+                </span>
+            </div>
+
             <!-- S3: what blocks confirmation, stated before the button is pressed -->
             <div
                 v-if="notReady.length && order.status === 'draft'"
