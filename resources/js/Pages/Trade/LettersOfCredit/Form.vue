@@ -11,6 +11,8 @@ const props = defineProps({
     bankAccounts: { type: Array, default: () => [] },
     currencies: { type: Array, default: () => [] },
     kinds: { type: Array, default: () => [] },
+    /** Export credits an import credit can be opened back-to-back against. */
+    masters: { type: Array, default: () => [] },
 });
 
 const isEdit = computed(() => Boolean(props.letter));
@@ -19,7 +21,7 @@ const isEdit = computed(() => Boolean(props.letter));
 const locked = computed(() => isEdit.value && props.letter.status !== 'draft');
 
 /** The two things that still save once the bank holds the credit. */
-const STILL_EDITABLE = ['lc_no', 'remarks'];
+const STILL_EDITABLE = ['lc_no', 'remarks', 'master_lc_id'];
 
 /** How the stored kinds are said. */
 const KIND_LABELS = {
@@ -57,6 +59,11 @@ const layout = computed(() => [
                 options: props.suppliers.map((s) => ({ value: s.id, label: `${s.code} · ${s.name}` })),
             },
             { key: 'lc_no', label: 'Bank LC number', hint: 'Blank until the bank opens it.' },
+            {
+                key: 'master_lc_id', label: 'Back-to-back against', type: 'select',
+                options: props.masters.map((m) => ({ value: m.id, label: `${m.number} · ${m.lc_no} · ${m.customer}` })),
+                hint: 'The export credit this one is opened against, for a back-to-back credit.',
+            },
             {
                 key: 'bank_account_id', label: 'Issuing bank account', type: 'select',
                 options: props.bankAccounts.map((b) => ({ value: b.id, label: `${b.code} · ${b.bank_name}` })),

@@ -4,8 +4,11 @@ Mirror of the Buying trade module (`docs/03-modules/16-trade-import-expenses.md`
 *letter of credit → purchase orders → import shipment → receipts → landed cost*, Sales gets
 *export LC → sales orders → export shipment → delivery notes → documents → proceeds*.
 
-Status: proposal, 2026-10-15. Nothing here is built yet. Closes GAP F-07 (export documents, DF-6)
-and adds the export-LC half that the spec only hints at (`sales_invoices.lc_no`, receipt method `lc`).
+Status: built, 2026-10-15, on branch `gap-fixes-2` (steps 1–5, one commit each). Closes GAP F-07 (export
+documents, DF-6) and adds the export-LC half that the spec only hints at (`sales_invoices.lc_no`, receipt
+method `lc`). Deviations from the proposal: `advising_bank_account_id` is a column beside `bank_account_id`
+rather than a reuse; the drafts carry no HS code (not on the product master yet); export costs (phase 2) and
+the automatic document generation on arrival of a BL/AWB were not built. Open questions in §6 still stand.
 
 ---
 

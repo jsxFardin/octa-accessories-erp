@@ -34,7 +34,7 @@ class LetterOfCreditController extends Controller
     use RefusesActions;
 
     /** An LC that has left draft is a commitment; only these fields still move. */
-    private const EDITABLE_AFTER_DRAFT = ['lc_no', 'issued_on', 'remarks', 'bank_account_id', 'charges_amount'];
+    private const EDITABLE_AFTER_DRAFT = ['lc_no', 'issued_on', 'remarks', 'bank_account_id', 'charges_amount', 'master_lc_id'];
 
     public function __construct(
         private readonly NumberAllocator $numbers,
@@ -124,6 +124,8 @@ class LetterOfCreditController extends Controller
                 'bank_name' => $letterOfCredit->bankAccount?->name,
                 'current_amount' => $letterOfCredit->currentAmount(),
                 'effective_expiry' => $letterOfCredit->effectiveExpiry(),
+                'master' => $letterOfCredit->master_lc_id === null ? null
+                    : DB::table('letters_of_credit')->where('id', $letterOfCredit->master_lc_id)->first(['id', 'number', 'lc_no']),
                 // BR-55 — face value, amendments and charges are all in the credit's currency.
                 'currency' => $letterOfCredit->currency?->only(['id', 'code', 'name', 'symbol']),
             ],
@@ -342,6 +344,8 @@ class LetterOfCreditController extends Controller
             'lc_no' => ['nullable', 'string', 'max:60'],
             'kind' => ['required', Rule::in(LetterOfCredit::KINDS)],
             'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
+            // Back-to-back: the export credit this one is opened against. Only an export credit can be a master.
+            'master_lc_id' => ['nullable', 'integer', Rule::exists('letters_of_credit', 'id')->where('direction', LetterOfCredit::EXPORT)],
             'bank_account_id' => ['nullable', 'integer', 'exists:bank_accounts,id'],
             'currency_id' => ['required', 'integer', 'exists:currencies,id'],
             'exchange_rate' => ['numeric', 'gt:0'],
@@ -382,6 +386,11 @@ class LetterOfCreditController extends Controller
                 ->get(['id', 'code', 'name', 'bank_name', 'currency_id']),
             'currencies' => DB::table('currencies')->orderBy('code')->get(['id', 'code', 'name']),
             'kinds' => LetterOfCredit::KINDS,
+            'masters' => DB::table('letters_of_credit as lc')->join('customers as c', 'c.id', '=', 'lc.customer_id')
+                ->where('lc.direction', LetterOfCredit::EXPORT)
+                ->whereIn('lc.status', ['advised', 'accepted', 'shipped', 'presented', 'discrepant'])
+                ->orderByDesc('lc.id')
+                ->get(['lc.id', 'lc.number', 'lc.lc_no', 'c.name as customer']),
         ];
     }
 }

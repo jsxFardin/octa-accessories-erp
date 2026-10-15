@@ -181,3 +181,8 @@ origin are print-registry documents drawn from the shipment (`/export-shipments/
 and siblings). "Draft it" on the checklist files the PDF and records a `drafted` row that satisfies the
 checklist; drafting again replaces the draft. The merchandiser checks the draft against the credit's wording
 and marks it issued, then submitted. HS codes are not yet on the product master, so the drafts carry none.
+
+**Back-to-back and the register.** An import credit names `master_lc_id`, the export credit it is opened
+against; the export credit page lists them against `btb_limit_pct`. The export register report
+(`/reports/export-register`) lists every export credit with drawn, realised and available figures, its
+shipments and EXP forms, presentation and realisation dates.

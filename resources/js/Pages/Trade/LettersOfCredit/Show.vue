@@ -144,6 +144,7 @@ const covered = computed(() => props.purchaseOrders.reduce((sum, po) => sum + Nu
         <template #subtitle>
             {{ letter.supplier_name }} · {{ titleCase(letter.kind) }}
             <template v-if="letter.lc_no"> · bank ref {{ letter.lc_no }}</template>
+            <template v-if="letter.master"> · back-to-back against <a :href="`/export-lcs/${letter.master.id}`" class="doc-link">{{ letter.master.number }}</a></template>
         </template>
 
         <template #actions>

@@ -97,7 +97,7 @@ it('lists the reports for an authorised reader', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('Reports/Index')
-            ->has('reports', 9)
+            ->has('reports', 10)
             ->where('reports.0.key', 'fulfilment'));
 
     foreach (['fulfilment', 'production', 'stock', 'dispatch', 'receivables', 'payables', 'purchases', 'ncr-capa'] as $key) {

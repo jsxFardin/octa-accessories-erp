@@ -6,6 +6,7 @@ namespace App\Modules\Reporting;
 
 use App\Modules\Reporting\Queries\CostVarianceReport;
 use App\Modules\Reporting\Queries\DispatchReport;
+use App\Modules\Reporting\Queries\ExportRegisterReport;
 use App\Modules\Reporting\Queries\FulfilmentReport;
 use App\Modules\Reporting\Queries\NcrCapaReport;
 use App\Modules\Reporting\Queries\PayablesReport;
@@ -38,6 +39,7 @@ final class ReportCatalogue
             'purchases' => PurchaseReport::class,
             'ncr-capa' => NcrCapaReport::class,
             'cost-variance' => CostVarianceReport::class,
+            'export-register' => ExportRegisterReport::class,
         ];
     }
 

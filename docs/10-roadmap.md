@@ -79,7 +79,7 @@ That is one complete order, end to end, in the system. Everything else — fleet
 | 16 | Fleet | Trips, drop sequencing, driver screen, offline POD capture, vehicle compliance alerts (DF-4, DF-5) |
 | 17 | Finance | Invoicing from challan, receipts and allocation, credit notes, ageing, credit control, accounting export (FN-1…FN-7) |
 | 18 | Reporting | Report engine, exports, scheduling; the dashboards from [14-reports-bi](03-modules/14-reports-bi.md) |
-| 19 | Samples, NCR/CAPA, export docs | Sample lifecycle, NCR/CAPA, export documentation checklist (AS-5…AS-7, QL-7, QL-8, DF-6) |
+| 19 | Samples, NCR/CAPA, export docs | Sample lifecycle, NCR/CAPA, export documentation checklist (AS-5…AS-7, QL-7, QL-8, DF-6) — sampling and export documents landed in October 2026, with export LCs and export shipments (docs/PLAN_EXPORT_LC.md) |
 
 **Exit criteria:** the paper system is switched off. Compliance can produce a GRS reconciliation without opening Excel.
 
