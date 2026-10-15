@@ -216,7 +216,7 @@ One row per finding as it is closed. `Done (sha)` names the commit; `Deferred` a
 | M-08 | Done — issuing past the BOM requirement plus wastage needs a reason on the line, stored on the issue line |
 | P-14 | Partly done — a made item that prints artwork cannot go active without an approved version. BOM activation validation, `formula_ref`, artwork preview/submission sheet and re-approval flagging remain open |
 | D-07 | Partly done — every response carries `X-Request-Id`, shared into the log context; `/up` proves the database, cache and disk and reports the queue. No error tracker, no backups |
-| S-07 | Partly done — Argon2id with rehash on login; self-service password reset (`/forgot-password`, mailed link, same password rule, other sessions ended). MFA for md/admin/accounts remains open |
+| S-07 | Done — Argon2id with rehash on login; self-service password reset; two-step sign-in with an authenticator app (TOTP, RFC 6238, no package), enrolled and confirmed from the profile, challenged after the password, mandatory for super_admin, md and accounts: a week to enrol from account creation, counted down on the profile page, then only the profile page opens until they do |
 | D-01 | Done — the ledger model refuses update and delete; the production DB role should still lack those grants |
 | P-13 | Partly done — a revision copies each line's cost sheet, open, so it can be sent without re-saving. Revision diff, override reasons on quotation knobs, minimum-charge acknowledgement, what-if and the ±5 % flag remain open |
 | M-07 | Partly done — reaching QC raises the final inspection and the verdict lands on it. J5 supervisor approval and returning issued material on cancel remain open |

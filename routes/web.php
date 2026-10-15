@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Modules\Compliance\Http\Controllers\ComplianceController;
@@ -92,6 +93,10 @@ Route::middleware('guest')->group(function (): void {
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->middleware('throttle:login')->name('password.email');
     Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
     Route::post('reset-password', [NewPasswordController::class, 'store'])->middleware('throttle:login')->name('password.store');
+
+    // NFR-19 — the second step of signing in; the password step parks the user here.
+    Route::get('two-factor-challenge', [TwoFactorChallengeController::class, 'create'])->name('two-factor.challenge');
+    Route::post('two-factor-challenge', [TwoFactorChallengeController::class, 'store'])->middleware('throttle:login');
 });
 
 Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
@@ -104,6 +109,10 @@ Route::middleware('auth')->group(function (): void {
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
     Route::put('profile/locale', [ProfileController::class, 'updateLocale'])->name('profile.locale');
+    // NFR-19 — two-step sign-in, set up and confirmed by the account's own owner.
+    Route::post('profile/two-factor', [ProfileController::class, 'twoFactorSetup'])->name('profile.two-factor.setup');
+    Route::post('profile/two-factor/confirm', [ProfileController::class, 'twoFactorConfirm'])->name('profile.two-factor.confirm');
+    Route::delete('profile/two-factor', [ProfileController::class, 'twoFactorDisable'])->name('profile.two-factor.disable');
 
     // Own-user inbox: every authenticated user reads their own rows. A permission here
     // would either lock the bell or grant nothing the ownership query does not already.

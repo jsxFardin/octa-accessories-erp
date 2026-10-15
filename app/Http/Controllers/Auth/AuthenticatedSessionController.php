@@ -52,6 +52,20 @@ class AuthenticatedSessionController extends Controller
             ]);
         }
 
+        // NFR-19 — an account with two-step sign-in on is not signed in yet: who they are is
+        // parked for ten minutes and the authenticator code completes it (TwoFactorChallenge).
+        if ($user->two_factor_confirmed_at !== null && $user->two_factor_secret !== null) {
+            Auth::logout();
+            $request->session()->regenerate();
+            $request->session()->put(TwoFactorChallengeController::SESSION_KEY, [
+                'user_id' => $user->getKey(),
+                'remember' => $request->boolean('remember'),
+                'expires_at' => time() + 600,
+            ]);
+
+            return redirect()->route('two-factor.challenge');
+        }
+
         $request->session()->regenerate();
         $user->forceFill(['last_login_at' => now()])->save();
 

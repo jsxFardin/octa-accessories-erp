@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\RequireTwoFactor;
 use App\Http\Middleware\SetLocale;
 use App\Support\Http\LandingPage;
 use Illuminate\Foundation\Application;
@@ -58,6 +59,9 @@ return Application::configure(basePath: dirname(__DIR__))
              * administrator, ends a stolen or shared session on its next request.
              */
             AuthenticateSession::class,
+            // NFR-19 — roles that move money or change permissions enrol in two-step sign-in
+            // before they use anything but their profile.
+            RequireTwoFactor::class,
             SetLocale::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
